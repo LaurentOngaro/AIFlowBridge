@@ -1,7 +1,7 @@
 import vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { DeepSeekClient } from '../client';
-import { getApiModelId, getBaseUrl, getMaxTokens } from '../config';
+import { getApiModelId, getProviderBaseUrl, getMaxTokens } from '../config';
 import { MODELS } from '../consts';
 import { t } from '../i18n';
 import type { DeepSeekRequest } from '../types';
@@ -55,12 +55,13 @@ export async function prepareChatRequest({
 	cacheDiagnostics,
 	getVisionModel,
 }: PrepareChatRequestOptions): Promise<PreparedChatRequest> {
-	const apiKey = await authManager.getApiKey();
+	const apiKey = await authManager.getApiKey('deepseek');
 	if (!apiKey) {
-		throw new Error(t('auth.notConfigured'));
+		const providerName = t('provider.deepseek.name');
+		throw new Error(t('auth.notConfigured', providerName, `aiflowbridge.providers.deepseek.setApiKey`));
 	}
 
-	const client = new DeepSeekClient(getBaseUrl(), apiKey);
+	const client = new DeepSeekClient(getProviderBaseUrl('deepseek'), apiKey);
 	const modelDef = MODELS.find((m) => m.id === modelInfo.id);
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 	const thinkingEffort = getConfiguredThinkingEffort(options as ModelConfigurationOptions);

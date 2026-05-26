@@ -1,211 +1,293 @@
 {
-  "name": "deepseek-v4-for-copilot",
-  "displayName": "DeepSeek V4 for Copilot Chat",
-  "description": "Pick DeepSeek V4 Pro & Flash from the Copilot Chat model picker. Vision, thinking mode, agent tools — zero config, BYOK.",
+  "name": "aiflowbridge",
+  "displayName": "AIFlowBridge",
+  "description": "Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.",
   "icon": "resources/icon.png",
-  "version": "0.5.2",
-  "publisher": "Vizards",
+  "version": "0.1.0",
+  "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Vizards/deepseek-v4-for-copilot"
+    "url": "https://github.com/ongaro-fr/aiflowbridge"
   },
   "engines": {
-    "vscode": "^1.116.0",
-    "node": ">=24"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "AI",
-    "Chat",
     "Programming Languages"
   ],
   "keywords": [
-    "deepseek",
-    "deepseek v4",
-    "deepseek-v4",
-    "copilot",
-    "github copilot",
-    "copilot chat",
-    "vision",
-    "byok",
-    "language model",
-    "thinking",
-    "reasoning",
     "ai",
-    "chat"
+    "copilot",
+    "deepseek",
+    "minimax",
+    "xiaomi",
+    "mimo",
+    "vision",
+    "proxy",
+    "metrics",
+    "llm",
+    "language model"
   ],
   "activationEvents": [
-    "onUri",
     "onStartupFinished"
   ],
-  "enabledApiProposals": [],
   "main": "./out/extension.js",
   "contributes": {
     "languageModelChatProviders": [
       {
         "vendor": "deepseek",
         "displayName": "DeepSeek"
+      },
+      {
+        "vendor": "minimax",
+        "displayName": "MiniMax"
+      },
+      {
+        "vendor": "xiaomi",
+        "displayName": "Xiaomi MiMo"
       }
     ],
     "commands": [
       {
-        "command": "deepseek-copilot.setApiKey",
-        "title": "%deepseek-copilot.command.setApiKey%"
+        "command": "aiflowbridge.refreshMetrics",
+        "title": "AIFlowBridge: Refresh metrics"
       },
       {
-        "command": "deepseek-copilot.getApiKey",
-        "title": "%deepseek-copilot.command.getApiKey%"
+        "command": "aiflowbridge.showMetrics",
+        "title": "AIFlowBridge: Show metrics dashboard"
       },
       {
-        "command": "deepseek-copilot.clearApiKey",
-        "title": "%deepseek-copilot.command.clearApiKey%"
+        "command": "aiflowbridge.startGateway",
+        "title": "AIFlowBridge: Start local gateway"
       },
       {
-        "command": "deepseek-copilot.setVisionModel",
-        "title": "%deepseek-copilot.command.setVisionModel%"
+        "command": "aiflowbridge.stopGateway",
+        "title": "AIFlowBridge: Stop local gateway"
       },
       {
-        "command": "deepseek-copilot.openSettings",
-        "title": "%deepseek-copilot.command.openSettings%"
+        "command": "aiflowbridge.copyGatewayUrl",
+        "title": "AIFlowBridge: Copy gateway URL"
       },
       {
-        "command": "deepseek-copilot.showLogs",
-        "title": "%deepseek-copilot.command.showLogs%"
+        "command": "aiflowbridge.openSettings",
+        "title": "AIFlowBridge: Open settings"
       },
       {
-        "command": "deepseek-copilot.openRequestDumpsFolder",
-        "title": "%deepseek-copilot.command.openRequestDumpsFolder%"
+        "command": "aiflowbridge.setVisionModel",
+        "title": "AIFlowBridge: Set vision proxy model"
+      },
+      {
+        "command": "aiflowbridge.showLogs",
+        "title": "AIFlowBridge: Show logs"
+      },
+      {
+        "command": "aiflowbridge.openRequestDumpsFolder",
+        "title": "AIFlowBridge: Open request dumps folder"
+      },
+      {
+        "command": "aiflowbridge.getApiKey",
+        "title": "AIFlowBridge: Get DeepSeek API key"
+      },
+      {
+        "command": "aiflowbridge.providers.deepseek.setApiKey",
+        "title": "DeepSeek: Set API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.deepseek.clearApiKey",
+        "title": "DeepSeek: Clear API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.minimax.setApiKey",
+        "title": "MiniMax: Set API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.minimax.clearApiKey",
+        "title": "MiniMax: Clear API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.xiaomi.setApiKey",
+        "title": "Xiaomi MiMo: Set API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.xiaomi.clearApiKey",
+        "title": "Xiaomi MiMo: Clear API Key"
       }
     ],
-    "walkthroughs": [
+    "keybindings": [
       {
-        "id": "deepseekGettingStarted",
-        "title": "%deepseek-copilot.walkthrough.title%",
-        "description": "%deepseek-copilot.walkthrough.description%",
-        "steps": [
-          {
-            "id": "setApiKey",
-            "title": "%deepseek-copilot.walkthrough.setApiKey.title%",
-            "description": "%deepseek-copilot.walkthrough.setApiKey.description%",
-            "media": {
-              "markdown": "resources/walkthrough/set-api-key.md"
-            },
-            "completionEvents": [
-              "onCommand:deepseek-copilot.setApiKey"
-            ]
-          },
-          {
-            "id": "showModels",
-            "title": "%deepseek-copilot.walkthrough.showModels.title%",
-            "description": "%deepseek-copilot.walkthrough.showModels.description%",
-            "media": {
-              "markdown": "resources/walkthrough/show-models.md"
-            }
-          },
-          {
-            "id": "advancedSettings",
-            "title": "%deepseek-copilot.walkthrough.advancedSettings.title%",
-            "description": "%deepseek-copilot.walkthrough.advancedSettings.description%",
-            "media": {
-              "markdown": "resources/walkthrough/advanced-settings.md"
-            }
-          }
-        ]
+        "command": "aiflowbridge.showMetrics",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m"
       }
     ],
     "configuration": {
-      "title": "%deepseek-copilot.config.title%",
+      "title": "AIFlowBridge",
       "properties": {
-        "deepseek-copilot.baseUrl": {
-          "type": "string",
-          "default": "https://api.deepseek.com",
-          "description": "%deepseek-copilot.config.baseUrl.description%"
-        },
-        "deepseek-copilot.maxTokens": {
-          "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "description": "%deepseek-copilot.config.maxTokens.description%"
-        },
-        "deepseek-copilot.experimental.stabilizeToolList": {
+        "aiflowbridge.gateway.enabled": {
           "type": "boolean",
-          "default": false,
-          "markdownDescription": "%deepseek-copilot.config.experimental.stabilizeToolList.description%",
-          "tags": [
-            "experimental"
-          ]
+          "default": true,
+          "description": "Start the local gateway automatically on extension activation"
         },
-        "deepseek-copilot.modelIdOverrides": {
-          "type": "object",
-          "default": {
-            "deepseek-v4-flash": "deepseek-v4-flash",
-            "deepseek-v4-pro": "deepseek-v4-pro"
-          },
-          "description": "%deepseek-copilot.config.modelIdOverrides.description%",
-          "additionalProperties": false,
-          "properties": {
-            "deepseek-v4-flash": {
-              "type": "string",
-              "description": "%deepseek-copilot.config.modelIdOverrides.deepseek-v4-flash.description%"
-            },
-            "deepseek-v4-pro": {
-              "type": "string",
-              "description": "%deepseek-copilot.config.modelIdOverrides.deepseek-v4-pro.description%"
+        "aiflowbridge.gateway.port": {
+          "type": "number",
+          "default": 8787,
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Local port exposed by the gateway"
+        },
+        "aiflowbridge.gateway.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8787/v1",
+          "description": "OpenAI-compatible base URL exposed to AI clients"
+        },
+        "aiflowbridge.gateway.defaultModel": {
+          "type": "string",
+          "default": "",
+          "description": "Default logical model name when the client does not specify one"
+        },
+        "aiflowbridge.providers": {
+          "type": "array",
+          "default": [],
+          "description": "Logical upstream provider profiles routed by the proxy",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "kind", "baseUrl", "model"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Stable provider identifier"
+              },
+              "label": {
+                "type": "string",
+                "description": "Human-readable name"
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["openai-compat", "ollama"],
+                "description": "Upstream provider kind"
+              },
+              "baseUrl": {
+                "type": "string",
+                "description": "Base URL for the upstream provider"
+              },
+              "model": {
+                "type": "string",
+                "description": "Concrete upstream model name"
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable or disable this provider profile"
+              },
+              "pricing": {
+                "type": "object",
+                "properties": {
+                  "inputPerMillion": {
+                    "type": "number"
+                  },
+                  "outputPerMillion": {
+                    "type": "number"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "default": "USD"
+                  }
+                }
+              }
             }
           }
         },
-        "deepseek-copilot.visionModel": {
+        "aiflowbridge.providers.deepseek.baseUrl": {
+          "type": "string",
+          "default": "https://api.deepseek.com",
+          "description": "DeepSeek API base URL"
+        },
+        "aiflowbridge.providers.deepseek.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum tokens per response (0 = default)"
+        },
+        "aiflowbridge.providers.deepseek.modelIdOverrides": {
+          "type": "object",
+          "default": {},
+          "description": "Model ID overrides for DeepSeek models"
+        },
+        "aiflowbridge.providers.minimax.baseUrl": {
+          "type": "string",
+          "default": "https://api.minimax.chat/v1",
+          "description": "MiniMax API base URL"
+        },
+        "aiflowbridge.providers.xiaomi.baseUrl": {
+          "type": "string",
+          "default": "https://api.xiaomi.com/v1",
+          "description": "Xiaomi MiMo-API base URL"
+        },
+        "aiflowbridge.telemetry.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable local usage telemetry"
+        },
+        "aiflowbridge.telemetry.logRequests": {
+          "type": "boolean",
+          "default": true,
+          "description": "Log each request handled by the gateway"
+        },
+        "aiflowbridge.vision.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable transparent vision proxy for non-vision models"
+        },
+        "aiflowbridge.vision.excludedVendors": {
+          "type": "array",
+          "default": ["deepseek"],
+          "description": "Vendors that should NOT use the vision proxy"
+        },
+        "aiflowbridge.vision.defaultModel": {
+          "type": "string",
+          "default": "oswe-vscode-prime",
+          "description": "Default model to use for vision proxy when none configured"
+        },
+        "aiflowbridge.vision.model": {
           "type": "string",
           "default": "",
-          "description": "%deepseek-copilot.config.visionModel.description%"
+          "description": "Model to use for vision proxy descriptions"
         },
-        "deepseek-copilot.visionPrompt": {
+        "aiflowbridge.vision.prompt": {
           "type": "string",
-          "editPresentation": "multilineText",
-          "default": "Describe all image attachments in this message.\n\nIf there is one image, describe it directly.\nIf there are multiple images:\n1. Describe each image separately, preserving their order.\n2. Then provide a combined description explaining the overall context and relationships across the images.\n\nReturn one concise factual description suitable for inserting into a text-only chat prompt. Include visible text, objects, UI elements, people, and relevant context. Do not invent details.",
-          "description": "%deepseek-copilot.config.visionPrompt.description%"
+          "default": "Describe all image attachments in this message.\n\nIf there is one image, describe it directly.\nIf there are multiple images:\n1. Describe each image separately, preserving their order.\n2. Then provide a combined description explaining the overall context.\n\nReturn one concise factual description suitable for inserting into a text-only chat prompt.",
+          "description": "Prompt used for vision proxy image descriptions"
         },
-        "deepseek-copilot.debugMode": {
+        "aiflowbridge.debugMode": {
           "type": "string",
           "default": "minimal",
-          "enum": [
-            "minimal",
-            "metadata",
-            "verbose"
-          ],
-          "enumItemLabels": [
-            "%deepseek-copilot.config.debugMode.minimal.label%",
-            "%deepseek-copilot.config.debugMode.metadata.label%",
-            "%deepseek-copilot.config.debugMode.verbose.label%"
-          ],
-          "markdownEnumDescriptions": [
-            "%deepseek-copilot.config.debugMode.minimal.description%",
-            "%deepseek-copilot.config.debugMode.metadata.description%",
-            "%deepseek-copilot.config.debugMode.verbose.description%"
-          ],
-          "markdownDescription": "%deepseek-copilot.config.debugMode.description%"
+          "enum": ["minimal", "metadata", "verbose"],
+          "description": "Debug mode for extension diagnostics"
         }
       }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "aiflowbridge.showMetrics",
+          "when": "true"
+        }
+      ]
     }
   },
   "scripts": {
-    "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0 })\"",
-    "vscode:prepublish": "bash .github/scripts/prepare-marketplace-readme.sh && npm run compile",
+    "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
     "compile": "npm run clean && tsc -p ./",
     "watch": "npm run clean && tsc -watch -p ./",
-    "lint": "oxlint",
-    "format": "oxfmt --write src/",
-    "format:check": "oxfmt --check src/",
-    "package": "vsce package --readme-path dist/README.marketplace.md -o dist/",
-    "login": "vsce login Vizards"
+    "package": "vsce package -o dist/",
+    "publish": "vsce publish"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "@types/vscode": "^1.116.0",
-    "@vscode/vsce": "^3.9.1",
-    "ovsx": "0.10.12",
-    "oxfmt": "^0.47.0",
-    "oxlint": "^1.62.0",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.0.0",
     "typescript": "^6.0.3"
   }
 }

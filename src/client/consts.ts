@@ -26,7 +26,7 @@ export const API_PROVIDER_HTTP_ERROR_LINKS: Readonly<
 	},
 	'5xx': {
 		deepseek: {
-			labelKey: 'error.action.checkDeepSeekStatus',
+			labelKey: 'error.action.checkStatus',
 			url: EXTERNAL_URLS.deepseek.status,
 		},
 	},

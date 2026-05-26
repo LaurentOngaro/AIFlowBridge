@@ -1,135 +1,272 @@
-<h1 align="center">DeepSeek V4 for Copilot Chat</h1>
+# AIFlowBridge
 
 <p align="center">
-  <!-- marketplace-readme:remove-start -->
-  <a href="https://marketplace.visualstudio.com/items?itemName=Vizards.deepseek-v4-for-copilot"><img src="https://img.shields.io/badge/VS%20Code%20Marketplace-Install-007ACC?logo=visualstudiocode&logoColor=white&style=for-the-badge" alt="Install from VS Code Marketplace"></a>
-  <a href="https://open-vsx.org/extension/Vizards/deepseek-v4-for-copilot"><img src="https://img.shields.io/badge/Open%20VSX-Install-6A4FB6?style=for-the-badge" alt="Install from Open VSX"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
+    <img src="https://img.shields.io/badge/VS%20Code%20Marketplace-Install-007ACC?logo=visualstudiocode&logoColor=white&style=for-the-badge" alt="Install from VS Code Marketplace">
+  </a>
   <br/>
-  <!-- marketplace-readme:remove-end -->
-  <img src="https://img.shields.io/github/v/release/Vizards/deepseek-v4-for-copilot?style=for-the-badge&label=Version" alt="Version" />
-  <img src="https://vsmarketplacebadges.dev/installs-short/Vizards.deepseek-v4-for-copilot.svg?style=for-the-badge" alt="Installs" />
+  <img src="https://img.shields.io/github/v/release/ongaro-fr/aiflowbridge?style=for-the-badge&label=Version" alt="Version" />
 </p>
 
-<p align="center">
-  English |
-  <a href="https://github.com/Vizards/deepseek-v4-for-copilot/blob/main/README.zh-cn.md">简体中文</a>
-</p>
+**Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.**
 
-**Pick DeepSeek V4 from the Copilot Chat model picker — and keep everything else Copilot already gives you.**
+AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi MiMo) under a unified interface inside Copilot Chat — with built-in metrics, proxy routing, and vision bridge capabilities.
 
-<p align="center">
-  <img src="resources/screenshots/01-picker.png" alt="DeepSeek V4 Pro and Flash in the Copilot Chat model picker, with the per-model Thinking Effort dropdown (None / High / Max)" width="800">
-</p>
+## Based On
 
-Love DeepSeek's price-performance but don't want to give up GitHub Copilot's agent mode, tool calling, and polished UI? This extension drops **DeepSeek V4 Pro & Flash** straight into the Copilot Chat model selector — with **vision**, **thinking mode**, and your own API key.
+This project is a fork of [DeepSeek V4 for Copilot](https://github.com/Vizards/deepseek-v4-for-copilot) by the original authors. Special thanks to the Vizards team for creating the foundation that made this extension possible.
 
-## Why this extension?
-
-- **Don't replace Copilot — power it up.** No new sidebar, no new chat UI to learn. Just a new model in the picker you already use.
-- **Agent mode, tool calling, instructions, MCP, skills — all of it still works.** Copilot's entire stack, now running on DeepSeek.
-- **Vision on a text-only model.** DeepSeek V4 can't see images. This extension proxies any image you drop into chat through another Copilot model you already have, then feeds the description to DeepSeek — transparently.
-- **BYOK, pay DeepSeek directly.** Your API key, your bill, your rate limits. Stored in the OS keychain, never on disk.
+The original DeepSeek extension pioneered the Transparent Vision Proxy pattern and seamless Copilot Chat integration. AIFlowBridge extends this work to support multiple AI providers while adding new features like usage metrics and local proxy routing.
 
 ## Features
 
-### DeepSeek V4 Pro & Flash in the model picker
-Both models show up alongside GPT-4o, Claude, and friends in Copilot Chat's model selector. 1M token context on both. Switch models mid-chat without losing history.
+### Multi-Provider Support
+
+- **DeepSeek V4 Pro & Flash** — Full capabilities with thinking mode, vision proxy, tool calling
+- **MiniMax V2.7** — High-performance coding assistant with tool calling
+- **Xiaomi MiMo V2.5** — Multimodal model with native vision and thinking
+- **Xiaomi MiMo V2.5 Pro** — Reasoning model (text-only, uses vision proxy)
 
 ### Transparent Vision Proxy
-DeepSeek V4 is text-only. Drop a screenshot into chat and this extension automatically hands the image to another installed Copilot model (Claude, GPT-4o, whatever you've got), gets a description, and feeds that back to DeepSeek. **Zero config** — just pick your preferred vision model once.
 
-This proxy is a compatibility bridge; if DeepSeek native vision becomes available, the extension will move toward a more unified vision path.
+Text-only models can handle images via automatic proxy through another installed Copilot model (Claude, GPT-4o, etc.). Zero configuration required — just pick your preferred vision model once.
 
-<p align="center">
-  <img src="resources/screenshots/03-vision.png" alt="Dropping an image into Copilot Chat and DeepSeek responding to it via the vision proxy" width="800">
-</p>
+### Usage Metrics & Local Gateway
 
-### Thinking Mode with Reasoning Effort Control
-Full support for DeepSeek V4's `reasoning_content`. Use Copilot Chat's native model picker menu to choose `none` (off), `high` (balanced, default), or `max` (deep reasoning for hard agent tasks).
+- Built-in OpenAI-compatible proxy on port 8787 (starts automatically)
+- Request, token, and duration telemetry
+- Per-provider and per-model cost estimation
+- Metrics dashboard (`Ctrl+Alt+M`) with status bar indicator
 
-### Inherits Every Copilot Capability
-Because this plugs into Copilot's native provider API, you get the full stack for free:
-- **Agent mode** — autonomous multi-step tasks
-- **Tool calling** — file edits, terminal, workspace search, Git, tests
-- **Instructions & skills** — all your `.instructions.md`, `AGENTS.md`, and skills just work
-- **Prompt caching stats** — DeepSeek's cache hit rate logged in the output channel so you can see the savings
+### Copilot Chat Integration
 
-<p align="center">
-  <img src="resources/screenshots/04-agent.png" alt="DeepSeek V4 Pro running Copilot's agent mode with tool calls" width="800">
-</p>
+All providers appear directly in the Copilot Chat model picker:
+
+- Agent mode, tool calling, instructions, MCP, skills
+- 1M token context on supporting models
+- Thinking mode with reasoning effort control (DeepSeek, Xiaomi)
 
 ### Secure by Default
-API key lives in VS Code's `SecretStorage` (OS keychain on macOS / Windows / Linux). Never in `settings.json`, never in your Git history.
 
-### Zero Runtime Dependencies
-Pure VS Code API + Node.js built-ins. No Python, no Docker, no local proxy server to babysit.
+API keys stored in VS Code's `SecretStorage` (OS keychain). Never in `settings.json`, never in Git history.
 
-## Getting Started
+## Providers
+
+| Provider | Models           | Vision     | Thinking | Tool Calling |
+| -------- | ---------------- | ---------- | -------- | ------------ |
+| DeepSeek | V4 Flash, V4 Pro | ✅ Proxied | ✅       | ✅           |
+| MiniMax  | V2.7             | ❌         | ❌       | ✅           |
+| Xiaomi   | MiMo V2.5        | ✅ Native  | ✅       | ✅           |
+| Xiaomi   | MiMo V2.5 Pro    | ✅ Proxied | ✅       | ✅           |
+
+## Installation
 
 ### Prerequisites
 
-- VS Code 1.116 or later. This extension relies on non-public Copilot Chat APIs that may break on newer VS Code versions — [report an issue](https://github.com/Vizards/deepseek-v4-for-copilot/issues) if you hit one.
-- GitHub Copilot subscription (Free / Pro / Enterprise — the free tier works)
-- DeepSeek API key from [platform.deepseek.com](https://platform.deepseek.com), or a compatible provider token when using a custom `deepseek-copilot.baseUrl`
+- VS Code 1.90 or later
+- GitHub Copilot subscription (Free / Pro / Enterprise)
+- At least one API key from a supported provider
 
-### Installation
+### Install the Extension
 
-Install from the registry used by your editor:
+1. Open VS Code
+2. Go to Extensions (`Ctrl+Shift+X`)
+3. Search for "AIFlowBridge"
+4. Click Install
 
-1. **Microsoft VS Code** — install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Vizards.deepseek-v4-for-copilot).
-2. **Editors that use Open VSX** — install from [Open VSX](https://open-vsx.org/extension/Vizards/deepseek-v4-for-copilot).
+Or install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge).
 
-### Usage
+### Configure API Keys
 
-1. Run **DeepSeek: Set API Key** from the Command Palette (`Cmd+Shift+P`)
-2. Paste your key or compatible provider token (official DeepSeek keys usually start with `sk-`)
-3. Open Copilot Chat, click the model picker, pick **DeepSeek V4 Pro** or **DeepSeek V4 Flash**
-4. That's it — chat away
+Run the appropriate command from the Command Palette (`Ctrl+Shift+P`):
 
-## Models
+```
+DeepSeek: Set API Key
+MiniMax: Set API Key
+Xiaomi MiMo: Set API Key
+```
 
-| Model | Best For |
-|---|---|
-| **DeepSeek V4 Flash** | Fast everyday coding, quick edits, cheap iteration |
-| **DeepSeek V4 Pro** | Complex refactors, agent tasks, deep reasoning |
+API keys are stored securely in your OS keychain via VS Code's SecretStorage.
 
-Both support optional thinking mode, tool calling, and 1M token context.
+## Usage
 
-## Settings
+### Basic Usage
 
-| Setting | Default | Description |
-|---|---|---|
-| `deepseek-copilot.baseUrl` | `https://api.deepseek.com` | API endpoint — change for self-hosted / proxied deployments |
-| `deepseek-copilot.maxTokens` | `0` | Max output tokens (`0` = no limit). Useful for cost control |
-| `deepseek-copilot.modelIdOverrides` | prefilled official ID map | API model IDs to send for DeepSeek V4 Flash / Pro. Change only for compatible third-party APIs with different model names |
-| `deepseek-copilot.debugMode` | `minimal` | Diagnostic mode: `minimal` for token usage only, `metadata` for privacy-preserving logs, or `verbose` for full request dumps and pipeline snapshots under extension global storage. Full dumps may include sensitive prompt text, tool schemas, file snippets, and image descriptions. Use `DeepSeek: Open Request Dumps Folder` to open the dump location |
-| `deepseek-copilot.visionModel` | *(auto)* | Which Copilot model to proxy images through |
-| `deepseek-copilot.visionPrompt` | *(built-in)* | Prompt used to describe image attachments |
-| `deepseek-copilot.experimental.stabilizeToolList` | `false` | Experimental. Tries to pre-activate VS Code/Copilot virtual tools so the DeepSeek API `tools` parameter is more complete and stable across turns. May improve context-cache hit rate when enabled tools change between turns. Can increase input tokens because more function definitions may be included; cache-hit input tokens are cheaper but still count toward usage. Usually leave it off with 64 or fewer enabled tools unless the tool list still changes across turns; do not enable it with more than 128 enabled tools |
+1. Set at least one API key (see above)
+2. Open Copilot Chat (`Ctrl+Shift+I` or click the chat icon)
+3. Click the model picker at the top of the chat
+4. Select a model from DeepSeek, MiniMax, or Xiaomi
+5. Start chatting — all Copilot features (agent mode, tools, etc.) work automatically
 
-Thinking Effort is configured from Copilot Chat's model picker for each DeepSeek model.
+### Vision Proxy
 
-Example `settings.json` override for compatible API proxies:
+For text-only models (DeepSeek, MiniMax), images are automatically proxied through another model:
+
+1. Drop an image into Copilot Chat
+2. AIFlowBridge sends it to a vision-capable model for description
+3. The description is injected into the text-only model's prompt
+
+To change the vision proxy model:
+
+```
+AIFlowBridge: Set vision proxy model
+```
+
+### Gateway (Optional)
+
+The local gateway provides an OpenAI-compatible proxy for external tools (e.g., Kilo Code):
+
+```bash
+# Gateway starts automatically on port 8787
+# Access at: http://127.0.0.1:8787/v1
+
+# Health check
+curl http://127.0.0.1:8787/health
+
+# List available models
+curl http://127.0.0.1:8787/v1/models
+
+# View metrics
+curl http://127.0.0.1:8787/metrics
+```
+
+Configure gateway providers in settings:
 
 ```json
 {
-  "deepseek-copilot.modelIdOverrides": {
-    "deepseek-v4-flash": "your-flash-model-id",
-    "deepseek-v4-pro": "your-pro-model-id"
-  }
+  "aiflowbridge.providers": [
+    {
+      "id": "deepseek-flash",
+      "label": "DeepSeek Flash",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.deepseek.com",
+      "model": "deepseek-v4-flash",
+      "apiKey": "sk-..."
+    },
+    {
+      "id": "minimax",
+      "label": "MiniMax V2.7",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.chat/v1",
+      "model": "minimax-v2.7",
+      "apiKey": "..."
+    }
+  ]
 }
 ```
 
-## Compared to alternatives
+### Metrics Dashboard
 
-| | This extension | Local proxy (e.g. LiteLLM) | Standalone DeepSeek extensions |
-|---|---|---|---|
-| Works inside Copilot Chat | ✅ | ✅ | ❌ separate UI |
-| Agent mode, tools, skills | ✅ | ✅ | ⚠️ reimplemented |
-| Vision support | ✅ proxied | ❌ | ❌ |
-| No extra process to run | ✅ | ❌ | ✅ |
-| One-click install | ✅ | ❌ | ✅ |
-| API key in OS keychain | ✅ | ❌ | ⚠️ varies |
+Press `Ctrl+Alt+M` or run:
+
+```
+AIFlowBridge: Show metrics dashboard
+```
+
+The dashboard shows:
+
+- Total requests, tokens, and estimated cost
+- Per-provider and per-model breakdown
+- Recent request history with latency
+- Gateway status
+
+## Settings
+
+### Gateway
+
+| Setting                             | Default                    | Description                                   |
+| ----------------------------------- | -------------------------- | --------------------------------------------- |
+| `aiflowbridge.gateway.enabled`      | `true`                     | Start gateway on activation                   |
+| `aiflowbridge.gateway.port`         | `8787`                     | Local proxy port                              |
+| `aiflowbridge.gateway.baseUrl`      | `http://127.0.0.1:8787/v1` | Gateway URL                                   |
+| `aiflowbridge.gateway.defaultModel` | `""`                       | Default model when client doesn't specify one |
+
+### Providers (Gateway Upstream)
+
+| Setting                                     | Default                       | Description                         |
+| ------------------------------------------- | ----------------------------- | ----------------------------------- |
+| `aiflowbridge.providers`                    | `[]`                          | Array of upstream provider profiles |
+| `aiflowbridge.providers.deepseek.baseUrl`   | `https://api.deepseek.com`    | DeepSeek API endpoint               |
+| `aiflowbridge.providers.deepseek.maxTokens` | `0`                           | Max output tokens (0 = no limit)    |
+| `aiflowbridge.providers.minimax.baseUrl`    | `https://api.minimax.chat/v1` | MiniMax API endpoint                |
+| `aiflowbridge.providers.xiaomi.baseUrl`     | `https://api.xiaomi.com/v1`   | Xiaomi MiMo API endpoint            |
+
+### Vision Proxy
+
+| Setting                               | Default             | Description                         |
+| ------------------------------------- | ------------------- | ----------------------------------- |
+| `aiflowbridge.vision.enabled`         | `true`              | Enable vision proxy                 |
+| `aiflowbridge.vision.excludedVendors` | `["deepseek"]`      | Vendors that don't need proxy       |
+| `aiflowbridge.vision.defaultModel`    | `oswe-vscode-prime` | Default vision model                |
+| `aiflowbridge.vision.model`           | `""`                | User-selected vision model          |
+| `aiflowbridge.vision.prompt`          | _(built-in)_        | Custom prompt for image description |
+
+### Telemetry
+
+| Setting                              | Default | Description           |
+| ------------------------------------ | ------- | --------------------- |
+| `aiflowbridge.telemetry.enabled`     | `true`  | Enable usage tracking |
+| `aiflowbridge.telemetry.logRequests` | `true`  | Log each request      |
+
+### Diagnostics
+
+| Setting                  | Default   | Description                         |
+| ------------------------ | --------- | ----------------------------------- |
+| `aiflowbridge.debugMode` | `minimal` | `minimal`, `metadata`, or `verbose` |
+
+## Commands
+
+| Command                                | Description             |
+| -------------------------------------- | ----------------------- |
+| **AIFlowBridge**                       |                         |
+| `AIFlowBridge: Show metrics dashboard` | Open metrics dashboard  |
+| `AIFlowBridge: Refresh metrics`        | Refresh status bar      |
+| `AIFlowBridge: Start local gateway`    | Start proxy             |
+| `AIFlowBridge: Stop local gateway`     | Stop proxy              |
+| `AIFlowBridge: Copy gateway URL`       | Copy URL to clipboard   |
+| `AIFlowBridge: Open settings`          | Open extension settings |
+| `AIFlowBridge: Set vision proxy model` | Choose vision model     |
+| `AIFlowBridge: Show logs`              | Open output log         |
+| **DeepSeek**                           |                         |
+| `DeepSeek: Set API Key`                | Configure API key       |
+| `DeepSeek: Clear API Key`              | Remove stored key       |
+| **MiniMax**                            |                         |
+| `MiniMax: Set API Key`                 | Configure API key       |
+| `MiniMax: Clear API Key`               | Remove stored key       |
+| **Xiaomi MiMo**                        |                         |
+| `Xiaomi MiMo: Set API Key`             | Configure API key       |
+| `Xiaomi MiMo: Clear API Key`           | Remove stored key       |
+
+## Architecture
+
+```
+AIFlowBridge
+├── src/aiflowbridge/           # Gateway, telemetry, UI
+│   ├── gateway/server.ts       # OpenAI-compatible proxy
+│   ├── telemetry.ts            # Usage tracking & cost estimation
+│   ├── ui/dashboard.ts         # Metrics webview
+│   ├── ui/statusbar.ts         # Status bar indicator
+│   ├── config.ts               # Settings loader
+│   └── types.ts                # Shared types
+├── src/provider/               # Language model providers
+│   ├── base.ts                 # Abstract provider base class
+│   ├── index.ts                # DeepSeek provider
+│   ├── minimax.ts              # MiniMax provider
+│   ├── xiaomi.ts               # Xiaomi provider
+│   └── vision/                 # Transparent vision proxy
+│       ├── model.ts            # Vision model selection
+│       └── resolve.ts          # Image resolution
+├── src/runtime/                # Extension lifecycle
+│   ├── lifecycle.ts            # Activation & deactivation
+│   ├── provider.ts             # Provider registration
+│   ├── commands.ts             # Command handlers
+│   └── actions.ts              # URI action handlers
+└── src/consts.ts               # Model registry & constants
+```
+
+## Maintainer
+
+**Laurent Ongaro** — [laurent@ongaro.fr](mailto:laurent@ongaro.fr)
 
 ## License
 

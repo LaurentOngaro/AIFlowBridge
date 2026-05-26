@@ -14,14 +14,14 @@ const ACTION_URLS: readonly ActionUrlDefinition[] = [
 	{
 		key: 'configureApiKey',
 		path: CONFIGURE_API_KEY_URI_PATH,
-		handle: () => vscode.commands.executeCommand('deepseek-copilot.setApiKey'),
-		resolveFailureMessage: 'Failed to resolve DeepSeek set API key URI',
+		handle: () => vscode.commands.executeCommand('aiflowbridge.providers.deepseek.setApiKey'),
+		resolveFailureMessage: 'Failed to resolve AIFlowBridge set API key URI',
 	},
 	{
 		key: 'showLogs',
 		path: SHOW_LOGS_URI_PATH,
 		handle: () => logger.show(),
-		resolveFailureMessage: 'Failed to resolve DeepSeek show logs URI',
+		resolveFailureMessage: 'Failed to resolve AIFlowBridge show logs URI',
 	},
 ];
 
@@ -32,11 +32,11 @@ export function registerActionUrls(context: vscode.ExtensionContext): void {
 				const action = ACTION_URLS.find((item) => item.path === uri.path);
 				if (action) {
 					void Promise.resolve(action.handle()).catch((error) => {
-						logger.warn(`Failed to handle DeepSeek URI action: ${uri.path}`, error);
+						logger.warn(`Failed to handle AIFlowBridge URI action: ${uri.path}`, error);
 					});
 					return;
 				}
-				logger.warn(`Unhandled DeepSeek URI: ${uri.toString(true)}`);
+				logger.warn(`Unhandled AIFlowBridge URI: ${uri.toString(true)}`);
 			},
 		}),
 	);

@@ -1,27 +1,64 @@
 import vscode from 'vscode';
 import { logger } from '../logger';
 import { DeepSeekChatProvider } from '../provider';
+import { MiniMaxChatProvider } from '../provider/minimax';
+import { XiaomiChatProvider } from '../provider/xiaomi';
 
-export async function registerProvider(
+export interface RegisteredProvider {
+	name: string;
+	provider: DeepSeekChatProvider | MiniMaxChatProvider | XiaomiChatProvider;
+}
+
+export async function registerAllProviders(
 	context: vscode.ExtensionContext,
-): Promise<DeepSeekChatProvider> {
-	const provider = new DeepSeekChatProvider(context);
+): Promise<RegisteredProvider[]> {
+	const providers: RegisteredProvider[] = [];
+
+	const deepseekProvider = new DeepSeekChatProvider(context);
+	providers.push({ name: 'deepseek', provider: deepseekProvider });
+
+	const minimaxProvider = new MiniMaxChatProvider(context);
+	providers.push({ name: 'minimax', provider: minimaxProvider });
+
+	const xiaomiProvider = new XiaomiChatProvider(context);
+	providers.push({ name: 'xiaomi', provider: xiaomiProvider });
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('deepseek-copilot.setApiKey', () => provider.configureApiKey()),
-		vscode.commands.registerCommand('deepseek-copilot.clearApiKey', () => provider.clearApiKey()),
-		vscode.commands.registerCommand('deepseek-copilot.setVisionModel', () =>
-			provider.setVisionProxyModel(),
+		vscode.commands.registerCommand('aiflowbridge.providers.deepseek.setApiKey', () =>
+			deepseekProvider.configureApiKey(),
 		),
-		vscode.lm.registerLanguageModelChatProvider('deepseek', provider),
+		vscode.commands.registerCommand('aiflowbridge.providers.deepseek.clearApiKey', () =>
+			deepseekProvider.clearApiKey(),
+		),
+		vscode.commands.registerCommand('aiflowbridge.providers.deepseek.setVisionModel', () =>
+			deepseekProvider.setVisionProxyModel(),
+		),
+
+		vscode.commands.registerCommand('aiflowbridge.providers.minimax.setApiKey', () =>
+			minimaxProvider.configureApiKey(),
+		),
+		vscode.commands.registerCommand('aiflowbridge.providers.minimax.clearApiKey', () =>
+			minimaxProvider.clearApiKey(),
+		),
+
+		vscode.commands.registerCommand('aiflowbridge.providers.xiaomi.setApiKey', () =>
+			xiaomiProvider.configureApiKey(),
+		),
+		vscode.commands.registerCommand('aiflowbridge.providers.xiaomi.clearApiKey', () =>
+			xiaomiProvider.clearApiKey(),
+		),
+
+		vscode.lm.registerLanguageModelChatProvider('deepseek', deepseekProvider),
+		vscode.lm.registerLanguageModelChatProvider('minimax', minimaxProvider),
+		vscode.lm.registerLanguageModelChatProvider('xiaomi', xiaomiProvider),
 	);
 
-	// Copilot Chat can serve cached model info without configurationSchema.
-	// Activate it first so this refresh reaches a live listener and re-queries the provider.
 	await activateCopilotChat();
-	provider.refreshModelPicker();
+	deepseekProvider.refreshModelPicker();
+	minimaxProvider.refreshModelPicker();
+	xiaomiProvider.refreshModelPicker();
 
-	return provider;
+	return providers;
 }
 
 async function activateCopilotChat(): Promise<void> {

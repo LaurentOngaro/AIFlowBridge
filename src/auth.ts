@@ -1,11 +1,10 @@
 import vscode from 'vscode';
-import { API_KEY_SECRET } from './consts';
-import { t } from './i18n';
+import { API_KEY_SECRETS } from './consts';
 
-/**
- * Manages DeepSeek API key via VS Code SecretStorage (secure) with
- * fallback to extension settings (less secure, for CI/automation).
- */
+export function getApiKeySecret(vendor: string): string {
+	return API_KEY_SECRETS[vendor as keyof typeof API_KEY_SECRETS] || `aiflowbridge.providers.${vendor}.apiKey`;
+}
+
 export class AuthManager {
 	private readonly secretStorage: vscode.SecretStorage;
 
@@ -13,69 +12,49 @@ export class AuthManager {
 		this.secretStorage = context.secrets;
 	}
 
-	/**
-	 * Get API key. Tries SecretStorage first, then falls back to settings.
-	 */
-	async getApiKey(): Promise<string | undefined> {
-		const secretKey = await this.secretStorage.get(API_KEY_SECRET);
+	async getApiKey(vendor: string = 'deepseek'): Promise<string | undefined> {
+		const secretKey = await this.secretStorage.get(getApiKeySecret(vendor));
 		if (secretKey) {
 			return secretKey;
 		}
-
-		const config = vscode.workspace.getConfiguration('deepseek-copilot');
-		const settingsKey = config.get<string>('apiKey');
-		if (settingsKey?.trim()) {
-			return settingsKey.trim();
-		}
-
 		return undefined;
 	}
 
-	/**
-	 * Store API key in SecretStorage.
-	 */
-	async setApiKey(apiKey: string): Promise<void> {
-		await this.secretStorage.store(API_KEY_SECRET, apiKey.trim());
+	async setApiKey(vendor: string, apiKey: string): Promise<void> {
+		await this.secretStorage.store(getApiKeySecret(vendor), apiKey.trim());
 	}
 
-	/**
-	 * Delete stored API key.
-	 */
-	async deleteApiKey(): Promise<void> {
-		await this.secretStorage.delete(API_KEY_SECRET);
+	async deleteApiKey(vendor: string): Promise<void> {
+		await this.secretStorage.delete(getApiKeySecret(vendor));
 	}
 
-	/**
-	 * Check if an API key is configured.
-	 */
-	async hasApiKey(): Promise<boolean> {
-		const key = await this.getApiKey();
+	async hasApiKey(vendor: string): Promise<boolean> {
+		const key = await this.getApiKey(vendor);
 		return key !== undefined && key.length > 0;
 	}
 
-	/**
-	 * Prompt user to enter API key via input box.
-	 */
-	async promptForApiKey(): Promise<boolean> {
+	async promptForApiKey(
+		vendor: string,
+		prompt: string,
+		placeHolder: string,
+	): Promise<boolean> {
 		const apiKey = await vscode.window.showInputBox({
-			prompt: t('auth.prompt'),
-			placeHolder: t('auth.placeholder'),
+			prompt,
+			placeHolder,
 			password: true,
 			ignoreFocusOut: true,
 			validateInput: (value: string) => {
 				if (!value?.trim()) {
-					return t('auth.emptyValidation');
+					return 'API key cannot be empty';
 				}
 				return undefined;
 			},
 		});
 
 		if (apiKey) {
-			await this.setApiKey(apiKey);
-			vscode.window.showInformationMessage(t('auth.saved'));
+			await this.setApiKey(vendor, apiKey);
 			return true;
 		}
-
 		return false;
 	}
 }

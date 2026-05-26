@@ -6,15 +6,12 @@ import { ensureRequestDumpRoot } from '../provider/debug';
 
 export function registerCommands(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
-		vscode.commands.registerCommand('deepseek-copilot.showLogs', () => logger.show()),
-		vscode.commands.registerCommand('deepseek-copilot.openRequestDumpsFolder', () =>
+		vscode.commands.registerCommand('aiflowbridge.showLogs', () => logger.show()),
+		vscode.commands.registerCommand('aiflowbridge.openRequestDumpsFolder', () =>
 			openRequestDumpsFolder(context),
 		),
-		vscode.commands.registerCommand('deepseek-copilot.getApiKey', () =>
+		vscode.commands.registerCommand('aiflowbridge.getApiKey', () =>
 			vscode.env.openExternal(vscode.Uri.parse(EXTERNAL_URLS.deepseek.apiKeys)),
-		),
-		vscode.commands.registerCommand('deepseek-copilot.openSettings', () =>
-			vscode.commands.executeCommand('workbench.action.openSettings', 'deepseek-copilot'),
 		),
 	);
 }
