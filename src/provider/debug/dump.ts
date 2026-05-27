@@ -173,10 +173,10 @@ export function dumpProviderInput(options: DumpProviderInputOptions): void {
  *
  * Files land under `<dump root>/<conversationSegmentId>/` so marker replay and
  * cache-lineage changes are easy to inspect across provider calls:
- *   deepseek-request-<timestamp>-NNNN.input.json     — VS Code input snapshot
- *   deepseek-request-<timestamp>-NNNN.resolved.json  — post-vision VS Code snapshot
- *   deepseek-request-<timestamp>-NNNN.json           — full request body
- *   deepseek-request-<timestamp>-NNNN.msg0.txt       — messages[0] content (system prompt)
+ *   deepseek-request-<timestamp>-NNNN.input.json     - VS Code input snapshot
+ *   deepseek-request-<timestamp>-NNNN.resolved.json  - post-vision VS Code snapshot
+ *   deepseek-request-<timestamp>-NNNN.json           - full request body
+ *   deepseek-request-<timestamp>-NNNN.msg0.txt       - messages[0] content (system prompt)
  */
 export function dumpDeepSeekRequest(
 	request: DeepSeekRequest,

@@ -11,7 +11,7 @@ import { createHttpError, normalizeRequestError } from './error';
 
 /**
  * Lightweight SSE-streaming DeepSeek API client.
- * No external dependencies — uses Node's built-in fetch.
+ * No external dependencies - uses Node's built-in fetch.
  */
 export class DeepSeekClient {
 	constructor(
@@ -130,7 +130,7 @@ export class DeepSeekClient {
 							callbacks.onContent(choice.delta.content);
 						}
 
-						// Tool calls — accumulate deltas by index
+						// Tool calls - accumulate deltas by index
 						if (choice.delta.tool_calls) {
 							for (const tc of choice.delta.tool_calls) {
 								let pending = pendingToolCalls.get(tc.index);

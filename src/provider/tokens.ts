@@ -8,12 +8,12 @@ const IMAGE_PART_ESTIMATED_CHARS = 1020;
  * Returns character count, which the caller divides by charsPerToken to get token estimate.
  */
 function estimatePartChars(part: unknown): number {
-	// 1. LanguageModelTextPart — the most common case
+	// 1. LanguageModelTextPart - the most common case
 	if (part instanceof vscode.LanguageModelTextPart) {
 		return part.value.length;
 	}
 
-	// 2. LanguageModelToolCallPart — count callId + name + JSON-serialized input
+	// 2. LanguageModelToolCallPart - count callId + name + JSON-serialized input
 	if (part instanceof vscode.LanguageModelToolCallPart) {
 		let chars = part.callId.length + part.name.length;
 		try {
@@ -25,7 +25,7 @@ function estimatePartChars(part: unknown): number {
 		return chars;
 	}
 
-	// 3. LanguageModelToolResultPart — recursively count nested content parts
+	// 3. LanguageModelToolResultPart - recursively count nested content parts
 	if (part instanceof vscode.LanguageModelToolResultPart) {
 		let chars = part.callId.length;
 		if (Array.isArray(part.content)) {
@@ -36,7 +36,7 @@ function estimatePartChars(part: unknown): number {
 		return chars;
 	}
 
-	// 4. LanguageModelDataPart — use a capped heuristic because our model never
+	// 4. LanguageModelDataPart - use a capped heuristic because our model never
 	//    receives binary data directly. Images are resolved to text descriptions
 	//    by the vision pipeline; raw byteLength would massively overestimate.
 	if (part instanceof vscode.LanguageModelDataPart) {
@@ -60,7 +60,7 @@ function estimatePartChars(part: unknown): number {
 		return Math.min(part.data?.byteLength ?? 0, 10000);
 	}
 
-	// 5. LanguageModelThinkingPart (proposed API) — handle string | string[]
+	// 5. LanguageModelThinkingPart (proposed API) - handle string | string[]
 	if (isLanguageModelThinkingPart(part)) {
 		if (typeof part.value === 'string') {
 			return part.value.length;
@@ -75,7 +75,7 @@ function estimatePartChars(part: unknown): number {
 		return 0;
 	}
 
-	// 6. LanguageModelPromptTsxPart — stringify the value if present
+	// 6. LanguageModelPromptTsxPart - stringify the value if present
 	// Duck-type check since PromptTsxPart may not always be available
 	if (
 		part &&

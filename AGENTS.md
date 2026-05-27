@@ -50,16 +50,16 @@ src/
 
 Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point:
 
-- `deepseek` — DeepSeek V4 Pro/Flash (fully implemented)
-- `minimax` — MiniMax V2.7 (API client implemented, basic streaming)
-- `xiaomi` — Xiaomi MiMo (API client implemented, basic streaming)
+- `deepseek` - DeepSeek V4 Pro/Flash (fully implemented)
+- `minimax` - MiniMax V2.7 (API client implemented, basic streaming)
+- `xiaomi` - Xiaomi MiMo (API client implemented, basic streaming)
 
 ### Provider Implementation
 
-- `src/provider/base.ts` — Abstract base class for all providers
-- `src/provider/index.ts` — DeepSeekChatProvider (original implementation)
-- `src/provider/minimax.ts` — MiniMax provider with HTTP streaming client
-- `src/provider/xiaomi.ts` — Xiaomi provider with HTTP streaming client
+- `src/provider/base.ts` - Abstract base class for all providers
+- `src/provider/index.ts` - DeepSeekChatProvider (original implementation)
+- `src/provider/minimax.ts` - MiniMax provider with HTTP streaming client
+- `src/provider/xiaomi.ts` - Xiaomi provider with HTTP streaming client
 
 ### Vision Proxy
 
