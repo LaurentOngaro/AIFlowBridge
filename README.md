@@ -29,7 +29,7 @@ Text-only models can handle images via automatic proxy through another installed
 
 ### Usage Metrics & Local Gateway
 
-- Built-in OpenAI-compatible proxy on port 8787 (starts automatically)
+- Built-in OpenAI-compatible proxy on port 8787 (starts automatically, singleton across VS Code instances)
 - Request, token, and duration telemetry
 - Per-provider and per-model cost estimation
 - Metrics dashboard (`Ctrl+Alt+M`) with status bar indicator
@@ -112,6 +112,8 @@ AIFlowBridge: Set vision proxy model
 
 The local gateway provides an OpenAI-compatible proxy that can be used by external tools. It starts automatically on port 8787 when the extension activates (if `aiflowbridge.gateway.enabled` is `true`).
 
+The gateway operates as a singleton shared across all VS Code instances. If another VS Code window already has an active AIFlowBridge gateway, the new window will detect and reuse it instead of starting a second instance.
+
 ```bash
 # Health check
 curl http://127.0.0.1:8787/health
@@ -126,6 +128,8 @@ curl http://127.0.0.1:8787/metrics
 #### Using with Kilo Code or Other OpenAI-Compatible Clients
 
 Any tool that supports the OpenAI API can use AIFlowBridge as a backend via the gateway. This lets you access DeepSeek, MiniMax, and Xiaomi MiMo models from clients other than Copilot Chat.
+
+**Gateway singleton behavior:** The gateway runs as a single instance shared across all VS Code windows. If an AIFlowBridge gateway is already running when you open a new VS Code window, that window will automatically detect and use the existing gateway on port 8787 instead of starting a second instance. This ensures the gateway is always available at the same URL.
 
 **Kilo Code configuration example:**
 

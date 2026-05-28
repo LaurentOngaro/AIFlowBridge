@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - AIFlowBridge
+
+### Fixed
+
+- Fixed `prepareForDeactivate` making an unnecessary `selectChatModels` call that caused a `Canceled` warning on extension deactivation.
+- Fixed gateway port conflict when extension is activated in multiple VS Code instances. The gateway now detects if an existing AIFlowBridge gateway is already running on the default port and joins it instead of failing.
+
+### Changed
+
+- Gateway now operates as a singleton across VS Code instances: if the default port (8787) is already occupied by another AIFlowBridge instance, the new instance detects and reuses the existing gateway rather than starting a new one on a different port. This ensures Kilo Code and other OpenAI-compatible clients always find the gateway at the configured URL.
+
 ## 0.3.0 - AIFlowBridge
 
 ### Fixed

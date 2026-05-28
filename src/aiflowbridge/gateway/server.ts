@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { URL } from "node:url";
+import { connect as netConnect, type Socket as NetSocket } from "node:net";
 import { buildModelCatalog, selectProvider } from "../providers";
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
 import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
@@ -42,6 +43,22 @@ export class GatewayService {
   async start(): Promise<GatewayStatus> {
     if (this.server) {
       return this.status();
+    }
+
+    // Check if another instance already occupies the default port
+    if (await isPortInUse(this.config.gateway.port)) {
+      console.log(`[AIFlowBridge] Port ${this.config.gateway.port} is in use, checking for existing gateway...`);
+
+      // Verify the existing service is actually a reachable AIFlowBridge gateway
+      if (await isGatewayReachable(this.config.gateway.baseUrl)) {
+        // Another AIFlowBridge instance owns the port — reuse it
+        console.log(`[AIFlowBridge] Existing gateway detected, joining on ${this.config.gateway.baseUrl}`);
+        this.emitUpdate();
+        return this.status();
+      }
+
+      // Port is occupied by something else — this should not happen in normal use
+      console.warn(`[AIFlowBridge] Port ${this.config.gateway.port} is occupied by a non-gateway service`);
     }
 
     this.server = createServer((request, response) => {
@@ -366,4 +383,35 @@ function extractUsage(raw: string): { promptTokens: number; completionTokens: nu
     completionTokens: completionTokens ?? 0,
     totalTokens: totalTokens ?? (promptTokens ?? 0) + (completionTokens ?? 0),
   };
+}
+
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket: NetSocket = netConnect(port, "127.0.0.1", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on("error", () => {
+      resolve(false);
+    });
+    socket.setTimeout(500);
+  });
+}
+
+async function isGatewayReachable(baseUrl: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 500);
+    const response = await fetch(`${baseUrl}/health`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      return false;
+    }
+    const data = await response.json() as { service?: string };
+    return data.service === "AIFlowBridge";
+  } catch {
+    return false;
+  }
 }
