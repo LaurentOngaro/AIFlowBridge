@@ -257,7 +257,7 @@ function finalizeReplayDiagnostics(
 	});
 }
 
-function updateCharsPerToken(
+export function updateCharsPerToken(
 	totalRequestChars: number,
 	usage: DeepSeekUsage,
 	charsPerToken: number,

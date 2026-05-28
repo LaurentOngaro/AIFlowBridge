@@ -201,13 +201,18 @@ The dashboard shows:
 
 ### Providers (Gateway Upstream)
 
-| Setting                                     | Default                       | Description                         |
-| ------------------------------------------- | ----------------------------- | ----------------------------------- |
-| `aiflowbridge.providers`                    | `[]`                          | Array of upstream provider profiles |
-| `aiflowbridge.providers.deepseek.baseUrl`   | `https://api.deepseek.com`    | DeepSeek API endpoint               |
-| `aiflowbridge.providers.deepseek.maxTokens` | `0`                           | Max output tokens (0 = no limit)    |
-| `aiflowbridge.providers.minimax.baseUrl`    | `https://api.minimax.chat/v1` | MiniMax API endpoint                |
-| `aiflowbridge.providers.xiaomi.baseUrl`     | `https://api.xiaomi.com/v1`   | Xiaomi MiMo API endpoint            |
+| Setting                                            | Default                         | Description                         |
+| -------------------------------------------------- | ------------------------------- | ----------------------------------- |
+| `aiflowbridge.providers`                           | `[]`                            | Array of upstream provider profiles |
+| `aiflowbridge.providers.deepseek.baseUrl`          | `https://api.deepseek.com`      | DeepSeek API endpoint               |
+| `aiflowbridge.providers.deepseek.maxTokens`        | `0`                             | Max output tokens (0 = no limit)    |
+| `aiflowbridge.providers.deepseek.modelIdOverrides` | `{}`                            | DeepSeek model ID overrides         |
+| `aiflowbridge.providers.minimax.baseUrl`           | `https://api.minimax.io/v1`     | MiniMax API endpoint                |
+| `aiflowbridge.providers.minimax.maxTokens`         | `0`                             | Max output tokens (0 = no limit)    |
+| `aiflowbridge.providers.minimax.modelIdOverrides`  | `{}`                            | MiniMax model ID overrides          |
+| `aiflowbridge.providers.xiaomi.baseUrl`            | `https://api.xiaomimimo.com/v1` | Xiaomi MiMo API endpoint            |
+| `aiflowbridge.providers.xiaomi.maxTokens`          | `0`                             | Max output tokens (0 = no limit)    |
+| `aiflowbridge.providers.xiaomi.modelIdOverrides`   | `{}`                            | Xiaomi MiMo model ID overrides      |
 
 ### Vision Proxy
 
@@ -344,11 +349,6 @@ If you run the helper without `-Profiles` or `-AllProfiles`, the script will det
 # Requires a Personal Access Token for the VS Code Marketplace
 npm run publish
 ```
-
-## Based On
-
-This project is a fork of [DeepSeek V4 for Copilot](https://github.com/Vizards/deepseek-v4-for-copilot) by the original authors. Special thanks to the Vizards team for creating the foundation that made this extension possible.
-The original DeepSeek extension pioneered the Transparent Vision Proxy pattern and seamless Copilot Chat integration. AIFlowBridge extends this work to support multiple AI providers while adding new features like usage metrics and local proxy routing.
 
 ## Maintainer
 

@@ -84,13 +84,13 @@ try {
       Write-Host " [$idx] $($availableProfiles[$i].Display)"
     }
     Write-Host "`nEnter comma-separated indices to install into (e.g. 1,3), or 'a' for all, or empty to install into active profile:"
-    $input = Read-Host "Select profiles"
-    if ([string]::IsNullOrWhiteSpace($input)) {
+    $inputVal = Read-Host "Select profiles"
+    if ([string]::IsNullOrWhiteSpace($inputVal)) {
       $targets = @()
-    } elseif ($input.Trim().ToLower() -eq 'a') {
+    } elseif ($inputVal.Trim().ToLower() -eq 'a') {
       $targets = $availableProfiles | ForEach-Object { $_.Folder }
     } else {
-      $indices = $input -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[0-9]+$' } | ForEach-Object { [int]$_ }
+      $indices = $inputVal -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[0-9]+$' } | ForEach-Object { [int]$_ }
       $sel = @()
       foreach ($n in $indices) {
         if ($n -ge 1 -and $n -le $availableProfiles.Count) { $sel += $availableProfiles[$n - 1].Folder }

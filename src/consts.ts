@@ -18,11 +18,11 @@ export const EXTERNAL_URLS = {
 		status: 'https://status.deepseek.com',
 	},
 	minimax: {
-		apiKeys: 'https://platform.minimax.chat/api_keys',
+		apiKeys: 'https://platform.minimax.io/user-center/payment/token-plan',
 		usage: 'https://platform.minimax.chat/usage',
 	},
 	xiaomi: {
-		apiKeys: 'https://api.xiaomi.com/api_keys',
+		apiKeys: 'https://platform.xiaomimimo.com/console/api-keys',
 	},
 } as const;
 
@@ -56,8 +56,8 @@ export const WALKTHROUGH_ID = 'LaurentOngaro.aiflowbridge#gettingStarted';
 
 export const DEFAULT_PROVIDER_URLS = {
 	deepseek: 'https://api.deepseek.com',
-	minimax: 'https://api.minimax.chat/v1',
-	xiaomi: 'https://api.xiaomi.com/v1',
+	minimax: 'https://api.minimax.io/v1',
+	xiaomi: 'https://api.xiaomimimo.com/v1',
 } as const;
 
 // ---- Model registry ----
@@ -100,8 +100,8 @@ export const MODELS: ModelDefinition[] = [
 		family: 'minimax',
 		version: '2.7',
 		detail: 'MiniMax latest generation model',
-		maxInputTokens: 1000000,
-		maxOutputTokens: 327680,
+		maxInputTokens: 204800,
+		maxOutputTokens: 128000,
 		capabilities: {
 			toolCalling: true,
 			imageInput: false,
@@ -115,14 +115,14 @@ export const MODELS: ModelDefinition[] = [
 		family: 'xiaomi',
 		version: 'v2.5',
 		detail: 'Multimodal model with vision support',
-		maxInputTokens: 1000000,
-		maxOutputTokens: 327680,
+		maxInputTokens: 917504,
+		maxOutputTokens: 131072,
 		capabilities: {
 			toolCalling: true,
 			imageInput: true,
 			thinking: true,
 		},
-		requiresThinkingParam: true,
+		requiresThinkingParam: false,
 	},
 	{
 		id: 'xiaomi-mimo-v2.5-pro',
@@ -130,13 +130,13 @@ export const MODELS: ModelDefinition[] = [
 		family: 'xiaomi',
 		version: 'v2.5-pro',
 		detail: 'Reasoning model without vision',
-		maxInputTokens: 1000000,
-		maxOutputTokens: 327680,
+		maxInputTokens: 917504,
+		maxOutputTokens: 131072,
 		capabilities: {
 			toolCalling: true,
 			imageInput: false,
 			thinking: true,
 		},
-		requiresThinkingParam: true,
+		requiresThinkingParam: false,
 	},
 ];

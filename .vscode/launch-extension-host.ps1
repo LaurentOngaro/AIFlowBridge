@@ -99,19 +99,19 @@ if ($stoppedProcess) {
   Wait-ForPortRelease
 }
 
-$args = @(
+$argsVal = @(
   "--new-window",
   "--inspect-extensions=$Port",
   "--extensionDevelopmentPath=$Workspace"
 )
 
 if (-not [string]::IsNullOrWhiteSpace($Profile)) {
-  $args += "--profile=$Profile"
+  $argsVal += "--profile=$Profile"
 }
 
-$args += $Workspace
+$argsVal += $Workspace
 
-& $cli @args
+& $cli @argsVal
 
 if ($LASTEXITCODE) {
   exit $LASTEXITCODE

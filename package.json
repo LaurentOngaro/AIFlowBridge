@@ -3,7 +3,7 @@
   "displayName": "AIFlowBridge",
   "description": "Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.",
   "icon": "resources/icon.png",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {
@@ -232,10 +232,56 @@
           "default": "https://api.minimax.io/v1",
           "description": "MiniMax API base URL"
         },
+        "aiflowbridge.providers.minimax.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum tokens per response (0 = default)"
+        },
+        "aiflowbridge.providers.minimax.modelIdOverrides": {
+          "type": "object",
+          "default": {},
+          "description": "Model ID overrides for MiniMax models"
+        },
+        "aiflowbridge.providers.minimax.temperature": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature for MiniMax requests"
+        },
+        "aiflowbridge.providers.minimax.topP": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Nucleus sampling parameter for MiniMax requests"
+        },
+        "aiflowbridge.providers.minimax.reasoningSplit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable reasoning split streaming for MiniMax"
+        },
         "aiflowbridge.providers.xiaomi.baseUrl": {
           "type": "string",
-          "default": "https://token-plan-ams.xiaomimimo.com/v1",
+          "default": "https://api.xiaomimimo.com/v1",
           "description": "Xiaomi MiMo-API base URL"
+        },
+        "aiflowbridge.providers.xiaomi.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum tokens per response (0 = default)"
+        },
+        "aiflowbridge.providers.xiaomi.modelIdOverrides": {
+          "type": "object",
+          "default": {},
+          "description": "Model ID overrides for Xiaomi MiMo models"
+        },
+        "aiflowbridge.providers.xiaomi.reasoningRequiredForToolCalls": {
+          "type": "boolean",
+          "default": true,
+          "description": "Replay reasoning_content in tool-call followups to satisfy MiMo API requirements"
         },
         "aiflowbridge.telemetry.enabled": {
           "type": "boolean",
@@ -300,12 +346,14 @@
     "compile": "npm run clean && tsc -p ./",
     "watch": "npm run clean && tsc -watch -p ./",
     "package": "vsce package -o dist/",
-    "publish": "vsce publish"
+    "publish": "vsce publish",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.0.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^2.0.5"
   }
 }
