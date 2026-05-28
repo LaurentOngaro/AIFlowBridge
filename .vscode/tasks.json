@@ -64,6 +64,72 @@
       "dependsOn": "npm: watch",
       "dependsOrder": "sequence",
       "problemMatcher": []
+    },
+    {
+      "label": "Launch Extension Host (Insiders CLI, Profile Prompt)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/.vscode/launch-extension-host.sh",
+        "insiders",
+        "9333",
+        "${workspaceFolder}",
+        "${input:debugProfileName}"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/.vscode/launch-extension-host.ps1",
+          "insiders",
+          "9333",
+          "${workspaceFolder}",
+          "${input:debugProfileName}"
+        ]
+      },
+      "dependsOn": "npm: watch",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Launch Extension Host (Stable CLI, Profile Prompt)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/.vscode/launch-extension-host.sh",
+        "stable",
+        "9334",
+        "${workspaceFolder}",
+        "${input:debugProfileName}"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/.vscode/launch-extension-host.ps1",
+          "stable",
+          "9334",
+          "${workspaceFolder}",
+          "${input:debugProfileName}"
+        ]
+      },
+      "dependsOn": "npm: watch",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "debugProfileName",
+      "type": "promptString",
+      "description": "VS Code profile name for Extension Host debug",
+      "default": "AIFlowBridge Debug"
     }
   ]
 }

@@ -6,7 +6,7 @@ import { logger } from '../../logger';
 
 function getExcludedVendors(): string[] {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const excluded = config.get<string[]>('vision.excludedVendors', ['deepseek']);
+	const excluded = config.get<string[]>('vision.excludedVendors', ['aiflowbridge']);
 	return excluded.map((v) => v.toLowerCase().trim()).filter(Boolean);
 }
 

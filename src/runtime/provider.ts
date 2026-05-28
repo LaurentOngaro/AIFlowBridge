@@ -3,6 +3,7 @@ import { logger } from '../logger';
 import { DeepSeekChatProvider } from '../provider';
 import { MiniMaxChatProvider } from '../provider/minimax';
 import { XiaomiChatProvider } from '../provider/xiaomi';
+import { UnifiedChatProvider } from '../provider/unified';
 
 export interface RegisteredProvider {
 	name: string;
@@ -22,6 +23,13 @@ export async function registerAllProviders(
 
 	const xiaomiProvider = new XiaomiChatProvider(context);
 	providers.push({ name: 'xiaomi', provider: xiaomiProvider });
+
+	// Single unified provider registered under 'aiflowbridge' vendor
+	const unifiedProvider = new UnifiedChatProvider([
+		deepseekProvider,
+		minimaxProvider,
+		xiaomiProvider,
+	]);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('aiflowbridge.providers.deepseek.setApiKey', () =>
@@ -48,9 +56,9 @@ export async function registerAllProviders(
 			xiaomiProvider.clearApiKey(),
 		),
 
-		vscode.lm.registerLanguageModelChatProvider('deepseek', deepseekProvider),
-		vscode.lm.registerLanguageModelChatProvider('minimax', minimaxProvider),
-		vscode.lm.registerLanguageModelChatProvider('xiaomi', xiaomiProvider),
+		// Single registration — unified provider handles all models
+		vscode.lm.registerLanguageModelChatProvider('aiflowbridge', unifiedProvider),
+		unifiedProvider,
 	);
 
 	await activateCopilotChat();

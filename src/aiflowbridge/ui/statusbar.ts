@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { AiFlowBridgeConfig, TelemetrySnapshot } from "../types.js";
+import type { AiFlowBridgeConfig, TelemetrySnapshot } from "../types";
 
 export class StatusBarController implements vscode.Disposable {
   private readonly item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);

@@ -1,4 +1,4 @@
-import type { ProviderProfile } from "./types.js";
+import type { ProviderProfile } from "./types";
 
 function toBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;

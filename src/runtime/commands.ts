@@ -10,9 +10,6 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('aiflowbridge.openRequestDumpsFolder', () =>
 			openRequestDumpsFolder(context),
 		),
-		vscode.commands.registerCommand('aiflowbridge.getApiKey', () =>
-			vscode.env.openExternal(vscode.Uri.parse(EXTERNAL_URLS.deepseek.apiKeys)),
-		),
 	);
 }
 

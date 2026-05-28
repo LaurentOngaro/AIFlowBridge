@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
-import { loadConfig } from "./config.js";
-import { GatewayService } from "./gateway/server.js";
-import { TelemetryStore } from "./telemetry.js";
-import type { GatewayStatus, TelemetrySnapshot } from "./types.js";
-import { showMetricsDashboard } from "./ui/dashboard.js";
-import { StatusBarController } from "./ui/statusbar.js";
+import { loadConfig } from "./config";
+import { GatewayService } from "./gateway/server";
+import { TelemetryStore } from "./telemetry";
+import type { GatewayStatus, TelemetrySnapshot } from "./types";
+import { showMetricsDashboard } from "./ui/dashboard";
+import { StatusBarController } from "./ui/statusbar";
 
 class AIFlowBridgeRuntime {
   private config = loadConfig();
@@ -26,7 +26,13 @@ class AIFlowBridgeRuntime {
     }));
 
     if (this.config.gateway.enabled) {
-      await this.gateway.start();
+      try {
+        await this.gateway.start();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("[AIFlowBridge] Gateway failed to start:", message);
+        vscode.window.showWarningMessage(`AIFlowBridge gateway failed to start on port ${this.config.gateway.port}: ${message}`);
+      }
     }
     this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
   }

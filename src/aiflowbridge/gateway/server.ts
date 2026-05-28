@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { URL } from "node:url";
-import { buildModelCatalog, selectProvider } from "../providers.js";
-import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry.js";
-import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types.js";
+import { buildModelCatalog, selectProvider } from "../providers";
+import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
+import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
 
 interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;

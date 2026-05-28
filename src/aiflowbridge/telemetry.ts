@@ -1,4 +1,4 @@
-import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from "./types.js";
+import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from "./types";
 
 function emptyProviderSnapshot(): ProviderSnapshot {
   return {

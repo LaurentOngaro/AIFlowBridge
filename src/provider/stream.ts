@@ -217,10 +217,15 @@ function handleThinking(
 ): void {
 	state.accumulatedReasoning += text;
 
-	// LanguageModelThinkingPart is a proposed API; the project root augmentation provides types.
-	progress.report(
-		new vscode.LanguageModelThinkingPart(text) as unknown as vscode.LanguageModelResponsePart,
-	);
+	// LanguageModelThinkingPart is a proposed API; guard against missing class at runtime.
+	if (typeof (vscode as Record<string, unknown>).LanguageModelThinkingPart === 'function') {
+		progress.report(
+			new vscode.LanguageModelThinkingPart(text) as unknown as vscode.LanguageModelResponsePart,
+		);
+	} else {
+		// Fallback: emit thinking content as plain text when proposed API unavailable.
+		progress.report(new vscode.LanguageModelTextPart(`[Thinking] ${text}`));
+	}
 }
 
 function handleToolCall(

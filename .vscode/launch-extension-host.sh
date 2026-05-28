@@ -3,13 +3,14 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: launch-extension-host.sh <stable|insiders> <port> <workspace>
+Usage: launch-extension-host.sh <stable|insiders> <port> <workspace> [profile]
 EOF
 }
 
 quality="${1:-}"
 port="${2:-}"
 workspace="${3:-}"
+profile="${4:-}"
 
 if [ -z "$quality" ] || [ -z "$port" ] || [ -z "$workspace" ]; then
   usage
@@ -92,8 +93,16 @@ else
   echo "Warning: lsof is not available; skipping stale inspector cleanup for port $port." >&2
 fi
 
-"$cli" \
-  --new-window \
-  "--inspect-extensions=$port" \
-  "--extensionDevelopmentPath=$workspace" \
-  "$workspace"
+args=(
+  --new-window
+  "--inspect-extensions=$port"
+  "--extensionDevelopmentPath=$workspace"
+)
+
+if [ -n "$profile" ]; then
+  args+=("--profile=$profile")
+fi
+
+args+=("$workspace")
+
+"$cli" "${args[@]}"

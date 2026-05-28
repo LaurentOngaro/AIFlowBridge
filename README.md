@@ -14,12 +14,6 @@
 
 AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi MiMo) under a unified interface inside Copilot Chat - with built-in metrics, proxy routing, and vision bridge capabilities.
 
-## Based On
-
-This project is a fork of [DeepSeek V4 for Copilot](https://github.com/Vizards/deepseek-v4-for-copilot) by the original authors. Special thanks to the Vizards team for creating the foundation that made this extension possible.
-
-The original DeepSeek extension pioneered the Transparent Vision Proxy pattern and seamless Copilot Chat integration. AIFlowBridge extends this work to support multiple AI providers while adding new features like usage metrics and local proxy routing.
-
 ## Features
 
 ### Multi-Provider Support
@@ -116,12 +110,9 @@ AIFlowBridge: Set vision proxy model
 
 ### Gateway (Optional)
 
-The local gateway provides an OpenAI-compatible proxy for external tools (e.g., Kilo Code):
+The local gateway provides an OpenAI-compatible proxy that can be used by external tools. It starts automatically on port 8787 when the extension activates (if `aiflowbridge.gateway.enabled` is `true`).
 
 ```bash
-# Gateway starts automatically on port 8787
-# Access at: http://127.0.0.1:8787/v1
-
 # Health check
 curl http://127.0.0.1:8787/health
 
@@ -132,7 +123,24 @@ curl http://127.0.0.1:8787/v1/models
 curl http://127.0.0.1:8787/metrics
 ```
 
-Configure gateway providers in settings:
+#### Using with Kilo Code or Other OpenAI-Compatible Clients
+
+Any tool that supports the OpenAI API can use AIFlowBridge as a backend via the gateway. This lets you access DeepSeek, MiniMax, and Xiaomi MiMo models from clients other than Copilot Chat.
+
+**Kilo Code configuration example:**
+
+| Setting      | Value                                              |
+| ------------ | -------------------------------------------------- |
+| API Provider | OpenAI Compatible                                  |
+| Base URL     | `http://127.0.0.1:8787/v1`                         |
+| API Key      | Any string (keys are managed by AIFlowBridge)      |
+| Model        | `deepseek-chat`, `minimax-v2.7`, `mimo-v2.5`, etc. |
+
+The gateway routes requests to the correct upstream provider based on the model name. Streaming (`stream: true`) is fully supported.
+
+#### Configuring Gateway Providers
+
+Gateway providers are configured in VS Code settings (`settings.json`):
 
 ```json
 {
@@ -149,8 +157,16 @@ Configure gateway providers in settings:
       "id": "minimax",
       "label": "MiniMax V2.7",
       "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.chat/v1",
+      "baseUrl": "https://api.minimax.io/v1",
       "model": "minimax-v2.7",
+      "apiKey": "..."
+    },
+    {
+      "id": "MiMo",
+      "label": "Xiaomi MiMo V2.5 Pro",
+      "kind": "openai-compat",
+      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
+      "model": "MiMo-V2.5-PRO",
       "apiKey": "..."
     }
   ]
@@ -218,6 +234,8 @@ The dashboard shows:
 
 ## Commands
 
+In the Command Palette, the provider key commands are grouped under the `AIFlowBridge` category. If you do not see them immediately, search for `set api`.
+
 | Command                                | Description             |
 | -------------------------------------- | ----------------------- |
 | **AIFlowBridge**                       |                         |
@@ -265,6 +283,72 @@ AIFlowBridge
 │   └── actions.ts              # URI action handlers
 └── src/consts.ts               # Model registry & constants
 ```
+
+## Development
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v18 or later)
+- npm (included with Node.js)
+- [Visual Studio Code](https://code.visualstudio.com/)
+
+### Build
+
+```bash
+# Install dependencies
+npm install
+
+# Compile TypeScript (cleans out/ first)
+npm run compile
+
+# Watch mode — recompiles on file changes
+npm run watch
+```
+
+### Run in Development Host
+
+1. Open the project in VS Code
+2. Press `F5` to launch the Extension Development Host
+3. A new VS Code window opens with the extension loaded from source
+4. Make changes, then reload the window (`Ctrl+Shift+R`) to pick them up
+
+### Package & Install
+
+```bash
+# Build a .vsix package (output in dist/)
+npm run package
+
+# Install locally via CLI
+code --install-extension dist/aiflowbridge-<VERSION>.vsix
+```
+
+Or install manually: open VS Code → Extensions → `...` menu → **Install from VSIX...** → select the file in `dist/`.
+
+For repeatable local updates, use the helper script in `_helpers/Publish-AIFlowBridge.ps1`:
+
+```powershell
+# Build, package, and install into the active profile
+.\_helpers\Publish-AIFlowBridge.ps1
+
+# Build, package, and install into every profile folder found on this machine
+.\_helpers\Publish-AIFlowBridge.ps1 -AllProfiles
+```
+
+## Interactive mode
+
+If you run the helper without `-Profiles` or `-AllProfiles`, the script will detect available local profiles and prompt you to pick which profiles should receive the VSIX (you can type indices like `1,3` or `a` for all). This makes it easier to push local builds into selected profiles during development.
+
+### Publish
+
+```bash
+# Requires a Personal Access Token for the VS Code Marketplace
+npm run publish
+```
+
+## Based On
+
+This project is a fork of [DeepSeek V4 for Copilot](https://github.com/Vizards/deepseek-v4-for-copilot) by the original authors. Special thanks to the Vizards team for creating the foundation that made this extension possible.
+The original DeepSeek extension pioneered the Transparent Vision Proxy pattern and seamless Copilot Chat integration. AIFlowBridge extends this work to support multiple AI providers while adding new features like usage metrics and local proxy routing.
 
 ## Maintainer
 

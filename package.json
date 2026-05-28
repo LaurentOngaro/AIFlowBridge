@@ -11,7 +11,7 @@
     "url": "https://github.com/ongaro-fr/aiflowbridge"
   },
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.116.0"
   },
   "categories": [
     "AI",
@@ -37,81 +37,84 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "deepseek",
-        "displayName": "DeepSeek"
-      },
-      {
-        "vendor": "minimax",
-        "displayName": "MiniMax"
-      },
-      {
-        "vendor": "xiaomi",
-        "displayName": "Xiaomi MiMo"
+        "vendor": "aiflowbridge",
+        "displayName": "AIFlowBridge"
       }
     ],
     "commands": [
       {
         "command": "aiflowbridge.refreshMetrics",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Refresh metrics"
       },
       {
         "command": "aiflowbridge.showMetrics",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Show metrics dashboard"
       },
       {
         "command": "aiflowbridge.startGateway",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Start local gateway"
       },
       {
         "command": "aiflowbridge.stopGateway",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Stop local gateway"
       },
       {
         "command": "aiflowbridge.copyGatewayUrl",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Copy gateway URL"
       },
       {
         "command": "aiflowbridge.openSettings",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Open settings"
       },
       {
         "command": "aiflowbridge.setVisionModel",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Set vision proxy model"
       },
       {
         "command": "aiflowbridge.showLogs",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Show logs"
       },
       {
         "command": "aiflowbridge.openRequestDumpsFolder",
+        "category": "AIFlowBridge",
         "title": "AIFlowBridge: Open request dumps folder"
       },
       {
-        "command": "aiflowbridge.getApiKey",
-        "title": "AIFlowBridge: Get DeepSeek API key"
-      },
-      {
         "command": "aiflowbridge.providers.deepseek.setApiKey",
+        "category": "AIFlowBridge",
         "title": "DeepSeek: Set API Key"
       },
       {
         "command": "aiflowbridge.providers.deepseek.clearApiKey",
+        "category": "AIFlowBridge",
         "title": "DeepSeek: Clear API Key"
       },
       {
         "command": "aiflowbridge.providers.minimax.setApiKey",
+        "category": "AIFlowBridge",
         "title": "MiniMax: Set API Key"
       },
       {
         "command": "aiflowbridge.providers.minimax.clearApiKey",
+        "category": "AIFlowBridge",
         "title": "MiniMax: Clear API Key"
       },
       {
         "command": "aiflowbridge.providers.xiaomi.setApiKey",
+        "category": "AIFlowBridge",
         "title": "Xiaomi MiMo: Set API Key"
       },
       {
         "command": "aiflowbridge.providers.xiaomi.clearApiKey",
+        "category": "AIFlowBridge",
         "title": "Xiaomi MiMo: Clear API Key"
       }
     ],
@@ -153,7 +156,13 @@
           "description": "Logical upstream provider profiles routed by the proxy",
           "items": {
             "type": "object",
-            "required": ["id", "label", "kind", "baseUrl", "model"],
+            "required": [
+              "id",
+              "label",
+              "kind",
+              "baseUrl",
+              "model"
+            ],
             "properties": {
               "id": {
                 "type": "string",
@@ -165,7 +174,10 @@
               },
               "kind": {
                 "type": "string",
-                "enum": ["openai-compat", "ollama"],
+                "enum": [
+                  "openai-compat",
+                  "ollama"
+                ],
                 "description": "Upstream provider kind"
               },
               "baseUrl": {
@@ -217,12 +229,12 @@
         },
         "aiflowbridge.providers.minimax.baseUrl": {
           "type": "string",
-          "default": "https://api.minimax.chat/v1",
+          "default": "https://api.minimax.io/v1",
           "description": "MiniMax API base URL"
         },
         "aiflowbridge.providers.xiaomi.baseUrl": {
           "type": "string",
-          "default": "https://api.xiaomi.com/v1",
+          "default": "https://token-plan-ams.xiaomimimo.com/v1",
           "description": "Xiaomi MiMo-API base URL"
         },
         "aiflowbridge.telemetry.enabled": {
@@ -242,7 +254,9 @@
         },
         "aiflowbridge.vision.excludedVendors": {
           "type": "array",
-          "default": ["deepseek"],
+          "default": [
+            "aiflowbridge"
+          ],
           "description": "Vendors that should NOT use the vision proxy"
         },
         "aiflowbridge.vision.defaultModel": {
@@ -263,7 +277,11 @@
         "aiflowbridge.debugMode": {
           "type": "string",
           "default": "minimal",
-          "enum": ["minimal", "metadata", "verbose"],
+          "enum": [
+            "minimal",
+            "metadata",
+            "verbose"
+          ],
           "description": "Debug mode for extension diagnostics"
         }
       }

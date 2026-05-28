@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { AiFlowBridgeConfig, TelemetrySnapshot } from "../types.js";
+import type { AiFlowBridgeConfig, TelemetrySnapshot } from "../types";
 
 let currentPanel: vscode.WebviewPanel | undefined;
 

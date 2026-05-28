@@ -7,7 +7,10 @@ param(
   [int] $Port,
 
   [Parameter(Mandatory = $true)]
-  [string] $Workspace
+  [string] $Workspace,
+
+  [Parameter(Mandatory = $false)]
+  [string] $Profile = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -96,11 +99,19 @@ if ($stoppedProcess) {
   Wait-ForPortRelease
 }
 
-& $cli `
-  --new-window `
-  "--inspect-extensions=$Port" `
-  "--extensionDevelopmentPath=$Workspace" `
-  $Workspace
+$args = @(
+  "--new-window",
+  "--inspect-extensions=$Port",
+  "--extensionDevelopmentPath=$Workspace"
+)
+
+if (-not [string]::IsNullOrWhiteSpace($Profile)) {
+  $args += "--profile=$Profile"
+}
+
+$args += $Workspace
+
+& $cli @args
 
 if ($LASTEXITCODE) {
   exit $LASTEXITCODE

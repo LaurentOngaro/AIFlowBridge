@@ -85,7 +85,7 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 		this.isActive = false;
 		this.onDidChangeLanguageModelChatInformationEmitter.fire();
 		try {
-			await vscode.lm.selectChatModels({ vendor: 'deepseek' });
+			await vscode.lm.selectChatModels({ vendor: 'aiflowbridge' });
 		} catch (error) {
 			logger.warn('Failed to refresh DeepSeek models during deactivate', error);
 		}

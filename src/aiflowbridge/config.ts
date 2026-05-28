@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import { normalizeProviderProfiles } from "./providers.js";
-import type { AiFlowBridgeConfig, GatewaySettings, VisionProxySettings } from "./types.js";
+import { normalizeProviderProfiles } from "./providers";
+import type { AiFlowBridgeConfig, GatewaySettings, VisionProxySettings } from "./types";
 
 export function loadConfig(): AiFlowBridgeConfig {
   const configuration = vscode.workspace.getConfiguration("aiflowbridge");
@@ -13,7 +13,7 @@ export function loadConfig(): AiFlowBridgeConfig {
   };
 
   const visionProxy: VisionProxySettings = {
-    excludedVendors: configuration.get<string[]>("vision.excludedVendors", ["deepseek"]),
+    excludedVendors: configuration.get<string[]>("vision.excludedVendors", ["aiflowbridge"]),
     defaultModel: configuration.get<string>("vision.defaultModel", "oswe-vscode-prime"),
   };
 
