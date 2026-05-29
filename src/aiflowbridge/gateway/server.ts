@@ -11,6 +11,8 @@ interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;
 }
 
+export type ResolveApiKeyFn = (vendor: string) => Promise<string | undefined>;
+
 export class GatewayService {
   private server: ReturnType<typeof createServer> | undefined;
   private config: AiFlowBridgeConfig;
@@ -19,6 +21,7 @@ export class GatewayService {
   constructor(
     config: AiFlowBridgeConfig,
     private readonly onUpdate?: GatewaySnapshotListener,
+    private readonly resolveApiKey?: ResolveApiKeyFn,
   ) {
     this.config = config;
   }
@@ -188,6 +191,17 @@ export class GatewayService {
     }
 
     const upstreamUrl = resolveUpstreamUrl(provider, "chat/completions");
+
+    // Resolve API key: use profile key if set, otherwise try the async resolver
+    let resolvedKey = provider.apiKey;
+    if (!resolvedKey && this.resolveApiKey) {
+      try {
+        resolvedKey = await this.resolveApiKey(provider.id);
+      } catch {
+        // Ignore resolve errors; request will fail if upstream requires auth
+      }
+    }
+
     const headers = new Headers({
       "Content-Type": "application/json",
       "Accept": "application/json, text/event-stream",
@@ -195,14 +209,20 @@ export class GatewayService {
       "X-AIFlowBridge-Provider": provider.id,
     });
 
-    if (provider.apiKey) {
-      headers.set("Authorization", `Bearer ${provider.apiKey}`);
+    if (resolvedKey) {
+      headers.set("Authorization", `Bearer ${resolvedKey}`);
     }
 
     const abortController = new AbortController();
     const abort = (): void => abortController.abort();
     request.once("aborted", abort);
     response.once("close", abort);
+
+    // Override the model name in the forwarded request with the provider's
+    // upstream model name, so Kilo Code and other clients can use any alias.
+    const upstreamBody = provider.model && payload?.model !== provider.model
+      ? JSON.stringify({ ...payload, model: provider.model })
+      : bodyText;
 
     let statusCode = 502;
     let promptTokens = estimatePromptTokensFromPayload(payload);
@@ -214,7 +234,7 @@ export class GatewayService {
       const upstreamResponse = await fetch(upstreamUrl, {
         method: "POST",
         headers,
-        body: bodyText,
+        body: upstreamBody,
         signal: abortController.signal,
       });
 

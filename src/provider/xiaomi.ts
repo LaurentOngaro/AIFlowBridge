@@ -1,19 +1,19 @@
 import vscode from 'vscode';
 import {
-    getProviderApiModelId,
-    getProviderBaseUrl,
-    getProviderMaxTokens,
-    getProviderReasoningRequiredForToolCalls,
-    getProviderTemperature,
-    getProviderTopP,
+  getProviderApiModelId,
+  getProviderBaseUrl,
+  getProviderMaxTokens,
+  getProviderReasoningRequiredForToolCalls,
+  getProviderTemperature,
+  getProviderTopP,
 } from '../config';
 import { API_KEY_SECRETS, DEFAULT_PROVIDER_URLS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE, MODELS } from '../consts';
 import { t } from '../i18n';
 import { logger } from '../logger';
 import { BaseChatProvider } from './base';
-import { createHttpProviderError, normalizeProviderError, ProviderRequestError } from './errors';
-import { estimateTokenCount } from './tokens';
+import { createHttpProviderError, ProviderRequestError } from './errors';
 import { updateCharsPerToken } from './stream';
+import { estimateTokenCount } from './tokens';
 import { createVisionModelGetter, resolveImageMessages } from './vision/index';
 
 const XIAOMI_API_KEY_SECRET = API_KEY_SECRETS.xiaomi;
@@ -182,22 +182,25 @@ export class XiaomiChatProvider extends BaseChatProvider {
 
 		const modelDef = MODELS.find((m) => m.id === modelInfo.id);
 		const isThinkingModel = modelDef?.capabilities.thinking ?? false;
-		const supportsVision = modelDef?.capabilities.imageInput ?? false;
+		// imageInput in the model definition controls the VS Code paste-image button.
+		// Native vision support depends on the actual model ID — V2.5 (non-pro) supports
+		// images natively, V2.5 Pro does not and requires the vision proxy.
+		const hasNativeVision = modelInfo.id === 'xiaomi-mimo-v2.5';
 		const requiresReasoningReplay = getProviderReasoningRequiredForToolCalls(this.vendor);
 		if (messages.length <= 2) {
 			pruneReasoningCache(this.reasoningCache, true);
 		}
 
-		// Resolve images via vision proxy for non-vision models
+		// Resolve images via vision proxy for models without native vision support
 		let resolvedMessages: readonly vscode.LanguageModelChatRequestMessage[] = messages;
-		if (!supportsVision) {
+		if (!hasNativeVision) {
 			const visionResolution = await resolveImageMessages(messages, token, () => this.vision.get());
 			resolvedMessages = visionResolution.messages;
 		}
 
 		const xiaomiMessages = convertXiaomiMessages(resolvedMessages, {
 			isThinkingModel,
-			supportsVision,
+			supportsVision: hasNativeVision,
 			reasoningCache: this.reasoningCache,
 			reasoningReplayRequired: requiresReasoningReplay,
 		});
@@ -232,7 +235,17 @@ export class XiaomiChatProvider extends BaseChatProvider {
 			});
 
 			if (!response.ok) {
-				throw createHttpProviderError(response, getProviderBaseUrl(this.vendor), 'Xiaomi MiMo');
+				// Try to read response body for detailed error message
+				let detail = '';
+				try {
+					const errorBody = await response.text();
+					if (errorBody) {
+						detail = `: ${errorBody.slice(0, 500)}`;
+					}
+				} catch {
+					// Ignore read errors
+				}
+				throw createHttpProviderError(response, getProviderBaseUrl(this.vendor), 'Xiaomi MiMo', detail);
 			}
 
 			if (!response.body) {

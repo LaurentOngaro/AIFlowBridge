@@ -41,13 +41,15 @@ export function createHttpProviderError(
 	response: Response,
 	baseUrl: string,
 	provider: string,
+	detail?: string,
 ): ProviderRequestError {
 	const status = response.status;
 	const userSummary = getHttpErrorMessage(status);
-	const diagnosticMessage = `kind=http provider=${provider} status=${status} baseUrl=${baseUrl} statusText=${response.statusText || 'unknown'}`;
+	const diagnosticMessage = `kind=http provider=${provider} status=${status} baseUrl=${baseUrl} statusText=${response.statusText || 'unknown'}${detail ?? ''}`;
+	const msg = `${provider} API request failed with HTTP ${status}${detail ?? ''}`;
 
 	return new ProviderRequestError({
-		message: `${provider} API request failed with HTTP ${status}`,
+		message: msg,
 		userSummary,
 		kind: 'http',
 		baseUrl,

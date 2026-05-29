@@ -5,10 +5,28 @@ import { TelemetryStore } from "./telemetry";
 import type { GatewayStatus, TelemetrySnapshot } from "./types";
 import { showMetricsDashboard } from "./ui/dashboard";
 import { StatusBarController } from "./ui/statusbar";
+import { API_KEY_SECRETS } from "../consts";
 
 class AIFlowBridgeRuntime {
   private config = loadConfig();
-  private readonly gateway = new GatewayService(this.config, (status, snapshot) => this.refreshUi(status, snapshot));
+  private readonly gateway = new GatewayService(
+    this.config,
+    (status, snapshot) => this.refreshUi(status, snapshot),
+    // Resolve API keys from VS Code SecretStorage for auto-generated profiles.
+    // Matches vendor IDs like "deepseek-flash" or "deepseek-pro" to the "deepseek" key.
+    async (vendor: string): Promise<string | undefined> => {
+      const knownVendors = Object.keys(API_KEY_SECRETS) as Array<keyof typeof API_KEY_SECRETS>;
+      const matched = knownVendors.find((kv) => vendor === kv || vendor.startsWith(`${kv}-`));
+      if (!matched) {
+        return undefined;
+      }
+      try {
+        return await this.context.secrets.get(API_KEY_SECRETS[matched]);
+      } catch {
+        return undefined;
+      }
+    },
+  );
   private readonly statusBar = new StatusBarController();
   private readonly telemetryFallback = new TelemetryStore();
 

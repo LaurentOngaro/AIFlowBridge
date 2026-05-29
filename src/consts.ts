@@ -23,6 +23,13 @@ export const EXTERNAL_URLS = {
 	},
 	xiaomi: {
 		apiKeys: 'https://platform.xiaomimimo.com/console/api-keys',
+		// Regional Token Plan endpoints (use instead of pay-as-you-go for tp-* keys):
+		//   China:    https://token-plan-cn.xiaomimimo.com
+		//   Singapore: https://token-plan-sgp.xiaomimimo.com
+		//   Europe:    https://token-plan-ams.xiaomimimo.com
+		tokenPlanAms: 'https://token-plan-ams.xiaomimimo.com/v1',
+		tokenPlanSgp: 'https://token-plan-sgp.xiaomimimo.com/v1',
+		tokenPlanCn: 'https://token-plan-cn.xiaomimimo.com/v1',
 	},
 } as const;
 
@@ -57,7 +64,11 @@ export const WALKTHROUGH_ID = 'LaurentOngaro.aiflowbridge#gettingStarted';
 export const DEFAULT_PROVIDER_URLS = {
 	deepseek: 'https://api.deepseek.com',
 	minimax: 'https://api.minimax.io/v1',
-	xiaomi: 'https://api.xiaomimimo.com/v1',
+	// Token Plan Europe cluster (default). For pay-as-you-go (sk-* keys) or other regions:
+	//   Pay-as-you-go: https://api.xiaomimimo.com/v1
+	//   Token Plan Singapore: https://token-plan-sgp.xiaomimimo.com/v1
+	//   Token Plan China:     https://token-plan-cn.xiaomimimo.com/v1
+	xiaomi: 'https://token-plan-ams.xiaomimimo.com/v1',
 } as const;
 
 // ---- Model registry ----
@@ -104,7 +115,9 @@ export const MODELS: ModelDefinition[] = [
 		maxOutputTokens: 128000,
 		capabilities: {
 			toolCalling: true,
-			imageInput: false,
+			// imageInput=true enables the paste-image button in Copilot Chat;
+			// the vision proxy transparently converts images to text descriptions.
+			imageInput: true,
 			thinking: false,
 		},
 		requiresThinkingParam: false,
@@ -134,7 +147,7 @@ export const MODELS: ModelDefinition[] = [
 		maxOutputTokens: 131072,
 		capabilities: {
 			toolCalling: true,
-			imageInput: false,
+			imageInput: true,
 			thinking: true,
 		},
 		requiresThinkingParam: false,

@@ -10,9 +10,9 @@ import {
 import { API_KEY_SECRETS, DEFAULT_PROVIDER_URLS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
 import { t } from '../i18n';
 import { BaseChatProvider } from './base';
-import { createHttpProviderError, normalizeProviderError, ProviderRequestError } from './errors';
-import { estimateTokenCount } from './tokens';
+import { createHttpProviderError, ProviderRequestError } from './errors';
 import { updateCharsPerToken } from './stream';
+import { estimateTokenCount } from './tokens';
 import { createVisionModelGetter, resolveImageMessages } from './vision/index';
 
 const MINIMAX_API_KEY_SECRET = API_KEY_SECRETS.minimax;
@@ -181,11 +181,14 @@ export class MiniMaxChatProvider extends BaseChatProvider {
 		const minimaxMessages = convertMiniMaxMessages(resolvedMessages);
 		const tools = convertMiniMaxTools(_options.tools);
 		const maxTokens = getProviderMaxTokens(this.vendor);
-		const temperature = getProviderTemperature(this.vendor);
+		// MiniMax API accepts temperature in (0.0, 1.0]; clamp values outside this range
+		const temperature = clampTemperature(getProviderTemperature(this.vendor));
 		const topP = getProviderTopP(this.vendor);
 		const reasoningSplit = getProviderReasoningSplit(this.vendor);
 		const modelId = resolveMiniMaxModelId(modelInfo.id);
 
+		// MiniMax OpenAI-compatible API expects reasoning_split at the top level,
+		// NOT wrapped in extra_body (extra_body is an OpenAI Python SDK parameter only).
 		const request: MiniMaxRequest = {
 			model: modelId,
 			messages: minimaxMessages,
@@ -194,7 +197,7 @@ export class MiniMaxChatProvider extends BaseChatProvider {
 			...(typeof temperature === 'number' ? { temperature } : {}),
 			...(typeof topP === 'number' ? { top_p: topP } : {}),
 			...(typeof reasoningSplit === 'boolean'
-				? { extra_body: { reasoning_split: reasoningSplit } }
+				? { reasoning_split: reasoningSplit }
 				: {}),
 			...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
 		};
@@ -214,7 +217,17 @@ export class MiniMaxChatProvider extends BaseChatProvider {
 			});
 
 			if (!response.ok) {
-				throw createHttpProviderError(response, getProviderBaseUrl(this.vendor), 'MiniMax');
+				// Try to read response body for detailed error message
+				let detail = '';
+				try {
+					const errorBody = await response.text();
+					if (errorBody) {
+						detail = `: ${errorBody.slice(0, 500)}`;
+					}
+				} catch {
+					// Ignore read errors
+				}
+				throw createHttpProviderError(response, getProviderBaseUrl(this.vendor), 'MiniMax', detail);
 			}
 
 			if (!response.body) {
@@ -319,6 +332,23 @@ export interface PendingToolCall {
 	arguments: string;
 }
 
+/**
+ * Clamp temperature to MiniMax's accepted range (0.0, 1.0].
+ * Values <= 0 are set to 0.1; values > 1.0 are set to 1.0.
+ */
+export function clampTemperature(temp: number | undefined): number | undefined {
+	if (typeof temp !== 'number') {
+		return temp;
+	}
+	if (temp <= 0) {
+		return 0.1;
+	}
+	if (temp > 1.0) {
+		return 1.0;
+	}
+	return temp;
+}
+
 export function resolveMiniMaxModelId(vscodeModelId: string): string {
 	const overridden = getProviderApiModelId('minimax', vscodeModelId);
 	if (overridden !== vscodeModelId) {
@@ -396,14 +426,22 @@ export function convertMiniMaxTools(
 		return undefined;
 	}
 
-	return tools.map((tool) => ({
-		type: 'function' as const,
-		function: {
-			name: tool.name,
-			description: tool.description,
-			parameters: tool.inputSchema as Record<string, unknown> | undefined,
-		},
-	}));
+	const result: MiniMaxTool[] = [];
+	for (const tool of tools) {
+		// MiniMax rejects tools with empty names or empty parameters (error code 2013)
+		if (!tool.name || tool.name.trim().length === 0) {
+			continue;
+		}
+		result.push({
+			type: 'function' as const,
+			function: {
+				name: tool.name,
+				...(tool.description ? { description: tool.description } : {}),
+				parameters: (tool.inputSchema as Record<string, unknown>) || {},
+			},
+		});
+	}
+	return result.length > 0 ? result : undefined;
 }
 
 export function concatToolResultContent(parts: readonly unknown[]): string {

@@ -3,11 +3,10 @@ import { AuthManager } from '../auth';
 import { getStabilizeToolListEnabled } from '../config';
 import { API_KEY_SECRETS, MODELS } from '../consts';
 import { t } from '../i18n';
-import { logger } from '../logger';
 import {
-	classifyProviderRequest,
-	createCacheDiagnosticsRecorder,
-	dumpProviderInput,
+    classifyProviderRequest,
+    createCacheDiagnosticsRecorder,
+    dumpProviderInput,
 } from './debug';
 import { toChatInfo } from './models';
 import { prepareChatRequest } from './request';
@@ -84,11 +83,8 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 	async prepareForDeactivate(): Promise<void> {
 		this.isActive = false;
 		this.onDidChangeLanguageModelChatInformationEmitter.fire();
-		try {
-			await vscode.lm.selectChatModels({ vendor: 'aiflowbridge' });
-		} catch (error) {
-			logger.warn('Failed to refresh DeepSeek models during deactivate', error);
-		}
+		// No need to call selectChatModels here — it's redundant during shutdown
+		// and causes a Canceled error when the extension host is already terminating.
 	}
 
 	async setVisionProxyModel(): Promise<void> {
