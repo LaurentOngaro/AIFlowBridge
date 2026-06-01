@@ -8,5 +8,5 @@ node_modules/
 .env*
 !.env.example
 .kilo/
-#_helpers/PLAN_ACTIONS.md
+_helpers/PLAN_ACTIONS.md
 _helpers/CHECKUP_1.0.0.md
