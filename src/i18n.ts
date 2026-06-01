@@ -35,8 +35,6 @@ const en: Translations = {
 	'vision.noModel': 'No non-vendor vision proxy models are available in the current environment',
 	'vision.pickPlaceholder': 'Select a model for image description (default: {0})',
 	'vision.current': 'Current',
-	'vision.proxyUsing': 'Vision proxy: {0}',
-	'vision.notFound': 'Vision model "{0}" not found',
 	'vision.unavailable': 'No vision models available, image(s) ignored',
 	'vision.proxyError': 'Vision proxy error:',
 

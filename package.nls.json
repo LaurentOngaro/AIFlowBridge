@@ -16,8 +16,6 @@
   "vision.noModel": "No vision proxy models available in the current environment",
   "vision.pickPlaceholder": "Select a model for image description (default: {0})",
   "vision.current": "Current",
-  "vision.proxyUsing": "Vision proxy: {0}",
-  "vision.notFound": "Vision model \"{0}\" not found",
   "vision.unavailable": "No vision models available",
   "vision.proxyError": "Vision proxy error:",
   "request.toolsLimitExceeded": "This model supports at most {0} functions per request, but this request contains {1}.",

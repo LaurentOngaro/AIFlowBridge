@@ -224,8 +224,7 @@ The dashboard shows:
 | ------------------------------------- | ------------------- | ----------------------------------- |
 | `aiflowbridge.vision.enabled`         | `true`              | Enable vision proxy                 |
 | `aiflowbridge.vision.excludedVendors` | `["deepseek"]`      | Vendors that don't need proxy       |
-| `aiflowbridge.vision.defaultModel`    | `oswe-vscode-prime` | Default vision model                |
-| `aiflowbridge.vision.model`           | `""`                | User-selected vision model          |
+| `aiflowbridge.vision.copilotVisionModel` | `oswe-vscode-prime` | Vision model for GitHub Copilot |
 | `aiflowbridge.vision.prompt`          | _(built-in)_        | Custom prompt for image description |
 
 ### Telemetry

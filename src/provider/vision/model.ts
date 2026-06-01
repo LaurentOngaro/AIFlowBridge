@@ -27,14 +27,25 @@ export function createVisionModelGetter(): {
 			}
 
 			visionModelPromise = (async () => {
-				const id = getConfiguredVisionModelId() ?? DEFAULT_VISION_MODEL_ID;
-				const models = await vscode.lm.selectChatModels({ id });
-				if (models.length > 0) {
-					logger.info(t('vision.proxyUsing', models[0].id));
-					visionModel = models[0];
-					return models[0];
+				const id = getVisionModelId();
+				if (id) {
+					const models = await vscode.lm.selectChatModels({ id });
+					if (models.length > 0) {
+						logger.info(`[Vision] Using configured model: ${models[0].id}`);
+						visionModel = models[0];
+						return models[0];
+					}
+					logger.warn(`[Vision] Configured model "${id}" not found in vscode.lm`);
 				}
-				logger.warn(t('vision.notFound', id));
+
+				const fallbackModels = await vscode.lm.selectChatModels({ id: DEFAULT_VISION_MODEL_ID });
+				if (fallbackModels.length > 0) {
+					logger.info(`[Vision] Using default model: ${fallbackModels[0].id}`);
+					visionModel = fallbackModels[0];
+					return fallbackModels[0];
+				}
+
+				logger.warn(`[Vision] No vision model available (tried configured="${id ?? 'none'}", default="${DEFAULT_VISION_MODEL_ID}")`);
 				return undefined;
 			})();
 
@@ -48,6 +59,12 @@ export function createVisionModelGetter(): {
 	};
 }
 
+function getVisionModelId(): string | undefined {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const id = config.get<string>('vision.copilotVisionModel', '');
+	return id.trim() || undefined;
+}
+
 export async function setVisionProxyModel(): Promise<void> {
 	const allModels = await vscode.lm.selectChatModels();
 	const excludedVendors = getExcludedVendors();
@@ -58,7 +75,7 @@ export async function setVisionProxyModel(): Promise<void> {
 		return;
 	}
 
-	const currentId = getConfiguredVisionModelId();
+	const currentId = getVisionModelId();
 
 	const items = candidates.map((m) => ({
 		label: m.id,
@@ -73,7 +90,7 @@ export async function setVisionProxyModel(): Promise<void> {
 
 	if (picked) {
 		const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-		await config.update('vision.model', picked.label, vscode.ConfigurationTarget.Global);
+		await config.update('vision.copilotVisionModel', picked.label, vscode.ConfigurationTarget.Global);
 	}
 }
 
@@ -82,10 +99,4 @@ export function getVisionPrompt(): string {
 	return (
 		config.get<string>('vision.prompt', IMAGE_DESCRIPTION_PROMPT).trim() || IMAGE_DESCRIPTION_PROMPT
 	);
-}
-
-function getConfiguredVisionModelId(): string | undefined {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const id = config.get<string>('vision.model', '');
-	return id.trim() || undefined;
 }

@@ -1,11 +1,12 @@
 import * as vscode from "vscode";
 import { loadConfig } from "./config";
-import { GatewayService } from "./gateway/server";
+import { GatewayService, isPortInUse } from "./gateway/server";
 import { TelemetryStore } from "./telemetry";
 import type { GatewayStatus, TelemetrySnapshot } from "./types";
 import { showMetricsDashboard } from "./ui/dashboard";
 import { StatusBarController } from "./ui/statusbar";
 import { API_KEY_SECRETS } from "../consts";
+import { logger } from "../logger";
 
 class AIFlowBridgeRuntime {
   private config = loadConfig();
@@ -33,6 +34,8 @@ class AIFlowBridgeRuntime {
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   async activate(): Promise<void> {
+    logger.info("[AIFlowBridge] Activating...");
+
     this.context.subscriptions.push(this.statusBar);
     this.context.subscriptions.push(this.gateway);
 
@@ -44,13 +47,39 @@ class AIFlowBridgeRuntime {
     }));
 
     if (this.config.gateway.enabled) {
+      logger.info(`[AIFlowBridge] Gateway enabled, attempting to start on port ${this.config.gateway.port}...`);
       try {
         await this.gateway.start();
+        logger.info(`[AIFlowBridge] Gateway started successfully on ${this.config.gateway.baseUrl}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error("[AIFlowBridge] Gateway failed to start:", message);
-        vscode.window.showWarningMessage(`AIFlowBridge gateway failed to start on port ${this.config.gateway.port}: ${message}`);
+        logger.error(`[AIFlowBridge] Gateway failed to start: ${message}`);
+        const running = this.gateway.running;
+        if (running) {
+          logger.info(`[AIFlowBridge] Gateway already running at ${this.config.gateway.baseUrl}`);
+          void vscode.window.showInformationMessage(
+            `AIFlowBridge gateway is already running on ${this.config.gateway.baseUrl}`,
+          );
+        } else {
+          const port = this.config.gateway.port;
+          const isOccupied = await isPortLikelyOccupied(port);
+          if (isOccupied) {
+            logger.warn(`[AIFlowBridge] Port ${port} is in use by another service`);
+            void vscode.window.showWarningMessage(
+              `AIFlowBridge gateway could not start: port ${port} is in use by another service. ` +
+                `If another VS Code instance is running AIFlowBridge, the gateway at ${this.config.gateway.baseUrl} is still accessible.`,
+            );
+          } else {
+            logger.error(`[AIFlowBridge] Gateway failed to start on port ${port}: ${message}`);
+            vscode.window.showWarningMessage(
+              `AIFlowBridge gateway failed to start on port ${port}: ${message}`,
+            );
+          }
+        }
       }
+    } else {
+      logger.info("[AIFlowBridge] Gateway disabled by configuration");
     }
     this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
   }
@@ -145,4 +174,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 export async function deactivate(): Promise<void> {
   await runtime?.deactivate();
   runtime = undefined;
+}
+
+async function isPortLikelyOccupied(port: number): Promise<boolean> {
+  return isPortInUse(port);
 }

@@ -3,7 +3,7 @@
   "displayName": "AIFlowBridge",
   "description": "Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.",
   "icon": "resources/icon.png",
-  "version": "0.4.6",
+  "version": "0.5.1",
   "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {
@@ -305,15 +305,10 @@
           ],
           "description": "Vendors that should NOT use the vision proxy"
         },
-        "aiflowbridge.vision.defaultModel": {
+        "aiflowbridge.vision.copilotVisionModel": {
           "type": "string",
           "default": "oswe-vscode-prime",
-          "description": "Default model to use for vision proxy when none configured"
-        },
-        "aiflowbridge.vision.model": {
-          "type": "string",
-          "default": "",
-          "description": "Model to use for vision proxy descriptions"
+          "description": "Model to use for vision proxy in GitHub Copilot"
         },
         "aiflowbridge.vision.prompt": {
           "type": "string",

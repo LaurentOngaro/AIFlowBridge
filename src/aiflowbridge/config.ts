@@ -49,7 +49,7 @@ export function loadConfig(): AiFlowBridgeConfig {
 
   const visionProxy: VisionProxySettings = {
     excludedVendors: configuration.get<string[]>("vision.excludedVendors", ["aiflowbridge"]),
-    defaultModel: configuration.get<string>("vision.defaultModel", "oswe-vscode-prime"),
+    copilotVisionModel: configuration.get<string>("vision.copilotVisionModel", "oswe-vscode-prime"),
   };
 
   const rawProfiles = configuration.get<unknown>("providers", []);

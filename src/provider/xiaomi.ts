@@ -124,13 +124,15 @@ export class XiaomiChatProvider extends BaseChatProvider {
 	readonly baseUrl = XIAOMI_BASE_URL;
 
 	private readonly authManager: XiaomiAuthManager;
-	private readonly vision = createVisionModelGetter();
+	private readonly vision: ReturnType<typeof createVisionModelGetter>;
 	private charsPerToken = 4.0;
 	private readonly reasoningCache = new Map<string, ReasoningEntry>();
 
 	constructor(context: vscode.ExtensionContext) {
 		super();
 		this.authManager = new XiaomiAuthManagerImpl(context);
+
+		this.vision = createVisionModelGetter();
 
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,

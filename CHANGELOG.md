@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.1 - AIFlowBridge
+
+### Changed
+
+- **Code cleanup**: Removed duplicate `getConfiguredVisionModelId()` function in `src/provider/vision/model.ts` (was a byte-identical copy of `getVisionModelId()`). Unified on a single function used by both `createVisionModelGetter` and `setVisionProxyModel`.
+- **i18n cleanup**: Removed unused translation keys `vision.proxyUsing` and `vision.notFound` from `src/i18n.ts` and `package.nls.json` (vestiges from the old code that used `t()` instead of the logger).
+
+## 0.5.0 - AIFlowBridge
+
+### Fixed
+
+- **BUG01 - Image analysis in Kilo Code**: Removed the vision proxy for Kilo Code. Kilo Code has its own `read` tool that handles image analysis transparently — the vision proxy was unnecessary for MiniMax, MiMo, and DeepSeek via Kilo Code. The vision proxy is now only used for GitHub Copilot (where `provideLanguageModelChatResponse` handles image conversion via `oswe-vscode-prime`).
+- **BUG02 - Port occupancy error message**: Improved error handling when the gateway fails to start on port 8787. The extension now distinguishes between "gateway already running" (info message), "port occupied by another service" (descriptive warning), and "actual failure" (error message).
+
+### Added
+
+- **Enhanced logging**: Added structured logging throughout the extension for better debugging:
+  - `[AIFlowBridge]` prefix for core activation logs
+  - `[Gateway]` prefix for gateway server logs
+  - `[Vision]` prefix for vision proxy processing logs
+  - `[MiniMax]` prefix for MiniMax provider logs
+  - All logs use VS Code `LogOutputChannel` (viewable via `View > Output > AIFlowBridge`)
+
 ## 0.4.6 - AIFlowBridge
 
 ### Fixed

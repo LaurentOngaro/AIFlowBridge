@@ -6,6 +6,7 @@ import { connect as netConnect, type Socket as NetSocket } from "node:net";
 import { buildModelCatalog, selectProvider } from "../providers";
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
 import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
+import { logger } from "../../logger";
 
 interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;
@@ -50,23 +51,23 @@ export class GatewayService {
 
     // Check if another instance already occupies the default port
     if (await isPortInUse(this.config.gateway.port)) {
-      console.log(`[AIFlowBridge] Port ${this.config.gateway.port} is in use, checking for existing gateway...`);
+      logger.info(`[Gateway] Port ${this.config.gateway.port} is in use, checking for existing gateway...`);
 
       // Verify the existing service is actually a reachable AIFlowBridge gateway
       if (await isGatewayReachable(this.config.gateway.baseUrl)) {
         // Another AIFlowBridge instance owns the port — reuse it
-        console.log(`[AIFlowBridge] Existing gateway detected, joining on ${this.config.gateway.baseUrl}`);
+        logger.info(`[Gateway] Existing gateway detected, joining on ${this.config.gateway.baseUrl}`);
         this.emitUpdate();
         return this.status();
       }
 
       // Port is occupied by something else — this should not happen in normal use
-      console.warn(`[AIFlowBridge] Port ${this.config.gateway.port} is occupied by a non-gateway service`);
+      logger.warn(`[Gateway] Port ${this.config.gateway.port} is occupied by a non-gateway service`);
     }
 
     this.server = createServer((request, response) => {
       void this.handleRequest(request, response).catch((error: unknown) => {
-        console.error("[AIFlowBridge] Gateway failure", error);
+        logger.error("[Gateway] Request handling error", error);
         if (!response.headersSent) {
           response.statusCode = 500;
           response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -84,7 +85,7 @@ export class GatewayService {
 
       const onError = (error: Error): void => {
         server.off("listening", onListening);
-        console.error("[AIFlowBridge] Failed to start gateway", error);
+        logger.error(`[Gateway] Failed to start on port ${this.config.gateway.port}: ${error.message}`);
         reject(error);
       };
 
@@ -179,6 +180,7 @@ export class GatewayService {
     const startedAt = Date.now();
     const bodyText = await readBody(request);
     const payload = parseJson(bodyText);
+
     const modelName = typeof payload?.model === "string" ? payload.model : this.config.gateway.defaultModel;
     const provider = selectProvider(this.config.providers, modelName, this.config.gateway.defaultModel);
 
@@ -276,7 +278,7 @@ export class GatewayService {
 
       this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated);
       if (this.config.logRequests) {
-        console.log(`[AIFlowBridge] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
+        logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
       }
     } catch (error) {
       const durationMs = Date.now() - startedAt;
@@ -336,6 +338,7 @@ export class GatewayService {
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.end(JSON.stringify(payload, null, 2));
   }
+
 }
 
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
@@ -417,6 +420,8 @@ function isPortInUse(port: number): Promise<boolean> {
     socket.setTimeout(500);
   });
 }
+
+export { isPortInUse };
 
 async function isGatewayReachable(baseUrl: string): Promise<boolean> {
   try {

@@ -75,7 +75,7 @@ import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE, MODELS } from '../src/consts';
 function createUserMessage(content: string, imageData?: Uint8Array, mimeType = 'image/png') {
   const parts: vscode.LanguageModelTextPart[] = [new vscode.LanguageModelTextPart(content)];
   if (imageData) {
-    parts.push(new vscode.LanguageModelDataPart(imageData, mimeType) as unknown as vscode.LanguageModelTextPart);
+    parts.push(new vscode.LanguageModelDataPart(mimeType, imageData) as unknown as vscode.LanguageModelTextPart);
   }
   return { role: 2 as const, content: parts };
 }
@@ -349,10 +349,13 @@ describe('xiaomi.ts - convertXiaomiMessages', () => {
     const messages = [createUserMessage('What is this?', imageData)];
 
     const result = convertXiaomiMessages(messages as unknown as readonly vscode.LanguageModelChatRequestMessage[], options);
+    expect(result).toHaveLength(1);
+
     const content = result[0].content;
     if (typeof content === 'string') {
       expect(content).toBe('What is this?');
     } else {
+      expect(content.some((c: unknown) => (c as { text?: string }).text === 'What is this?')).toBe(true);
       expect(content.some((c: unknown) => (c as { type?: string }).type === 'image_url')).toBe(false);
     }
   });
@@ -403,7 +406,7 @@ describe('xiaomi.ts - Model capabilities', () => {
   it('should have correct capabilities for xiaomi-mimo-v2.5-pro', () => {
     const model = MODELS.find((m) => m.id === 'xiaomi-mimo-v2.5-pro');
     expect(model?.capabilities.thinking).toBe(true);
-    expect(model?.capabilities.imageInput).toBe(false);
+    expect(model?.capabilities.imageInput).toBe(true);
     expect(model?.capabilities.toolCalling).toBe(true);
     expect(model?.requiresThinkingParam).toBe(false);
   });

@@ -21,7 +21,7 @@ export interface ProviderProfile {
 
 export interface VisionProxySettings {
   excludedVendors: string[];
-  defaultModel: string;
+  copilotVisionModel: string;
 }
 
 export interface GatewaySettings {

@@ -9,6 +9,7 @@ import {
 } from '../config';
 import { API_KEY_SECRETS, DEFAULT_PROVIDER_URLS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
 import { t } from '../i18n';
+import { logger } from '../logger';
 import { BaseChatProvider } from './base';
 import { createHttpProviderError, ProviderRequestError } from './errors';
 import { updateCharsPerToken } from './stream';
@@ -119,12 +120,14 @@ export class MiniMaxChatProvider extends BaseChatProvider {
 	readonly baseUrl = MINIMAX_BASE_URL;
 
 	private readonly authManager: MiniMaxAuthManager;
-	private readonly vision = createVisionModelGetter();
+	private readonly vision: ReturnType<typeof createVisionModelGetter>;
 	private charsPerToken = 4.0;
 
 	constructor(context: vscode.ExtensionContext) {
 		super();
 		this.authManager = new MiniMaxAuthManagerImpl(context);
+
+		this.vision = createVisionModelGetter();
 
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,
@@ -175,6 +178,12 @@ export class MiniMaxChatProvider extends BaseChatProvider {
 		}
 
 		// Resolve images via vision proxy before conversion
+		const visionModel = await this.vision.get();
+		if (!visionModel) {
+			logger.warn(`[MiniMax] Vision model unavailable - images will not be processed`);
+		} else {
+			logger.info(`[MiniMax] Using vision model: ${visionModel.id}`);
+		}
 		const visionResolution = await resolveImageMessages(messages, token, () => this.vision.get());
 		const resolvedMessages = visionResolution.messages;
 

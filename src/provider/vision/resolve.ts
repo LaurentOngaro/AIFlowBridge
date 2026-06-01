@@ -27,6 +27,8 @@ export async function resolveImageMessages(
 		return { messages, stats, replayMarkerMetadata: {} };
 	}
 
+	logger.info(`[Vision] Processing ${stats.inputImageParts} image part(s) in ${stats.inputImageMessages} message(s)`);
+
 	const markerBindings = createVisionMarkerBindings(messages, stats);
 	const currentImageMessageIndex = findCurrentImageMessageIndex(messages);
 	const result: vscode.LanguageModelChatRequestMessage[] = [];
@@ -224,6 +226,7 @@ async function resolveCurrentVisionText(
 		}
 
 		stats.generatedImageMessages += 1;
+		logger.info(`[Vision] Generated description (${description.length} chars)`);
 		return createVisionReplayText(createImageDescriptionText(description), nonImageParts);
 	} catch (error) {
 		logger.error(t('vision.proxyError'), error);

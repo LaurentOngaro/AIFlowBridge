@@ -236,8 +236,10 @@ describe('xiaomi.ts - Reasoning cache for tool calls', () => {
     }
 
     expect(cache.size).toBeLessThanOrEqual(maxSize);
-    expect(cache.has('call_0')).toBe(false); // Oldest should be gone
-    expect(cache.has(`call_${maxSize}`)).toBe(true); // Newer should remain
+    // call_0 has timestamp Date.now() (newest), call_209 has timestamp Date.now() - 209000 (oldest)
+    // After pruning, oldest entries (call_200 to call_209) should be removed, newest should remain
+    expect(cache.has('call_0')).toBe(true); // Newest should remain
+    expect(cache.has(`call_${maxSize}`)).toBe(false); // Oldest should be gone
   });
 
   it('should clear cache on conversation restart', () => {
