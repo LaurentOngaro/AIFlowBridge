@@ -14,7 +14,7 @@ import { resolveConversationSegment } from './segment';
 import { streamChatCompletion } from './stream';
 import { estimateTokenCount } from './tokens';
 import { processToolFlow } from './tools/flow';
-import { createVisionModelGetter, chooseVisionProxyModel } from './vision/index';
+import { chooseVisionProxyModel, createVisionModelGetter } from './vision/index';
 
 /**
  * DeepSeek Chat Provider.
@@ -83,7 +83,7 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 	async prepareForDeactivate(): Promise<void> {
 		this.isActive = false;
 		this.onDidChangeLanguageModelChatInformationEmitter.fire();
-		// No need to call selectChatModels here — it's redundant during shutdown
+		// No need to call selectChatModels here - it's redundant during shutdown
 		// and causes a Canceled error when the extension host is already terminating.
 	}
 

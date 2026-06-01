@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { connect as netConnect, type Socket as NetSocket } from "node:net";
 import { Readable } from "node:stream";
 import { URL } from "node:url";
-import { connect as netConnect, type Socket as NetSocket } from "node:net";
+import { logger } from "../../logger";
 import { buildModelCatalog, selectProvider } from "../providers";
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
 import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
-import { logger } from "../../logger";
 
 interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;
@@ -55,13 +55,13 @@ export class GatewayService {
 
       // Verify the existing service is actually a reachable AIFlowBridge gateway
       if (await isGatewayReachable(this.config.gateway.baseUrl)) {
-        // Another AIFlowBridge instance owns the port — reuse it
+        // Another AIFlowBridge instance owns the port - reuse it
         logger.info(`[Gateway] Existing gateway detected, joining on ${this.config.gateway.baseUrl}`);
         this.emitUpdate();
         return this.status();
       }
 
-      // Port is occupied by something else — this should not happen in normal use
+      // Port is occupied by something else - this should not happen in normal use
       logger.warn(`[Gateway] Port ${this.config.gateway.port} is occupied by a non-gateway service`);
     }
 
@@ -100,7 +100,7 @@ export class GatewayService {
     });
 
     // After successful listen, sync config port/baseUrl to the actual bound port
-    // (matters when the configured port was 0 — OS-assigned ephemeral port).
+    // (matters when the configured port was 0 - OS-assigned ephemeral port).
     const address = this.server?.address();
     if (address && typeof address === "object" && "port" in address) {
       this.config.gateway.port = address.port;

@@ -2,8 +2,8 @@ import vscode from 'vscode';
 import { logger } from '../logger';
 import { DeepSeekChatProvider } from '../provider';
 import { MiniMaxChatProvider } from '../provider/minimax';
-import { XiaomiChatProvider } from '../provider/xiaomi';
 import { UnifiedChatProvider } from '../provider/unified';
+import { XiaomiChatProvider } from '../provider/xiaomi';
 
 export interface RegisteredProvider {
 	name: string;
@@ -56,7 +56,7 @@ export async function registerAllProviders(
 			xiaomiProvider.clearApiKey(),
 		),
 
-		// Single registration — unified provider handles all models
+		// Single registration - unified provider handles all models
 		vscode.lm.registerLanguageModelChatProvider('aiflowbridge', unifiedProvider),
 		unifiedProvider,
 	);

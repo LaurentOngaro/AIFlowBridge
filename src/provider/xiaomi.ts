@@ -1,11 +1,11 @@
 import vscode from 'vscode';
 import {
-  getProviderApiModelId,
-  getProviderBaseUrl,
-  getProviderMaxTokens,
-  getProviderReasoningRequiredForToolCalls,
-  getProviderTemperature,
-  getProviderTopP,
+    getProviderApiModelId,
+    getProviderBaseUrl,
+    getProviderMaxTokens,
+    getProviderReasoningRequiredForToolCalls,
+    getProviderTemperature,
+    getProviderTopP,
 } from '../config';
 import { API_KEY_SECRETS, DEFAULT_PROVIDER_URLS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE, MODELS } from '../consts';
 import { t } from '../i18n';
@@ -185,7 +185,7 @@ export class XiaomiChatProvider extends BaseChatProvider {
 		const modelDef = MODELS.find((m) => m.id === modelInfo.id);
 		const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 		// imageInput in the model definition controls the VS Code paste-image button.
-		// Native vision support depends on the actual model ID — V2.5 (non-pro) supports
+		// Native vision support depends on the actual model ID - V2.5 (non-pro) supports
 		// images natively, V2.5 Pro does not and requires the vision proxy.
 		const hasNativeVision = modelInfo.id === 'xiaomi-mimo-v2.5';
 		const requiresReasoningReplay = getProviderReasoningRequiredForToolCalls(this.vendor);

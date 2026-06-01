@@ -3,7 +3,7 @@
  * Tests GatewayService HTTP endpoints using a real server on a random port.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- VSCode mock (logger.ts uses LogOutputChannel) ---
 vi.mock('vscode', () => {
@@ -42,9 +42,9 @@ vi.mock('vscode', () => {
 });
 
 // Import after mocking
+import { createServer } from 'node:http';
 import { GatewayService } from '../src/aiflowbridge/gateway/server';
 import type { AiFlowBridgeConfig, ProviderProfile } from '../src/aiflowbridge/types';
-import { createServer } from 'node:http';
 
 function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile {
 	return {
@@ -64,7 +64,7 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
 		gateway: {
 			enabled: true,
 			port: 0, // random port
-			baseUrl: 'http://127.0.0.1:0', // no /v1 suffix — server listens on root
+			baseUrl: 'http://127.0.0.1:0', // no /v1 suffix - server listens on root
 			defaultModel: '',
 		},
 		providers: [makeProvider()],
@@ -112,7 +112,7 @@ describe('GatewayService - lifecycle', () => {
 
 	it('dispose() also stops the server', () => {
 		service.dispose();
-		// No assertion needed — just no throw
+		// No assertion needed - just no throw
 	});
 
 	it('updates config without crashing', () => {
@@ -280,7 +280,7 @@ describe('GatewayService - singleton detection', () => {
 		try {
 			const status = await service.start();
 			// Should try to start anyway on the occupied port (EADDRINUSE will reject)
-			// The behavior depends on implementation — we just want no crash
+			// The behavior depends on implementation - we just want no crash
 			expect(status).toBeDefined();
 		} catch {
 			// EADDRINUSE is expected and acceptable
