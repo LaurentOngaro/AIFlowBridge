@@ -151,12 +151,12 @@ Gateway provider profiles are configured as `aiflowbridge.providers: [...]` arra
 
 ## Testing
 
-Run `npm test` for unit tests. The extension uses vitest for testing (197 tests across 11 files).
+Run `npm test` for unit tests. The extension uses vitest for testing (237 tests across 13 files).
 
 Quality gates:
 
 - `npm run compile` - 0 TypeScript errors
-- `npm test` - 197/197 passing
+- `npm test` - 237/237 passing
 
 ## Notes
 

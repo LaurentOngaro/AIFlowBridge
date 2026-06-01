@@ -39,7 +39,7 @@ export async function registerAllProviders(
 			deepseekProvider.clearApiKey(),
 		),
 		vscode.commands.registerCommand('aiflowbridge.providers.deepseek.setVisionModel', () =>
-			deepseekProvider.setVisionProxyModel(),
+			deepseekProvider.chooseVisionProxyModel(),
 		),
 
 		vscode.commands.registerCommand('aiflowbridge.providers.minimax.setApiKey', () =>

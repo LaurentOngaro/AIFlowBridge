@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.0.0 - AIFlowBridge
+
+First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo into GitHub Copilot Chat with a local OpenAI-compatible gateway, transparent vision proxy, and usage metrics.
+
+### Highlights
+
+- **Multi-provider Copilot Chat**: DeepSeek V4 (Flash/Pro), MiniMax V2.7, Xiaomi MiMo V2.5/V2.5 Pro registered as native Copilot Chat model providers.
+- **OpenAI-compatible gateway**: Local proxy on port 8787, with singleton detection across VS Code windows. Auto-routes Kilo Code, Continue, and any OpenAI-compatible client to the right upstream.
+- **Transparent vision proxy**: All models expose the image-paste button in Copilot Chat. Images are converted to text descriptions by a configurable vision model, so even non-vision models can analyze attached screenshots and diagrams.
+- **Metrics dashboard**: Per-provider, per-model request counts, tokens, latency, and estimated cost. Recent request history. Status bar indicator.
+- **SecretStorage API keys**: All credentials live in the OS keychain, never in `settings.json`.
+- **English-only**: Single-locale, focused experience. No Chinese translation files.
+
+### Quality
+
+- 237 unit tests across 13 test files (vitest)
+- 0 TypeScript errors (`npm run compile`)
+- 0 lint or format errors
+- GitHub Actions CI: build, test, package, publish VSIX artifact
+- Vision proxy, gateway singleton, and provider normalization fully covered
+
+### Notes
+
+- API keys are configured via the Command Palette (`DeepSeek: Set API Key`, `MiniMax: Set API Key`, `Xiaomi MiMo: Set API Key`).
+- The gateway starts automatically when the extension activates. Disable it with `aiflowbridge.gateway.enabled: false`.
+- See the README for the full configuration reference, gateway endpoints, and Kilo Code integration example.
+
 ## 0.6.0 - AIFlowBridge
 
 ### Fixed

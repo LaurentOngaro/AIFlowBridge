@@ -362,6 +362,33 @@ npm run publish
 
 **Laurent Ongaro** - [laurent@ongaro.fr](mailto:laurent@ongaro.fr)
 
+## Sponsoring
+
+AIFlowBridge is free, open-source, and ad-free. If it saves you time or money, consider supporting its development.
+
+**Why sponsor?**
+
+- No tracking, no ads, no paywalls - the extension stays free for everyone
+- Your sponsorship funds continued maintenance, new providers, and bug fixes
+- You get direct input on the roadmap (Community tier and above)
+- You're supporting an indie developer who builds tools for the community
+
+**What your sponsorship funds:**
+
+- Development time for new providers and features
+- Hosting and CI infrastructure for the marketplace builds
+- Documentation, troubleshooting guides, and community support
+
+**Sponsorship platforms:**
+
+- **GitHub Sponsors** (preferred): [github.com/sponsors/LaurentOngaro](https://github.com/sponsors/LaurentOngaro) - tiered rewards (Community / Contributor / Supporter)
+- **Patreon**: [patreon.com/LaurentOngaro](https://www.patreon.com/LaurentOngaro)
+- **Tipeee** (communauté francophone): [fr.tipeee.com/laurentongaro](https://fr.tipeee.com/laurentongaro)
+
+**Sponsors and backers** (thank you!):
+
+_This section is updated with each release. Become a sponsor to have your name listed here._
+
 ## License
 
 [MIT](LICENSE)

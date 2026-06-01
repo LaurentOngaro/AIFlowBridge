@@ -65,7 +65,7 @@ function getVisionModelId(): string | undefined {
 	return id.trim() || undefined;
 }
 
-export async function setVisionProxyModel(): Promise<void> {
+export async function chooseVisionProxyModel(): Promise<void> {
 	const allModels = await vscode.lm.selectChatModels();
 	const excludedVendors = getExcludedVendors();
 	const candidates = allModels.filter((m) => !excludedVendors.includes(m.vendor.toLowerCase()));

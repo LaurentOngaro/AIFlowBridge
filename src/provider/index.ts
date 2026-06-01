@@ -14,7 +14,7 @@ import { resolveConversationSegment } from './segment';
 import { streamChatCompletion } from './stream';
 import { estimateTokenCount } from './tokens';
 import { processToolFlow } from './tools/flow';
-import { createVisionModelGetter, setVisionProxyModel } from './vision/index';
+import { createVisionModelGetter, chooseVisionProxyModel } from './vision/index';
 
 /**
  * DeepSeek Chat Provider.
@@ -87,8 +87,8 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 		// and causes a Canceled error when the extension host is already terminating.
 	}
 
-	async setVisionProxyModel(): Promise<void> {
-		await setVisionProxyModel();
+	async chooseVisionProxyModel(): Promise<void> {
+		await chooseVisionProxyModel();
 	}
 
 	async provideLanguageModelChatInformation(

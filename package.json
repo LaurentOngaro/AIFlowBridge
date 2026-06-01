@@ -3,7 +3,7 @@
   "displayName": "AIFlowBridge",
   "description": "Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.",
   "icon": "resources/icon.png",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {

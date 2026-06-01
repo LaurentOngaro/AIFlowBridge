@@ -99,6 +99,14 @@ export class GatewayService {
       server.listen(this.config.gateway.port, "127.0.0.1");
     });
 
+    // After successful listen, sync config port/baseUrl to the actual bound port
+    // (matters when the configured port was 0 — OS-assigned ephemeral port).
+    const address = this.server?.address();
+    if (address && typeof address === "object" && "port" in address) {
+      this.config.gateway.port = address.port;
+      this.config.gateway.baseUrl = `http://127.0.0.1:${address.port}`;
+    }
+
     this.emitUpdate();
     return this.status();
   }

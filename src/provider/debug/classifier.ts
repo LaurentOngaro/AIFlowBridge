@@ -9,7 +9,7 @@ export type RequestKind =
 	| 'background'
 	| 'unknown';
 
-const TODO_TRACKER_PREFIX = 'You are a background task tracker';
+const BACKGROUND_TRACKER_PREFIX = 'You are a background task tracker';
 const SETTINGS_RESOLVER_PREFIX =
 	'You are a Visual Studio Code assistant. Your job is to assist users in using Visual Studio Code by returning settings';
 const MAIN_AGENT_PREFIX = 'You are an expert AI programming assistant';
@@ -62,7 +62,7 @@ function classifyRequest(input: {
 	}
 	if (
 		isOnlyTool(input.toolNames, 'manage_todo_list') ||
-		firstText.startsWith(TODO_TRACKER_PREFIX)
+		firstText.startsWith(BACKGROUND_TRACKER_PREFIX)
 	) {
 		return 'todo-tracker';
 	}
