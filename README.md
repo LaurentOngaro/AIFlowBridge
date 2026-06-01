@@ -51,9 +51,11 @@ API keys stored in VS Code's `SecretStorage` (OS keychain). Never in `settings.j
 | Provider | Models           | Vision     | Thinking | Tool Calling |
 | -------- | ---------------- | ---------- | -------- | ------------ |
 | DeepSeek | V4 Flash, V4 Pro | ✅ Proxied | ✅       | ✅           |
-| MiniMax  | V2.7             | ❌         | ❌       | ✅           |
-| Xiaomi   | MiMo V2.5        | ✅ Native  | ✅       | ✅           |
+| MiniMax  | V2.7             | ✅ Proxied | ❌       | ✅           |
+| Xiaomi   | MiMo V2.5        | ✅ Proxied | ✅       | ✅           |
 | Xiaomi   | MiMo V2.5 Pro    | ✅ Proxied | ✅       | ✅           |
+
+Note: All models expose the image-paste button in Copilot Chat (`imageInput: true`). Images are transparently converted to text descriptions by the vision proxy (a separate vision-capable model). Configure the vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
 
 ## Installation
 
@@ -205,27 +207,30 @@ The dashboard shows:
 
 ### Providers (Gateway Upstream)
 
-| Setting                                            | Default                         | Description                         |
-| -------------------------------------------------- | ------------------------------- | ----------------------------------- |
-| `aiflowbridge.providers`                           | `[]`                            | Array of upstream provider profiles |
-| `aiflowbridge.providers.deepseek.baseUrl`          | `https://api.deepseek.com`      | DeepSeek API endpoint               |
-| `aiflowbridge.providers.deepseek.maxTokens`        | `0`                             | Max output tokens (0 = no limit)    |
-| `aiflowbridge.providers.deepseek.modelIdOverrides` | `{}`                            | DeepSeek model ID overrides         |
-| `aiflowbridge.providers.minimax.baseUrl`           | `https://api.minimax.io/v1`     | MiniMax API endpoint                |
-| `aiflowbridge.providers.minimax.maxTokens`         | `0`                             | Max output tokens (0 = no limit)    |
-| `aiflowbridge.providers.minimax.modelIdOverrides`  | `{}`                            | MiniMax model ID overrides          |
-| `aiflowbridge.providers.xiaomi.baseUrl`            | `https://api.xiaomimimo.com/v1` | Xiaomi MiMo API endpoint            |
-| `aiflowbridge.providers.xiaomi.maxTokens`          | `0`                             | Max output tokens (0 = no limit)    |
-| `aiflowbridge.providers.xiaomi.modelIdOverrides`   | `{}`                            | Xiaomi MiMo model ID overrides      |
+| Setting                                                       | Default                         | Description                                     |
+| ------------------------------------------------------------- | ------------------------------- | ----------------------------------------------- |
+| `aiflowbridge.providers`                                      | `[]`                            | Array of upstream provider profiles             |
+| `aiflowbridge.providers.deepseek.baseUrl`                     | `https://api.deepseek.com`      | DeepSeek API endpoint                           |
+| `aiflowbridge.providers.deepseek.maxTokens`                   | `0`                             | Max output tokens (0 = no limit)                |
+| `aiflowbridge.providers.deepseek.modelIdOverrides`            | `{}`                            | DeepSeek model ID overrides                     |
+| `aiflowbridge.providers.minimax.baseUrl`                      | `https://api.minimax.io/v1`     | MiniMax API endpoint                            |
+| `aiflowbridge.providers.minimax.maxTokens`                    | `0`                             | Max output tokens (0 = no limit)                |
+| `aiflowbridge.providers.minimax.modelIdOverrides`             | `{}`                            | MiniMax model ID overrides                      |
+| `aiflowbridge.providers.minimax.temperature`                  | `1`                             | Sampling temperature for MiniMax                |
+| `aiflowbridge.providers.minimax.topP`                         | `0.95`                          | Top-p sampling for MiniMax                      |
+| `aiflowbridge.providers.minimax.reasoningSplit`               | `true`                          | Split reasoning into separate field             |
+| `aiflowbridge.providers.xiaomi.baseUrl`                       | `https://api.xiaomimimo.com/v1` | Xiaomi MiMo API endpoint                        |
+| `aiflowbridge.providers.xiaomi.maxTokens`                     | `0`                             | Max output tokens (0 = no limit)                |
+| `aiflowbridge.providers.xiaomi.modelIdOverrides`              | `{}`                            | Xiaomi MiMo model ID overrides                  |
+| `aiflowbridge.providers.xiaomi.reasoningRequiredForToolCalls` | `true`                          | Replay reasoning_content in tool-call followups |
 
 ### Vision Proxy
 
-| Setting                               | Default             | Description                         |
-| ------------------------------------- | ------------------- | ----------------------------------- |
-| `aiflowbridge.vision.enabled`         | `true`              | Enable vision proxy                 |
-| `aiflowbridge.vision.excludedVendors` | `["deepseek"]`      | Vendors that don't need proxy       |
-| `aiflowbridge.vision.copilotVisionModel` | `oswe-vscode-prime` | Vision model for GitHub Copilot |
-| `aiflowbridge.vision.prompt`          | _(built-in)_        | Custom prompt for image description |
+| Setting                                  | Default             | Description                                  |
+| ---------------------------------------- | ------------------- | -------------------------------------------- |
+| `aiflowbridge.vision.excludedVendors`    | `["aiflowbridge"]`  | Vendors that should NOT use the vision proxy |
+| `aiflowbridge.vision.copilotVisionModel` | `oswe-vscode-prime` | Vision model for GitHub Copilot              |
+| `aiflowbridge.vision.prompt`             | _(built-in)_        | Custom prompt for image description          |
 
 ### Telemetry
 

@@ -3,7 +3,7 @@
   "displayName": "AIFlowBridge",
   "description": "Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.",
   "icon": "resources/icon.png",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {
@@ -292,11 +292,6 @@
           "type": "boolean",
           "default": true,
           "description": "Log each request handled by the gateway"
-        },
-        "aiflowbridge.vision.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable transparent vision proxy for non-vision models"
         },
         "aiflowbridge.vision.excludedVendors": {
           "type": "array",

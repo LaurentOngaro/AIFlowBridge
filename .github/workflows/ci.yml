@@ -19,16 +19,14 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run lint
-
-      - run: npm run format:check
-
       - run: npm run compile
+
+      - run: npm test
 
       - run: mkdir -p dist && npm run package
 
       - uses: actions/upload-artifact@v4
         with:
-          name: deepseek-v4-for-copilot.vsix
+          name: aiflowbridge.vsix
           path: dist/*.vsix
           retention-days: 30

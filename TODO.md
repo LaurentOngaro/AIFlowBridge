@@ -1,8 +1,14 @@
 # TODOs
 
+Suivi des bugs, améliorations et tickets en cours. Pour le plan détaillé de publication Marketplace, voir `_helpers/PLAN_ACTIONS.md`.
+
 ## Bugs (last:BUG02)
 
+_Section en placeholder — aucun bug ouvert._
+
 ## Corrections immédiates (last:)
+
+_Section en placeholder — aucune correction urgente._
 
 ## Améliorations du projet
 

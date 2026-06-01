@@ -1,7 +1,0 @@
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "import", "unicorn", "oxc"],
-  "rules": {
-    "typescript/no-unused-vars": "error"
-  }
-}
