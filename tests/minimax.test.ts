@@ -111,8 +111,8 @@ describe('minimax.ts - resolveMiniMaxModelId', () => {
     mockWorkspaceConfig.get.mockReturnValue({});
   });
 
-  it('should return MiniMax-M2.7 for minimax-v2.7', () => {
-    const result = resolveMiniMaxModelId('minimax-v2.7');
+  it('should return MiniMax-M2.7 unchanged (id is the API id)', () => {
+    const result = resolveMiniMaxModelId('MiniMax-M2.7');
     expect(result).toBe('MiniMax-M2.7');
   });
 
@@ -123,10 +123,10 @@ describe('minimax.ts - resolveMiniMaxModelId', () => {
 
   it('should return override if modelIdOverrides is set', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'minimax-v2.7': 'MiniMax-Custom-Model',
+      'MiniMax-M2.7': 'MiniMax-Custom-Model',
     });
 
-    const result = resolveMiniMaxModelId('minimax-v2.7');
+    const result = resolveMiniMaxModelId('MiniMax-M2.7');
     expect(result).toBe('MiniMax-Custom-Model');
   });
 });

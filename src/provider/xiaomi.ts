@@ -137,7 +137,7 @@ export class XiaomiChatProvider extends BaseChatProvider {
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,
 			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('aiflowbridge.providers.xiaomi')) {
+				if (e.affectsConfiguration('aiflowbridge.providers.xiaomi') || e.affectsConfiguration('aiflowbridge.userModels')) {
 					this.fireInformationChanged();
 				}
 				if (e.affectsConfiguration('aiflowbridge.vision')) {
@@ -187,7 +187,7 @@ export class XiaomiChatProvider extends BaseChatProvider {
 		// imageInput in the model definition controls the VS Code paste-image button.
 		// Native vision support depends on the actual model ID - V2.5 (non-pro) supports
 		// images natively, V2.5 Pro does not and requires the vision proxy.
-		const hasNativeVision = modelInfo.id === 'xiaomi-mimo-v2.5';
+		const hasNativeVision = modelInfo.id === 'mimo-v2.5';
 		const requiresReasoningReplay = getProviderReasoningRequiredForToolCalls(this.vendor);
 		if (messages.length <= 2) {
 			pruneReasoningCache(this.reasoningCache, true);
@@ -361,15 +361,11 @@ export interface ReasoningEntry {
 	timestamp: number;
 }
 
+// Since the VS Code model id IS the upstream API model id (see `MODELS` in
+// src/consts.ts), no translation is needed. The only override is the user's
+// `aiflowbridge.providers.xiaomi.modelIdOverrides` setting.
 export function resolveXiaomiModelId(vscodeModelId: string): string {
-	const overridden = getProviderApiModelId('xiaomi', vscodeModelId);
-	if (overridden !== vscodeModelId) {
-		return overridden;
-	}
-	if (vscodeModelId.startsWith('xiaomi-')) {
-		return vscodeModelId.slice('xiaomi-'.length);
-	}
-	return vscodeModelId;
+	return getProviderApiModelId('xiaomi', vscodeModelId);
 }
 
 export function mapRole(role: vscode.LanguageModelChatMessageRole): 'system' | 'user' | 'assistant' {

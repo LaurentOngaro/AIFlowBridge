@@ -3,7 +3,7 @@
   "displayName": "AIFlowBridge",
   "description": "Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. Free multi-provider models with transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.",
   "icon": "resources/icon.png",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {
@@ -95,6 +95,11 @@
         "command": "aiflowbridge.openRequestDumpsFolder",
         "category": "AIFlowBridge",
         "title": "AIFlowBridge: Open request dumps folder"
+      },
+      {
+        "command": "aiflowbridge.addCustomModel",
+        "category": "AIFlowBridge",
+        "title": "AIFlowBridge: Add a custom model"
       },
       {
         "command": "aiflowbridge.providers.deepseek.setApiKey",
@@ -318,6 +323,33 @@
           "type": "string",
           "default": "oswe-vscode-prime",
           "description": "Model to use for vision proxy in GitHub Copilot"
+        },
+        "aiflowbridge.userModels": {
+          "type": "array",
+          "default": [],
+          "description": "User-defined models merged with built-in models. Each entry follows the ModelDefinition shape (id, name, family, version, detail, maxInputTokens, maxOutputTokens, capabilities, requiresThinkingParam).",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "family", "version"],
+            "properties": {
+              "id": { "type": "string", "description": "Unique model ID (must match what the upstream API expects)" },
+              "name": { "type": "string", "description": "Display name shown in the Copilot Chat model picker" },
+              "family": { "type": "string", "enum": ["deepseek", "minimax", "xiaomi"], "description": "Provider family" },
+              "version": { "type": "string" },
+              "detail": { "type": "string", "description": "Short description (fallback: built-in detail for the same family)" },
+              "maxInputTokens": { "type": "number", "minimum": 1, "description": "Max input context (fallback: 128000)" },
+              "maxOutputTokens": { "type": "number", "minimum": 1, "description": "Max output tokens (fallback: 8192)" },
+              "capabilities": {
+                "type": "object",
+                "properties": {
+                  "toolCalling": { "type": ["boolean", "number"], "description": "true=unlimited, false=disabled, number=limit" },
+                  "imageInput": { "type": "boolean" },
+                  "thinking": { "type": "boolean" }
+                }
+              },
+              "requiresThinkingParam": { "type": "boolean", "description": "Whether the upstream requires an explicit thinking param" }
+            }
+          }
         },
         "aiflowbridge.vision.prompt": {
           "type": "string",

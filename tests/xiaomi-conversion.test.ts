@@ -40,7 +40,7 @@ vi.mock('../src/consts', () => ({
   LANGUAGE_MODEL_CHAT_SYSTEM_ROLE: 3,
   MODELS: [
     {
-      id: 'xiaomi-mimo-v2.5',
+      id: 'mimo-v2.5',
       name: 'Xiaomi MiMo V2.5',
       family: 'xiaomi',
       version: 'v2.5',
@@ -51,7 +51,7 @@ vi.mock('../src/consts', () => ({
       },
     },
     {
-      id: 'xiaomi-mimo-v2.5-pro',
+      id: 'mimo-v2.5-pro',
       name: 'Xiaomi MiMo V2.5 Pro',
       family: 'xiaomi',
       version: 'v2.5-pro',
@@ -102,8 +102,8 @@ function mapRole(role: vscode.LanguageModelChatMessageRole): 'system' | 'user' |
 }
 
 describe('xiaomi.ts - Model ID resolution', () => {
-  it('should strip xiaomi- prefix from model IDs', () => {
-    const result = getProviderApiModelId('xiaomi', 'xiaomi-mimo-v2.5');
+  it('should return model IDs unchanged (id is the API id)', () => {
+    const result = getProviderApiModelId('xiaomi', 'mimo-v2.5');
     expect(result).toBe('mimo-v2.5');
   });
 

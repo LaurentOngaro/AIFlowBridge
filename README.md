@@ -68,14 +68,91 @@ Compared to running each provider's CLI or website, AIFlowBridge gives you:
 
 ## Providers
 
-| Provider | Models           | Vision     | Thinking | Tool Calling |
-| -------- | ---------------- | ---------- | -------- | ------------ |
-| DeepSeek | V4 Flash, V4 Pro | ✅ Proxied | ✅       | ✅           |
-| MiniMax  | V2.7             | ✅ Proxied | ❌       | ✅           |
-| Xiaomi   | MiMo V2.5        | ✅ Proxied | ✅       | ✅           |
-| Xiaomi   | MiMo V2.5 Pro    | ✅ Proxied | ✅       | ✅           |
+| Provider | Models                                       | Vision     | Thinking | Tool Calling |
+| -------- | -------------------------------------------- | ---------- | -------- | ------------ |
+| DeepSeek | V4 Flash, V4 Pro                             | ✅ Proxied | ✅       | ✅           |
+| MiniMax  | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 | ✅ Proxied | ❌       | ✅           |
+| Xiaomi   | MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro          | ✅ Proxied | ✅       | ✅           |
 
 Note: All models expose the image-paste button in Copilot Chat (`imageInput: true`). Images are transparently converted to text descriptions by the vision proxy (a separate vision-capable model). Configure the vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
+
+### Why is the model list hardcoded?
+
+The list of officially supported models lives in [`src/consts.ts`](src/consts.ts) and is **not auto-discovered** from the upstream APIs. This is a deliberate design choice driven by VS Code's `vscode.lm.registerLanguageModelChatProvider` API.
+
+VS Code requires each model to declare its capabilities at registration time:
+
+- `maxInputTokens` and `maxOutputTokens` (context window)
+- `toolCalling` — `true`, `false`, or a numeric limit on simultaneous tools
+- `imageInput` — whether the paste-image button appears in Copilot Chat
+- `thinking` — whether the thinking-effort selector is exposed
+- `requiresThinkingParam` — provider-specific quirks (e.g. DeepSeek's `thinking: { type: "enabled" }`)
+
+The upstream APIs (`GET /v1/models`) only return `{ id, owned_by, created }`. They do not expose context window, tool limits, vision support, or thinking support in a usable format. Without explicit capabilities, VS Code would:
+
+- Hide the image-paste button for vision-capable models
+- Expose tool calling for models that don't support it (broken UX)
+- Skip the thinking-effort selector for reasoning models
+- Allow context overflow with no warning
+
+A bad capability is a worse user experience than a missing model. Hardcoding ensures every supported model works end-to-end on day one.
+
+**Convention** : the `id` field in `MODELS` is the **upstream API id** itself (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`), not a kebab-case VS Code alias. The picker shows the human-readable `name` field. This avoids any id translation layer between VS Code and the upstream API.
+
+### Adding a model without waiting for a release
+
+You do **not** need a new AIFlowBridge release to use a newly released provider model. Two options:
+
+#### Option 1 — Command Palette (easiest)
+
+Run **`AIFlowBridge: Add a custom model`** from the Command Palette. The command:
+
+1. Asks which provider to query
+2. Fetches the model list from the provider's `/v1/models` endpoint (using your stored API key)
+3. Lets you pick a model from the list
+4. Lets you pick its capabilities (tool calling, vision, thinking) with simple Yes/No prompts
+5. Saves the entry to your `aiflowbridge.userModels` setting
+
+The new model appears in the Copilot Chat picker immediately. You can edit or remove the entry in your user settings at any time.
+
+#### Option 2 — Direct setting
+
+Add an entry to `settings.json` under `aiflowbridge.userModels`:
+
+```json
+{
+  "aiflowbridge.userModels": [
+    {
+      "id": "minimax-m3",
+      "name": "MiniMax M3",
+      "family": "minimax",
+      "version": "m3",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 128000,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": false
+      },
+      "requiresThinkingParam": false
+    }
+  ]
+}
+```
+
+**Trade-off** : user-declared models are your responsibility. If you mark `imageInput: true` for a model that does not accept images, the Copilot Chat paste button will appear but the model will fail on upload. Capabilities are not validated against the upstream API.
+
+### Promoting a user model to the official registry
+
+If a user-defined model is widely useful, the recommended path is to add it to the official registry in `src/consts.ts` via a pull request. The PR will be reviewed for:
+
+- Correct `id` matching the upstream API exactly (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm)
+- Correct capabilities (especially image input and thinking)
+- Matching `maxInputTokens` / `maxOutputTokens` from the provider's documentation
+- Translation key in `package.nls.json` (`model.<id>.detail`)
+- Entry in the Providers table above
+
+The release cadence is opportunistic — no fixed schedule. Tag `v1.x.y` when a meaningful set of changes accumulates.
 
 ## Installation
 
@@ -181,7 +258,7 @@ Any tool that supports the OpenAI API can use AIFlowBridge as a backend via the 
 | API Provider | OpenAI Compatible                                  |
 | Base URL     | `http://127.0.0.1:8787/v1`                         |
 | API Key      | Any string (keys are managed by AIFlowBridge)      |
-| Model        | `deepseek-chat`, `minimax-v2.7`, `mimo-v2.5`, etc. |
+| Model        | `deepseek-chat`, `MiniMax-M2.7`, `mimo-v2.5`, etc. |
 
 The gateway routes requests to the correct upstream provider based on the model name. Streaming (`stream: true`) is fully supported.
 
@@ -202,10 +279,10 @@ Gateway providers are configured in VS Code settings (`settings.json`):
     },
     {
       "id": "minimax",
-      "label": "MiniMax V2.7",
+      "label": "MiniMax M2.7",
       "kind": "openai-compat",
       "baseUrl": "https://api.minimax.io/v1",
-      "model": "minimax-v2.7",
+      "model": "MiniMax-M2.7",
       "apiKey": "..."
     },
     {
@@ -320,13 +397,14 @@ AIFlowBridge
 │   ├── telemetry.ts            # Usage tracking & cost estimation
 │   ├── ui/dashboard.ts         # Metrics webview
 │   ├── ui/statusbar.ts         # Status bar indicator
-│   ├── config.ts               # Settings loader
+│   ├── config.ts               # Settings loader (includes userModels)
 │   └── types.ts                # Shared types
 ├── src/provider/               # Language model providers
-│   ├── base.ts                 # Abstract provider base class
+│   ├── base.ts                 # Abstract provider base class (merges MODELS + userModels)
 │   ├── index.ts                # DeepSeek provider
-│   ├── minimax.ts              # MiniMax provider
+│   ├── minimax.ts              # MiniMax provider (with model ID translation map)
 │   ├── xiaomi.ts               # Xiaomi provider
+│   ├── runtime/addCustomModel.ts # "Add a custom model" command
 │   └── vision/                 # Transparent vision proxy
 │       ├── model.ts            # Vision model selection
 │       └── resolve.ts          # Image resolution
@@ -335,8 +413,12 @@ AIFlowBridge
 │   ├── provider.ts             # Provider registration
 │   ├── commands.ts             # Command handlers
 │   └── actions.ts              # URI action handlers
-└── src/consts.ts               # Model registry & constants
+└── src/consts.ts               # Model registry & constants (hardcoded MODELS, see "Why is the model list hardcoded?" above)
 ```
+
+### Model registry
+
+The list of officially supported models is hardcoded in [`src/consts.ts`](src/consts.ts) under `MODELS: ModelDefinition[]`. This is intentional — see [Why is the model list hardcoded?](#why-is-the-model-list-hardcoded) above. The runtime merges this list with user-declared models from the [`aiflowbridge.userModels`](#settings) setting on every read. Adding a new model without a release is supported via the **`AIFlowBridge: Add a custom model`** command or by editing the `aiflowbridge.userModels` setting directly.
 
 ## Development
 

@@ -31,12 +31,12 @@ src/
 │   ├── gateway/server.ts   # HTTP proxy server (singleton mode)
 │   ├── telemetry.ts        # Usage metrics
 │   ├── providers.ts        # Gateway upstream provider normalization
-│   ├── config.ts           # Config loading
+│   ├── config.ts           # Config loading (incl. gateway profiles)
 │   ├── types.ts            # Type definitions
 │   ├── index.ts            # Extension entry point
 │   └── ui/                 # Dashboard & status bar
 ├── provider/               # Language model providers (Copilot Chat)
-│   ├── base.ts             # Abstract base class
+│   ├── base.ts             # Abstract base class (merges MODELS + userModels)
 │   ├── index.ts            # DeepSeek provider (vendor: aiflowbridge)
 │   ├── minimax.ts          # MiniMax provider
 │   ├── xiaomi.ts           # Xiaomi MiMo provider
@@ -50,9 +50,14 @@ src/
 │   ├── debug/              # Request dumps
 │   └── segment/            # Stream segmentation
 ├── runtime/                # Extension lifecycle, commands, diagnostics
+│   ├── lifecycle.ts        # activate()/deactivate()
+│   ├── commands.ts         # Command registrations
+│   ├── addCustomModel.ts   # "Add a custom model" interactive command
+│   ├── provider.ts         # Provider registration
+│   └── actions.ts          # URI action handlers
 ├── consts.ts               # MODELS registry, CONFIG_SECTION, API_KEY_SECRETS
 ├── auth.ts                 # SecretStorage wrapper
-├── config.ts               # VS Code configuration access
+├── config.ts               # VS Code configuration access (incl. getUserModels)
 ├── i18n.ts                 # Translation helper (t() function)
 ├── logger.ts               # vscode.LogOutputChannel wrapper
 └── extension.ts            # activate()/deactivate()
@@ -65,8 +70,20 @@ src/
 Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point:
 
 - `aiflowbridge` (DeepSeek V4 Pro/Flash) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors
-- `minimax` - MiniMax V2.7 (HTTP streaming client)
-- `xiaomi` - Xiaomi MiMo V2.5 / V2.5 Pro (HTTP streaming client)
+- `minimax` (MiniMax M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3) - HTTP streaming client
+- `xiaomi` (Xiaomi MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro) - HTTP streaming client
+
+### Model Id Convention
+
+**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5`, `deepseek-v4-flash`), NOT a kebab-case alias. The human-readable name shows in the Copilot Chat picker. This removes the need for any id translation map between VS Code and upstream.
+
+### User-defined models
+
+Users can extend the registry without an extension update via:
+- **`aiflowbridge.userModels` setting**: array of `ModelDefinition`-shaped objects in `settings.json`
+- **`AIFlowBridge: Add a custom model` command**: walks through the Command Palette to fetch a vendor's `/v1/models`, pick a model, declare capabilities, and save to the setting
+
+The `BaseChatProvider.getModelsForVendor()` merges built-in `MODELS` with user-declared models at every read. The Copilot Chat picker refreshes automatically when `aiflowbridge.userModels` is edited.
 
 ### Provider Implementation
 
@@ -91,6 +108,7 @@ Located in `src/aiflowbridge/gateway/server.ts`:
 
 - OpenAI-compatible proxy on configurable port (default 8787)
 - **Singleton mode**: detects occupied port and joins existing instance
+- After `start()`, `config.gateway.port` and `config.gateway.baseUrl` are synced to the actual bound port (matters when `port: 0` is configured)
 - Provider routing by model alias via `aiflowbridge.providers` array
 - Request/response telemetry (counts, latency, tokens, estimated cost)
 - Starts automatically if `aiflowbridge.gateway.enabled: true` (default)
@@ -114,18 +132,19 @@ npm test           # Run vitest unit tests
 
 ### Adding a New Provider
 
-1. Add model definition to `src/consts.ts` (MODELS array)
-2. Add provider registration to `package.json` (languageModelChatProviders)
-3. Create provider-specific API client in `src/provider/`
+1. Add model definition(s) to `src/consts.ts` (`MODELS` array). Use the **upstream API id** as `id`.
+2. Add provider registration to `package.json` (`contributes.languageModelChatProviders`)
+3. Create provider-specific API client in `src/provider/<vendor>.ts`
 4. Update gateway provider profiles in `src/aiflowbridge/providers.ts` (validation/normalization)
-5. Update `EXTERNAL_URLS` in `src/consts.ts` for account/status links
-6. Add provider-specific settings to `package.json` (`aiflowbridge.providers.{vendor}.*`)
+5. Update `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/config.ts` (if the provider should be in the default gateway set)
+6. Update `EXTERNAL_URLS` in `src/consts.ts` for account/status links
+7. Add provider-specific settings to `package.json` (`aiflowbridge.providers.{vendor}.*`)
 
 ### Adding a New Model
 
-1. Add to `MODELS` array in `src/consts.ts`
+1. Add to `MODELS` array in `src/consts.ts` with the **exact upstream API id** (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm)
 2. Follow `ModelDefinition` interface (`src/types.ts`) with capabilities flags
-3. Add to `package.nls.json` with `model.{id}.detail` translation
+3. Add to `package.nls.json` and `src/i18n.ts` with `model.{id}.detail` translation (key is the upstream id, not a kebab-case alias)
 4. Update README.md provider table
 
 ## Important Files
@@ -133,30 +152,40 @@ npm test           # Run vitest unit tests
 | File                                     | Purpose                                            |
 | ---------------------------------------- | -------------------------------------------------- |
 | `src/consts.ts`                          | Model registry, compile-time constants, secret keys |
+| `src/provider/base.ts`                   | Abstract provider + merge of `MODELS` + `userModels` |
 | `src/provider/vision/model.ts`           | Vision model selection (selector + fallback chain) |
 | `src/aiflowbridge/gateway/server.ts`     | Local proxy with singleton detection               |
 | `src/aiflowbridge/telemetry.ts`          | Usage tracking and cost estimation                 |
 | `src/aiflowbridge/providers.ts`          | Gateway upstream provider normalization            |
+| `src/runtime/addCustomModel.ts`          | "Add a custom model" command handler               |
 | `src/logger.ts`                          | Prefixed logging via LogOutputChannel              |
 | `src/i18n.ts`                            | Translation helper, English-only                   |
+| `src/config.ts`                          | VS Code configuration access + `getUserModels()`   |
 | `package.json`                           | Extension manifest, contributions, settings schema |
 
 ## Configuration
 
 All settings use the `aiflowbridge.` prefix. Provider-specific settings use `aiflowbridge.providers.{vendor}.*`.
 
-Vision proxy model is configurable via `aiflowbridge.vision.copilotVisionModel`. Vision proxy skipped for vendors in `aiflowbridge.vision.excludedVendors`.
-
-Gateway provider profiles are configured as `aiflowbridge.providers: [...]` array (each with `id`, `label`, `kind`, `baseUrl`, `model`, `apiKey`).
+- **`aiflowbridge.userModels`**: array of `ModelDefinition`-shaped objects. Merged with the built-in `MODELS` registry on every read. User-declared models can override built-in ones with the same id. See README "Adding a model without waiting for a release" for details.
+- **Vision proxy model**: `aiflowbridge.vision.copilotVisionModel` (default: `oswe-vscode-prime`)
+- **Vision proxy vendor exclusion**: `aiflowbridge.vision.excludedVendors` (default: `["aiflowbridge"]`)
+- **Gateway profiles**: `aiflowbridge.providers: [...]` array (each with `id`, `label`, `kind`, `baseUrl`, `model`, `apiKey`)
+- **Model id overrides** (per-provider): `aiflowbridge.providers.<vendor>.modelIdOverrides` (maps the upstream id to a custom one)
 
 ## Testing
 
-Run `npm test` for unit tests. The extension uses vitest for testing (237 tests across 13 files).
+Run `npm test` for unit tests. The extension uses vitest for testing (247 tests across 15 files).
 
 Quality gates:
-
 - `npm run compile` - 0 TypeScript errors
-- `npm test` - 237/237 passing
+- `npm test` - 247/247 passing
+
+Test files of note:
+- `tests/gateway.test.ts` - HTTP endpoints + singleton detection (15 tests)
+- `tests/aiflowbridge-providers.test.ts` - gateway profile normalization + selection (25 tests)
+- `tests/minimax-resolveModelId.test.ts` - id passthrough + override
+- `tests/userModels.test.ts` - user-declared model validation (6 tests)
 
 ## Notes
 
@@ -166,3 +195,5 @@ Quality gates:
 - All code comments and docs in English
 - Configuration section prefix: `aiflowbridge`
 - Vision proxy is opt-out (excluded vendors) not opt-in
+- Model ids in `MODELS` and `userModels` must match the upstream API exactly
+- No id translation map: what you see in `MODELS` is what gets sent to the API

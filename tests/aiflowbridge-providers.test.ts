@@ -182,7 +182,7 @@ describe('selectProvider', () => {
 			label: 'MiniMax',
 			kind: 'openai-compat' as const,
 			baseUrl: 'https://api.minimax.io/v1',
-			model: 'minimax-v2.7',
+			model: 'MiniMax-M2.7',
 			enabled: true,
 		},
 		{
@@ -209,7 +209,7 @@ describe('selectProvider', () => {
 	});
 
 	it('matches by upstream model name', () => {
-		expect(selectProvider(providers, 'minimax-v2.7', undefined)).toBe(providers[1]);
+		expect(selectProvider(providers, 'MiniMax-M2.7', undefined)).toBe(providers[1]);
 	});
 
 	it('matches by label', () => {

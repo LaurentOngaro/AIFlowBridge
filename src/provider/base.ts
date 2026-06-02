@@ -1,5 +1,6 @@
 import vscode from 'vscode';
 import { MODELS } from '../consts';
+import { getUserModels } from '../config';
 import type { ModelDefinition } from '../types';
 import { toChatInfo } from './models';
 
@@ -25,7 +26,31 @@ export abstract class BaseChatProvider implements vscode.LanguageModelChatProvid
 	abstract getAuthManager(): { hasApiKey(): Promise<boolean>; getApiKey(): Promise<string | undefined> };
 
 	getModelsForVendor(): ModelDefinition[] {
-		return MODELS.filter((m) => m.family === this.vendor);
+		const builtIn = MODELS.filter((m) => m.family === this.vendor);
+		const userModelsRaw = getUserModels().filter((m) => m.family === this.vendor);
+		if (userModelsRaw.length === 0) {
+			return builtIn;
+		}
+		// Merge: user models override built-in ones with the same id; user models are appended otherwise.
+		const userModels: ModelDefinition[] = userModelsRaw.map((m) => ({
+			id: m.id,
+			name: m.name,
+			family: m.family,
+			version: m.version,
+			detail: m.detail ?? `User-defined ${m.family} model`,
+			maxInputTokens: m.maxInputTokens ?? 128000,
+			maxOutputTokens: m.maxOutputTokens ?? 8192,
+			capabilities: {
+				toolCalling: m.capabilities?.toolCalling ?? false,
+				imageInput: m.capabilities?.imageInput ?? false,
+				thinking: m.capabilities?.thinking ?? false,
+			},
+			requiresThinkingParam: m.requiresThinkingParam ?? false,
+		}));
+		return [
+			...builtIn.filter((m) => !userModels.some((u) => u.id === m.id)),
+			...userModels,
+		];
 	}
 
 	async provideLanguageModelChatInformation(

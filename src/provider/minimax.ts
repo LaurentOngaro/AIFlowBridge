@@ -132,7 +132,7 @@ export class MiniMaxChatProvider extends BaseChatProvider {
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,
 			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('aiflowbridge.providers.minimax')) {
+				if (e.affectsConfiguration('aiflowbridge.providers.minimax') || e.affectsConfiguration('aiflowbridge.userModels')) {
 					this.fireInformationChanged();
 				}
 				if (e.affectsConfiguration('aiflowbridge.vision')) {
@@ -358,15 +358,11 @@ export function clampTemperature(temp: number | undefined): number | undefined {
 	return temp;
 }
 
+// Since the VS Code model id IS the upstream API model id (see `MODELS` in
+// src/consts.ts), no translation is needed. The only override is the user's
+// `aiflowbridge.providers.minimax.modelIdOverrides` setting.
 export function resolveMiniMaxModelId(vscodeModelId: string): string {
-	const overridden = getProviderApiModelId('minimax', vscodeModelId);
-	if (overridden !== vscodeModelId) {
-		return overridden;
-	}
-	if (vscodeModelId === 'minimax-v2.7') {
-		return 'MiniMax-M2.7';
-	}
-	return vscodeModelId;
+	return getProviderApiModelId('minimax', vscodeModelId);
 }
 
 export function mapRole(role: vscode.LanguageModelChatMessageRole): 'system' | 'user' | 'assistant' {

@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.1.0 - AIFlowBridge
+
+### Added
+
+- **`aiflowbridge.userModels` setting**: declare additional models in your `settings.json` (no extension update required). User-declared models are merged with the built-in registry.
+- **`AIFlowBridge: Add a custom model` command**: walk through the Command Palette to fetch a vendor's `/v1/models`, pick a model, declare its capabilities, and save it to `aiflowbridge.userModels`. The fetched list is also logged to the output channel for inspection.
+- **Auto-refresh**: the Copilot Chat model picker refreshes automatically when `aiflowbridge.userModels` is edited (no reload required).
+- **New models in the built-in registry**:
+  - MiniMax: M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3
+  - Xiaomi MiMo: V2 Omni, V2 Pro
+  - DeepSeek: V4 Flash, V4 Pro (already present, now with the same id convention as upstream)
+
+### Changed
+
+- **Model id convention**: `id` in `MODELS` (and in `aiflowbridge.userModels`) is now the **upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5`) instead of a kebab-case alias. This removes the translation map and the `resolveMiniMaxModelId` / `resolveXiaomiModelId` functions, which are now simple overrides. The human-readable name still shows in the Copilot Chat picker.
+
+### Fixed
+
+- **Xiaomi MiMo vision path**: the previous `hasNativeVision` check used a hardcoded `xiaomi-mimo-v2.5` id that would never match user-declared models. It now uses the upstream `mimo-v2.5` id directly.
+- **`addCustomModel` command**: deduplicates models returned by upstream (some providers, e.g. MiniMax, return the same id twice).
+- **Settings sync**: synchronized translation keys in `package.nls.json` and `src/i18n.ts` with the new model ids.
+
+### Breaking
+
+- The model id convention changed. Any pre-existing `aiflowbridge.providers.<vendor>.modelIdOverrides` keys using the old kebab-case ids (e.g. `minimax-v2.7`, `xiaomi-mimo-v2.5`) must be updated to the upstream ids (e.g. `MiniMax-M2.7`, `mimo-v2.5`).
+
 ## 1.0.2 - AIFlowBridge
 
 ### Fixed

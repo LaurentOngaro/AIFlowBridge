@@ -78,6 +78,60 @@ export function getStabilizeToolListEnabled(): boolean {
 	return config.get<boolean>('experimental.stabilizeToolList', false);
 }
 
+/**
+ * Read user-defined models from `aiflowbridge.userModels`.
+ * Returns an empty array if the setting is missing or malformed.
+ * Skips invalid entries (missing required fields) and logs a warning.
+ */
+export function getUserModels(): Array<{
+	id: string;
+	name: string;
+	family: string;
+	version: string;
+	detail?: string;
+	maxInputTokens?: number;
+	maxOutputTokens?: number;
+	capabilities?: {
+		toolCalling?: boolean | number;
+		imageInput?: boolean;
+		thinking?: boolean;
+	};
+	requiresThinkingParam?: boolean;
+}> {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const raw = config.get<unknown[]>('userModels', []);
+	if (!Array.isArray(raw)) {
+		return [];
+	}
+	const result: ReturnType<typeof getUserModels> = [];
+	for (const entry of raw) {
+		if (!entry || typeof entry !== 'object') continue;
+		const e = entry as Record<string, unknown>;
+		const id = typeof e.id === 'string' ? e.id.trim() : '';
+		const name = typeof e.name === 'string' ? e.name.trim() : '';
+		const family = typeof e.family === 'string' ? e.family.trim() : '';
+		const version = typeof e.version === 'string' ? e.version.trim() : '';
+		if (!id || !name || !family || !version) {
+			console.warn('[AIFlowBridge] Skipping invalid userModels entry: missing required field (id/name/family/version)');
+			continue;
+		}
+		result.push({
+			id,
+			name,
+			family,
+			version,
+			detail: typeof e.detail === 'string' ? e.detail : undefined,
+			maxInputTokens: typeof e.maxInputTokens === 'number' && e.maxInputTokens > 0 ? e.maxInputTokens : undefined,
+			maxOutputTokens: typeof e.maxOutputTokens === 'number' && e.maxOutputTokens > 0 ? e.maxOutputTokens : undefined,
+			capabilities: e.capabilities && typeof e.capabilities === 'object'
+				? (e.capabilities as { toolCalling?: boolean | number; imageInput?: boolean; thinking?: boolean })
+				: undefined,
+			requiresThinkingParam: typeof e.requiresThinkingParam === 'boolean' ? e.requiresThinkingParam : undefined,
+		});
+	}
+	return result;
+}
+
 function normalizeDebugMode(value: unknown): DebugMode | undefined {
 	if (value === 'minimal' || value === 'metadata' || value === 'verbose') {
 		return value;

@@ -3,12 +3,16 @@ import { EXTERNAL_URLS } from '../consts';
 import { t } from '../i18n';
 import { logger } from '../logger';
 import { ensureRequestDumpRoot } from '../provider/debug';
+import { addCustomModelCommand } from './addCustomModel';
 
 export function registerCommands(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('aiflowbridge.showLogs', () => logger.show()),
 		vscode.commands.registerCommand('aiflowbridge.openRequestDumpsFolder', () =>
 			openRequestDumpsFolder(context),
+		),
+		vscode.commands.registerCommand('aiflowbridge.addCustomModel', () =>
+			addCustomModelCommand(context),
 		),
 	);
 }

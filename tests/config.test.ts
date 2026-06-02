@@ -91,43 +91,43 @@ describe('config.ts - Model ID Overrides', () => {
   it('should return vscodeModelId when no override exists', () => {
     mockWorkspaceConfig.get.mockReturnValue({});
 
-    const modelId = getProviderApiModelId('minimax', 'minimax-v2.7');
-    expect(modelId).toBe('minimax-v2.7');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
+    expect(modelId).toBe('MiniMax-M2.7');
   });
 
   it('should return overridden value when override exists', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'minimax-v2.7': 'MiniMax-M2.7',
+      'MiniMax-M2.7': 'MiniMax-M2.7-Custom',
     });
 
-    const modelId = getProviderApiModelId('minimax', 'minimax-v2.7');
-    expect(modelId).toBe('MiniMax-M2.7');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
+    expect(modelId).toBe('MiniMax-M2.7-Custom');
   });
 
   it('should trim whitespace from override', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'minimax-v2.7': '  MiniMax-M2.7  ',
+      'MiniMax-M2.7': '  MiniMax-M2.7-Custom  ',
     });
 
-    const modelId = getProviderApiModelId('minimax', 'minimax-v2.7');
-    expect(modelId).toBe('MiniMax-M2.7');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
+    expect(modelId).toBe('MiniMax-M2.7-Custom');
   });
 
   it('should return original when override is only whitespace', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'minimax-v2.7': '   ',
+      'MiniMax-M2.7': '   ',
     });
 
-    const modelId = getProviderApiModelId('minimax', 'minimax-v2.7');
-    expect(modelId).toBe('minimax-v2.7');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
+    expect(modelId).toBe('MiniMax-M2.7');
   });
 
   it('should handle nested vendor keys', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'xiaomi-mimo-v2.5': 'MiMo-V2.5',
+      'mimo-v2.5': 'MiMo-V2.5',
     });
 
-    const modelId = getProviderApiModelId('xiaomi', 'xiaomi-mimo-v2.5');
+    const modelId = getProviderApiModelId('xiaomi', 'mimo-v2.5');
     expect(modelId).toBe('MiMo-V2.5');
   });
 });

@@ -115,22 +115,22 @@ describe('xiaomi.ts - resolveXiaomiModelId', () => {
     mockWorkspaceConfig.get.mockReturnValue({});
   });
 
-  it('should strip xiaomi- prefix if present', () => {
-    const result = resolveXiaomiModelId('xiaomi-mimo-v2.5');
-    expect(result).toBe('mimo-v2.5');
-  });
-
-  it('should return original if no prefix', () => {
+  it('should return the id unchanged (id is the API id)', () => {
     const result = resolveXiaomiModelId('mimo-v2.5');
     expect(result).toBe('mimo-v2.5');
   });
 
+  it('should return original if unknown', () => {
+    const result = resolveXiaomiModelId('some-other-model');
+    expect(result).toBe('some-other-model');
+  });
+
   it('should return override if modelIdOverrides is set', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'xiaomi-mimo-v2.5': 'MiMo-V2.5-Custom',
+      'mimo-v2.5': 'MiMo-V2.5-Custom',
     });
 
-    const result = resolveXiaomiModelId('xiaomi-mimo-v2.5');
+    const result = resolveXiaomiModelId('mimo-v2.5');
     expect(result).toBe('MiMo-V2.5-Custom');
   });
 });
@@ -395,16 +395,16 @@ describe('xiaomi.ts - convertXiaomiMessages', () => {
 });
 
 describe('xiaomi.ts - Model capabilities', () => {
-  it('should have correct capabilities for xiaomi-mimo-v2.5', () => {
-    const model = MODELS.find((m) => m.id === 'xiaomi-mimo-v2.5');
+  it('should have correct capabilities for mimo-v2.5', () => {
+    const model = MODELS.find((m) => m.id === 'mimo-v2.5');
     expect(model?.capabilities.thinking).toBe(true);
     expect(model?.capabilities.imageInput).toBe(true);
     expect(model?.capabilities.toolCalling).toBe(true);
     expect(model?.requiresThinkingParam).toBe(false);
   });
 
-  it('should have correct capabilities for xiaomi-mimo-v2.5-pro', () => {
-    const model = MODELS.find((m) => m.id === 'xiaomi-mimo-v2.5-pro');
+  it('should have correct capabilities for mimo-v2.5-pro', () => {
+    const model = MODELS.find((m) => m.id === 'mimo-v2.5-pro');
     expect(model?.capabilities.thinking).toBe(true);
     expect(model?.capabilities.imageInput).toBe(true);
     expect(model?.capabilities.toolCalling).toBe(true);

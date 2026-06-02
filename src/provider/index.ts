@@ -39,7 +39,7 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,
 			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('aiflowbridge.providers.deepseek')) {
+				if (e.affectsConfiguration('aiflowbridge.providers.deepseek') || e.affectsConfiguration('aiflowbridge.userModels')) {
 					this.onDidChangeLanguageModelChatInformationEmitter.fire();
 				}
 				if (e.affectsConfiguration('aiflowbridge.vision')) {

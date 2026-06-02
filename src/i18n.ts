@@ -12,9 +12,18 @@ const en: Translations = {
 	// Model descriptions
 	'model.flash.detail': 'Fast, general-purpose model',
 	'model.pro.detail': 'Most capable reasoning model',
-	'model.minimax-v2.7.detail': 'MiniMax latest generation model',
-	'model.xiaomi-mimo-v2.5.detail': 'Multimodal model with vision support',
-	'model.xiaomi-mimo-v2.5-pro.detail': 'Reasoning model without vision',
+	'model.MiniMax-M2.detail': 'MiniMax first-generation reasoning model',
+	'model.MiniMax-M2.1.detail': 'MiniMax second-generation reasoning model',
+	'model.MiniMax-M2.1-highspeed.detail': 'MiniMax M2.1 optimized for low latency',
+	'model.MiniMax-M2.5.detail': 'MiniMax third-generation model',
+	'model.MiniMax-M2.5-highspeed.detail': 'MiniMax M2.5 optimized for low latency',
+	'model.MiniMax-M2.7.detail': 'MiniMax fourth-generation model',
+	'model.MiniMax-M2.7-highspeed.detail': 'MiniMax M2.7 optimized for low latency',
+	'model.MiniMax-M3.detail': 'MiniMax latest generation model with extended context',
+	'model.mimo-v2-omni.detail': 'Xiaomi MiMo multimodal omni model',
+	'model.mimo-v2-pro.detail': 'Xiaomi MiMo V2 Pro reasoning model',
+	'model.mimo-v2.5.detail': 'Multimodal model with vision support',
+	'model.mimo-v2.5-pro.detail': 'Reasoning model without vision',
 
 	// API Key
 	'auth.apiKeyRequiredDetail': 'Please run "Set API Key" to configure.',
