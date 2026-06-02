@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 - AIFlowBridge
+
+### Fixed
+
+- **Publish workflow**: switched from the third-party `HaaLeo/publish-vscode-extension` GitHub Action to the official `@vscode/vsce` CLI called directly. The `vsix` input was deprecated in v1.7.0 of the action, causing the previous run to fail. Direct `vsce publish` is the Microsoft-recommended approach and removes a third-party dependency.
+
 ## 1.0.1 - AIFlowBridge
 
 ### Added
