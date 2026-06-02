@@ -23,9 +23,11 @@ AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi Mi
 ### Multi-Provider Support
 
 - **DeepSeek V4 Pro & Flash** - Full capabilities with thinking mode, vision proxy, tool calling
-- **MiniMax V2.7** - High-performance coding assistant with tool calling
-- **Xiaomi MiMo V2.5** - Multimodal model with native vision and thinking
-- **Xiaomi MiMo V2.5 Pro** - Reasoning model (text-only, uses vision proxy)
+- **MiniMax M2 / M2.1 / M2.1 Highspeed / M2.5 / M2.5 Highspeed / M2.7 / M2.7 Highspeed / M3** - 1M-token context on M3, high-speed variants for low-latency workloads
+- **Xiaomi MiMo V2 Omni / V2 Pro** - multimodal and reasoning models
+- **Xiaomi MiMo V2.5 / V2.5 Pro** - multimodal model with native vision and thinking
+
+**This list is not exhaustive** — see the [Providers](#providers) table below for the canonical list, or use the **`AIFlowBridge: Add a custom model`** command to declare additional models from each vendor's `/v1/models` endpoint without waiting for a release (see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release)).
 
 ### Transparent Vision Proxy
 
@@ -54,9 +56,11 @@ API keys stored in VS Code's `SecretStorage` (OS keychain). Never in `settings.j
 
 GitHub Copilot Chat ships with one vendor. AIFlowBridge adds a multi-provider switcher so you can pick the best model for the job, all from the same chat window.
 
-- **DeepSeek V4** - frontier reasoning at a fraction of the cost. 1M token context, tool calling, thinking mode.
-- **MiniMax V2.7** - fast open-weight model with strong tool-use and code completion.
-- **Xiaomi MiMo V2.5 / V2.5 Pro** - open-weight multimodal and reasoning models.
+- **DeepSeek V4 Pro & Flash** - frontier reasoning at a fraction of the cost. 1M token context, tool calling, thinking mode.
+- **MiniMax M2 → M3** - eight models spanning the M2, M2.1, M2.5, M2.7, and M3 generations, including high-speed variants. M3 ships with a 1M-token context window.
+- **Xiaomi MiMo V2 Omni / V2 Pro / V2.5 / V2.5 Pro** - open-weight multimodal and reasoning models.
+
+**Want to use a model not in this list?** Run **`AIFlowBridge: Add a custom model`** from the Command Palette to add any model returned by the provider's `/v1/models` endpoint — see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release).
 
 Compared to running each provider's CLI or website, AIFlowBridge gives you:
 
@@ -68,11 +72,11 @@ Compared to running each provider's CLI or website, AIFlowBridge gives you:
 
 ## Providers
 
-| Provider | Models                                       | Vision     | Thinking | Tool Calling |
-| -------- | -------------------------------------------- | ---------- | -------- | ------------ |
-| DeepSeek | V4 Flash, V4 Pro                             | ✅ Proxied | ✅       | ✅           |
-| MiniMax  | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 | ✅ Proxied | ❌       | ✅           |
-| Xiaomi   | MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro          | ✅ Proxied | ✅       | ✅           |
+| Provider | Models                                                                   | Vision     | Thinking | Tool Calling |
+| -------- | ------------------------------------------------------------------------ | ---------- | -------- | ------------ |
+| DeepSeek | V4 Flash, V4 Pro                                                         | ✅ Proxied | ✅       | ✅           |
+| MiniMax  | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 | ✅ Proxied | ✅       | ✅           |
+| Xiaomi   | MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro                                     | ✅ Proxied | ✅       | ✅           |
 
 Note: All models expose the image-paste button in Copilot Chat (`imageInput: true`). Images are transparently converted to text descriptions by the vision proxy (a separate vision-capable model). Configure the vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
 

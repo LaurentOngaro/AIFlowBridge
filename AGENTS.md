@@ -80,6 +80,7 @@ Each AI provider is registered via VS Code's `languageModelChatProviders` contri
 ### User-defined models
 
 Users can extend the registry without an extension update via:
+
 - **`aiflowbridge.userModels` setting**: array of `ModelDefinition`-shaped objects in `settings.json`
 - **`AIFlowBridge: Add a custom model` command**: walks through the Command Palette to fetch a vendor's `/v1/models`, pick a model, declare capabilities, and save to the setting
 
@@ -149,19 +150,19 @@ npm test           # Run vitest unit tests
 
 ## Important Files
 
-| File                                     | Purpose                                            |
-| ---------------------------------------- | -------------------------------------------------- |
-| `src/consts.ts`                          | Model registry, compile-time constants, secret keys |
-| `src/provider/base.ts`                   | Abstract provider + merge of `MODELS` + `userModels` |
-| `src/provider/vision/model.ts`           | Vision model selection (selector + fallback chain) |
-| `src/aiflowbridge/gateway/server.ts`     | Local proxy with singleton detection               |
-| `src/aiflowbridge/telemetry.ts`          | Usage tracking and cost estimation                 |
-| `src/aiflowbridge/providers.ts`          | Gateway upstream provider normalization            |
-| `src/runtime/addCustomModel.ts`          | "Add a custom model" command handler               |
-| `src/logger.ts`                          | Prefixed logging via LogOutputChannel              |
-| `src/i18n.ts`                            | Translation helper, English-only                   |
-| `src/config.ts`                          | VS Code configuration access + `getUserModels()`   |
-| `package.json`                           | Extension manifest, contributions, settings schema |
+| File                                 | Purpose                                              |
+| ------------------------------------ | ---------------------------------------------------- |
+| `src/consts.ts`                      | Model registry, compile-time constants, secret keys  |
+| `src/provider/base.ts`               | Abstract provider + merge of `MODELS` + `userModels` |
+| `src/provider/vision/model.ts`       | Vision model selection (selector + fallback chain)   |
+| `src/aiflowbridge/gateway/server.ts` | Local proxy with singleton detection                 |
+| `src/aiflowbridge/telemetry.ts`      | Usage tracking and cost estimation                   |
+| `src/aiflowbridge/providers.ts`      | Gateway upstream provider normalization              |
+| `src/runtime/addCustomModel.ts`      | "Add a custom model" command handler                 |
+| `src/logger.ts`                      | Prefixed logging via LogOutputChannel                |
+| `src/i18n.ts`                        | Translation helper, English-only                     |
+| `src/config.ts`                      | VS Code configuration access + `getUserModels()`     |
+| `package.json`                       | Extension manifest, contributions, settings schema   |
 
 ## Configuration
 
@@ -178,10 +179,12 @@ All settings use the `aiflowbridge.` prefix. Provider-specific settings use `aif
 Run `npm test` for unit tests. The extension uses vitest for testing (247 tests across 15 files).
 
 Quality gates:
+
 - `npm run compile` - 0 TypeScript errors
 - `npm test` - 247/247 passing
 
 Test files of note:
+
 - `tests/gateway.test.ts` - HTTP endpoints + singleton detection (15 tests)
 - `tests/aiflowbridge-providers.test.ts` - gateway profile normalization + selection (25 tests)
 - `tests/minimax-resolveModelId.test.ts` - id passthrough + override

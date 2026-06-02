@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1 - AIFlowBridge
+
+### Documentation
+
+- **README "Multi-Provider Support"**: full list of the 14 officially supported models (previously only 4 were listed) — DeepSeek V4 Flash/Pro, MiniMax M2/M2.1/M2.1 Highspeed/M2.5/M2.5 Highspeed/M2.7/M2.7 Highspeed/M3, Xiaomi MiMo V2 Omni/V2 Pro/V2.5/V2.5 Pro. Added a note clarifying the list is not exhaustive and pointing to `AIFlowBridge: Add a custom model` for adding other models.
+- **README "Why AIFlowBridge?"**: refreshed the bullet list of providers with the full model lineup and added a callout pointing to the user-defined models flow.
+- **AGENTS.md**: comprehensive update. Reflects the current file structure (adds `src/runtime/addCustomModel.ts`, `src/provider/vision/`, etc.), the new model id convention (`id` = upstream API id), the user-defined models flow, the test count (247 across 15 files), and notes about id translation removal.
+
+### Notes
+
+- No code changes; documentation only. Safe to upgrade.
+
 ## 1.1.0 - AIFlowBridge
 
 ### Added

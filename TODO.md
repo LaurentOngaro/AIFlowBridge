@@ -31,9 +31,7 @@ Tickets ranked by priority (most urgent first):
   - display global totals based on these filters
   - add common time filters (last 7 days, last 30 days, etc.)
 
-### Features (last:FEAT1)
-
-- [ ] FEAT1: replace the hard coded model enumeration in the "consts.ts" file (reminder: necessary for the copilot extension) with an external configuration file (or a setting) in order to avoid having to make a new release each time a new model is added or removed from the market.
+### Features (last:)
 
 ### Refactoring (last:)
 
