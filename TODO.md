@@ -1,35 +1,35 @@
 # TODOs
 
-Suivi des bugs, améliorations et tickets en cours. Pour le plan détaillé de publication Marketplace, voir `_helpers/PLAN_ACTIONS.md`.
+Track open bugs, improvements, and active tickets. For the marketplace publication plan, see `_helpers/PLAN_ACTIONS.md`.
 
 ## Bugs (last:BUG02)
 
-_Section en placeholder — aucun bug ouvert._
+_Placeholder section - no open bugs._
 
-## Corrections immédiates (last:)
+## Immediate Fixes (last:)
 
-_Section en placeholder — aucune correction urgente._
+_Placeholder section - no urgent fixes._
 
-## Améliorations du projet
+## Project Improvements
 
-Pour plus de détails sur l'implémentation de ces modifications, consulter le fichier `_helpers\PLAN_ACTIONS.md` qui détaille les étapes à suivre pour chaque tâche (si besoin).
+For implementation details, see `_helpers/PLAN_ACTIONS.md`.
 
-### Priorités d'implémentation
+### Implementation Priorities
 
-classement des demandes par priorité de la plus urgente à la moins urgente:
+Tickets ranked by priority (most urgent first):
 
 - None
 
 ### Documentation (last:)
 
-### Affichage (last:AFF02)
+### Display (last:AFF02)
 
-- [ ] AFF01: amélioration du dashboard
-  - ajouter la date et l'heure dans chaque ligne de "Recent requests"
-- [ ] AFF02: amélioration du dashboard
-  - proposer des regroupements de statistiques dans le dashboard (ex: par modèle, par fournisseur, par période, date, etc.)
-  - afficher des totaux globaux en fonction de ces filtres
-  - proposer des filtres usuels pour les statistiques (ex: 7 derniers jours, 30 derniers jours, etc.)
+- [ ] AFF01: dashboard improvement
+  - add date and time to each "Recent requests" row
+- [ ] AFF02: dashboard improvement
+  - add statistics grouping (by model, by provider, by period, date, etc.)
+  - display global totals based on these filters
+  - add common time filters (last 7 days, last 30 days, etc.)
 
 ### Features (last:)
 
@@ -39,16 +39,10 @@ classement des demandes par priorité de la plus urgente à la moins urgente:
 
 ### Performance (last:)
 
-### Sécurité (last:)
+### Security (last:)
 
-### Intégration future (last:)
+### Future Integration (last:)
 
-### Idées à creuser (last:) - utilité à questionner
+### Ideas to Investigate (last:) - value to be confirmed
 
-## Terminés
-
-- [x] BUG01: l'analyse d'image ne fonctionne pas dans le chat dans Kilo Code (réponse de minimax: Je ne peux pas lire les images — ce modèle ne supporte pas l'analyse d'images.)
-  - Cause: `oswe-vscode-prime` model (GitHub Copilot internal) not available in Kilo Code
-  - Fix: Added `aiflowbridge.vision.kiloVisionModel` setting for Kilo Code-specific vision model
-  - MiniMax and Xiaomi providers now use `createVisionModelGetter('kilo')` which reads `vision.kiloVisionModel`
-- [x] BUG02: affichage d'un message d'erreur si le port est occupé par les lancement d'une seconde instance de VS Code (l'extension affiche "AIFlowBridge gateway failed to start on port 8787: listen EADDRINUSE: address already in use 127.0.0.1:8787")
+## Completed

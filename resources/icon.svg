@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2332"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="flow1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <linearGradient id="flow2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#93c5fd"/>
+    </linearGradient>
+    <linearGradient id="flow3" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#c4b5fd"/>
+    </linearGradient>
+    <radialGradient id="node1" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#67e8f9"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </radialGradient>
+    <radialGradient id="node2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#93c5fd"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </radialGradient>
+    <radialGradient id="node3" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#6d28d9"/>
+    </radialGradient>
+    <linearGradient id="diamond" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#e0e7ff"/>
+      <stop offset="1" stop-color="#a5b4fc"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="256" height="256" rx="48" ry="48" fill="url(#bg)"/>
+  <g stroke="url(#flow1)" stroke-width="3" fill="none" stroke-linecap="round">
+    <path d="M 60 80 C 90 80, 90 128, 128 128"/>
+  </g>
+  <g stroke="url(#flow2)" stroke-width="3" fill="none" stroke-linecap="round">
+    <path d="M 60 128 L 128 128"/>
+  </g>
+  <g stroke="url(#flow3)" stroke-width="3" fill="none" stroke-linecap="round">
+    <path d="M 60 176 C 90 176, 90 128, 128 128"/>
+  </g>
+  <circle cx="60" cy="80" r="8" fill="url(#node1)" stroke="#22d3ee" stroke-width="2"/>
+  <circle cx="60" cy="80" r="14" fill="none" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+  <circle cx="60" cy="128" r="8" fill="url(#node2)" stroke="#60a5fa" stroke-width="2"/>
+  <circle cx="60" cy="128" r="14" fill="none" stroke="#60a5fa" stroke-width="1" opacity="0.4"/>
+  <circle cx="60" cy="176" r="8" fill="url(#node3)" stroke="#a78bfa" stroke-width="2"/>
+  <circle cx="60" cy="176" r="14" fill="none" stroke="#a78bfa" stroke-width="1" opacity="0.4"/>
+  <g transform="translate(128 128) rotate(45)">
+    <rect x="-18" y="-18" width="36" height="36" fill="url(#diamond)" stroke="#ffffff" stroke-width="1.5"/>
+  </g>
+  <g stroke="#e0e7ff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 165 128 L 215 128"/>
+    <path d="M 205 118 L 215 128 L 205 138"/>
+  </g>
+</svg>

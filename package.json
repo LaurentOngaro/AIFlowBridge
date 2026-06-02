@@ -1,7 +1,7 @@
 {
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge",
-  "description": "Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.",
+  "description": "Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. Free multi-provider models with transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.",
   "icon": "resources/icon.png",
   "version": "1.0.0",
   "publisher": "LaurentOngaro",
@@ -20,6 +20,7 @@
   "keywords": [
     "ai",
     "copilot",
+    "copilot-chat",
     "deepseek",
     "minimax",
     "xiaomi",
@@ -28,10 +29,18 @@
     "proxy",
     "metrics",
     "llm",
-    "language model"
+    "language-model",
+    "coding-assistant",
+    "openai-compatible",
+    "ollama",
+    "kilocode",
+    "continue",
+    "gpt",
+    "claude",
+    "agent-mode"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onLanguageModelChatProvider:aiflowbridge"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -116,6 +125,11 @@
         "command": "aiflowbridge.providers.xiaomi.clearApiKey",
         "category": "AIFlowBridge",
         "title": "Xiaomi MiMo: Clear API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.deepseek.setVisionModel",
+        "category": "AIFlowBridge",
+        "title": "DeepSeek: Set vision proxy model"
       }
     ],
     "keybindings": [

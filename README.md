@@ -3,14 +3,24 @@
 <!-- markdownlint-disable MD033 -->
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://img.shields.io/badge/VS%20Code%20Marketplace-Install-007ACC?logo=visualstudiocode&logoColor=white&style=for-the-badge" alt="Install from VS Code Marketplace">
+    <img src="https://img.shields.io/visual-studio-marketplace/v/LaurentOngaro.aiflowbridge?style=for-the-badge&logo=visualstudiocode&logoColor=white&label=VS%20Code" alt="VS Code Marketplace Version">
   </a>
-  <br/>
-  <img src="https://img.shields.io/github/v/release/ongaro-fr/aiflowbridge?style=for-the-badge&label=Version" alt="Version" />
+  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
+    <img src="https://img.shields.io/visual-studio-marketplace/i/LaurentOngaro.aiflowbridge?style=for-the-badge" alt="VS Code Marketplace Installs">
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
+    <img src="https://img.shields.io/visual-studio-marketplace/r/LaurentOngaro.aiflowbridge?style=for-the-badge" alt="VS Code Marketplace Rating">
+  </a>
+  <a href="https://github.com/ongaro-fr/aiflowbridge/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/ongaro-fr/aiflowbridge/ci.yml?style=for-the-badge&label=CI" alt="CI Status">
+  </a>
+  <a href="https://github.com/ongaro-fr/aiflowbridge/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/ongaro-fr/aiflowbridge?style=for-the-badge" alt="License">
+  </a>
 </p>
 <!-- markdownlint-disable MD033 -->
 
-**Multi-provider AI coding assistant with transparent vision proxy, usage metrics, and OpenAI-compatible local gateway.**
+**Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. Free multi-provider models with transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.**
 
 AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi MiMo) under a unified interface inside Copilot Chat - with built-in metrics, proxy routing, and vision bridge capabilities.
 
@@ -45,6 +55,22 @@ All providers appear directly in the Copilot Chat model picker:
 ### Secure by Default
 
 API keys stored in VS Code's `SecretStorage` (OS keychain). Never in `settings.json`, never in Git history.
+
+## Why AIFlowBridge?
+
+GitHub Copilot Chat ships with one vendor. AIFlowBridge adds a multi-provider switcher so you can pick the best model for the job, all from the same chat window.
+
+- **DeepSeek V4** - frontier reasoning at a fraction of the cost. 1M token context, tool calling, thinking mode.
+- **MiniMax V2.7** - fast open-weight model with strong tool-use and code completion.
+- **Xiaomi MiMo V2.5 / V2.5 Pro** - open-weight multimodal and reasoning models.
+
+Compared to running each provider's CLI or website, AIFlowBridge gives you:
+
+- **One place** to switch models in Copilot Chat (no copy-pasting code between sites)
+- **Local OpenAI-compatible gateway** so Kilo Code, Continue, Open WebUI, and any OpenAI-compatible client can use the same models
+- **Per-request metrics**: token counts, latency, estimated cost - visible in the dashboard
+- **Vision proxy** for text-only models: paste an image and the description is injected automatically
+- **Local-first**: API keys live in your OS keychain, telemetry stays on your machine
 
 ## Providers
 
@@ -85,6 +111,27 @@ Xiaomi MiMo: Set API Key
 ```
 
 API keys are stored securely in your OS keychain via VS Code's SecretStorage.
+
+## Demo
+
+Once installed, the metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or `Cmd+Alt+M` on macOS), or run `AIFlowBridge: Show metrics dashboard` from the Command Palette.
+
+The dashboard shows:
+
+- **Totals**: requests, prompt/completion tokens, estimated cost
+- **Per-provider breakdown**: requests and tokens by DeepSeek / MiniMax / Xiaomi
+- **Per-model breakdown**: the same, sliced by model ID
+- **Recent requests table**: timestamp, model, tokens, latency, status
+
+The status bar shows the current gateway state (running / stopped / error).
+
+### Example workflow
+
+1. Open Copilot Chat and pick `DeepSeek V4 Pro` from the model picker
+2. Ask it a coding question with thinking enabled - watch the status bar for request count
+3. Open the dashboard with `Ctrl+Alt+M` to inspect token usage and cost per request
+4. Switch to `Xiaomi MiMo V2.5` and ask a follow-up - the same metrics, grouped by model
+5. Run `AIFlowBridge: Show logs` to inspect any errors in detail
 
 ## Usage
 
@@ -314,7 +361,7 @@ npm install
 # Compile TypeScript (cleans out/ first)
 npm run compile
 
-# Watch mode — recompiles on file changes
+# Watch mode - recompiles on file changes
 npm run watch
 ```
 
@@ -358,9 +405,62 @@ If you run the helper without `-Profiles` or `-AllProfiles`, the script will det
 npm run publish
 ```
 
+## Troubleshooting
+
+**`Gateway failed to start on port 8787`**
+
+Another service (not AIFlowBridge) is using port 8787. Either stop that service, or change AIFlowBridge's port via `aiflowbridge.gateway.port` in your settings.
+
+**`API key not configured`**
+
+Run the matching command from the Command Palette:
+
+- `DeepSeek: Set API Key`
+- `MiniMax: Set API Key`
+- `Xiaomi MiMo: Set API Key`
+
+The keys live in your OS keychain, not in any file. Use the corresponding `Clear API Key` command to remove them.
+
+**`Vision model not found`**
+
+The configured vision model is not registered with VS Code. Open settings (`AIFlowBridge: Open settings`) and either:
+
+- Clear `aiflowbridge.vision.copilotVisionModel` to use the default
+- Pick a model that is currently installed in your environment
+
+**`401 Unauthorized` from an upstream provider**
+
+The API key is missing, invalid, or for the wrong endpoint. Check:
+
+1. The key is set (`AIFlowBridge: Set API Key`)
+2. The `baseUrl` setting points to the right region (DeepSeek/MiniMax/Xiaomi each have regional endpoints)
+3. The key has the required permissions on the provider's dashboard
+
+**Gateway not detected by Kilo Code / Continue**
+
+- Confirm the gateway is running: `curl http://127.0.0.1:8787/health` should return `{"ok":true,"service":"AIFlowBridge"}`
+- Use `http://127.0.0.1:8787/v1` as the OpenAI-compatible base URL
+- Any string works as the API key (auth is handled by the upstream provider)
+
+**For more details**, run `AIFlowBridge: Show Logs` from the Command Palette.
+
+## Privacy & Security
+
+AIFlowBridge is **local-first** by design:
+
+- **API keys** are stored exclusively in VS Code `SecretStorage` (your OS keychain). They never appear in `settings.json`, in Git history, or in any file you commit.
+- **The gateway binds to `127.0.0.1` only** - it is not reachable from other machines on your network.
+- **Telemetry is local**: request counts, token usage, and cost estimates stay on your machine. There is no remote analytics endpoint.
+- **No third-party tracking**: the extension does not phone home, load remote scripts, or embed analytics SDKs.
+- **Outbound requests** only go to the API endpoints you configure: `api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, or your custom upstream URLs.
+
+You can audit the network traffic from the `AIFlowBridge: Show Logs` output channel.
+
+Report security issues privately - see [`SECURITY.md`](SECURITY.md).
+
 ## Maintainer
 
-**Laurent Ongaro** - [laurent@ongaro.fr](mailto:laurent@ongaro.fr)
+**Laurent Ongaro** - [Laurent Ongaro](https://github.com/LaurentOngaro)
 
 ## Sponsoring
 

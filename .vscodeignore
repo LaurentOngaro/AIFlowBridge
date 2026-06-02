@@ -14,8 +14,6 @@ out/**/*.d.ts.map
 
 .nvmrc
 .gitignore
-.oxlintrc.json
-.oxfmtrc.json
 *.vsix
 AGENTS.md
 tsconfig.json

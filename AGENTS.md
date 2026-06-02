@@ -5,7 +5,7 @@
 AIFlowBridge is a VS Code extension that provides multi-provider AI coding assistance through Copilot Chat and an OpenAI-compatible local gateway. It supports DeepSeek, MiniMax, and Xiaomi MiMo with usage metrics, vision proxy, and singleton gateway routing.
 
 **Repository**: Originally forked from deepseek-v4-for-copilot, now significantly diverged
-**Maintainer**: Laurent Ongaro (laurent@ongaro.fr)
+**Maintainer**: [Laurent Ongaro](https://github.com/LaurentOngaro)
 
 ## Code Standards
 

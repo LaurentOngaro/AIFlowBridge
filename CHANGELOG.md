@@ -11,7 +11,6 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 - **Transparent vision proxy**: All models expose the image-paste button in Copilot Chat. Images are converted to text descriptions by a configurable vision model, so even non-vision models can analyze attached screenshots and diagrams.
 - **Metrics dashboard**: Per-provider, per-model request counts, tokens, latency, and estimated cost. Recent request history. Status bar indicator.
 - **SecretStorage API keys**: All credentials live in the OS keychain, never in `settings.json`.
-- **English-only**: Single-locale, focused experience. No Chinese translation files.
 
 ### Quality
 
@@ -20,6 +19,28 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 - 0 lint or format errors
 - GitHub Actions CI: build, test, package, publish VSIX artifact
 - Vision proxy, gateway singleton, and provider normalization fully covered
+
+### Documentation & Community
+
+- **Badges** in the README: VS Marketplace (version, installs, rating), CI status, license
+- **New sections** in the README: "Why AIFlowBridge?", "Demo", "Troubleshooting", "Privacy & Security", "Sponsoring"
+- **`CONTRIBUTING.md`**: setup, code standards, adding a provider/model, PR workflow
+- **`SECURITY.md`**: supported versions, private disclosure process, security design notes
+- **`TODO.md`**: fully translated to English for an unilingual public repo
+- **Sponsoring section**: links to GitHub Sponsors (tiered: Community / Contributor / Supporter), Patreon, and Tipeee (FR community)
+
+### Polish
+
+- **Marketplace description** rewritten for clarity and discoverability
+- **Keywords** enriched with `copilot-chat`, `coding-assistant`, `openai-compatible`, `ollama`, `kilocode`, `continue`, `gpt`, `claude`, `agent-mode`, `language-model`
+- **Activation event** changed from `onStartupFinished` to `onLanguageModelChatProvider:aiflowbridge` (lazy activation; gateway starts only when actually used)
+- **DeepSeek vision model command** (`aiflowbridge.providers.deepseek.setVisionModel`) now declared in `contributes.commands` for proper command palette integration
+- **SVG icon** added in `resources/icon.svg` alongside the existing PNG (marketplace vector-friendly)
+- **`.vscodeignore`** cleaned: removed references to deleted `.oxlintrc.json`/`.oxfmtrc.json`
+
+### Upgrading from 0.x
+
+**No breaking changes.** All settings, commands, and APIs from 0.x remain available. Internal renames (`setVisionProxyModel` → `chooseVisionProxyModel`, `TODO_TRACKER_PREFIX` → `BACKGROUND_TRACKER_PREFIX`) are not user-facing.
 
 ### Notes
 
