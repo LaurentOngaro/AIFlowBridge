@@ -63,7 +63,7 @@ See [`AGENTS.md`](AGENTS.md) for the full file structure, key architectural deci
 
 ## Reporting Bugs
 
-Open a [GitHub issue](https://github.com/ongaro-fr/aiflowbridge/issues) with:
+Open a [GitHub issue](https://github.com/LaurentOngaro/aiflowbridge/issues) with:
 
 - A clear, descriptive title
 - VS Code version (`Help > About`)

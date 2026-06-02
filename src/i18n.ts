@@ -1,4 +1,3 @@
-import vscode from 'vscode';
 
 /**
  * Lightweight i18n module - English only
@@ -44,7 +43,7 @@ const en: Translations = {
 	'request.preflightRoundLimitExceeded':
 		'Experimental tool-list stabilization tried {0} rounds but still could not get a stable enabled-tools list. Turn this experimental setting off, or use VS Code Configure Tools to disable tools you rarely use first.',
 	'notice.toolDrift':
-		'Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/ongaro-fr/aiflowbridge/blob/main/docs/notices/tool-drift.en.md)',
+		'Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/notices/tool-drift.en.md)',
 
 	// Errors
 	'error.http.400': '[{0}] Invalid request body format.',

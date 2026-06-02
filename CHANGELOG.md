@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.0.1 - AIFlowBridge
+
+### Added
+
+- marketplace auto-publish CI workflow for new releases
+
+### Documentation
+
+- **TODO.md fully translated to English** — the repo is now unilingual for its public audience.
+- **README badges**: replaced the old single badge with a professional set (Marketplace version, installs, rating, CI status, license).
+- **README "Why AIFlowBridge?"**: new section comparing with alternatives and highlighting the local-first, multi-provider value proposition.
+- **README "Demo"**: new section with a step-by-step example workflow and keyboard shortcuts.
+- **README "Troubleshooting"**: covers the five most common issues (gateway port, API key, vision model, 401 auth, Kilo Code connectivity).
+- **README "Privacy & Security"**: documents the local-first model (keychain, localhost-only, no remote telemetry).
+- **README "Sponsoring"**: added with links to GitHub Sponsors (tiered: Community / Contributor / Supporter), Patreon, and Tipeee for the French-speaking community.
+- **Marketplace description** rewritten for clarity and discoverability.
+- **`CONTRIBUTING.md`**: new contributor guide with setup, code standards, provider/model addition workflow, and PR checklist.
+- **`SECURITY.md`**: new security policy with supported versions, private disclosure process, and design notes.
+
+### Polish
+
+- **Keywords enriched**: added `copilot-chat`, `coding-assistant`, `openai-compatible`, `ollama`, `kilocode`, `continue`, `gpt`, `claude`, `agent-mode`, `language-model` for better marketplace discoverability.
+- **SVG icon** added in `resources/icon.svg` alongside the existing PNG.
+- **`.vscodeignore`** cleaned: removed references to deleted `.oxlintrc.json` and `.oxfmtrc.json`.
+
 ## 1.0.0 - AIFlowBridge
 
 First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo into GitHub Copilot Chat with a local OpenAI-compatible gateway, transparent vision proxy, and usage metrics.

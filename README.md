@@ -3,19 +3,13 @@
 <!-- markdownlint-disable MD033 -->
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://img.shields.io/visual-studio-marketplace/v/LaurentOngaro.aiflowbridge?style=for-the-badge&logo=visualstudiocode&logoColor=white&label=VS%20Code" alt="VS Code Marketplace Version">
+    <img src="https://img.shields.io/badge/VS%20Code-Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="VS Code Marketplace">
   </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://img.shields.io/visual-studio-marketplace/i/LaurentOngaro.aiflowbridge?style=for-the-badge" alt="VS Code Marketplace Installs">
+  <a href="https://github.com/LaurentOngaro/aiflowbridge">
+    <img src="https://img.shields.io/badge/Source-GitHub-24292f?style=for-the-badge&logo=github&logoColor=white" alt="Source code on GitHub">
   </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://img.shields.io/visual-studio-marketplace/r/LaurentOngaro.aiflowbridge?style=for-the-badge" alt="VS Code Marketplace Rating">
-  </a>
-  <a href="https://github.com/ongaro-fr/aiflowbridge/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/ongaro-fr/aiflowbridge/ci.yml?style=for-the-badge&label=CI" alt="CI Status">
-  </a>
-  <a href="https://github.com/ongaro-fr/aiflowbridge/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/ongaro-fr/aiflowbridge?style=for-the-badge" alt="License">
+  <a href="https://github.com/LaurentOngaro/aiflowbridge/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/LaurentOngaro/aiflowbridge?style=for-the-badge" alt="License">
   </a>
 </p>
 <!-- markdownlint-disable MD033 -->

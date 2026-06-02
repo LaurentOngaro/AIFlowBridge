@@ -21,7 +21,7 @@
   "vision.proxyError": "Vision proxy error:",
   "request.toolsLimitExceeded": "This model supports at most {0} functions in a single request, but this request contains {1}.",
   "request.preflightRoundLimitExceeded": "Experimental tool-list stabilization tried {0} rounds but still could not get a stable enabled-tools list. Turn this experimental setting off, or use VS Code Configure Tools to disable tools you rarely use first.",
-  "notice.toolDrift": "Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/ongaro-fr/aiflowbridge/blob/main/docs/notices/tool-drift.en.md)",
+  "notice.toolDrift": "Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/notices/tool-drift.en.md)",
   "error.http.400": "[{0}] Invalid request body format.",
   "error.http.401": "[{0}] Authentication failed. Please check your API key.",
   "error.http.401.withCreateApiKeyLink": "[{0}] Authentication failed. Please [create an API key]({1}) first.",
