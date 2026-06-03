@@ -2,11 +2,24 @@
 
 ## 1.2.2
 
-Patch release: documentation only, no code changes.
+Patch release: one bug fix for user-added models.
+
+### Fixed
+
+- **User-added models fail to resolve their vendor API key** (BUG07): the gateway was rejecting every chat request sent to a model added via `AIFlowBridge: Add a custom model` with the upstream's 401 "Please carry the API secret key" error. The vendor resolver was using a **case-sensitive** comparison (`vendor === "minimax" || vendor.startsWith("minimax-")`), which:
+  - failed on the upstream-style camelCase id of MiniMax user-added models (`MiniMax-M3`, `MiniMax-M2.7`), and
+  - failed for **every** Xiaomi user-added model because the upstream uses a different prefix (`mimo-` for MiMo, while the default vendor id is `xiaomi`).
+    The resolver is now case-insensitive, accepts upstream-style aliases, and explicitly knows about the `mimo-` → `xiaomi` mapping. The matching logic was extracted to `src/aiflowbridge/api-key-resolver.ts` so it is unit-tested in isolation. `selectProvider` was already case-insensitive on the model id, which is why routing worked but key resolution didn't.
+- **`Cannot read properties of undefined (reading 'globalState')` on activation** (BUG06): the gateway's `loadState()` callback used to fire from inside the `GatewayService` constructor, but the `AIFlowBridgeRuntime` passed an arrow function that closed over `this.context`. TypeScript class field initializers run **before** the parameter property assignment, so `this.context` was `undefined` when the constructor called the callback. The fix is a small refactor: `GatewayService` no longer auto-wires persistence in its constructor. It now exposes an `init()` method that the runtime calls from its constructor body, after `this.context` is set. `init()` is idempotent, so multiple calls are safe. The activation warning `[Gateway] Failed to restore persisted telemetry: ...` is gone, and the cumulative metrics now load correctly on the first activation after install.
 
 ### Changed
 
 - Small README content changes.
+
+### Tests
+
+- 301 tests across 20 files (was 292). New file `tests/api-key-resolver.test.ts` (9 tests): default id matching, camelCase id, `DEEPSEEK` uppercase, unknown vendor, ambiguous prefix, missing secret, throwing `secrets.get()`, sync thenable, and the regression test for `MiMo-V2.5-PRO` → xiaomi.
+- Existing persistence tests updated to call `service.init()` after construction, and to assert that `loadState` is **not** called by the constructor alone.
 
 ## 1.2.1
 
@@ -192,7 +205,7 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 
 ### Changed
 
-- **i18n synchronization**: `package.nls.json` synchronized with `src/i18n.ts`. Added 25+ missing translation keys (auth, request, error.http.*, error.action.*, error.network.*, extension, command) and unified punctuation/wording between the two files.
+- **i18n synchronization**: `package.nls.json` synchronized with `src/i18n.ts`. Added 25+ missing translation keys (auth, request, error.http._, error.action._, error.network.\*, extension, command) and unified punctuation/wording between the two files.
 
 - **Vision settings cleanup**: Removed unused `aiflowbridge.vision.enabled` setting. The vision proxy is always-on (opt-out via `aiflowbridge.vision.excludedVendors`).
 

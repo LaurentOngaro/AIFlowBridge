@@ -24,6 +24,7 @@ export class GatewayService {
   private unsubscribePersist: (() => void) | undefined;
   private persistDebounce: NodeJS.Timeout | undefined;
   private static readonly PERSIST_DEBOUNCE_MS = 1000;
+  private persistenceInitialized = false;
 
   constructor(
     config: AiFlowBridgeConfig,
@@ -33,6 +34,25 @@ export class GatewayService {
     private readonly saveState?: TelemetryStateSaver,
   ) {
     this.config = config;
+    // Persistence wiring is deferred to init() so the caller has a chance
+    // to set up its own state (e.g. VS Code ExtensionContext) before the
+    // load/save callbacks run. Constructing the service and immediately
+    // running load() from the constructor breaks when the load callback
+    // closes over a field that is only assigned later by a parameter
+    // property in the runtime's own constructor.
+  }
+
+  /**
+   * Wire the telemetry load / save callbacks. Must be called once before
+   * the gateway starts handling traffic. Idempotent: subsequent calls are
+   * no-ops (the listeners are subscribed at most once).
+   */
+  init(): void {
+    if (this.persistenceInitialized) {
+      return;
+    }
+    this.persistenceInitialized = true;
+
     if (this.loadState) {
       try {
         this.telemetry.restore(this.loadState());

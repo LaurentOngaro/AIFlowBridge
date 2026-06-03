@@ -176,12 +176,12 @@ All settings use the `aiflowbridge.` prefix. Provider-specific settings use `aif
 
 ## Testing
 
-Run `npm test` for unit tests. The extension uses vitest for testing (291 tests across 19 files).
+Run `npm test` for unit tests. The extension uses vitest for testing (301 tests across 20 files).
 
 Quality gates:
 
 - `npm run compile` - 0 TypeScript errors
-- `npm test` - 291/291 passing
+- `npm test` - 301/301 passing
 
 Test files of note:
 

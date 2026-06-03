@@ -311,7 +311,7 @@ describe('GatewayService - singleton detection', () => {
 });
 
 describe('GatewayService - telemetry persistence (loadState / saveState)', () => {
-	it('restores cumulative state from loadState() on construction', () => {
+	it('restores cumulative state from loadState() on init()', () => {
 		const persisted = {
 			requests: 5,
 			promptTokens: 100,
@@ -334,11 +334,32 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 			loadState,
 			saveState,
 		);
+		// Constructing the service must NOT touch the load/save callbacks:
+		// that would crash if the callbacks close over a field that the
+		// host class only sets in its own constructor body (BUG06).
+		expect(loadState).not.toHaveBeenCalled();
+		service.init();
 		expect(loadState).toHaveBeenCalledOnce();
 		const snap = service.snapshot();
 		expect(snap.requests).toBe(5);
 		expect(snap.totalTokens).toBe(150);
 		expect(snap.byProvider.p1?.requests).toBe(5);
+	});
+
+	it('init() is idempotent (loadState / saveState are wired at most once)', () => {
+		const loadState = vi.fn(() => undefined);
+		const saveState = vi.fn();
+		const service = new GatewayService(
+			makeConfig(),
+			undefined,
+			undefined,
+			loadState,
+			saveState,
+		);
+		service.init();
+		service.init();
+		service.init();
+		expect(loadState).toHaveBeenCalledOnce();
 	});
 
 	it('saveState is debounced and called with the latest snapshot', async () => {
@@ -417,6 +438,7 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 			() => persisted,
 			saveState,
 		);
+		service.init();
 		expect(service.snapshot().requests).toBe(5);
 		saveState.mockClear();
 
@@ -436,7 +458,9 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 				throw new Error('boom');
 			},
 		);
-		// Gateway should still work with empty state
+		// init() must swallow the error and leave the gateway in a usable
+		// state with empty telemetry.
+		expect(() => service.init()).not.toThrow();
 		expect(service.snapshot().requests).toBe(0);
 	});
 });

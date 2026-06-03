@@ -16,9 +16,9 @@ Tickets ranked by priority (most urgent first):
 
 - None
 
-## Bugs (last:BUG04)
+## Bugs (last:BUG07)
 
-_None - last bug BUG03 was fixed in 1.2.0._
+_None - last bug BUG07 was fixed in 1.2.3._
 
 ### Documentation (last:DOC02)
 
@@ -63,6 +63,15 @@ _The README has a public-facing version of this roadmap in the "Roadmap" section
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 1.2.3
+
+- BUG07: `resolveVendorApiKey` (extracted to `src/aiflowbridge/api-key-resolver.ts`) is now case-insensitive and accepts the upstream-style id aliases. The default vendor ids (`minimax`, `deepseek-flash`, `xiaomi`) still work, and user-added models with upstream-style ids (`MiniMax-M3`, `MiniMax-M2.7`, `mimo-v2.5-pro`, etc.) now correctly resolve to the right vendor API key in `SecretStorage`. Also fixed a pre-existing bug: Xiaomi user-added models (which use the `mimo-` prefix) were never matched against the `xiaomi` vendor by the old resolver - now explicitly aliased.
+
+### 1.2.2
+
+- BUG06: `GatewayService` no longer auto-wires persistence in its constructor. The `loadState()` and `saveState` callbacks are now set up via a separate `init()` method, which the `AIFlowBridgeRuntime` calls from its constructor body after `this.context` is assigned. Fixes the `Cannot read properties of undefined (reading 'globalState')` warning that fired on every activation in debug mode (TypeScript class field initializers run before parameter property assignment).
+- Small README content changes.
 
 ### 1.2.1
 

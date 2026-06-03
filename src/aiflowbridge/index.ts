@@ -1,41 +1,39 @@
 import * as vscode from "vscode";
 import { loadConfig } from "./config";
 import { GatewayService, isPortInUse } from "./gateway/server";
+import { resolveVendorApiKey } from "./api-key-resolver";
 import { TelemetryStore } from "./telemetry";
 import type { GatewayStatus, TelemetrySnapshot } from "./types";
 import { showMetricsDashboard } from "./ui/dashboard";
 import { StatusBarController } from "./ui/statusbar";
-import { API_KEY_SECRETS } from "../consts";
 import { logger } from "../logger";
 
 const TELEMETRY_STORAGE_KEY = "aiflowbridge.telemetry.v1";
 
 class AIFlowBridgeRuntime {
   private config = loadConfig();
-  private readonly gateway = new GatewayService(
-    this.config,
-    (status, snapshot) => this.refreshUi(status, snapshot),
-    // Resolve API keys from VS Code SecretStorage for auto-generated profiles.
-    // Matches vendor IDs like "deepseek-flash" or "deepseek-pro" to the "deepseek" key.
-    async (vendor: string): Promise<string | undefined> => {
-      const knownVendors = Object.keys(API_KEY_SECRETS) as Array<keyof typeof API_KEY_SECRETS>;
-      const matched = knownVendors.find((kv) => vendor === kv || vendor.startsWith(`${kv}-`));
-      if (!matched) {
-        return undefined;
-      }
-      try {
-        return await this.context.secrets.get(API_KEY_SECRETS[matched]);
-      } catch {
-        return undefined;
-      }
-    },
-    () => this.loadPersistedTelemetry(),
-    (snapshot) => this.savePersistedTelemetry(snapshot),
-  );
-  private readonly statusBar = new StatusBarController();
+  private readonly gateway: GatewayService;
+  private readonly statusBar: StatusBarController;
   private readonly telemetryFallback = new TelemetryStore();
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) {
+    // The gateway is built here (not as a class field) so that the load /
+    // save callbacks can close over `this.context`, which is only set by
+    // the parameter property above. Class field initializers run before
+    // the parameter property assignment, so wiring the gateway in the
+    // field initializer would crash with `Cannot read properties of
+    // undefined (reading 'globalState')` (BUG06). The `init()` call then
+    // safely wires persistence now that the context exists.
+    this.gateway = new GatewayService(
+      this.config,
+      (status, snapshot) => this.refreshUi(status, snapshot),
+      (vendor) => resolveVendorApiKey(vendor, this.context.secrets),
+      () => this.loadPersistedTelemetry(),
+      (snapshot) => this.savePersistedTelemetry(snapshot),
+    );
+    this.gateway.init();
+    this.statusBar = new StatusBarController();
+  }
 
   private loadPersistedTelemetry(): TelemetrySnapshot | undefined {
     return this.context.globalState.get<TelemetrySnapshot>(TELEMETRY_STORAGE_KEY);
