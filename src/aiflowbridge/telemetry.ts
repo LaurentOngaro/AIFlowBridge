@@ -98,6 +98,8 @@ export function estimatePromptTokensFromPayload(payload: unknown): number {
   return estimateTokensFromText(fragments.join(" "));
 }
 
+export type TelemetryListener = (snapshot: TelemetrySnapshot) => void;
+
 export class TelemetryStore {
   private readonly recent: RequestTelemetry[] = [];
   private readonly byProvider = new Map<string, ProviderSnapshot>();
@@ -108,8 +110,10 @@ export class TelemetryStore {
   private totalTokens = 0;
   private totalEstimatedCost = 0;
   private totalErrors = 0;
+  private totalDurationMs = 0;
   private readonly durations: number[] = [];
   private static readonly MAX_DURATIONS = 1000;
+  private listeners: TelemetryListener[] = [];
 
   record(entry: RequestTelemetry): void {
     this.totalRequests += 1;
@@ -118,6 +122,7 @@ export class TelemetryStore {
     this.totalTokens += entry.totalTokens;
     this.totalEstimatedCost += entry.estimatedCost;
     this.totalErrors += entry.status >= 400 ? 1 : 0;
+    this.totalDurationMs += entry.durationMs;
     this.durations.push(entry.durationMs);
     if (this.durations.length > TelemetryStore.MAX_DURATIONS) {
       this.durations.shift();
@@ -136,6 +141,14 @@ export class TelemetryStore {
     const modelSnapshot = this.byModel.get(entry.model) ?? emptyProviderSnapshot();
     updateProviderSnapshot(modelSnapshot, entry);
     this.byModel.set(entry.model, modelSnapshot);
+
+    for (const listener of this.listeners) {
+      try {
+        listener(this.snapshot());
+      } catch {
+        // Listeners must not break recording.
+      }
+    }
   }
 
   snapshot(): TelemetrySnapshot {
@@ -146,12 +159,81 @@ export class TelemetryStore {
       totalTokens: this.totalTokens,
       estimatedCost: this.totalEstimatedCost,
       errors: this.totalErrors,
-      averageDurationMs: this.totalRequests === 0 ? 0 : this.durations.reduce((sum, value) => sum + value, 0) / this.totalRequests,
+      averageDurationMs: this.totalRequests === 0 ? 0 : this.totalDurationMs / this.totalRequests,
       p95DurationMs: percentile(this.durations, 0.95),
       recent: [...this.recent].reverse(),
       byProvider: Object.fromEntries(this.byProvider.entries()),
       byModel: Object.fromEntries(this.byModel.entries()),
     };
+  }
+
+  /**
+   * Restore cumulative state from a previously persisted snapshot.
+   * Restores the totals, per-provider / per-model maps, and the last 20
+   * recent entries. The durations array is reconstructed from the recent
+   * entries (so p95 is approximate, based on at most the last 20 requests
+   * rather than the full history).
+   */
+  restore(state: TelemetrySnapshot | undefined): void {
+    this.recent.length = 0;
+    this.byProvider.clear();
+    this.byModel.clear();
+    this.durations.length = 0;
+    this.totalRequests = 0;
+    this.totalPromptTokens = 0;
+    this.totalCompletionTokens = 0;
+    this.totalTokens = 0;
+    this.totalEstimatedCost = 0;
+    this.totalErrors = 0;
+    this.totalDurationMs = 0;
+
+    if (!state) {
+      return;
+    }
+
+    this.totalRequests = state.requests;
+    this.totalPromptTokens = state.promptTokens;
+    this.totalCompletionTokens = state.completionTokens;
+    this.totalTokens = state.totalTokens;
+    this.totalEstimatedCost = state.estimatedCost;
+    this.totalErrors = state.errors;
+    this.totalDurationMs = Math.round(state.averageDurationMs * state.requests);
+
+    for (const [id, snapshot] of Object.entries(state.byProvider)) {
+      this.byProvider.set(id, { ...snapshot });
+    }
+    for (const [model, snapshot] of Object.entries(state.byModel)) {
+      this.byModel.set(model, { ...snapshot });
+    }
+
+    // The snapshot stores `recent` in reverse-chronological order. Reverse
+    // it back to insertion order before pushing.
+    for (const entry of [...state.recent].reverse()) {
+      this.recent.push(entry);
+      this.durations.push(entry.durationMs);
+    }
+  }
+
+  subscribe(listener: TelemetryListener): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
+  }
+
+  /**
+   * Wipe all cumulative state and notify listeners. Used by the
+   * "AIFlowBridge: Reset metrics" command.
+   */
+  reset(): void {
+    this.restore(undefined);
+    for (const listener of this.listeners) {
+      try {
+        listener(this.snapshot());
+      } catch {
+        // Listeners must not break reset.
+      }
+    }
   }
 }
 

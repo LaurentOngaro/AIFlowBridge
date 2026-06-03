@@ -199,9 +199,13 @@ describe('selectProvider', () => {
 		expect(selectProvider([])).toBeUndefined();
 	});
 
-	it('returns the only enabled provider as fallback', () => {
+	it('returns undefined when no model is requested and no default is configured', () => {
+		// Previously this returned the only enabled provider as a silent
+		// fallback. The new behavior is to return undefined so the gateway
+		// can surface a clear 404 to the client. (The gateway has its own
+		// "no enabled providers" check that returns 503 instead.)
 		const onlyOne = [providers[0]];
-		expect(selectProvider(onlyOne, undefined, undefined)).toBe(onlyOne[0]);
+		expect(selectProvider(onlyOne, undefined, undefined)).toBeUndefined();
 	});
 
 	it('matches by requested model id (case-insensitive)', () => {
@@ -226,9 +230,19 @@ describe('selectProvider', () => {
 		expect(result?.id).not.toBe('disabled');
 	});
 
-	it('returns first enabled provider when nothing matches', () => {
+	it('returns undefined when nothing matches (no silent fallback to first provider)', () => {
+		// Previously the gateway silently fell back to the first enabled
+		// provider, which could route a request for "mimo-v2.5" to
+		// DeepSeek V4 Flash. The fix is to return undefined and let the
+		// gateway surface a clear 404 to the client.
 		const result = selectProvider(providers, 'unknown', 'also-unknown');
-		expect(result).toBe(providers[0]);
+		expect(result).toBeUndefined();
+	});
+
+	it('returns undefined when there are no enabled providers', () => {
+		const allDisabled = providers.map((p) => ({ ...p, enabled: false }));
+		const result = selectProvider(allDisabled, 'deepseek-flash', undefined);
+		expect(result).toBeUndefined();
 	});
 });
 

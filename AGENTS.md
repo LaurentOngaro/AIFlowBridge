@@ -176,19 +176,23 @@ All settings use the `aiflowbridge.` prefix. Provider-specific settings use `aif
 
 ## Testing
 
-Run `npm test` for unit tests. The extension uses vitest for testing (247 tests across 15 files).
+Run `npm test` for unit tests. The extension uses vitest for testing (291 tests across 19 files).
 
 Quality gates:
 
 - `npm run compile` - 0 TypeScript errors
-- `npm test` - 247/247 passing
+- `npm test` - 291/291 passing
 
 Test files of note:
 
-- `tests/gateway.test.ts` - HTTP endpoints + singleton detection (15 tests)
-- `tests/aiflowbridge-providers.test.ts` - gateway profile normalization + selection (25 tests)
+- `tests/gateway.test.ts` - HTTP endpoints + singleton detection + telemetry persistence (20 tests)
+- `tests/aiflowbridge-providers.test.ts` - gateway profile normalization + selection (26 tests)
+- `tests/aiflowbridge-config.test.ts` - user-model synthesis into the gateway provider list (9 tests)
 - `tests/minimax-resolveModelId.test.ts` - id passthrough + override
+- `tests/token-counter.test.ts` - MiniMax `/v1/responses/input_tokens` wrapper (6 tests)
 - `tests/userModels.test.ts` - user-declared model validation (6 tests)
+- `tests/dashboard.test.ts` - metrics dashboard HTML builder (10 tests)
+- `tests/telemetry-store.test.ts` - TelemetryStore record / snapshot / restore / reset (12 tests)
 
 ## Notes
 

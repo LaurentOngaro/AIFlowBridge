@@ -191,12 +191,26 @@ API keys are stored securely in your OS keychain via VS Code's SecretStorage.
 
 Once installed, the metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or `Cmd+Alt+M` on macOS), or run `AIFlowBridge: Show metrics dashboard` from the Command Palette.
 
-The dashboard shows:
+### Screenshots
+
+| Dashboard (v1.1.1)                                                                      | Copilot picker (v1.1.1)                                                            | Kilo Code picker (v1.1.1)                                                             |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| ![Metrics dashboard](resources/screenshots_v1.1.1/01_AIFB_dashboard_after_a_prompt.png) | ![Copilot picker](resources/screenshots_v1.1.1/03_AIFB_copilot%20LLM%20picker.png) | ![Kilo Code picker](resources/screenshots_v1.1.1/02_AIFB_kiloCode%20LLM%20picker.png) |
+
+| Vision proxy (v1.1.1)                                                                           | Gateway health (v1.1.1)                                                | Gateway metrics (v1.1.1)                                                 |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| ![Vision module](resources/screenshots_v1.1.1/04_AIFB_vision_module_for_Minimax_in_copilot.png) | ![Gateway health](resources/screenshots_v1.1.1/05_AIFB_API_health.png) | ![Gateway metrics](resources/screenshots_v1.1.1/06_AIFB_API_metrics.png) |
+
+| Output log (v1.1.1)                                                | Settings (v1.1.1)                                                |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| ![Output log](resources/screenshots_v1.1.1/07_AIFB_Output_Log.png) | ![Settings](resources/screenshots_v1.1.1/08_AIFB_settings_1.png) |
+
+### What the dashboard shows
 
 - **Totals**: requests, prompt/completion tokens, estimated cost
-- **Per-provider breakdown**: requests and tokens by DeepSeek / MiniMax / Xiaomi
-- **Per-model breakdown**: the same, sliced by model ID
-- **Recent requests table**: timestamp, model, tokens, latency, status
+- **By model**: requests and tokens sliced by model ID, with time filters (All / Last 1h / 24h / 7d / 30d)
+- **Recent requests table**: timestamp, model, tokens, latency, status (with the same time filters)
+- **Provider summary**: requests and tokens by DeepSeek / MiniMax / Xiaomi
 
 The status bar shows the current gateway state (running / stopped / error).
 

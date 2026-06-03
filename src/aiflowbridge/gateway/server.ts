@@ -6,6 +6,7 @@ import { URL } from "node:url";
 import { logger } from "../../logger";
 import { buildModelCatalog, selectProvider } from "../providers";
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
+import { fetchMinimaxPromptTokens } from "../token-counter";
 import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
 
 interface GatewaySnapshotListener {
@@ -13,18 +14,48 @@ interface GatewaySnapshotListener {
 }
 
 export type ResolveApiKeyFn = (vendor: string) => Promise<string | undefined>;
+export type TelemetryStateLoader = () => TelemetrySnapshot | undefined;
+export type TelemetryStateSaver = (snapshot: TelemetrySnapshot) => void;
 
 export class GatewayService {
   private server: ReturnType<typeof createServer> | undefined;
   private config: AiFlowBridgeConfig;
   private readonly telemetry = new TelemetryStore();
+  private unsubscribePersist: (() => void) | undefined;
+  private persistDebounce: NodeJS.Timeout | undefined;
+  private static readonly PERSIST_DEBOUNCE_MS = 1000;
 
   constructor(
     config: AiFlowBridgeConfig,
     private readonly onUpdate?: GatewaySnapshotListener,
     private readonly resolveApiKey?: ResolveApiKeyFn,
+    private readonly loadState?: TelemetryStateLoader,
+    private readonly saveState?: TelemetryStateSaver,
   ) {
     this.config = config;
+    if (this.loadState) {
+      try {
+        this.telemetry.restore(this.loadState());
+      } catch (error) {
+        logger.warn(`[Gateway] Failed to restore persisted telemetry: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (this.saveState) {
+      this.unsubscribePersist = this.telemetry.subscribe((snapshot) => {
+        // Debounce disk writes to avoid hammering globalState on every
+        // chat-completion request.
+        if (this.persistDebounce) {
+          clearTimeout(this.persistDebounce);
+        }
+        this.persistDebounce = setTimeout(() => {
+          try {
+            this.saveState?.(snapshot);
+          } catch (error) {
+            logger.warn(`[Gateway] Failed to persist telemetry: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }, GatewayService.PERSIST_DEBOUNCE_MS);
+      });
+    }
   }
 
   get running(): boolean {
@@ -42,6 +73,15 @@ export class GatewayService {
 
   snapshot(): TelemetrySnapshot {
     return this.telemetry.snapshot();
+  }
+
+  /**
+   * Reset the cumulative telemetry counters. Notifies listeners (so the
+   * dashboard refreshes) but does not write the cleared state to disk -
+   * the caller is responsible for clearing the persisted slot if needed.
+   */
+  resetMetrics(): void {
+    this.telemetry.reset();
   }
 
   async start(): Promise<GatewayStatus> {
@@ -190,12 +230,26 @@ export class GatewayService {
     const payload = parseJson(bodyText);
 
     const modelName = typeof payload?.model === "string" ? payload.model : this.config.gateway.defaultModel;
-    const provider = selectProvider(this.config.providers, modelName, this.config.gateway.defaultModel);
+    const enabledProviders = this.config.providers.filter((profile) => profile.enabled);
 
-    if (!provider) {
+    if (enabledProviders.length === 0) {
       this.writeJson(response, 503, {
         error: "No enabled upstream provider is configured",
         requestId,
+      });
+      return;
+    }
+
+    const provider = selectProvider(this.config.providers, modelName, this.config.gateway.defaultModel);
+
+    if (!provider) {
+      const availableIds = enabledProviders.map((profile) => profile.id).join(", ");
+      this.writeJson(response, 404, {
+        error: `No gateway provider matches model "${modelName ?? ""}". Available provider ids: ${availableIds}. ` +
+          `Add a provider with that id in the 'aiflowbridge.providers' setting, or use 'AIFlowBridge: Add a custom model'.`,
+        requestId,
+        requestedModel: modelName ?? null,
+        availableProviderIds: enabledProviders.map((profile) => profile.id),
       });
       return;
     }
@@ -240,6 +294,18 @@ export class GatewayService {
     let totalTokens = promptTokens;
     let estimated = true;
 
+    // MiniMax exposes /v1/responses/input_tokens: kick off a parallel count
+    // when applicable so the heuristic can be replaced with the real number
+    // before telemetry is recorded. Never blocks the request.
+    const tokenCountPromise = isMinimaxProvider(provider)
+      ? fetchMinimaxPromptTokens({
+          baseUrl: provider.baseUrl,
+          apiKey: resolvedKey ?? "",
+          model: provider.model,
+          messages: Array.isArray(payload?.messages) ? payload.messages : [],
+        })
+      : Promise.resolve(undefined);
+
     try {
       const upstreamResponse = await fetch(upstreamUrl, {
         method: "POST",
@@ -254,6 +320,14 @@ export class GatewayService {
       const isStream = Boolean(payload?.stream) || contentType.includes("text/event-stream");
 
       if (isStream) {
+        // For streaming responses, MiniMax does not return usage in the stream.
+        // Use the parallel pre-count from the /input_tokens endpoint if available.
+        const upstreamPromptTokens = await tokenCountPromise;
+        if (typeof upstreamPromptTokens === "number" && upstreamPromptTokens > 0) {
+          promptTokens = upstreamPromptTokens;
+          totalTokens = promptTokens;
+        }
+
         response.statusCode = upstreamResponse.status;
         response.setHeader("Content-Type", contentType || "text/event-stream; charset=utf-8");
         response.setHeader("Cache-Control", "no-cache");
@@ -274,6 +348,10 @@ export class GatewayService {
           totalTokens = usage.totalTokens;
           estimated = false;
         } else {
+          const upstreamPromptTokens = await tokenCountPromise;
+          if (typeof upstreamPromptTokens === "number" && upstreamPromptTokens > 0) {
+            promptTokens = upstreamPromptTokens;
+          }
           const estimatedCompletion = Math.max(0, Math.ceil(responseText.length / 4));
           completionTokens = estimatedCompletion;
           totalTokens = promptTokens + completionTokens;
@@ -447,4 +525,12 @@ async function isGatewayReachable(baseUrl: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function isMinimaxProvider(provider: ProviderProfile): boolean {
+  const host = provider.baseUrl.toLowerCase();
+  if (host.includes("minimaxi.com") || host.includes("minimax.io")) {
+    return true;
+  }
+  return provider.id.toLowerCase().startsWith("minimax");
 }

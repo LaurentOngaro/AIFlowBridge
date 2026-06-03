@@ -65,15 +65,24 @@ export function selectProvider(
   const normalizedDefaultModel = defaultModel?.trim().toLowerCase();
   const enabledProviders = providers.filter((profile) => profile.enabled);
 
-  const matchingProfile = [normalizedRequestedModel, normalizedDefaultModel]
-    .filter((value): value is string => Boolean(value))
-    .flatMap((value) => enabledProviders.filter((profile) => {
+  // Try the requested model first, then the configured default. If neither
+  // matches any provider's id/model/label aliases, return undefined: the
+  // gateway should surface a 503 rather than silently route to the first
+  // enabled provider (which would lead to calling the wrong upstream API
+  // while reporting the wrong model name in the dashboard).
+  const candidates = [normalizedRequestedModel, normalizedDefaultModel]
+    .filter((value): value is string => Boolean(value));
+  for (const candidate of candidates) {
+    const match = enabledProviders.find((profile) => {
       const aliases = [profile.id, profile.model, profile.label].map((entry) => entry.toLowerCase());
-      return aliases.includes(value);
-    }))
-    .at(0);
+      return aliases.includes(candidate);
+    });
+    if (match) {
+      return match;
+    }
+  }
 
-  return matchingProfile ?? enabledProviders[0];
+  return undefined;
 }
 
 export function buildModelCatalog(providers: ProviderProfile[]): Array<{

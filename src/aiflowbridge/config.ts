@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { getUserModels } from "../config";
 import { normalizeProviderProfiles } from "./providers";
 import type { AiFlowBridgeConfig, GatewaySettings, ProviderProfile, VisionProxySettings } from "./types";
 import { DEFAULT_PROVIDER_URLS } from "../consts";
@@ -37,6 +38,65 @@ function buildDefaultGatewayProfiles(configuration: vscode.WorkspaceConfiguratio
 	return profiles;
 }
 
+/**
+ * Synthesize gateway `ProviderProfile` entries from the user's
+ * `aiflowbridge.userModels` list. Each user model with a known `family`
+ * (deepseek / MiniMax / xiaomi) becomes a virtual provider that:
+ *
+ * - Exposes the model in the gateway's `GET /v1/models` catalog
+ *   (so Kilo Code, Continue, and any OpenAI-compatible client see it)
+ * - Routes chat-completions to the right upstream via `selectProvider`
+ *   (which matches by `profile.model`)
+ *
+ * Skipped when:
+ * - The user model `family` is not a known vendor
+ * - The model id is already covered by an existing provider
+ *   (either as `provider.id` or `provider.model`)
+ */
+export function synthesizeProvidersFromUserModels(
+	existing: ProviderProfile[],
+	configuration: vscode.WorkspaceConfiguration,
+): ProviderProfile[] {
+	const userModels = getUserModels();
+	if (userModels.length === 0) {
+		return existing;
+	}
+
+	const taken = new Set<string>();
+	for (const profile of existing) {
+		taken.add(profile.id);
+		taken.add(profile.model);
+	}
+
+	const synthesized: ProviderProfile[] = [];
+	for (const model of userModels) {
+		if (taken.has(model.id)) {
+			continue;
+		}
+
+		const family = model.family as keyof typeof DEFAULT_PROVIDER_URLS;
+		const defaultUrl = DEFAULT_PROVIDER_URLS[family];
+		if (!defaultUrl) {
+			continue;
+		}
+
+		const baseUrl = configuration.get<string>(`providers.${family}.baseUrl`)
+			|| defaultUrl;
+
+		synthesized.push({
+			id: model.id,
+			label: model.name,
+			kind: "openai-compat",
+			baseUrl,
+			model: model.id,
+			enabled: true,
+		});
+		taken.add(model.id);
+	}
+
+	return [...existing, ...synthesized];
+}
+
 export function loadConfig(): AiFlowBridgeConfig {
   const configuration = vscode.workspace.getConfiguration("aiflowbridge");
 
@@ -53,13 +113,18 @@ export function loadConfig(): AiFlowBridgeConfig {
   };
 
   const rawProfiles = configuration.get<unknown>("providers", []);
-  const profiles = Array.isArray(rawProfiles) && rawProfiles.length > 0
+  const baseProfiles = Array.isArray(rawProfiles) && rawProfiles.length > 0
     ? normalizeProviderProfiles(rawProfiles)
     : buildDefaultGatewayProfiles(configuration);
 
+  // Merge user-declared models from `aiflowbridge.userModels` into the
+  // gateway catalog so external clients (Kilo Code, Continue, ...) see
+  // them via `GET /v1/models` and can route requests to them.
+  const providers = synthesizeProvidersFromUserModels(baseProfiles, configuration);
+
   return {
     gateway,
-    providers: profiles,
+    providers,
     telemetryEnabled: configuration.get<boolean>("telemetry.enabled", true),
     logRequests: configuration.get<boolean>("telemetry.logRequests", true),
     visionProxy,

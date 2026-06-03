@@ -8,6 +8,8 @@ import { StatusBarController } from "./ui/statusbar";
 import { API_KEY_SECRETS } from "../consts";
 import { logger } from "../logger";
 
+const TELEMETRY_STORAGE_KEY = "aiflowbridge.telemetry.v1";
+
 class AIFlowBridgeRuntime {
   private config = loadConfig();
   private readonly gateway = new GatewayService(
@@ -27,11 +29,21 @@ class AIFlowBridgeRuntime {
         return undefined;
       }
     },
+    () => this.loadPersistedTelemetry(),
+    (snapshot) => this.savePersistedTelemetry(snapshot),
   );
   private readonly statusBar = new StatusBarController();
   private readonly telemetryFallback = new TelemetryStore();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
+
+  private loadPersistedTelemetry(): TelemetrySnapshot | undefined {
+    return this.context.globalState.get<TelemetrySnapshot>(TELEMETRY_STORAGE_KEY);
+  }
+
+  private savePersistedTelemetry(snapshot: TelemetrySnapshot): void {
+    void this.context.globalState.update(TELEMETRY_STORAGE_KEY, snapshot);
+  }
 
   async activate(): Promise<void> {
     logger.info("[AIFlowBridge] Activating...");
@@ -95,8 +107,27 @@ class AIFlowBridgeRuntime {
       void vscode.window.showInformationMessage(`AIFlowBridge: ${snapshot.requests} request${snapshot.requests === 1 ? "" : "s"}, ${snapshot.totalTokens} tokens`);
     }));
 
+    this.context.subscriptions.push(vscode.commands.registerCommand("aiflowbridge.resetMetrics", async () => {
+      const confirm = await vscode.window.showWarningMessage(
+        "Reset all AIFlowBridge metrics? This clears the cumulative request / token / cost counters persisted across restarts.",
+        { modal: true },
+        "Reset",
+      );
+      if (confirm !== "Reset") {
+        return;
+      }
+      this.gateway.resetMetrics();
+      void this.context.globalState.update(TELEMETRY_STORAGE_KEY, undefined);
+      this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
+      void vscode.window.showInformationMessage("AIFlowBridge: metrics reset.");
+    }));
+
     this.context.subscriptions.push(vscode.commands.registerCommand("aiflowbridge.showMetrics", async () => {
-      showMetricsDashboard(this.config, this.gatewaySnapshot(), this.gateway.running);
+      showMetricsDashboard(
+        this.config,
+        () => this.gatewaySnapshot(),
+        () => this.gateway.running,
+      );
     }));
 
     this.context.subscriptions.push(vscode.commands.registerCommand("aiflowbridge.startGateway", async () => {

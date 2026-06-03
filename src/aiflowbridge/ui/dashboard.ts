@@ -1,16 +1,20 @@
 import * as vscode from "vscode";
-import type { AiFlowBridgeConfig, TelemetrySnapshot } from "../types";
+import type { AiFlowBridgeConfig, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from "../types";
 
 let currentPanel: vscode.WebviewPanel | undefined;
 
+export type SnapshotGetter = () => TelemetrySnapshot;
+export type RunningGetter = () => boolean;
+
 export function showMetricsDashboard(
   config: AiFlowBridgeConfig,
-  snapshot: TelemetrySnapshot,
-  running: boolean,
+  getSnapshot: SnapshotGetter,
+  isRunning: RunningGetter,
 ): void {
   if (currentPanel) {
-    currentPanel.webview.html = buildHtml(config, snapshot, running);
+    currentPanel.webview.html = buildHtml(config, getSnapshot(), isRunning());
     currentPanel.reveal(vscode.ViewColumn.One);
+    attachMessageHandler(currentPanel, config, getSnapshot, isRunning);
     return;
   }
 
@@ -19,19 +23,47 @@ export function showMetricsDashboard(
     "AIFlowBridge Metrics",
     vscode.ViewColumn.One,
     {
-      enableScripts: false,
+      enableScripts: true,
       retainContextWhenHidden: true,
     },
   );
 
-  currentPanel.webview.html = buildHtml(config, snapshot, running);
+  currentPanel.webview.html = buildHtml(config, getSnapshot(), isRunning());
+  attachMessageHandler(currentPanel, config, getSnapshot, isRunning);
   currentPanel.onDidDispose(() => {
     currentPanel = undefined;
   });
 }
 
+function attachMessageHandler(
+  panel: vscode.WebviewPanel,
+  config: AiFlowBridgeConfig,
+  getSnapshot: SnapshotGetter,
+  isRunning: RunningGetter,
+): void {
+  panel.webview.onDidReceiveMessage((message: unknown) => {
+    if (message && typeof message === "object" && (message as { type?: unknown }).type === "refresh") {
+      panel.webview.html = buildHtml(config, getSnapshot(), isRunning());
+    }
+  });
+}
+
 function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, running: boolean): string {
+  return buildDashboardHtml(config, snapshot, running);
+}
+
+/**
+ * Pure HTML builder for the metrics dashboard. Exported separately from
+ * `showMetricsDashboard` so it can be unit-tested without instantiating a
+ * real VS Code webview panel.
+ */
+export function buildDashboardHtml(
+  config: AiFlowBridgeConfig,
+  snapshot: TelemetrySnapshot,
+  running: boolean,
+): string {
   const providers = config.providers.filter((provider) => provider.enabled);
+  const entries = Object.entries(snapshot.byModel);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -78,6 +110,32 @@ function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, runn
       color: var(--text);
       white-space: nowrap;
     }
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .refresh-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .refresh-btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -108,6 +166,36 @@ function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, runn
       margin-bottom: 24px;
     }
     .panel h2 { margin: 0 0 12px; font-size: 18px; }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .panel-header h2 { margin: 0; }
+    .filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .filter-btn:hover { color: var(--text); }
+    .filter-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -143,13 +231,19 @@ function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, runn
   <div class="shell">
     <div class="hero">
       <div>
-        <h1 class="title">AIFlowBridge Metrics</h1>
+        <div class="title-row">
+          <h1 class="title">AIFlowBridge Metrics</h1>
+          <button class="refresh-btn" id="refresh-button" title="Reload metrics from the gateway">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            <span>Refresh</span>
+          </button>
+        </div>
         <p class="subtitle">Multi-provider AI coding assistant with transparent vision proxy and usage metrics.</p>
       </div>
-      <div class="badge">${running ? "Gateway running" : "Gateway stopped"} · ${escapeHtml(config.gateway.baseUrl)}</div>
+      <div class="badge" id="gateway-badge">${running ? "Gateway running" : "Gateway stopped"} · ${escapeHtml(config.gateway.baseUrl)}</div>
     </div>
 
-    <div class="grid">
+    <div class="grid" id="totals">
       ${metricCard("Requests", formatNumber(snapshot.requests), `${providers.length} enabled provider${providers.length === 1 ? "" : "s"}`)}
       ${metricCard("Tokens", formatNumber(snapshot.totalTokens), `${formatNumber(snapshot.promptTokens)} prompt / ${formatNumber(snapshot.completionTokens)} completion`)}
       ${metricCard("Duration", snapshot.averageDurationMs ? `${Math.round(snapshot.averageDurationMs)} ms` : "0 ms", `P95 ${Math.round(snapshot.p95DurationMs)} ms`)}
@@ -163,8 +257,31 @@ function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, runn
     </div>
 
     <div class="panel">
-      <h2>Recent requests</h2>
+      <div class="panel-header">
+        <h2>Recent requests</h2>
+        <div class="filters" id="recent-filters">
+          <button class="filter-btn active" data-range="all">All</button>
+          <button class="filter-btn" data-range="1h">Last 1h</button>
+          <button class="filter-btn" data-range="24h">Last 24h</button>
+          <button class="filter-btn" data-range="7d">Last 7 days</button>
+          <button class="filter-btn" data-range="30d">Last 30 days</button>
+        </div>
+      </div>
       ${snapshot.recent.length === 0 ? "<p class=\"muted\">No request recorded yet.</p>" : renderRecentTable(snapshot)}
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>By model</h2>
+        <div class="filters" id="model-filters">
+          <button class="filter-btn active" data-range="all">All</button>
+          <button class="filter-btn" data-range="1h">Last 1h</button>
+          <button class="filter-btn" data-range="24h">Last 24h</button>
+          <button class="filter-btn" data-range="7d">Last 7 days</button>
+          <button class="filter-btn" data-range="30d">Last 30 days</button>
+        </div>
+      </div>
+      ${entries.length === 0 ? "<p class=\"muted\">No model telemetry yet.</p>" : renderModelSummary(snapshot)}
     </div>
 
     <div class="panel">
@@ -174,6 +291,140 @@ function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, runn
 
     <div class="footer">Refresh the dashboard after a few calls to see request patterns, latency, and estimated usage.</div>
   </div>
+
+  <script>
+    (function() {
+      const vscodeApi = acquireVsCodeApi();
+
+      const refreshButton = document.getElementById("refresh-button");
+      if (refreshButton) {
+        refreshButton.addEventListener("click", () => {
+          // Brief visual feedback: the page will be replaced almost
+          // immediately by the new HTML from the extension. A safety
+          // timeout removes the spin class in case the message handler
+          // is delayed or the page does not reload for any reason.
+          refreshButton.classList.add("spinning");
+          window.setTimeout(() => {
+            refreshButton.classList.remove("spinning");
+          }, 1500);
+          vscodeApi.postMessage({ type: "refresh" });
+        });
+      }
+
+      const recent = ${serializeRecent(snapshot.recent)};
+      const byModel = ${serializeByModel(snapshot.byModel)};
+
+      function filterByRange(entries, range) {
+        if (range === "all" || !range) return entries;
+        const now = Date.now();
+        const thresholds = { "1h": 3600000, "24h": 86400000, "7d": 604800000, "30d": 2592000000 };
+        const threshold = thresholds[range] || Infinity;
+        return entries.filter((entry) => {
+          const ts = new Date(entry.timestamp).getTime();
+          return now - ts <= threshold;
+        });
+      }
+
+      function renderRecent(filtered) {
+        const tbody = document.getElementById("recent-tbody");
+        if (!tbody) return;
+        if (filtered.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center; padding:24px;">No requests in this range.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = filtered.map((entry) => {
+          const ts = new Date(entry.timestamp);
+          const tsText = ts.toLocaleString();
+          const statusClass = entry.status >= 400 ? "warn" : "ok";
+          return '<tr>' +
+            '<td><span class="pill ' + statusClass + '">' + entry.status + '</span></td>' +
+            '<td class="muted" title="' + tsText + '">' + formatTime(ts) + '</td>' +
+            '<td>' + escapeHtml(entry.providerLabel) + '</td>' +
+            '<td><code>' + escapeHtml(entry.model) + '</code></td>' +
+            '<td>' + formatNumber(entry.durationMs) + ' ms</td>' +
+            '<td>' + formatNumber(entry.totalTokens) + '</td>' +
+            '<td>' + (entry.estimated ? "estimated" : "usage") + '</td>' +
+          '</tr>';
+        }).join("");
+      }
+
+      function renderModelSummary(filtered) {
+        const tbody = document.getElementById("model-tbody");
+        if (!tbody) return;
+        const rows = Object.entries(filtered).map(([model, snap]) => {
+          return '<tr>' +
+            '<td><code>' + escapeHtml(model) + '</code></td>' +
+            '<td>' + formatNumber(snap.requests) + '</td>' +
+            '<td>' + formatNumber(snap.totalTokens) + '</td>' +
+            '<td>' + formatNumber(Math.round(snap.averageDurationMs)) + ' ms</td>' +
+            '<td>' + formatNumber(snap.errors) + '</td>' +
+          '</tr>';
+        });
+        tbody.innerHTML = rows.length > 0 ? rows.join("") : '<tr><td colspan="5" class="muted" style="text-align:center; padding:24px;">No data in this range.</td></tr>';
+      }
+
+      function aggregateModels(filtered) {
+        const map = new Map();
+        for (const entry of filtered) {
+          const existing = map.get(entry.model) || { model: entry.model, requests: 0, totalTokens: 0, promptTokens: 0, completionTokens: 0, errors: 0, durationSum: 0 };
+          existing.requests += 1;
+          existing.totalTokens += entry.totalTokens || 0;
+          existing.promptTokens += entry.promptTokens || 0;
+          existing.completionTokens += entry.completionTokens || 0;
+          existing.errors += entry.status >= 400 ? 1 : 0;
+          existing.durationSum += entry.durationMs || 0;
+          map.set(entry.model, existing);
+        }
+        const result = {};
+        for (const [model, snap] of map) {
+          result[model] = {
+            requests: snap.requests,
+            totalTokens: snap.totalTokens,
+            errors: snap.errors,
+            averageDurationMs: snap.requests > 0 ? snap.durationSum / snap.requests : 0,
+          };
+        }
+        return result;
+      }
+
+      function formatTime(date) {
+        const pad = (n) => String(n).padStart(2, "0");
+        return pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds());
+      }
+      function formatNumber(value) {
+        return new Intl.NumberFormat("en-US").format(value);
+      }
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function bindFilterGroup(containerId, onChange) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.addEventListener("click", (event) => {
+          const target = event.target.closest("[data-range]");
+          if (!target) return;
+          for (const btn of container.querySelectorAll(".filter-btn")) btn.classList.remove("active");
+          target.classList.add("active");
+          onChange(target.getAttribute("data-range"));
+        });
+      }
+
+      function applyFilters(range) {
+        const filtered = filterByRange(recent, range);
+        renderRecent(filtered);
+        renderModelSummary(aggregateModels(filtered));
+      }
+
+      bindFilterGroup("recent-filters", applyFilters);
+      bindFilterGroup("model-filters", applyFilters);
+    })();
+  </script>
 </body>
 </html>`;
 }
@@ -188,23 +439,12 @@ function metricCard(title: string, value: string, detail: string): string {
 }
 
 function renderRecentTable(snapshot: TelemetrySnapshot): string {
-  const rows = snapshot.recent
-    .map((entry) => `
-      <tr>
-        <td><span class="pill ${entry.status >= 400 ? "warn" : "ok"}">${entry.status}</span></td>
-        <td>${escapeHtml(entry.providerLabel)}</td>
-        <td><code>${escapeHtml(entry.model)}</code></td>
-        <td>${formatNumber(entry.durationMs)} ms</td>
-        <td>${formatNumber(entry.totalTokens)}</td>
-        <td>${entry.estimated ? "estimated" : "usage"}</td>
-      </tr>`)
-    .join("");
-
   return `
     <table>
       <thead>
         <tr>
           <th>Status</th>
+          <th>Time</th>
           <th>Provider</th>
           <th>Model</th>
           <th>Duration</th>
@@ -212,10 +452,29 @@ function renderRecentTable(snapshot: TelemetrySnapshot): string {
           <th>Source</th>
         </tr>
       </thead>
-      <tbody>
-        ${rows}
+      <tbody id="recent-tbody">
+        ${snapshot.recent.map((entry) => recentRow(entry)).join("")}
       </tbody>
     </table>`;
+}
+
+function recentRow(entry: RequestTelemetry): string {
+  return `<tr>
+        <td><span class="pill ${entry.status >= 400 ? "warn" : "ok"}">${entry.status}</span></td>
+        <td class="muted">${escapeHtml(formatClock(entry.timestamp))}</td>
+        <td>${escapeHtml(entry.providerLabel)}</td>
+        <td><code>${escapeHtml(entry.model)}</code></td>
+        <td>${formatNumber(entry.durationMs)} ms</td>
+        <td>${formatNumber(entry.totalTokens)}</td>
+        <td>${entry.estimated ? "estimated" : "usage"}</td>
+      </tr>`;
+}
+
+function formatClock(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function renderProviderSummary(snapshot: TelemetrySnapshot): string {
@@ -250,6 +509,57 @@ function renderProviderSummary(snapshot: TelemetrySnapshot): string {
         ${rows}
       </tbody>
     </table>`;
+}
+
+function renderModelSummary(snapshot: TelemetrySnapshot): string {
+  const entries = Object.entries(snapshot.byModel);
+  if (entries.length === 0) {
+    return "<p class=\"muted\">No model telemetry yet.</p>";
+  }
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Requests</th>
+          <th>Tokens</th>
+          <th>Avg duration</th>
+          <th>Errors</th>
+        </tr>
+      </thead>
+      <tbody id="model-tbody">
+        ${entries.map(([model, entry]) => modelRow(model, entry)).join("")}
+      </tbody>
+    </table>`;
+}
+
+function modelRow(model: string, entry: ProviderSnapshot): string {
+  return `<tr>
+        <td><code>${escapeHtml(model)}</code></td>
+        <td>${formatNumber(entry.requests)}</td>
+        <td>${formatNumber(entry.totalTokens)}</td>
+        <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
+        <td>${formatNumber(entry.errors)}</td>
+      </tr>`;
+}
+
+function serializeRecent(recent: readonly RequestTelemetry[]): string {
+  return JSON.stringify(recent.map((entry) => ({
+    timestamp: entry.timestamp,
+    providerId: entry.providerId,
+    providerLabel: entry.providerLabel,
+    model: entry.model,
+    status: entry.status,
+    durationMs: entry.durationMs,
+    promptTokens: entry.promptTokens,
+    completionTokens: entry.completionTokens,
+    totalTokens: entry.totalTokens,
+    estimated: entry.estimated,
+  })));
+}
+
+function serializeByModel(byModel: Record<string, ProviderSnapshot>): string {
+  return JSON.stringify(byModel);
 }
 
 function formatNumber(value: number): string {

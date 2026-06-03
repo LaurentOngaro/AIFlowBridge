@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.2.0 - AIFlowBridge
+
+### Added
+
+- **MiniMax accurate token counting** (API01): the gateway now calls MiniMax's upstream `/v1/responses/input_tokens` endpoint in parallel with chat requests when the provider is identified as MiniMax. The returned `input_tokens` replaces the `length / 4` heuristic in both streaming and non-streaming paths, improving cost estimation accuracy in the dashboard.
+- **Dashboard - timestamp column on Recent requests** (AFF01): each row in the "Recent requests" table now shows a local-time clock (HH:MM:SS) with the full timestamp in the cell's tooltip. The column is filterable along with the rest of the table.
+- **Dashboard - time filters & by-model breakdown** (AFF02): the "Recent requests" and the new "By model" tables are filterable by time range (All / Last 1h / Last 24h / Last 7 days / Last 30 days). The "By model" panel groups requests, tokens, and errors per model ID with the same filters. Client-side filtering is instant and works without re-fetching the snapshot.
+- **Dashboard - manual Refresh button**: a refresh button now sits to the right of the dashboard title. Clicking it sends a `refresh` message to the extension, which re-reads the latest gateway snapshot and re-renders the webview. The button spins briefly while the new HTML is being generated, with a 1.5 s safety timeout that removes the spin class even if the page does not reload. The dashboard now accepts getter functions (`() => snapshot, () => isRunning`) instead of fixed values, so the refresh always reflects the current state.
+- **Persistent metrics across restarts**: the gateway telemetry (totals, by-provider / by-model breakdowns, last 20 recent entries) is now persisted in VS Code `globalState` under `aiflowbridge.telemetry.v1` and restored on the next activation. Writes are debounced 1 s. The persisted state survives extension reloads, VS Code restarts, and debug sessions, so cumulative counters no longer reset to 0.
+- **New `AIFlowBridge: Reset metrics` command**: clears the cumulative counters and the persisted state. Asks for confirmation before wiping.
+
+### Fixed
+
+- **`AIFlowBridge: Add a custom model` no longer fails with "is not a registered configuration"** (BUG03): the command now tries to persist `aiflowbridge.userModels` to the User settings first, and falls back to the Workspace settings target if the User target is not yet initialized. This resolves the common case where the extension is run in a fresh VS Code profile with no user-level `aiflowbridge` block.
+- **User-declared models are now exposed by the local gateway** (BUG04): previously, models added via `AIFlowBridge: Add a custom model` (or written directly to `aiflowbridge.userModels`) appeared in the Copilot Chat picker but were missing from `GET /v1/models`, so OpenAI-compatible clients like Kilo Code and Continue could not see or use them. The gateway now synthesizes a virtual `ProviderProfile` for each user model with a known `family` (deepseek / MiniMax / xiaomi), so the model is included in the catalog and routed correctly by `selectProvider`. Duplicates with existing gateway profiles are skipped.
+- **Gateway no longer silently routes to the wrong provider** (BUG05): `selectProvider` used to fall back to the first enabled provider when the requested model did not match any provider's `id`, `model`, or `label` aliases. This caused a request for `"mimo-v2.5"` to be silently routed to the DeepSeek V4 Flash upstream (which would rewrite the body to `"deepseek-v4-flash"`) while the dashboard labelled the row as `Provider: DeepSeek V4 Flash, Model: mimo-v2.5` - making it look like DeepSeek had answered a MiMo call. The gateway now returns a 404 listing the available provider ids, and `selectProvider` returns `undefined` on no match (the gateway has a separate 503 path for "no providers configured at all").
+
+### Documentation
+
+- **README "Demo" section** (DOC01): added a 3x3 screenshot grid covering the metrics dashboard, Copilot and Kilo Code model pickers, the vision proxy in action, gateway health and metrics endpoints, the output log, and the settings pages. Screenshots are stored in `resources/screenshots_v1.1.1/`.
+
+### Tests
+
+- 291 tests across 19 files (was 247/15). New files:
+  - `tests/token-counter.test.ts` (6 tests) - MiniMax `/input_tokens` call: success, non-2xx, malformed body, custom base URL, empty API key, network error.
+  - `tests/aiflowbridge-config.test.ts` (9 tests) - user-model synthesis into the gateway provider list: empty input, single model, duplicate skip, unknown family skip, multi-vendor, ordering, and integration with `selectProvider` + `buildModelCatalog`.
+  - `tests/dashboard.test.ts` (10 tests) - metrics dashboard HTML builder: status badge, totals, recent table, by-model panel, per-provider summary, refresh button placement + safety net, time filter buttons, embedded JSON, empty state, and HTML escaping in cells.
+  - `tests/telemetry-store.test.ts` (12 tests) - `TelemetryStore`: record / snapshot aggregation, recent cap at 20, restore() round trip, restore(undefined) clear, cumulative record after restore, subscribe + unsubscribe, listener exception isolation, reset(), snapshot→restore identity.
+
+### Notes
+
+- The dashboard tracks **gateway-served requests** (any request that hits `POST /v1/chat/completions` on the local proxy: Kilo Code, Continue, Open WebUI, the OpenAI Python SDK pointed at `http://127.0.0.1:8787/v1`, etc.). Requests made through Copilot Chat go directly to the upstream provider via the language model provider APIs and are not routed through the gateway, so they will not appear in the dashboard. This is by design - the gateway is the OpenAI-compatible proxy; Copilot Chat uses VS Code's `vscode.lm` API.
+
 ## 1.1.1 - AIFlowBridge
 
 ### Documentation

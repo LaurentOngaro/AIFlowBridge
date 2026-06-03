@@ -133,7 +133,9 @@ export async function addCustomModelCommand(context: vscode.ExtensionContext): P
 		await appendUserModel(newEntry);
 		logger.info(`[AIFlowBridge] Added custom model ${modelPick.id} (${vendor})`);
 		void vscode.window.showInformationMessage(
-			`Added "${modelPick.id}" to userModels. Reload the window (Developer: Reload Window) to see it in the Copilot Chat picker.`,
+			`Added "${modelPick.id}" to userModels. ` +
+			`Reload the window (Developer: Reload Window) to see it in the Copilot Chat picker, ` +
+			`and refresh the model list in your OpenAI-compatible client (Kilo Code, Continue, ...) to fetch it from the gateway.`,
 		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -187,5 +189,23 @@ async function appendUserModel(entry: AddCustomModelResult): Promise<void> {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 	const current = config.get<unknown[]>('userModels', []);
 	const next = Array.isArray(current) ? [...current, entry] : [entry];
-	await config.update('userModels', next, vscode.ConfigurationTarget.Global);
+
+	// Try Global first, then fall back to Workspace if the user has no
+	// User Settings file yet (which makes Global writes fail with
+	// "aiflowbridge.userModels is not a registered configuration").
+	const targets: vscode.ConfigurationTarget[] = [
+		vscode.ConfigurationTarget.Global,
+		vscode.ConfigurationTarget.Workspace,
+	];
+	let lastError: unknown;
+	for (const target of targets) {
+		try {
+			await config.update('userModels', next, target);
+			return;
+		} catch (error) {
+			lastError = error;
+		}
+	}
+	const message = lastError instanceof Error ? lastError.message : String(lastError ?? 'unknown error');
+	throw new Error(`Could not persist userModels to User or Workspace settings: ${message}`);
 }
