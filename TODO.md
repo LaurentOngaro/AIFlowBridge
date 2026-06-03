@@ -22,7 +22,7 @@ _None - last bug BUG03 was fixed in 1.2.0._
 
 ### Documentation (last:DOC02)
 
-- [DOC02] update readme to reflect that the metrics are for kilo code ONLY and add some technical explanations for that (for reassurance)
+_None - last docs ticket DOC02 was completed in 1.2.1._
 
 ### Display (last:AFF02)
 
@@ -42,7 +42,33 @@ _None - last API ticket API01 was completed in 1.2.0._
 
 ### Roadmap / Ideas to Investigate (last:)
 
+_The README has a public-facing version of this roadmap in the "Roadmap" section. This file tracks the same items with more implementation detail._
+
+**In progress:**
+
+- All planed items are done for now
+
+**Next up:**
+
+- [ ] Telemetry export - JSON / CSV export of the metrics snapshot for billing or analysis
+- [ ] More Agentic coding extension adapters (e.g., Claude Code)
+- [ ] More openAI-compatible providers - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
+- [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway
+- [ ] Token-by-token streaming diff in the dashboard - first/last token of each response, not just the total
+
+**Backlog (value to confirm):**
+
+- [ ] Web-based dashboard at `http://127.0.0.1:8787/dashboard` (in addition to the VS Code panel)
+- [ ] Workspace-level metrics - break down usage by current repo / current branch
+- [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
+
 ## Completed
+
+### 1.2.1
+
+- DOC02: README "What the metrics dashboard actually tracks" section under "Demo" now explains that the dashboard tracks **gateway-served requests only** (Kilo Code, Continue, Open WebUI, curl, OpenAI SDK pointed at `http://127.0.0.1:8787/v1`, etc.) and **not** prompts sent from Copilot Chat. Includes a comparison table of the two integrations (entry point, provider implementation, telemetry), the structural reason (VS Code's `vscode.lm` API is push-only, the gateway is a regular HTTP server with full request/response metadata), and a quick `curl` test for verification. The "Example workflow" was rewritten to use Kilo Code (the gateway path) rather than Copilot Chat.
+- DOC03: README marketplace badges (version / installs / downloads) now use `vsmarketplacebadge.apphb.com` instead of `visualstudio-marketplace/i` / `visualstudio-marketplace/d` on shields.io (those shortcuts are not real endpoints; shields.io's VS Marketplace scraping has been unreliable since Microsoft changed their API).
+- README audit: fixed several factual errors that had drifted in during the 1.2.0 cycle (tagline, Kilo Code model ids, /health response shape, native vs proxied vision in the Providers table, architecture tree, commands table, troubleshooting, settings, roadmap). Cost comparison rewritten to drop marketing fluff. "Why sponsor?" updated to use the real GitHub Sponsors tiers ($4 / $12 / $30).
 
 ### 1.2.0
 

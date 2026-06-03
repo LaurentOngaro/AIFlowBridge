@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.1 - AIFlowBridge
+
+Patch release: documentation only, no code changes.
+
+### Fixed
+
+- **README badges for the VS Code Marketplace** (DOC03): the previous `visualstudio-marketplace/i/...` and `visualstudio-marketplace/d/...` shortcuts on shields.io were not real endpoints (shields.io has had unreliable VS Marketplace scraping since Microsoft changed their API). Replaced with the dedicated `vsmarketplacebadge.apphb.com` service for version, installs, and downloads. The GitHub stars / license / CI / release / sponsor badges continue to use shields.io, which is reliable for GitHub metadata.
+
+### Documentation
+
+- **README "What the metrics dashboard actually tracks"** (DOC02): new section under "Demo" explaining that the dashboard tracks **gateway-served requests only** (Kilo Code, Continue, Open WebUI, curl, OpenAI SDK pointed at `http://127.0.0.1:8787/v1`, etc.) and **not** prompts sent from Copilot Chat. Includes a comparison table of the two integrations (entry point, provider implementation, telemetry), the structural reason (VS Code's `vscode.lm` API is push-only, the gateway is a regular HTTP server with full request/response metadata), and a quick `curl` test for verification. The "Example workflow" was rewritten to use Kilo Code (the gateway path) rather than Copilot Chat, so the example matches the explanation.
+- **README audit**: fixed several factual errors that had drifted in during the 1.2.0 cycle. The README now reflects the actual code and behavior:
+  - **Tagline** (l.17, 39) reworded to "the extension is free, ad-free, tracker-free; you pay the upstream providers directly for model usage" - the models are not free.
+  - **Kilo Code example** (l.301) now uses real upstream API ids: `deepseek-v4-flash`, `mimo-v2.5-pro`, `MiniMax-M3`.
+  - **`/health` response shape** in Troubleshooting now shows the full payload (`{ok, service, status}`) instead of the truncated `{ok, service}`.
+  - **Providers table** clarifies which models have **native** vision (`MiniMax M3`, `Xiaomi MiMo V2.5`) vs go through the vision proxy (everything else).
+  - **Architecture tree** refreshed to include `token-counter.ts` (added in 1.2.0), the `gateway/` subdirectory, and the `tools/` / `replay/` / `debug/` / `segment/` subdirectories of `src/provider/`. The `runtime/addCustomModel.ts` path is now correct.
+  - **Commands table** updated with the new 1.2.0 commands: `AIFlowBridge: Reset metrics`, `AIFlowBridge: Add a custom model`, `AIFlowBridge: Open request dumps folder`, `DeepSeek: Set vision proxy model`.
+  - **Troubleshooting** gains three new entries: 404 from the gateway (BUG05), `Metrics are empty after restart` (gateway vs Copilot explanation), and the `Reset metrics` command.
+  - **Settings** has a new "Models" section documenting `aiflowbridge.userModels` and its interaction with the gateway.
+  - **Roadmap** synced with `TODO.md`: removed the invented "OpenCode / Claude Code adapters" entry, added the real next-up items (telemetry export, more agentic adapters, more providers, custom upstreams, token streaming diff).
+  - **"Why sponsor?"** section uses the **real** GitHub Sponsors tiers ($4 / $12 / $30) verified against `github.com/sponsors/LaurentOngaro`, with an honest callout that the tiers are global to the maintainer's body of work (including TerraBloom), not AIFlowBridge-specific.
+  - **Cost comparison** rewritten to drop marketing fluff and explain what AIFlowBridge actually affects (free Copilot vision, no markup, accurate token counting) vs what it does not (no upstream discounts, no free trials).
+
 ## 1.2.0 - AIFlowBridge
 
 ### Added
@@ -37,7 +61,7 @@
 
 ### Documentation
 
-- **README "Multi-Provider Support"**: full list of the 14 officially supported models (previously only 4 were listed) — DeepSeek V4 Flash/Pro, MiniMax M2/M2.1/M2.1 Highspeed/M2.5/M2.5 Highspeed/M2.7/M2.7 Highspeed/M3, Xiaomi MiMo V2 Omni/V2 Pro/V2.5/V2.5 Pro. Added a note clarifying the list is not exhaustive and pointing to `AIFlowBridge: Add a custom model` for adding other models.
+- **README "Multi-Provider Support"**: full list of the 14 officially supported models (previously only 4 were listed) - DeepSeek V4 Flash/Pro, MiniMax M2/M2.1/M2.1 Highspeed/M2.5/M2.5 Highspeed/M2.7/M2.7 Highspeed/M3, Xiaomi MiMo V2 Omni/V2 Pro/V2.5/V2.5 Pro. Added a note clarifying the list is not exhaustive and pointing to `AIFlowBridge: Add a custom model` for adding other models.
 - **README "Why AIFlowBridge?"**: refreshed the bullet list of providers with the full model lineup and added a callout pointing to the user-defined models flow.
 - **AGENTS.md**: comprehensive update. Reflects the current file structure (adds `src/runtime/addCustomModel.ts`, `src/provider/vision/`, etc.), the new model id convention (`id` = upstream API id), the user-defined models flow, the test count (247 across 15 files), and notes about id translation removal.
 
@@ -85,7 +109,7 @@
 
 ### Documentation
 
-- **TODO.md fully translated to English** — the repo is now unilingual for its public audience.
+- **TODO.md fully translated to English** - the repo is now unilingual for its public audience.
 - **README badges**: replaced the old single badge with a professional set (Marketplace version, installs, rating, CI status, license).
 - **README "Why AIFlowBridge?"**: new section comparing with alternatives and highlighting the local-first, multi-provider value proposition.
 - **README "Demo"**: new section with a step-by-step example workflow and keyboard shortcuts.

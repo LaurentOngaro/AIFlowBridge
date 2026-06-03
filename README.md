@@ -3,64 +3,59 @@
 <!-- markdownlint-disable MD033 -->
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://img.shields.io/badge/VS%20Code-Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="VS Code Marketplace">
+    <img src="https://badgen.net/vs-marketplace/v/laurentOngaro.aiflowbridge" alt="Version">
   </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
+    <img src="https://badgen.net/vs-marketplace/rating/laurentOngaro.aiflowbridge" alt="Ratings">
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
+    <img src="https://badgen.net/vs-marketplace/i/laurentOngaro.aiflowbridge" alt="Installs">
+  </a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
+    <img src="https://badgen.net/vs-marketplace/d/laurentOngaro.aiflowbridge" alt="Downloads">
+  </a>
+</p>
+<p align="center">
   <a href="https://github.com/LaurentOngaro/aiflowbridge">
-    <img src="https://img.shields.io/badge/Source-GitHub-24292f?style=for-the-badge&logo=github&logoColor=white" alt="Source code on GitHub">
+    <img src="https://badgen.net/github/last-commit/LaurentOngaro/aiflowbridge" alt="Last Commit">
+  </a>
+  <a href="https://github.com/LaurentOngaro/aiflowbridge/stargazers">
+    <img src="https://badgen.net/github/stars/LaurentOngaro/aiflowbridge" alt="GitHub stars">
   </a>
   <a href="https://github.com/LaurentOngaro/aiflowbridge/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/LaurentOngaro/aiflowbridge?style=for-the-badge" alt="License">
+    <img src="https://badgen.net/github/license/LaurentOngaro/aiflowbridge" alt="License">
+  </a>
+  <a href="https://github.com/LaurentOngaro/aiflowbridge/issues">
+    <img src="https://badgen.net/github/issues/LaurentOngaro/aiflowbridge" alt="Open issues">
+  </a>
+  <a href="https://github.com/LaurentOngaro/aiflowbridge/releases/latest">
+    <img src="https://badgen.net/github/release/LaurentOngaro/aiflowbridge" alt="Latest release">
   </a>
 </p>
 <!-- markdownlint-disable MD033 -->
 
-**Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. Free multi-provider models with transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.**
+> **If AIFlowBridge saves you time or money, consider [sponsoring its development](https://github.com/sponsors/LaurentOngaro)**. The extension is free, ad-free, and tracker-free - your support is what keeps it that way.
+
+**Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. The extension is free, open-source, and ad-free; you pay the upstream providers directly for the model usage. Transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.**
 
 AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi MiMo) under a unified interface inside Copilot Chat - with built-in metrics, proxy routing, and vision bridge capabilities.
 
+**Spread the word**
+Increase the project's visibility by adding a star to its GitHub repository
+That's the best way to show your support and help others discover the extension!
+![GitHub Repo stars](https://img.shields.io/github/stars/LaurentOngaro/aiflowbridge?style=flat-square)
+
 ## Features
 
-### Multi-Provider Support
-
-- **DeepSeek V4 Pro & Flash** - Full capabilities with thinking mode, vision proxy, tool calling
-- **MiniMax M2 / M2.1 / M2.1 Highspeed / M2.5 / M2.5 Highspeed / M2.7 / M2.7 Highspeed / M3** - 1M-token context on M3, high-speed variants for low-latency workloads
-- **Xiaomi MiMo V2 Omni / V2 Pro** - multimodal and reasoning models
-- **Xiaomi MiMo V2.5 / V2.5 Pro** - multimodal model with native vision and thinking
-
-**This list is not exhaustive** — see the [Providers](#providers) table below for the canonical list, or use the **`AIFlowBridge: Add a custom model`** command to declare additional models from each vendor's `/v1/models` endpoint without waiting for a release (see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release)).
-
-### Transparent Vision Proxy
-
-Text-only models can handle images via automatic proxy through another installed Copilot model (Claude, GPT-4o, etc.). Zero configuration required - just pick your preferred vision model once.
-
-### Usage Metrics & Local Gateway
-
-- Built-in OpenAI-compatible proxy on port 8787 (starts automatically, singleton across VS Code instances)
-- Request, token, and duration telemetry
-- Per-provider and per-model cost estimation
-- Metrics dashboard (`Ctrl+Alt+M`) with status bar indicator
-
-### Copilot Chat Integration
-
-All providers appear directly in the Copilot Chat model picker:
-
-- Agent mode, tool calling, instructions, MCP, skills
-- 1M token context on supporting models
-- Thinking mode with reasoning effort control (DeepSeek, Xiaomi)
-
-### Secure by Default
-
-API keys stored in VS Code's `SecretStorage` (OS keychain). Never in `settings.json`, never in Git history.
+- **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See the [Providers](#providers) table for the canonical list and which ones have **native** vision vs use the [vision proxy](#transparent-vision-proxy). To add a model not in the list, run **`AIFlowBridge: Add a custom model`** (see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release)).
+- **Transparent vision proxy** - text-only models handle images via automatic proxy through another installed Copilot model (Claude, GPT-4o, etc.). Zero configuration required; pick your preferred vision model once.
+- **Built-in OpenAI-compatible gateway** - starts automatically on port 8787 (singleton across VS Code instances) so Kilo Code, Continue, Open WebUI, and any OpenAI-compatible client can use the same models. Per-request metrics, tokens, and estimated cost, persisted across restarts.
+- **Copilot Chat integration** - agent mode, tool calling, instructions, MCP, skills. 1M token context on supporting models. Thinking mode with reasoning effort control (DeepSeek, Xiaomi).
+- **Secure by default** - API keys in VS Code's `SecretStorage` (OS keychain), never in `settings.json` or in Git history. Telemetry stays local.
 
 ## Why AIFlowBridge?
 
 GitHub Copilot Chat ships with one vendor. AIFlowBridge adds a multi-provider switcher so you can pick the best model for the job, all from the same chat window.
-
-- **DeepSeek V4 Pro & Flash** - frontier reasoning at a fraction of the cost. 1M token context, tool calling, thinking mode.
-- **MiniMax M2 → M3** - eight models spanning the M2, M2.1, M2.5, M2.7, and M3 generations, including high-speed variants. M3 ships with a 1M-token context window.
-- **Xiaomi MiMo V2 Omni / V2 Pro / V2.5 / V2.5 Pro** - open-weight multimodal and reasoning models.
-
-**Want to use a model not in this list?** Run **`AIFlowBridge: Add a custom model`** from the Command Palette to add any model returned by the provider's `/v1/models` endpoint — see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release).
 
 Compared to running each provider's CLI or website, AIFlowBridge gives you:
 
@@ -70,15 +65,24 @@ Compared to running each provider's CLI or website, AIFlowBridge gives you:
 - **Vision proxy** for text-only models: paste an image and the description is injected automatically
 - **Local-first**: API keys live in your OS keychain, telemetry stays on your machine
 
+**Want to use a model not in the list?** Run **`AIFlowBridge: Add a custom model`** from the Command Palette to add any model returned by the provider's `/v1/models` endpoint - see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release).
+
 ## Providers
 
-| Provider | Models                                                                   | Vision     | Thinking | Tool Calling |
-| -------- | ------------------------------------------------------------------------ | ---------- | -------- | ------------ |
-| DeepSeek | V4 Flash, V4 Pro                                                         | ✅ Proxied | ✅       | ✅           |
-| MiniMax  | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 | ✅ Proxied | ✅       | ✅           |
-| Xiaomi   | MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro                                     | ✅ Proxied | ✅       | ✅           |
+| Provider | Models                                                               | Vision     | Tool Calling |
+| -------- | -------------------------------------------------------------------- | ---------- | ------------ |
+| DeepSeek | V4 Flash, V4 Pro                                                     | Proxied    | ✅           |
+| MiniMax  | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed | Proxied    | ✅           |
+| MiniMax  | M3                                                                   | **Native** | ✅           |
+| Xiaomi   | MiMo V2 Omni                                                         | Native     | ✅           |
+| Xiaomi   | MiMo V2 Pro, V2.5 Pro                                                | Proxied    | ✅           |
+| Xiaomi   | MiMo V2.5                                                            | **Native** | ✅           |
 
-Note: All models expose the image-paste button in Copilot Chat (`imageInput: true`). Images are transparently converted to text descriptions by the vision proxy (a separate vision-capable model). Configure the vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
+Notes:
+
+- All models expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [Transparent Vision Proxy](#transparent-vision-proxy)).
+- "Thinking" indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2/M2.1/M3 generations do not expose a thinking selector.
+- Configure the proxied vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
 
 ### Why is the model list hardcoded?
 
@@ -87,10 +91,10 @@ The list of officially supported models lives in [`src/consts.ts`](src/consts.ts
 VS Code requires each model to declare its capabilities at registration time:
 
 - `maxInputTokens` and `maxOutputTokens` (context window)
-- `toolCalling` — `true`, `false`, or a numeric limit on simultaneous tools
-- `imageInput` — whether the paste-image button appears in Copilot Chat
-- `thinking` — whether the thinking-effort selector is exposed
-- `requiresThinkingParam` — provider-specific quirks (e.g. DeepSeek's `thinking: { type: "enabled" }`)
+- `toolCalling` - `true`, `false`, or a numeric limit on simultaneous tools
+- `imageInput` - whether the paste-image button appears in Copilot Chat
+- `thinking` - whether the thinking-effort selector is exposed
+- `requiresThinkingParam` - provider-specific quirks (e.g. DeepSeek's `thinking: { type: "enabled" }`)
 
 The upstream APIs (`GET /v1/models`) only return `{ id, owned_by, created }`. They do not expose context window, tool limits, vision support, or thinking support in a usable format. Without explicit capabilities, VS Code would:
 
@@ -107,7 +111,7 @@ A bad capability is a worse user experience than a missing model. Hardcoding ens
 
 You do **not** need a new AIFlowBridge release to use a newly released provider model. Two options:
 
-#### Option 1 — Command Palette (easiest)
+#### Option 1 - Command Palette (easiest)
 
 Run **`AIFlowBridge: Add a custom model`** from the Command Palette. The command:
 
@@ -119,7 +123,7 @@ Run **`AIFlowBridge: Add a custom model`** from the Command Palette. The command
 
 The new model appears in the Copilot Chat picker immediately. You can edit or remove the entry in your user settings at any time.
 
-#### Option 2 — Direct setting
+#### Option 2 - Direct setting
 
 Add an entry to `settings.json` under `aiflowbridge.userModels`:
 
@@ -156,7 +160,7 @@ If a user-defined model is widely useful, the recommended path is to add it to t
 - Translation key in `package.nls.json` (`model.<id>.detail`)
 - Entry in the Providers table above
 
-The release cadence is opportunistic — no fixed schedule. Tag `v1.x.y` when a meaningful set of changes accumulates.
+The release cadence is opportunistic - no fixed schedule. Tag `v1.x.y` when a meaningful set of changes accumulates.
 
 ## Installation
 
@@ -214,12 +218,37 @@ Once installed, the metrics dashboard is one keyboard shortcut away: press **`Ct
 
 The status bar shows the current gateway state (running / stopped / error).
 
+### What the metrics dashboard actually tracks
+
+> **TL;DR** — the dashboard counts requests that go through AIFlowBridge's **local gateway** (Kilo Code, Continue, Open WebUI, curl, OpenAI SDK pointed at `http://127.0.0.1:8787/v1`, etc.). It does **not** count prompts sent directly from Copilot Chat. This is by design, not a bug.
+
+AIFlowBridge ships two complementary integrations. They share models and API keys but have **different telemetry** paths:
+
+| | Copilot Chat | Local gateway |
+|---|---|---|
+| **Entry point** | `vscode.lm` API in VS Code | `POST http://127.0.0.1:8787/v1/chat/completions` |
+| **Provider implementation** | `src/provider/*.ts` (DeepSeek / MiniMax / Xiaomi) | `src/aiflowbridge/gateway/server.ts` |
+| **Upstream call** | Direct `fetch` to the vendor | Direct `fetch` to the vendor |
+| **Telemetry recorded?** | No | Yes (gateway's `TelemetryStore`) |
+
+The reason is structural: VS Code's language model API is a push-only interface - the extension returns a stream of tokens, but the framework owns the request lifecycle. AIFlowBridge does not see a "request started / request ended" event it can hook into. The gateway, in contrast, is a regular HTTP server, so it has full request/response metadata (status, duration, prompt/completion token counts from the upstream `usage` field) at the right granularity for per-request metrics.
+
+**Practical implication** — if you want to populate the dashboard, point an OpenAI-compatible client at the gateway. The README's [Gateway](#gateway-optional) section has the full config. Sending a single `curl` is enough to verify the pipeline:
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model": "deepseek-v4-flash", "messages": [{"role": "user", "content": "ping"}]}'
+```
+
+The status bar reflects the same source: it shows the gateway state, not Copilot Chat activity. The "requests" counter in the status bar increments only when the gateway handles a request.
+
 ### Example workflow
 
-1. Open Copilot Chat and pick `DeepSeek V4 Pro` from the model picker
-2. Ask it a coding question with thinking enabled - watch the status bar for request count
-3. Open the dashboard with `Ctrl+Alt+M` to inspect token usage and cost per request
-4. Switch to `Xiaomi MiMo V2.5` and ask a follow-up - the same metrics, grouped by model
+1. Pick a model in Copilot Chat — the gateway stays empty until you exercise it (see the note above)
+2. Switch to Kilo Code (or Continue / any OpenAI-compatible client) and point it at `http://127.0.0.1:8787/v1`
+3. Send a prompt through that client - the dashboard increments in real time
+4. Press `Ctrl+Alt+M` to open the dashboard and inspect token usage, latency, and estimated cost
 5. Run `AIFlowBridge: Show logs` to inspect any errors in detail
 
 ## Usage
@@ -271,12 +300,12 @@ Any tool that supports the OpenAI API can use AIFlowBridge as a backend via the 
 
 **Kilo Code configuration example:**
 
-| Setting      | Value                                              |
-| ------------ | -------------------------------------------------- |
-| API Provider | OpenAI Compatible                                  |
-| Base URL     | `http://127.0.0.1:8787/v1`                         |
-| API Key      | Any string (keys are managed by AIFlowBridge)      |
-| Model        | `deepseek-chat`, `MiniMax-M2.7`, `mimo-v2.5`, etc. |
+| Setting      | Value                                                                   |
+| ------------ | ----------------------------------------------------------------------- |
+| API Provider | OpenAI Compatible                                                       |
+| Base URL     | `http://127.0.0.1:8787/v1`                                              |
+| API Key      | Any string (keys are managed by AIFlowBridge)                           |
+| Model        | `deepseek-v4-flash`, `MiniMax-M2.7`, `mimo-v2.5-pro`, `MiniMax-M3`, ... |
 
 The gateway routes requests to the correct upstream provider based on the model name. Streaming (`stream: true`) is fully supported.
 
@@ -332,6 +361,12 @@ The dashboard shows:
 
 ## Settings
 
+### Models
+
+| Setting                   | Default | Description                                                                                                                                                                                                                                       |
+| ------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aiflowbridge.userModels` | `[]`    | User-declared models merged with the built-in registry. See [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release). User-declared models are also exposed by the local gateway's `GET /v1/models` (BUG04). |
+
 ### Gateway
 
 | Setting                             | Default                    | Description                                   |
@@ -383,60 +418,66 @@ The dashboard shows:
 
 ## Commands
 
-In the Command Palette, the provider key commands are grouped under the `AIFlowBridge` category. If you do not see them immediately, search for `set api`.
+In the Command Palette, the provider key commands are grouped under the `AIFlowBridge` category. If you do not see them immediately, search for `set api` or `add custom`.
 
-| Command                                | Description             |
-| -------------------------------------- | ----------------------- |
-| **AIFlowBridge**                       |                         |
-| `AIFlowBridge: Show metrics dashboard` | Open metrics dashboard  |
-| `AIFlowBridge: Refresh metrics`        | Refresh status bar      |
-| `AIFlowBridge: Start local gateway`    | Start proxy             |
-| `AIFlowBridge: Stop local gateway`     | Stop proxy              |
-| `AIFlowBridge: Copy gateway URL`       | Copy URL to clipboard   |
-| `AIFlowBridge: Open settings`          | Open extension settings |
-| `AIFlowBridge: Set vision proxy model` | Choose vision model     |
-| `AIFlowBridge: Show logs`              | Open output log         |
-| **DeepSeek**                           |                         |
-| `DeepSeek: Set API Key`                | Configure API key       |
-| `DeepSeek: Clear API Key`              | Remove stored key       |
-| **MiniMax**                            |                         |
-| `MiniMax: Set API Key`                 | Configure API key       |
-| `MiniMax: Clear API Key`               | Remove stored key       |
-| **Xiaomi MiMo**                        |                         |
-| `Xiaomi MiMo: Set API Key`             | Configure API key       |
-| `Xiaomi MiMo: Clear API Key`           | Remove stored key       |
+| Command                                   | Description                           |
+| ----------------------------------------- | ------------------------------------- |
+| **AIFlowBridge**                          |                                       |
+| `AIFlowBridge: Show metrics dashboard`    | Open metrics dashboard                |
+| `AIFlowBridge: Refresh metrics`           | Refresh status bar                    |
+| `AIFlowBridge: Reset metrics`             | Clear cumulative counters and disk    |
+| `AIFlowBridge: Start local gateway`       | Start proxy                           |
+| `AIFlowBridge: Stop local gateway`        | Stop proxy                            |
+| `AIFlowBridge: Copy gateway URL`          | Copy URL to clipboard                 |
+| `AIFlowBridge: Open settings`             | Open extension settings               |
+| `AIFlowBridge: Set vision proxy model`    | Choose vision model                   |
+| `AIFlowBridge: Add a custom model`        | Declare a new model from `/v1/models` |
+| `AIFlowBridge: Open request dumps folder` | Open the folder of last request dumps |
+| `AIFlowBridge: Show logs`                 | Open output log                       |
+| **DeepSeek**                              |                                       |
+| `DeepSeek: Set API Key`                   | Configure API key                     |
+| `DeepSeek: Clear API Key`                 | Remove stored key                     |
+| `DeepSeek: Set vision proxy model`        | Choose vision model (DeepSeek)        |
+| **MiniMax**                               |                                       |
+| `MiniMax: Set API Key`                    | Configure API key                     |
+| `MiniMax: Clear API Key`                  | Remove stored key                     |
+| **Xiaomi MiMo**                           |                                       |
+| `Xiaomi MiMo: Set API Key`                | Configure API key                     |
+| `Xiaomi MiMo: Clear API Key`              | Remove stored key                     |
 
 ## Architecture
 
 ```
-AIFlowBridge
-├── src/aiflowbridge/           # Gateway, telemetry, UI
-│   ├── gateway/server.ts       # OpenAI-compatible proxy
-│   ├── telemetry.ts            # Usage tracking & cost estimation
-│   ├── ui/dashboard.ts         # Metrics webview
-│   ├── ui/statusbar.ts         # Status bar indicator
-│   ├── config.ts               # Settings loader (includes userModels)
-│   └── types.ts                # Shared types
-├── src/provider/               # Language model providers
-│   ├── base.ts                 # Abstract provider base class (merges MODELS + userModels)
-│   ├── index.ts                # DeepSeek provider
-│   ├── minimax.ts              # MiniMax provider (with model ID translation map)
-│   ├── xiaomi.ts               # Xiaomi provider
-│   ├── runtime/addCustomModel.ts # "Add a custom model" command
-│   └── vision/                 # Transparent vision proxy
-│       ├── model.ts            # Vision model selection
-│       └── resolve.ts          # Image resolution
-├── src/runtime/                # Extension lifecycle
-│   ├── lifecycle.ts            # Activation & deactivation
-│   ├── provider.ts             # Provider registration
-│   ├── commands.ts             # Command handlers
-│   └── actions.ts              # URI action handlers
-└── src/consts.ts               # Model registry & constants (hardcoded MODELS, see "Why is the model list hardcoded?" above)
+src/
+├── aiflowbridge/         # Extension-specific: gateway, telemetry, dashboard
+│   ├── gateway/          # OpenAI-compatible proxy server
+│   ├── ui/               # Dashboard webview, status bar
+│   ├── token-counter.ts  # MiniMax /v1/responses/input_tokens wrapper
+│   ├── telemetry.ts      # TelemetryStore + cost estimation
+│   ├── config.ts         # Gateway settings loader (incl. userModel synthesis)
+│   └── types.ts
+├── provider/             # Language model providers (Copilot Chat)
+│   ├── base.ts           # Abstract base (merges MODELS + userModels)
+│   ├── index.ts          # DeepSeek
+│   ├── minimax.ts        # MiniMax (HTTP streaming)
+│   ├── xiaomi.ts         # Xiaomi MiMo
+│   ├── tools/            # Tool-calling adapters
+│   ├── replay/           # Reasoning replay (Xiaomi)
+│   ├── debug/            # Request dumps
+│   ├── segment/          # Stream segmentation
+│   └── vision/           # Transparent vision proxy
+├── runtime/              # Extension lifecycle
+│   ├── lifecycle.ts
+│   ├── commands.ts
+│   ├── addCustomModel.ts
+│   ├── provider.ts
+│   └── actions.ts
+└── consts.ts             # MODELS registry, CONFIG_SECTION, defaults
 ```
 
 ### Model registry
 
-The list of officially supported models is hardcoded in [`src/consts.ts`](src/consts.ts) under `MODELS: ModelDefinition[]`. This is intentional — see [Why is the model list hardcoded?](#why-is-the-model-list-hardcoded) above. The runtime merges this list with user-declared models from the [`aiflowbridge.userModels`](#settings) setting on every read. Adding a new model without a release is supported via the **`AIFlowBridge: Add a custom model`** command or by editing the `aiflowbridge.userModels` setting directly.
+The list of officially supported models is hardcoded in [`src/consts.ts`](src/consts.ts) under `MODELS: ModelDefinition[]`. This is intentional - see [Why is the model list hardcoded?](#why-is-the-model-list-hardcoded) above. The runtime merges this list with user-declared models from the [`aiflowbridge.userModels`](#settings) setting on every read. Adding a new model without a release is supported via the **`AIFlowBridge: Add a custom model`** command or by editing the `aiflowbridge.userModels` setting directly.
 
 ## Development
 
@@ -530,9 +571,26 @@ The API key is missing, invalid, or for the wrong endpoint. Check:
 2. The `baseUrl` setting points to the right region (DeepSeek/MiniMax/Xiaomi each have regional endpoints)
 3. The key has the required permissions on the provider's dashboard
 
+**`404 No gateway provider matches model "..."` from the gateway**
+
+Since 1.2.0, the gateway no longer silently routes a request for an unknown model to the first enabled provider (which used to label DeepSeek as "mimo-v2.5" in the dashboard, BUG05). If you see a 404, the model name is not registered in `aiflowbridge.providers` or `aiflowbridge.userModels`. Either:
+
+- Add it via `AIFlowBridge: Add a custom model`
+- Configure a provider in `aiflowbridge.providers` with a matching `id` or `model`
+- Pass the upstream API id directly (e.g. `MiniMax-M3` instead of `minimax-m3`)
+
+The 404 body lists the available provider ids for reference.
+
+**`Metrics are empty after restart`**
+
+Since 1.2.0, metrics are persisted in VS Code's `globalState` and restored on the next activation. If the dashboard shows 0, one of:
+
+- You're testing through **Copilot Chat**, which goes through the language model provider APIs directly, not the gateway. Only requests that hit the gateway (Kilo Code, Continue, Open WebUI, curl, etc.) are recorded.
+- Run `AIFlowBridge: Reset metrics` and verify the cumulative counters increment as you make gateway calls.
+
 **Gateway not detected by Kilo Code / Continue**
 
-- Confirm the gateway is running: `curl http://127.0.0.1:8787/health` should return `{"ok":true,"service":"AIFlowBridge"}`
+- Confirm the gateway is running: `curl http://127.0.0.1:8787/health` should return `{"ok":true,"service":"AIFlowBridge","status":{...}}`
 - Use `http://127.0.0.1:8787/v1` as the OpenAI-compatible base URL
 - Any string works as the API key (auth is handled by the upstream provider)
 
@@ -556,32 +614,113 @@ Report security issues privately - see [`SECURITY.md`](SECURITY.md).
 
 **Laurent Ongaro** - [Laurent Ongaro](https://github.com/LaurentOngaro)
 
+## Roadmap
+
+AIFlowBridge is in active development. The roadmap below is a high-level view of what's coming. Items are tagged with their status. Sponsors (Community tier and above) get early input on prioritization.
+
+### Shipped
+
+- **v1.0** - initial release, DeepSeek + MiniMax + Xiaomi MiMo providers, vision proxy, OpenAI-compatible gateway, metrics dashboard
+- **v1.1** - user-defined models via `AIFlowBridge: Add a custom model`, per-model settings, offline docs
+- **v1.2** - accurate MiniMax token counting via `/v1/responses/input_tokens`, persistent metrics across restarts, gateway-safe model routing, "By model" dashboard panel with time filters, screenshots, language polish (English only)
+
+### In progress
+
+_Nothing actively in flight right now - the 1.2.0 backlog has shipped._
+
+### Next up
+
+- **Telemetry export** - export the metrics snapshot to JSON / CSV for billing or analysis
+- **More agentic coding extension adapters** (e.g. Claude Code) - first-class support for the OpenAI-compatible clients so `aiflowbridge.providers` is auto-pushed to them on activation
+- **More openAI-compatible providers** - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
+- **Custom OpenAI-compatible upstreams** - bring-your-own endpoint (LM Studio, vLLM, llama.cpp) routed through the same gateway
+- **Token-by-token streaming diff in the dashboard** - show the first/last token of each response, not just the total
+
+### Backlog (value to confirm)
+
+- **Web-based dashboard** at `http://127.0.0.1:8787/dashboard` (in addition to the VS Code panel)
+- **Workspace-level metrics** - break down usage by current repo / current branch
+- **i18n of the extension UI** (only English today, by design - revisit if requests come in)
+
+Want to influence the order? [Open an issue](https://github.com/LaurentOngaro/aiflowbridge/issues) or [join the sponsor discussion](https://github.com/sponsors/LaurentOngaro).
+
 ## Sponsoring
 
-AIFlowBridge is free, open-source, and ad-free. If it saves you time or money, consider supporting its development.
+AIFlowBridge is **free, open-source, and ad-free**. It will never ask you to pay for a feature, show you ads, or phone home. The code is yours forever, even if I disappear.
 
-**Why sponsor?**
+<p align="center">
+  <a href="https://github.com/sponsors/LaurentOngaro">
+    <img src="https://img.shields.io/github/sponsors/LaurentOngaro?style=for-the-badge&logo=github-sponsors&logoColor=EA4AAA&label=Sponsor%20on%20GitHub" alt="Sponsor on GitHub">
+  </a>
+  <a href="https://www.patreon.com/LaurentOngaro">
+    <img src="https://img.shields.io/badge/Support_on-Patreon-orange?style=for-the-badge&logo=patreon&logoColor=white" alt="Support on Patreon">
+  </a>
+</p>
 
-- No tracking, no ads, no paywalls - the extension stays free for everyone
-- Your sponsorship funds continued maintenance, new providers, and bug fixes
-- You get direct input on the roadmap (Community tier and above)
-- You're supporting an indie developer who builds tools for the community
+### Why sponsor?
 
-**What your sponsorship funds:**
+AIFlowBridge is one of several open-source projects I maintain (alongside [UEVaultManager](https://github.com/LaurentOngaro/UEVaultManager), [FabAssetsManager](https://github.com/LaurentOngaro/FabAssetsManager), [TerraBloom](https://playterrabloom.com), and others). Sponsorship funds the **whole body of work**, not just this extension. Your support:
 
-- Development time for new providers and features
-- Hosting and CI infrastructure for the marketplace builds
-- Documentation, troubleshooting guides, and community support
+- **Funds dev time** - most weekends and evenings go to OSS, not paid work
+- **Funds infrastructure** - CI runners, marketplace signing, domain names
+- **Gets you closer to the work** - Discord, early access, roadmap input
+- **Keeps everything MIT** - no proprietary "Pro" features, no paywalled tiers
 
-**Sponsorship platforms:**
+You are sponsoring **indie infrastructure**, not a product. The extension stays free regardless.
 
-- **GitHub Sponsors** (preferred): [github.com/sponsors/LaurentOngaro](https://github.com/sponsors/LaurentOngaro) - tiered rewards (Community / Contributor / Supporter)
-- **Patreon**: [patreon.com/LaurentOngaro](https://www.patreon.com/LaurentOngaro)
-- **Tipeee** (communauté francophone): [fr.tipeee.com/laurentongaro](https://fr.tipeee.com/laurentongaro)
+### Sponsorship tiers (live from [github.com/sponsors/LaurentOngaro](https://github.com/sponsors/LaurentOngaro))
 
-**Sponsors and backers** (thank you!):
+| Tier               | Price / month | What you get                                                                                                                                    |
+| ------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🟢 **Community**   | **$4**        | Private Discord channel · Preview releases & playtest invites · behind-the-scenes devlogs · vote on roadmap priorities                          |
+| 🟠 **Contributor** | **$12**       | Everything above, **plus:** exclusive scripts and assets · early access to all releases - Ask for features (reviewed then queued when possible) |
+| 🟣 **Supporter**   | **$30**       | Everything above, **plus:** your name in the Project credits · direct Discord access to discuss the Project                                     |
 
-_This section is updated with each release. Become a sponsor to have your name listed here._
+All tiers are **cancel anytime**. Higher tiers also include the public "Sponsor" achievement on your GitHub profile.
+
+> ⚠️ **Heads up**: these tiers are **global to my work** (TerraBloom + all my OSS projects, including AIFlowBridge). The playtest and asset rewards are game-dev-flavored, not specifically for AIFlowBridge. AIFlowBridge itself remains **100% free and feature-complete** at zero tier.
+
+### Cost comparison - what's real, what isn't
+
+AIFlowBridge is **local glue** around paid upstream APIs. It does not replace those APIs and it does not magically lower their per-token prices. Anything that says otherwise is marketing.
+
+What it **does** affect:
+
+- **Free vision for Copilot subscribers.** Models that do not accept images (DeepSeek, MiniMax, Xiaomi text-only) handle them via a _vision proxy_. The default vision model is `oswe-vscode-prime`, which is bundled with a GitHub Copilot subscription. If you already pay for Copilot, vision calls cost **$0** through AIFlowBridge instead of paying a vision-capable upstream model.
+- **No markup on token prices.** Other OpenAI-compatible proxies (OpenRouter, Portkey, Together, etc.) add 10–30% on top of the catalog price. AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay.
+- **One bill per task, not per provider.** Switching between DeepSeek Flash ($0.14/M input) for boilerplate and MiniMax M3 for the hard stuff happens inside the same Copilot Chat window, with per-request token counts. You avoid paying a single premium model for every interaction.
+- **Accurate token counting (v1.2+).** The dashboard and the cost estimate for MiniMax (and future models that exposes tokens count through their API) use the upstream endpoint instead of a `length / 4` heuristic. No end-of-month surprise.
+- **No subscription, no per-seat fee.** AIFlowBridge itself is free; you only pay the upstream APIs you actually use.
+
+What it **does not** do:
+
+- Discounts or rebates on upstream pricing
+- Free trial credits
+- Bundled inference
+
+Typical monthly spend for a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 20 M output tokens):
+
+| Workload                                              | Approx. cost                      |
+| ----------------------------------------------------- | --------------------------------- |
+| All DeepSeek V4 Flash                                 | $3–5                              |
+| Mixed: 70% Flash + 30% MiniMax M3                     | $5–8                              |
+| Mostly MiniMax M3 (1 M context)                       | $8–12                             |
+| Vision-heavy with `oswe-vscode-prime` proxy (Copilot) | **+ $0** - covered by Copilot sub |
+| AIFlowBridge itself                                   | **$0** + optional sponsorship     |
+
+The cheapest "Copilot Chat with image paste" workflow is AIFlowBridge + DeepSeek V4 Flash + the bundled Copilot vision model. There is no cheaper stack that gives you the same feature set in a single UI.
+
+### Sponsors and backers
+
+_This section is updated with each release. **[Become the first sponsor](https://github.com/sponsors/LaurentOngaro)** to have your name (or your team's logo) listed here._
+
+> ⭐ _Want to be listed? Sponsor at the **Community** tier or above and open an issue titled "sponsor listing" with the exact name / link you want shown. If you'd rather stay anonymous, your contribution still counts - thank you._
+
+### Sponsorship platforms
+
+- **GitHub Sponsors** (preferred, USD/EUR): [github.com/sponsors/LaurentOngaro](https://github.com/sponsors/LaurentOngaro)
+- **Patreon** (EUR): [patreon.com/LaurentOngaro](https://www.patreon.com/LaurentOngaro)
+- **Tipeee** (EUR, communauté francophone): [fr.tipeee.com/laurentongaro](https://fr.tipeee.com/laurentongaro)
 
 ## License
 
