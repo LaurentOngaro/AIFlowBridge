@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.2.1 - AIFlowBridge
+## 1.2.2
+
+Patch release: documentation only, no code changes.
+
+### Changed
+
+- Small README content changes.
+
+## 1.2.1
 
 Patch release: documentation only, no code changes.
 
@@ -24,7 +32,7 @@ Patch release: documentation only, no code changes.
   - **"Why sponsor?"** section uses the **real** GitHub Sponsors tiers ($4 / $12 / $30) verified against `github.com/sponsors/LaurentOngaro`, with an honest callout that the tiers are global to the maintainer's body of work (including TerraBloom), not AIFlowBridge-specific.
   - **Cost comparison** rewritten to drop marketing fluff and explain what AIFlowBridge actually affects (free Copilot vision, no markup, accurate token counting) vs what it does not (no upstream discounts, no free trials).
 
-## 1.2.0 - AIFlowBridge
+## 1.2.0
 
 ### Added
 
@@ -57,7 +65,7 @@ Patch release: documentation only, no code changes.
 
 - The dashboard tracks **gateway-served requests** (any request that hits `POST /v1/chat/completions` on the local proxy: Kilo Code, Continue, Open WebUI, the OpenAI Python SDK pointed at `http://127.0.0.1:8787/v1`, etc.). Requests made through Copilot Chat go directly to the upstream provider via the language model provider APIs and are not routed through the gateway, so they will not appear in the dashboard. This is by design - the gateway is the OpenAI-compatible proxy; Copilot Chat uses VS Code's `vscode.lm` API.
 
-## 1.1.1 - AIFlowBridge
+## 1.1.1
 
 ### Documentation
 
@@ -69,7 +77,7 @@ Patch release: documentation only, no code changes.
 
 - No code changes; documentation only. Safe to upgrade.
 
-## 1.1.0 - AIFlowBridge
+## 1.1.0
 
 ### Added
 
@@ -95,13 +103,13 @@ Patch release: documentation only, no code changes.
 
 - The model id convention changed. Any pre-existing `aiflowbridge.providers.<vendor>.modelIdOverrides` keys using the old kebab-case ids (e.g. `minimax-v2.7`, `xiaomi-mimo-v2.5`) must be updated to the upstream ids (e.g. `MiniMax-M2.7`, `mimo-v2.5`).
 
-## 1.0.2 - AIFlowBridge
+## 1.0.2
 
 ### Fixed
 
 - **Publish workflow**: switched from the third-party `HaaLeo/publish-vscode-extension` GitHub Action to the official `@vscode/vsce` CLI called directly. The `vsix` input was deprecated in v1.7.0 of the action, causing the previous run to fail. Direct `vsce publish` is the Microsoft-recommended approach and removes a third-party dependency.
 
-## 1.0.1 - AIFlowBridge
+## 1.0.1
 
 ### Added
 
@@ -126,7 +134,7 @@ Patch release: documentation only, no code changes.
 - **SVG icon** added in `resources/icon.svg` alongside the existing PNG.
 - **`.vscodeignore`** cleaned: removed references to deleted `.oxlintrc.json` and `.oxfmtrc.json`.
 
-## 1.0.0 - AIFlowBridge
+## 1.0.0
 
 First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo into GitHub Copilot Chat with a local OpenAI-compatible gateway, transparent vision proxy, and usage metrics.
 
@@ -174,7 +182,7 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 - The gateway starts automatically when the extension activates. Disable it with `aiflowbridge.gateway.enabled: false`.
 - See the README for the full configuration reference, gateway endpoints, and Kilo Code integration example.
 
-## 0.6.0 - AIFlowBridge
+## 0.6.0
 
 ### Fixed
 
@@ -195,14 +203,14 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 
 - **Repository hygiene**: Added `.kilo/` to `.gitignore` and untracked `.kilo/plans/1779780240537-crisp-planet.md` (Kilo Code internal state).
 
-## 0.5.1 - AIFlowBridge
+## 0.5.1
 
 ### Changed
 
 - **Code cleanup**: Removed duplicate `getConfiguredVisionModelId()` function in `src/provider/vision/model.ts` (was a byte-identical copy of `getVisionModelId()`). Unified on a single function used by both `createVisionModelGetter` and `setVisionProxyModel`.
 - **i18n cleanup**: Removed unused translation keys `vision.proxyUsing` and `vision.notFound` from `src/i18n.ts` and `package.nls.json` (vestiges from the old code that used `t()` instead of the logger).
 
-## 0.5.0 - AIFlowBridge
+## 0.5.0
 
 ### Fixed
 
@@ -218,7 +226,7 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
   - `[MiniMax]` prefix for MiniMax provider logs
   - All logs use VS Code `LogOutputChannel` (viewable via `View > Output > AIFlowBridge`)
 
-## 0.4.6 - AIFlowBridge
+## 0.4.6
 
 ### Fixed
 
@@ -226,19 +234,19 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 - Fixed Kilo Code model name mismatch (`deepseek` → `deepseek-v4-flash`/`deepseek-v4-pro`): the gateway now overrides the model name in forwarded requests with the provider's actual upstream model name.
 - Gateway API keys are now automatically resolved from VS Code SecretStorage when not set in provider profiles.
 
-## 0.4.5 - AIFlowBridge
+## 0.4.5
 
 ### Fixed
 
 - Fixed Xiaomi MiMo V2.5 Pro image handling: native vision support is now determined by model ID rather than `imageInput` capability. The V2.5 Pro model correctly uses the vision proxy for image descriptions instead of sending images natively, which the Pro API does not support.
 
-## 0.4.4 - AIFlowBridge
+## 0.4.4
 
 ### Fixed
 
 - Fixed image paste not available for MiniMax and Xiaomi MiMo V2.5 Pro models: set `imageInput: true` in model capabilities so Copilot Chat enables the paste-image button. The vision proxy transparently converts images to text descriptions for models without native vision support.
 
-## 0.4.3 - AIFlowBridge
+## 0.4.3
 
 ### Fixed
 
@@ -246,13 +254,13 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 - Fixed Xiaomi MiMo 401 error: changed the default base URL from the pay-as-you-go endpoint (`api.xiaomimimo.com/v1`) to the Token Plan Europe cluster (`token-plan-ams.xiaomimimo.com/v1`), which is the expected endpoint for `tp-*` API keys.
 - Added Xiaomi regional Token Plan endpoint URLs to constants (Europe, Singapore, China) for reference.
 
-## 0.4.2 - AIFlowBridge
+## 0.4.2
 
 ### Fixed
 
 - Improved error logging for provider HTTP errors: the response body from failed API requests is now captured and included in the error message for both MiniMax and Xiaomi providers, providing actionable diagnostic details.
 
-## 0.4.1 - AIFlowBridge
+## 0.4.1
 
 ### Fixed
 
@@ -260,7 +268,7 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 - Fixed MiniMax API 400 error caused by `reasoning_split` being incorrectly wrapped in `extra_body`. The MiniMax OpenAI-compatible API expects `reasoning_split` as a top-level parameter, not inside `extra_body` (which is an OpenAI Python SDK-only construct).
 - Added temperature clamping for MiniMax provider (`(0.0, 1.0]` range) to prevent 400 errors from out-of-range values.
 
-## 0.4.0 - AIFlowBridge
+## 0.4.0
 
 ### Fixed
 
@@ -271,7 +279,7 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 
 - Gateway now operates as a singleton across VS Code instances: if the default port (8787) is already occupied by another AIFlowBridge instance, the new instance detects and reuses the existing gateway rather than starting a new one on a different port. This ensures Kilo Code and other OpenAI-compatible clients always find the gateway at the configured URL.
 
-## 0.3.0 - AIFlowBridge
+## 0.3.0
 
 ### Fixed
 
@@ -286,7 +294,7 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 - Introduced Vitest configuration for running tests in a Node environment with appropriate timeouts and module resolution.
 - Add unit tests for Minimax, Xiaomi, and error handling
 
-## 0.2.0 - AIFlowBridge
+## 0.2.0
 
 This release marks the first AIFlowBridge line after the DeepSeek baseline.
 

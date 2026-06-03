@@ -2,20 +2,12 @@
 
 <!-- markdownlint-disable MD033 -->
 <p align="center">
+  <img src="resources/icon.png" height="100" alt="Version"><hr/>
+</p>
+<p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
     <img src="https://badgen.net/vs-marketplace/v/laurentOngaro.aiflowbridge" alt="Version">
   </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://badgen.net/vs-marketplace/rating/laurentOngaro.aiflowbridge" alt="Ratings">
-  </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://badgen.net/vs-marketplace/i/laurentOngaro.aiflowbridge" alt="Installs">
-  </a>
-  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://badgen.net/vs-marketplace/d/laurentOngaro.aiflowbridge" alt="Downloads">
-  </a>
-</p>
-<p align="center">
   <a href="https://github.com/LaurentOngaro/aiflowbridge">
     <img src="https://badgen.net/github/last-commit/LaurentOngaro/aiflowbridge" alt="Last Commit">
   </a>
@@ -32,22 +24,24 @@
     <img src="https://badgen.net/github/release/LaurentOngaro/aiflowbridge" alt="Latest release">
   </a>
 </p>
-<!-- markdownlint-disable MD033 -->
-
-> **If AIFlowBridge saves you time or money, consider [sponsoring its development](https://github.com/sponsors/LaurentOngaro)**. The extension is free, ad-free, and tracker-free - your support is what keeps it that way.
+<!-- markdownlint-enable MD033 -->
 
 **Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. The extension is free, open-source, and ad-free; you pay the upstream providers directly for the model usage. Transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.**
 
 AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi MiMo) under a unified interface inside Copilot Chat - with built-in metrics, proxy routing, and vision bridge capabilities.
 
-**Spread the word**
-Increase the project's visibility by adding a star to its GitHub repository
-That's the best way to show your support and help others discover the extension!
-![GitHub Repo stars](https://img.shields.io/github/stars/LaurentOngaro/aiflowbridge?style=flat-square)
+> **AIFlowBridge can save you time or money, so consider [sponsoring its development](https://github.com/sponsors/LaurentOngaro)**.
+> The extension is free, ad-free, tracker-free and no personal data is collected - **your support is what keeps it that way ->[more info on how to become one of our sponsor](#sponsoring)**
+>
+> **Spread the word**
+> ![GitHub Repo stars](https://badgen.net/github/stars/LaurentOngaro/aiflowbridge)
+> Increase the project's visibility by adding a star to its GitHub repository
+>
+> **That's the easiest way to show your support and help others discover the extension**
 
 ## Features
 
-- **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See the [Providers](#providers) table for the canonical list and which ones have **native** vision vs use the [vision proxy](#transparent-vision-proxy). To add a model not in the list, run **`AIFlowBridge: Add a custom model`** (see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release)).
+- **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See the [Providers](#providers) table for the canonical list and which ones have **native** vision vs use the [vision proxy](#vision-proxy). To add a model not in the list, run **`AIFlowBridge: Add a custom model`** (see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release)).
 - **Transparent vision proxy** - text-only models handle images via automatic proxy through another installed Copilot model (Claude, GPT-4o, etc.). Zero configuration required; pick your preferred vision model once.
 - **Built-in OpenAI-compatible gateway** - starts automatically on port 8787 (singleton across VS Code instances) so Kilo Code, Continue, Open WebUI, and any OpenAI-compatible client can use the same models. Per-request metrics, tokens, and estimated cost, persisted across restarts.
 - **Copilot Chat integration** - agent mode, tool calling, instructions, MCP, skills. 1M token context on supporting models. Thinking mode with reasoning effort control (DeepSeek, Xiaomi).
@@ -67,6 +61,36 @@ Compared to running each provider's CLI or website, AIFlowBridge gives you:
 
 **Want to use a model not in the list?** Run **`AIFlowBridge: Add a custom model`** from the Command Palette to add any model returned by the provider's `/v1/models` endpoint - see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release).
 
+## Cost comparison - what's real, what isn't
+
+AIFlowBridge is **local glue** around paid upstream APIs. It does not replace those APIs and it does not magically lower their per-token prices. Anything that says otherwise is marketing.
+
+What it **does** affect:
+
+- **Free vision for Copilot subscribers.** Models that do not accept images (DeepSeek, MiniMax, Xiaomi text-only) handle them via a _vision proxy_. The default vision model is `oswe-vscode-prime`, which is bundled with a GitHub Copilot subscription. If you already pay for Copilot, vision calls cost **$0** through AIFlowBridge instead of paying a vision-capable upstream model.
+- **No markup on token prices.** Other OpenAI-compatible proxies (OpenRouter, Portkey, Together, etc.) add 10–30% on top of the catalog price. AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay.
+- **One bill per task, not per provider.** Switching between DeepSeek Flash ($0.14/M input) for boilerplate and MiniMax M3 for the hard stuff happens inside the same Copilot Chat window, with per-request token counts. You avoid paying a single premium model for every interaction.
+- **Accurate token counting (v1.2+).** The dashboard and the cost estimate for MiniMax (and future models that exposes tokens count through their API) use the upstream endpoint instead of a `length/4` heuristic. No end-of-month surprise.
+- **No subscription, no per-seat fee.** AIFlowBridge itself is free; you only pay the upstream APIs you actually use.
+
+What it **does not** do:
+
+- Discounts or rebates on upstream pricing
+- Free trial credits
+- Bundled inference
+
+Typical monthly spend for a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 20 M output tokens):
+
+| Workload                                              | Approx. cost                      |
+| ----------------------------------------------------- | --------------------------------- |
+| All DeepSeek V4 Flash                                 | $3–5                              |
+| Mixed: 70% Flash + 30% MiniMax M3                     | $5–8                              |
+| Mostly MiniMax M3 (1 M context)                       | $8–12                             |
+| Vision-heavy with `oswe-vscode-prime` proxy (Copilot) | **+ $0** - covered by Copilot sub |
+| AIFlowBridge itself                                   | **$0** + optional sponsorship     |
+
+The cheapest "Copilot Chat with image paste" workflow is AIFlowBridge + DeepSeek V4 Flash + the bundled Copilot vision model. There is no cheaper stack that gives you the same feature set in a single UI.
+
 ## Providers
 
 | Provider | Models                                                               | Vision     | Tool Calling |
@@ -80,7 +104,7 @@ Compared to running each provider's CLI or website, AIFlowBridge gives you:
 
 Notes:
 
-- All models expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [Transparent Vision Proxy](#transparent-vision-proxy)).
+- All models expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [Transparent Vision Proxy](#vision-proxy)).
 - "Thinking" indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2/M2.1/M3 generations do not expose a thinking selector.
 - Configure the proxied vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
 
@@ -224,12 +248,12 @@ The status bar shows the current gateway state (running / stopped / error).
 
 AIFlowBridge ships two complementary integrations. They share models and API keys but have **different telemetry** paths:
 
-| | Copilot Chat | Local gateway |
-|---|---|---|
-| **Entry point** | `vscode.lm` API in VS Code | `POST http://127.0.0.1:8787/v1/chat/completions` |
-| **Provider implementation** | `src/provider/*.ts` (DeepSeek / MiniMax / Xiaomi) | `src/aiflowbridge/gateway/server.ts` |
-| **Upstream call** | Direct `fetch` to the vendor | Direct `fetch` to the vendor |
-| **Telemetry recorded?** | No | Yes (gateway's `TelemetryStore`) |
+|                             | Copilot Chat                                      | Local gateway                                    |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| **Entry point**             | `vscode.lm` API in VS Code                        | `POST http://127.0.0.1:8787/v1/chat/completions` |
+| **Provider implementation** | `src/provider/*.ts` (DeepSeek / MiniMax / Xiaomi) | `src/aiflowbridge/gateway/server.ts`             |
+| **Upstream call**           | Direct `fetch` to the vendor                      | Direct `fetch` to the vendor                     |
+| **Telemetry recorded?**     | No                                                | Yes (gateway's `TelemetryStore`)                 |
 
 The reason is structural: VS Code's language model API is a push-only interface - the extension returns a stream of tokens, but the framework owns the request lifecycle. AIFlowBridge does not see a "request started / request ended" event it can hook into. The gateway, in contrast, is a regular HTTP server, so it has full request/response metadata (status, duration, prompt/completion token counts from the upstream `usage` field) at the right granularity for per-request metrics.
 
@@ -588,7 +612,7 @@ Since 1.2.0, metrics are persisted in VS Code's `globalState` and restored on th
 - You're testing through **Copilot Chat**, which goes through the language model provider APIs directly, not the gateway. Only requests that hit the gateway (Kilo Code, Continue, Open WebUI, curl, etc.) are recorded.
 - Run `AIFlowBridge: Reset metrics` and verify the cumulative counters increment as you make gateway calls.
 
-**Gateway not detected by Kilo Code / Continue**
+**`Gateway not detected by Kilo Code`**
 
 - Confirm the gateway is running: `curl http://127.0.0.1:8787/health` should return `{"ok":true,"service":"AIFlowBridge","status":{...}}`
 - Use `http://127.0.0.1:8787/v1` as the OpenAI-compatible base URL
@@ -609,10 +633,6 @@ AIFlowBridge is **local-first** by design:
 You can audit the network traffic from the `AIFlowBridge: Show Logs` output channel.
 
 Report security issues privately - see [`SECURITY.md`](SECURITY.md).
-
-## Maintainer
-
-**Laurent Ongaro** - [Laurent Ongaro](https://github.com/LaurentOngaro)
 
 ## Roadmap
 
@@ -648,6 +668,7 @@ Want to influence the order? [Open an issue](https://github.com/LaurentOngaro/ai
 
 AIFlowBridge is **free, open-source, and ad-free**. It will never ask you to pay for a feature, show you ads, or phone home. The code is yours forever, even if I disappear.
 
+<!-- markdownlint-disable MD033 -->
 <p align="center">
   <a href="https://github.com/sponsors/LaurentOngaro">
     <img src="https://img.shields.io/github/sponsors/LaurentOngaro?style=for-the-badge&logo=github-sponsors&logoColor=EA4AAA&label=Sponsor%20on%20GitHub" alt="Sponsor on GitHub">
@@ -656,6 +677,7 @@ AIFlowBridge is **free, open-source, and ad-free**. It will never ask you to pay
     <img src="https://img.shields.io/badge/Support_on-Patreon-orange?style=for-the-badge&logo=patreon&logoColor=white" alt="Support on Patreon">
   </a>
 </p>
+<!-- markdownlint-enable MD033 -->
 
 ### Why sponsor?
 
@@ -679,36 +701,6 @@ You are sponsoring **indie infrastructure**, not a product. The extension stays 
 All tiers are **cancel anytime**. Higher tiers also include the public "Sponsor" achievement on your GitHub profile.
 
 > ⚠️ **Heads up**: these tiers are **global to my work** (TerraBloom + all my OSS projects, including AIFlowBridge). The playtest and asset rewards are game-dev-flavored, not specifically for AIFlowBridge. AIFlowBridge itself remains **100% free and feature-complete** at zero tier.
-
-### Cost comparison - what's real, what isn't
-
-AIFlowBridge is **local glue** around paid upstream APIs. It does not replace those APIs and it does not magically lower their per-token prices. Anything that says otherwise is marketing.
-
-What it **does** affect:
-
-- **Free vision for Copilot subscribers.** Models that do not accept images (DeepSeek, MiniMax, Xiaomi text-only) handle them via a _vision proxy_. The default vision model is `oswe-vscode-prime`, which is bundled with a GitHub Copilot subscription. If you already pay for Copilot, vision calls cost **$0** through AIFlowBridge instead of paying a vision-capable upstream model.
-- **No markup on token prices.** Other OpenAI-compatible proxies (OpenRouter, Portkey, Together, etc.) add 10–30% on top of the catalog price. AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay.
-- **One bill per task, not per provider.** Switching between DeepSeek Flash ($0.14/M input) for boilerplate and MiniMax M3 for the hard stuff happens inside the same Copilot Chat window, with per-request token counts. You avoid paying a single premium model for every interaction.
-- **Accurate token counting (v1.2+).** The dashboard and the cost estimate for MiniMax (and future models that exposes tokens count through their API) use the upstream endpoint instead of a `length / 4` heuristic. No end-of-month surprise.
-- **No subscription, no per-seat fee.** AIFlowBridge itself is free; you only pay the upstream APIs you actually use.
-
-What it **does not** do:
-
-- Discounts or rebates on upstream pricing
-- Free trial credits
-- Bundled inference
-
-Typical monthly spend for a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 20 M output tokens):
-
-| Workload                                              | Approx. cost                      |
-| ----------------------------------------------------- | --------------------------------- |
-| All DeepSeek V4 Flash                                 | $3–5                              |
-| Mixed: 70% Flash + 30% MiniMax M3                     | $5–8                              |
-| Mostly MiniMax M3 (1 M context)                       | $8–12                             |
-| Vision-heavy with `oswe-vscode-prime` proxy (Copilot) | **+ $0** - covered by Copilot sub |
-| AIFlowBridge itself                                   | **$0** + optional sponsorship     |
-
-The cheapest "Copilot Chat with image paste" workflow is AIFlowBridge + DeepSeek V4 Flash + the bundled Copilot vision model. There is no cheaper stack that gives you the same feature set in a single UI.
 
 ### Sponsors and backers
 
