@@ -11,8 +11,9 @@ AIFlowBridge is a VS Code extension that provides multi-provider AI coding assis
 
 ### Language
 
-- All code, comments, and documentation must be in **English only**
 - No Chinese localization files (package.nls.zh-cn.json, README.zh-cn.md, etc.)
+- All code, comments, and documentation must be in **English only**
+- All the Agent IA interractions in the Chat (thinking, reflection,  question, answers...) must be in **FRENCH only**
 - Use English for all user-facing strings
 
 ### Style Guidelines
@@ -176,12 +177,12 @@ All settings use the `aiflowbridge.` prefix. Provider-specific settings use `aif
 
 ## Testing
 
-Run `npm test` for unit tests. The extension uses vitest for testing (301 tests across 20 files).
+Run `npm test` for unit tests. The extension uses vitest for testing (320 tests across 20 files).
 
 Quality gates:
 
 - `npm run compile` - 0 TypeScript errors
-- `npm test` - 301/301 passing
+- `npm test` - 320/320 passing
 
 Test files of note:
 

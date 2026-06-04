@@ -68,7 +68,7 @@ AIFlowBridge is **local glue** around paid upstream APIs. It does not replace th
 What it **does** affect:
 
 - **Free vision for Copilot subscribers.** Models that do not accept images (DeepSeek, MiniMax, Xiaomi text-only) handle them via a _vision proxy_. The default vision model is `oswe-vscode-prime`, which is bundled with a GitHub Copilot subscription. If you already pay for Copilot, vision calls cost **$0** through AIFlowBridge instead of paying a vision-capable upstream model.
-- **No markup on token prices.** Other OpenAI-compatible proxies (OpenRouter, Portkey, Together, etc.) add 10–30% on top of the catalog price. AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay.
+- **No markup on token prices.** Other OpenAI-compatible proxies (OpenRouter, Portkey, Together, etc.) add 5–15% on top of the catalog price. AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay.
 - **One bill per task, not per provider.** Switching between DeepSeek Flash ($0.14/M input) for boilerplate and MiniMax M3 for the hard stuff happens inside the same Copilot Chat window, with per-request token counts. You avoid paying a single premium model for every interaction.
 - **Accurate token counting (v1.2+).** The dashboard and the cost estimate for MiniMax (and future models that exposes tokens count through their API) use the upstream endpoint instead of a `length/4` heuristic. No end-of-month surprise.
 - **No subscription, no per-seat fee.** AIFlowBridge itself is free; you only pay the upstream APIs you actually use.
@@ -236,11 +236,70 @@ Once installed, the metrics dashboard is one keyboard shortcut away: press **`Ct
 ### What the dashboard shows
 
 - **Totals**: requests, prompt/completion tokens, estimated cost
-- **By model**: requests and tokens sliced by model ID, with time filters (All / Last 1h / 24h / 7d / 30d)
-- **Recent requests table**: timestamp, model, tokens, latency, status (with the same time filters)
-- **Provider summary**: requests and tokens by DeepSeek / MiniMax / Xiaomi
+- **By model**: requests, tokens, and **Est. cost** sliced by model ID, with time filters (All / Last 1h / 24h / 7d / 30d)
+- **Recent requests table**: timestamp, model, tokens, latency, status, **Est. cost** (with the same time filters)
+- **Provider summary**: requests, tokens, and **Est. cost** by DeepSeek / MiniMax / Xiaomi
 
 The status bar shows the current gateway state (running / stopped / error).
+
+### Estimated cost and pricing
+
+The **Est. cost** column shows the cost of each request (or the aggregated total for the row), computed as:
+
+```
+cost = (promptTokens * pricing.inputPerMillion
+      + completionTokens * pricing.outputPerMillion) / 1_000_000
+```
+
+**Indicative defaults** — AIFlowBridge ships with indicative per-million-token rates for the token-plan vendors (MiniMax, Xiaomi MiMo) so the dashboard shows non-zero costs out of the box. The current family-level defaults are:
+
+| Family             | Input / 1M | Output / 1M | Applies to                                                                                  |
+| ------------------ | ---------- | ----------- | ------------------------------------------------------------------------------------------- |
+| MiniMax            | $0.30      | $1.20       | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3                   |
+| Xiaomi MiMo        | $0.10      | $0.30       | V2 Omni, V2 Pro, V2.5, V2.5 Pro                                                             |
+
+Every model in `MODELS` is auto-synthesized into the gateway catalog with the appropriate family rate, so the [complete default `settings.json`](.#configuring-gateway-providers) covers all 14 models without any user input.
+
+These are **estimates**, not a quote. The actual tariff depends on your plan tier, region (Xiaomi ships separate plans per cluster: `token-plan-ams`, `token-plan-sgp`, `token-plan-cn`), and whether you use token-plan keys (`tp-*`) or pay-as-you-go. The per-row tooltip on each Est. cost cell shows the rate that was used to compute it.
+
+**Overriding the pricing** — add a `pricing` block to the matching provider entry in `aiflowbridge.providers` (in `settings.json`). User-configured values always win over the built-in defaults. Example:
+
+```json
+{
+  "aiflowbridge.providers": [
+    {
+      "id": "minimax",
+      "label": "MiniMax V2.7",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M2.7",
+      "enabled": true,
+      "pricing": {
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 1.2,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "xiaomi",
+      "label": "Xiaomi MiMo V2.5 Pro (AMS)",
+      "kind": "openai-compat",
+      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
+      "model": "mimo-v2.5-pro",
+      "enabled": true,
+      "pricing": {
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.3,
+        "currency": "EUR"
+      }
+    }
+  ]
+}
+```
+
+User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge: Add a custom model** command) inherit the family-level default pricing automatically — so a custom MiniMax-M3 model gets the same indicative rate as the built-in MiniMax M2.7 profile. Override it the same way by adding a `pricing` block to the synthesized provider entry.
+
+Providers without a `pricing` block show `—` in the Est. cost column, and requests routed through them contribute `0` to the total.
 
 ### What the metrics dashboard actually tracks
 
@@ -335,38 +394,153 @@ The gateway routes requests to the correct upstream provider based on the model 
 
 #### Configuring Gateway Providers
 
-Gateway providers are configured in VS Code settings (`settings.json`):
+The gateway catalog is built in three layers, in this order:
+
+1. **Your overrides** in `aiflowbridge.providers` (highest priority - you take full control and replace the defaults below)
+2. **Hand-curated defaults** for the flagship models (DeepSeek V4 Flash/Pro, MiniMax M2.7, Xiaomi MiMo V2.5 Pro)
+3. **Auto-synthesized** entries for every other model in the built-in `MODELS` registry (MiniMax-M2 / M2.1 / M2.1 Highspeed / M2.5 / M2.5 Highspeed / M2.7 Highspeed / M3, Xiaomi MiMo V2 Omni / V2 Pro / V2.5)
+
+The synthesized entries inherit the family-level indicative pricing, so the dashboard's "Est. cost" column is non-zero out of the box for every model.
+
+The following `settings.json` shows the **complete default catalog** the gateway exposes when no overrides are set. Each entry has a `pricing` block with the indicative token-plan rate (USD per 1M tokens) used by the dashboard. **You normally do not need to copy this verbatim** - AIFlowBridge generates it automatically. Override only the entries you want to customize (different tier, different region, pay-as-you-go, EUR billing, etc.).
 
 ```json
 {
   "aiflowbridge.providers": [
     {
       "id": "deepseek-flash",
-      "label": "DeepSeek Flash",
+      "label": "DeepSeek V4 Flash",
       "kind": "openai-compat",
       "baseUrl": "https://api.deepseek.com",
-      "model": "deepseek-v4-flash",
-      "apiKey": "sk-..."
+      "model": "deepseek-v4-flash"
+    },
+    {
+      "id": "deepseek-pro",
+      "label": "DeepSeek V4 Pro",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.deepseek.com",
+      "model": "deepseek-v4-pro"
     },
     {
       "id": "minimax",
-      "label": "MiniMax M2.7",
+      "label": "MiniMax V2.7",
       "kind": "openai-compat",
       "baseUrl": "https://api.minimax.io/v1",
       "model": "MiniMax-M2.7",
-      "apiKey": "..."
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
     },
     {
-      "id": "MiMo",
+      "id": "MiniMax-M2",
+      "label": "MiniMax M2",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M2",
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
+    },
+    {
+      "id": "MiniMax-M2.1",
+      "label": "MiniMax M2.1",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M2.1",
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
+    },
+    {
+      "id": "MiniMax-M2.1-highspeed",
+      "label": "MiniMax M2.1 Highspeed",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M2.1-highspeed",
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
+    },
+    {
+      "id": "MiniMax-M2.5",
+      "label": "MiniMax M2.5",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M2.5",
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
+    },
+    {
+      "id": "MiniMax-M2.5-highspeed",
+      "label": "MiniMax M2.5 Highspeed",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M2.5-highspeed",
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
+    },
+    {
+      "id": "MiniMax-M2.7-highspeed",
+      "label": "MiniMax M2.7 Highspeed",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M2.7-highspeed",
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
+    },
+    {
+      "id": "MiniMax-M3",
+      "label": "MiniMax M3",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M3",
+      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
+    },
+    {
+      "id": "xiaomi",
       "label": "Xiaomi MiMo V2.5 Pro",
       "kind": "openai-compat",
       "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
-      "model": "MiMo-V2.5-PRO",
-      "apiKey": "..."
+      "model": "mimo-v2.5-pro",
+      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
+    },
+    {
+      "id": "mimo-v2-omni",
+      "label": "Xiaomi MiMo V2 Omni",
+      "kind": "openai-compat",
+      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
+      "model": "mimo-v2-omni",
+      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
+    },
+    {
+      "id": "mimo-v2-pro",
+      "label": "Xiaomi MiMo V2 Pro",
+      "kind": "openai-compat",
+      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
+      "model": "mimo-v2-pro",
+      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
+    },
+    {
+      "id": "mimo-v2.5",
+      "label": "Xiaomi MiMo V2.5",
+      "kind": "openai-compat",
+      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
+      "model": "mimo-v2.5",
+      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
     }
   ]
 }
 ```
+
+**To override the rate for one model only** (e.g. Xiaomi on the Singapore cluster, billed in EUR), declare it in `aiflowbridge.providers` with a different `baseUrl` / `pricing`. The first entry that matches the model wins. Removing an entry from the array does **not** disable the corresponding model - use `"enabled": false` instead.
+
+**Disabling a model from the dashboard catalog** while keeping the others:
+
+```json
+{
+  "aiflowbridge.providers": [
+    {
+      "id": "MiniMax-M3",
+      "label": "MiniMax M3 (disabled locally)",
+      "kind": "openai-compat",
+      "baseUrl": "https://api.minimax.io/v1",
+      "model": "MiniMax-M3",
+      "enabled": false
+    }
+  ]
+}
+```
+
+The dashboard and the `GET /v1/models` catalog will skip any provider with `"enabled": false`.
 
 ### Metrics Dashboard
 
