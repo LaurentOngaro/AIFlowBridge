@@ -1,4 +1,5 @@
 import vscode from 'vscode';
+import { tryGetLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import {
     getProviderApiModelId,
     getProviderBaseUrl,
@@ -7,7 +8,7 @@ import {
     getProviderTemperature,
     getProviderTopP,
 } from '../config';
-import { API_KEY_SECRETS, DEFAULT_PROVIDER_URLS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
+import { API_KEY_SECRETS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
 import { t } from '../i18n';
 import { logger } from '../logger';
 import { BaseChatProvider } from './base';
@@ -17,7 +18,7 @@ import { estimateTokenCount } from './tokens';
 import { createVisionModelGetter, resolveImageMessages } from './vision/index';
 
 const MINIMAX_API_KEY_SECRET = API_KEY_SECRETS.minimax;
-const MINIMAX_BASE_URL = DEFAULT_PROVIDER_URLS.minimax;
+const MINIMAX_BASE_URL = tryGetLoadedRegistry()?.vendors.minimax?.baseUrl ?? '';
 
 interface MiniMaxAuthManager {
 	hasApiKey(): Promise<boolean>;

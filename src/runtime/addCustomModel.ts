@@ -4,7 +4,8 @@
  */
 
 import vscode from 'vscode';
-import { CONFIG_SECTION, DEFAULT_PROVIDER_URLS } from '../consts';
+import { tryGetLoadedRegistry } from '../aiflowbridge/modelRegistry';
+import { CONFIG_SECTION } from '../consts';
 import { t } from '../i18n';
 import { logger } from '../logger';
 
@@ -24,9 +25,9 @@ interface AddCustomModelResult {
 }
 
 const VENDOR_CHOICES = [
-	{ id: 'minimax', label: 'MiniMax', defaultBaseUrl: DEFAULT_PROVIDER_URLS.minimax },
-	{ id: 'deepseek', label: 'DeepSeek', defaultBaseUrl: DEFAULT_PROVIDER_URLS.deepseek },
-	{ id: 'xiaomi', label: 'Xiaomi MiMo', defaultBaseUrl: DEFAULT_PROVIDER_URLS.xiaomi },
+	{ id: 'minimax', label: 'MiniMax' },
+	{ id: 'deepseek', label: 'DeepSeek' },
+	{ id: 'xiaomi', label: 'Xiaomi MiMo' },
 ] as const;
 
 type VendorId = (typeof VENDOR_CHOICES)[number]['id'];
@@ -41,12 +42,13 @@ export async function addCustomModelCommand(context: vscode.ExtensionContext): P
 	try {
 		// 1. Pick the vendor
 		const vendorPick = await vscode.window.showQuickPick(
-			VENDOR_CHOICES.map((v) => ({ label: v.label, id: v.id, defaultBaseUrl: v.defaultBaseUrl })),
+			VENDOR_CHOICES.map((v) => ({ label: v.label, id: v.id })),
 			{ placeHolder: 'Which provider do you want to discover models from?', title: 'AIFlowBridge: Add custom model' },
 		);
 		if (!vendorPick) return;
 		const vendor = vendorPick.id as VendorId;
-		const baseUrl = vendorPick.defaultBaseUrl.replace(/\/+$/, '');
+		const registryBaseUrl = tryGetLoadedRegistry()?.vendors[vendor]?.baseUrl ?? '';
+		const baseUrl = registryBaseUrl.replace(/\/+$/, '');
 
 		// 2. Read API key from SecretStorage (best-effort, fetch works without for some vendors)
 		const apiKey = await Promise.resolve(context.secrets.get(`aiflowbridge.providers.${vendor}.apiKey`)).catch(() => undefined);

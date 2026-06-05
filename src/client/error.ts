@@ -1,6 +1,6 @@
 import { t } from '../i18n';
 import {
-	API_PROVIDER_HTTP_ERROR_LINKS,
+	getApiProviderHttpErrorLinks,
 	MAX_DIAGNOSTIC_FIELD_LENGTH,
 	NETWORK_ERROR_CATEGORY_BY_CODE,
 	OFFICIAL_DEEPSEEK_API_HOST,
@@ -335,7 +335,7 @@ function getProviderHttpErrorLink(
 ): HttpErrorLinkDefinition | undefined {
 	const providerId = identifyApiProvider(baseUrl);
 	const statusKey = getHttpErrorLinkStatusKey(status);
-	return providerId && statusKey ? API_PROVIDER_HTTP_ERROR_LINKS[statusKey][providerId] : undefined;
+	return providerId && statusKey ? getApiProviderHttpErrorLinks()[statusKey][providerId] : undefined;
 }
 
 function getCreateApiKeyUrl(status: number, baseUrl: string): string | undefined {

@@ -1,6 +1,6 @@
 # TODOs
 
-Track open bugs, improvements, and active tickets. For the detailled implementation plan, see `_helpers/PLAN_ACTIONS.md`.
+Track open bugs, improvements, and active tickets. For the detailled implementation plan, see `_helpers/ACTION PLAN.md`.
 
 ## Immediate Fixes (last:)
 
@@ -8,37 +8,47 @@ _Placeholder section - no urgent fixes._
 
 ## Project Improvements
 
-For implementation details, see `_helpers/PLAN_ACTIONS.md`.
+For implementation details, see `_helpers/ACTION PLAN.md`.
 
 ### Implementation Priorities
 
 Tickets ranked by priority (most urgent first):
 
-- None
+## Bugs (last: BUG10)
 
-## Bugs (last:BUG07)
+- [ ] BUG08: [image not analysed](https://github.com/LaurentOngaro/AIFlowBridge/issues/1)
 
-_None - last bug BUG07 was fixed in 1.2.3._
+### Documentation (last: DOC01)
 
-### Documentation (last:DOC02)
-
-_None - last docs ticket DOC02 was completed in 1.2.1._
+_None for now._
 
 ### Display (last:AFF02)
 
-_None - last display tickets AFF01 / AFF02 were completed in 1.2.0._
+- [ ] AFF03: improve metrics dashboard UI
+  - [ ] add the current version of the server running to the text "Gateway vX.X.X running..."
+  - [ ] add the current version of the extension (under the Title) with text: current version: vX.X.X)
+  - [ ] make sections collapsible in dashboard metrics
+  - [ ] add custom date filter options to the dashboard (with start and end date pickers)
 
-### Features (last:)
+### Features (last: FEAT3)
+
+- [ ] FEAT1: I would like the llm usage stats appearing in the metrics to be common to all vscode sessions using AIFlowBridge (which makes sense for tracking a budget), which also means that the data must be saved in a file independent of the workspace and that you MUST manage concurrent access
 
 ### Refactoring (last:)
 
+_None for now._
+
 ### API (last:API01)
 
-_None - last API ticket API01 was completed in 1.2.0._
+_None for now._
 
 ### Performance (last:)
 
+_None for now._
+
 ### Security (last:)
+
+_None for now._
 
 ### Roadmap / Ideas to Investigate (last:)
 
@@ -63,6 +73,16 @@ _The README has a public-facing version of this roadmap in the "Roadmap" section
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 1.4.0
+
+- BUG10: [prices are not updated on metrics](https://github.com/LaurentOngaro/AIFlowBridge/issues/3)
+- BUG09: ["Edit model registry" fails](https://github.com/LaurentOngaro/AIFlowBridge/issues/2)
+- FEAT3: Version-aware cooperative gateway restart** (`src/aiflowbridge/gateway/probe.ts` + `lock.ts` + `/version` + `/shutdown` endpoints on `server.ts`). The new activation probes the peer on `http://127.0.0.1:<port>` (hard-coded loopback, not the user-configurable `baseUrl` - see Security note below) and:
+
+### 1.3.0
+
+- FEAT2: - External model registry** (`resources/models.json` + 3-tier merge: workspace `.vscode/aiflowbridge.models.json` > `globalStorage` > bundled). Adds `AIFlowBridge: Edit model registry` and `AIFlowBridge: Reset model registry to bundled defaults` commands. `src/consts.ts` trimmed from 202 to ~50 lines (`MODELS`, `DEFAULT_PROVIDER_URLS`, `EXTERNAL_URLS` are gone, data now lives in the registry and is read at activation via `loadModelRegistry(context)`). 50 new tests across `tests/modelRegistry.schema.test.ts` (39) + `tests/modelRegistry.test.ts` (11). Per-model `pricing` blocks in the registry are the new source of truth for the dashboard "Est. cost" column.
 
 ### 1.2.3
 

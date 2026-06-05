@@ -99,6 +99,12 @@ const en: Translations = {
 	'command.apiKeyPrompt': 'Enter your {0} API key',
 	'command.apiKeyPlaceholder': '{0} API key',
 	'command.apiKeyEmptyValidation': 'API key cannot be empty',
+	'command.editModelRegistryFailed': 'Failed to open model registry: {0}',
+	'command.resetModelRegistryNone': 'No model registry override to reset - the bundled defaults are already in effect.',
+	'command.resetModelRegistryConfirm': 'Reset the model registry override to bundled defaults? Your customizations will be lost.',
+	'command.resetModelRegistryDone': 'Model registry override removed. Reload the window to apply the bundled defaults?',
+	'command.resetModelRegistryReload': 'Reload Window',
+	'command.resetModelRegistryFailed': 'Failed to reset model registry: {0}',
 };
 
 /**

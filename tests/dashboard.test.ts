@@ -7,11 +7,13 @@
  * - Time-filter buttons (All / 1h / 24h / 7d / 30d) are present
  * - Gateway status badge reflects the running state
  * - Per-provider summary includes enabled providers
+ * - "Pricing" column is rendered for the recent, by-model, and provider
+ *   tables, using the indicative pricing declared on the provider profiles
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiFlowBridgeConfig, TelemetrySnapshot } from '../src/aiflowbridge/types';
-import { buildDashboardHtml } from '../src/aiflowbridge/ui/dashboard';
+import { buildDashboardHtml, buildPricingMaps, formatCostCell } from '../src/aiflowbridge/ui/dashboard';
 
 function emptySnapshot(): TelemetrySnapshot {
   return {
@@ -33,7 +35,15 @@ function baseConfig(): AiFlowBridgeConfig {
   return {
     gateway: { enabled: true, port: 8787, baseUrl: 'http://127.0.0.1:8787/v1', defaultModel: '' },
     providers: [
-      { id: 'minimax', label: 'MiniMax V2.7', kind: 'openai-compat', baseUrl: 'https://api.minimax.io/v1', model: 'MiniMax-M2.7', enabled: true },
+      {
+        id: 'minimax',
+        label: 'MiniMax V2.7',
+        kind: 'openai-compat',
+        baseUrl: 'https://api.minimax.io/v1',
+        model: 'MiniMax-M2.7',
+        enabled: true,
+        pricing: { inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' },
+      },
     ],
     telemetryEnabled: true,
     logRequests: true,
@@ -237,5 +247,135 @@ describe('buildDashboardHtml', () => {
     const body = html.split('<script>')[0];
     expect(body).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(body).toContain('&quot;&gt;&lt;script&gt;alert(2)&lt;/script&gt;');
+  });
+
+  it('renders an Est. cost column in the recent, by-model, and provider tables', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // The header is rendered three times (recent / by-model / provider).
+    expect(html.match(/<th>Est\. cost<\/th>/g)?.length).toBe(3);
+  });
+
+  it('shows the per-request estimated cost in the recent row', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // First recent request: estimatedCost = 0.0002 -> "$0.0002"
+    expect(html).toContain('$0.0002');
+  });
+
+  it('exposes the per-million-token rate as a tooltip on the Est. cost cell', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // Tooltip combines the rate (in $0.30 / out $1.20) and the currency.
+    expect(html).toContain('in $0.30 / out $1.20 per 1M tokens (USD)');
+  });
+
+  it('shows the aggregated estimated cost in the by-model and provider tables', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // snapshot.estimatedCost = 0.0023 -> "$0.0023"
+    expect(html).toContain('>0.0023<');
+  });
+
+  it('falls back to a dash cell when the cost is zero or unpriced', () => {
+    const config: AiFlowBridgeConfig = {
+      ...baseConfig(),
+      providers: [
+        {
+          id: 'unpriced',
+          label: 'Unpriced',
+          kind: 'openai-compat',
+          baseUrl: 'https://example.com/v1',
+          model: 'unpriced-model',
+          enabled: true,
+        },
+      ],
+    };
+    const snapshot: TelemetrySnapshot = {
+      ...emptySnapshot(),
+      recent: [
+        {
+          id: 'r1',
+          timestamp: '2026-06-03T08:00:00.000Z',
+          providerId: 'unpriced',
+          providerLabel: 'Unpriced',
+          model: 'unpriced-model',
+          status: 200,
+          durationMs: 100,
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+          estimatedCost: 0,
+          estimated: false,
+        },
+      ],
+      byProvider: { unpriced: { requests: 1, promptTokens: 10, completionTokens: 5, totalTokens: 15, estimatedCost: 0, errors: 0, averageDurationMs: 100 } },
+      byModel: { 'unpriced-model': { requests: 1, promptTokens: 10, completionTokens: 5, totalTokens: 15, estimatedCost: 0, errors: 0, averageDurationMs: 100 } },
+    };
+    const html = buildDashboardHtml(config, snapshot, true);
+    // The dash placeholder must appear in all three table bodies.
+    const dashCount = html.match(/<span class="muted">-<\/span>/g)?.length ?? 0;
+    expect(dashCount).toBeGreaterThanOrEqual(3);
+  });
+
+  it('expands the colspan of the empty-state row in the recent table to 8 columns', () => {
+    const html = buildDashboardHtml(baseConfig(), emptySnapshot(), true);
+    // The empty-state message in the recent table is rendered with colspan="8"
+    // when filtered client-side (all-time on an empty snapshot also shows the
+    // "No request recorded yet" copy, but we re-render with colspan when
+    // filtering selects a range). Verify the filter path: the script block
+    // uses the new colspan.
+    expect(html).toContain('colspan="8"');
+  });
+
+  it('serializes estimatedCost into the recent array used by the client-side filter', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // The JSON payload injected into the script block must include the
+    // per-request estimatedCost so the filter (1h/24h/...) can rebuild the
+    // Est. cost cell.
+    expect(html).toMatch(/"estimatedCost":0?\.0002/);
+  });
+});
+
+describe('buildPricingMaps', () => {
+  it('indexes enabled providers by id and by upstream model', () => {
+    const maps = buildPricingMaps(baseConfig().providers);
+    expect(maps.byProviderId['minimax']).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
+    expect(maps.byModel['MiniMax-M2.7']).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
+  });
+
+  it('skips profiles without pricing', () => {
+    const maps = buildPricingMaps([
+      { id: 'no-price', label: 'NP', kind: 'openai-compat', baseUrl: 'https://x', model: 'np', enabled: true },
+    ]);
+    expect(maps.byProviderId).toEqual({});
+    expect(maps.byModel).toEqual({});
+  });
+});
+
+describe('formatCostCell', () => {
+  it('renders a dash for zero or non-finite cost', () => {
+    expect(formatCostCell(0, undefined)).toBe('<span class="muted">-</span>');
+    expect(formatCostCell(NaN, undefined)).toBe('<span class="muted">-</span>');
+    expect(formatCostCell(-1, undefined)).toBe('<span class="muted">-</span>');
+  });
+
+  it('renders sub-cent costs with up-to-4 decimals, trimming trailing zeros', () => {
+    const html = formatCostCell(0.0023, { inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
+    expect(html).toContain('$0.0023');
+    expect(html).toContain('title="in $0.30 / out $1.20 per 1M tokens (USD)"');
+  });
+
+  it('trims trailing zeros for round costs', () => {
+    const html = formatCostCell(0.001, { inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' });
+    expect(html).toContain('$0.001');
+    expect(html).not.toContain('$0.0010');
+  });
+
+  it('honours non-USD currency', () => {
+    const html = formatCostCell(1.5, { inputPerMillion: 1, outputPerMillion: 2, currency: 'EUR' });
+    expect(html).toContain('EUR 1.5');
+    expect(html).toContain('per 1M tokens (EUR)');
+  });
+
+  it('falls back to USD when no pricing is supplied', () => {
+    const html = formatCostCell(0.5, undefined);
+    expect(html).toContain('$0.5');
   });
 });

@@ -250,13 +250,19 @@ describe('GatewayService - HTTP endpoints', () => {
 });
 
 describe('GatewayService - singleton detection', () => {
-	it('detects an existing AIFlowBridge gateway on the same port', async () => {
-		// Start a fake "AIFlowBridge" gateway that returns the expected /health response
+	it('detects an existing AIFlowBridge gateway on the same port (same version)', async () => {
+		// Start a fake "AIFlowBridge" gateway that returns the expected /version response.
+		// /version is the new probe (replaces the old /health probe).
 		const fakeServer = createServer((req, res) => {
-			if (req.method === 'GET' && req.url === '/health') {
+			if (req.method === 'GET' && req.url === '/version') {
 				res.statusCode = 200;
 				res.setHeader('Content-Type', 'application/json');
-				res.end(JSON.stringify({ ok: true, service: 'AIFlowBridge' }));
+				res.end(JSON.stringify({
+					name: 'aiflowbridge-gateway',
+					version: '0.0.0', // matches the default bundledVersion
+					pid: 1,
+					startedAt: '2026-06-04T00:00:00.000Z',
+				}));
 				return;
 			}
 			res.statusCode = 404;
@@ -273,7 +279,11 @@ describe('GatewayService - singleton detection', () => {
 
 		try {
 			const status = await service.start();
-			expect(status.running).toBe(false);
+			// Joining a peer means the gateway is reachable through the
+			// peer, even though we do not own the listening socket. The
+			// status must report running=true so the dashboard and status
+			// bar show "Gateway running".
+			expect(status.running).toBe(true);
 			expect(status.port).toBe(port);
 		} finally {
 			await service.stop();
@@ -306,6 +316,44 @@ describe('GatewayService - singleton detection', () => {
 		} finally {
 			await service.stop();
 			await new Promise<void>((resolve) => fakeServer.close(() => resolve()));
+		}
+	});
+
+	it('clears the failed server on bind error so running=false and a retry actually rebinds (MT05 regression)', async () => {
+		// MT05: when a foreign service (e.g. python -m http.server) holds the
+		// configured port, the gateway bind MUST fail AND the service must
+		// expose `running=false` afterwards. Otherwise the runtime reports
+		// the gateway as "already running" and the "Start local gateway"
+		// command silently no-ops on a stale `this.server` reference.
+		const foreign = createServer((_req, res) => {
+			res.statusCode = 404;
+			res.setHeader('Content-Type', 'text/plain');
+			res.end('not a gateway');
+		});
+		await new Promise<void>((resolve) => foreign.listen(0, '127.0.0.1', resolve));
+		const port = (foreign.address() as { port: number }).port;
+		const baseUrl = `http://127.0.0.1:${port}`;
+
+		const service = new GatewayService(makeConfig({
+			gateway: { enabled: true, port, baseUrl, defaultModel: '' },
+		}));
+
+		try {
+			await expect(service.start()).rejects.toBeDefined();
+			// `running` must be false after a failed bind, otherwise the
+			// dashboard and the "Start local gateway" command lie to the
+			// user about the gateway being up.
+			expect(service.running).toBe(false);
+
+			// Free the port, then retry: the next start() must actually
+			// attempt the bind (not short-circuit on a stale server
+			// reference) and succeed.
+			await new Promise<void>((resolve) => foreign.close(() => resolve()));
+			const status = await service.start();
+			expect(status.running).toBe(true);
+			expect(service.running).toBe(true);
+		} finally {
+			await service.stop();
 		}
 	});
 });

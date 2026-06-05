@@ -1,36 +1,45 @@
+import { tryGetLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import type {
 	ApiProviderId,
 	HttpErrorLinkDefinition,
 	HttpErrorLinkStatusKey,
 	NetworkErrorCategory,
 } from './types';
-import { EXTERNAL_URLS } from '../consts';
 
 export const OFFICIAL_DEEPSEEK_API_HOST = 'api.deepseek.com';
 export const MAX_DIAGNOSTIC_FIELD_LENGTH = 300;
 
-export const API_PROVIDER_HTTP_ERROR_LINKS: Readonly<
+/**
+ * Map of HTTP status -> vendor -> action link, sourced from the model
+ * registry's `vendors.deepseek.externalUrls` block. Computed lazily on
+ * first access so the registry cache is populated by the time the error
+ * formatter runs.
+ */
+export function getApiProviderHttpErrorLinks(): Readonly<
 	Record<HttpErrorLinkStatusKey, Readonly<Partial<Record<ApiProviderId, HttpErrorLinkDefinition>>>>
-> = {
-	401: {
-		deepseek: {
-			labelKey: 'error.action.createApiKey',
-			url: EXTERNAL_URLS.deepseek.apiKeys,
+> {
+	const ext = tryGetLoadedRegistry()?.vendors.deepseek?.externalUrls ?? {};
+	return {
+		401: {
+			deepseek: {
+				labelKey: 'error.action.createApiKey',
+				url: ext.apiKeys ?? '',
+			},
 		},
-	},
-	402: {
-		deepseek: {
-			labelKey: 'error.action.viewUsage',
-			url: EXTERNAL_URLS.deepseek.usage,
+		402: {
+			deepseek: {
+				labelKey: 'error.action.viewUsage',
+				url: ext.usage ?? '',
+			},
 		},
-	},
-	'5xx': {
-		deepseek: {
-			labelKey: 'error.action.checkStatus',
-			url: EXTERNAL_URLS.deepseek.status,
+		'5xx': {
+			deepseek: {
+				labelKey: 'error.action.checkStatus',
+				url: ext.status ?? '',
+			},
 		},
-	},
-};
+	};
+}
 
 /**
  * Curated network error codes observed from Node.js fetch failures.

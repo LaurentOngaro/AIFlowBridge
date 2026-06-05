@@ -3,7 +3,8 @@
  * Tests tool call handling, reasoning replay, vision messages, and helper functions.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 // --- VSCode mock ---
 const { mockWorkspaceConfig } = vi.hoisted(() => {
@@ -69,7 +70,34 @@ import {
   pruneReasoningCache,
 } from '../src/provider/xiaomi';
 
-import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE, MODELS } from '../src/consts';
+import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../src/consts';
+import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
+import {
+	validateRegistryStructure,
+	validateRegistryContent,
+	type ModelRegistry,
+} from '../src/aiflowbridge/modelRegistry.schema';
+
+const BUNDLED_REGISTRY_PATH = 'D:/Projets_Perso/03_Code/_Extensions/vsCode/AIFlowBridge/resources/models.json';
+
+let bundledRegistry: ModelRegistry;
+
+beforeAll(() => {
+	const raw = JSON.parse(readFileSync(BUNDLED_REGISTRY_PATH, 'utf8'));
+	validateRegistryStructure(raw);
+	const content = validateRegistryContent(raw);
+	bundledRegistry = {
+		version: 1,
+		vendors: content.vendors,
+		models: content.models,
+		sources: {
+			bundled: { exists: true, path: BUNDLED_REGISTRY_PATH },
+			globalStorage: { exists: false, path: '' },
+			workspace: { exists: false, path: '' },
+		},
+	};
+	setLoadedRegistry(bundledRegistry);
+});
 
 // Helper functions to create mock messages
 function createUserMessage(content: string, imageData?: Uint8Array, mimeType = 'image/png') {
@@ -396,7 +424,7 @@ describe('xiaomi.ts - convertXiaomiMessages', () => {
 
 describe('xiaomi.ts - Model capabilities', () => {
   it('should have correct capabilities for mimo-v2.5', () => {
-    const model = MODELS.find((m) => m.id === 'mimo-v2.5');
+    const model = bundledRegistry.models.find((m) => m.id === 'mimo-v2.5');
     expect(model?.capabilities.thinking).toBe(true);
     expect(model?.capabilities.imageInput).toBe(true);
     expect(model?.capabilities.toolCalling).toBe(true);
@@ -404,7 +432,7 @@ describe('xiaomi.ts - Model capabilities', () => {
   });
 
   it('should have correct capabilities for mimo-v2.5-pro', () => {
-    const model = MODELS.find((m) => m.id === 'mimo-v2.5-pro');
+    const model = bundledRegistry.models.find((m) => m.id === 'mimo-v2.5-pro');
     expect(model?.capabilities.thinking).toBe(true);
     expect(model?.capabilities.imageInput).toBe(true);
     expect(model?.capabilities.toolCalling).toBe(true);

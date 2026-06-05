@@ -1,7 +1,8 @@
 import vscode from 'vscode';
 import { AuthManager } from '../auth';
+import { getLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import { getStabilizeToolListEnabled } from '../config';
-import { API_KEY_SECRETS, MODELS } from '../consts';
+import { API_KEY_SECRETS } from '../consts';
 import { t } from '../i18n';
 import {
     classifyProviderRequest,
@@ -99,7 +100,7 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 			return [];
 		}
 		const hasKey = await this.authManager.hasApiKey('deepseek');
-		return MODELS.filter((m) => m.family === 'deepseek').map((model) => toChatInfo(model, hasKey));
+		return getLoadedRegistry().models.filter((m) => m.family === 'deepseek').map((model) => toChatInfo(model, hasKey));
 	}
 
 	async provideLanguageModelChatResponse(

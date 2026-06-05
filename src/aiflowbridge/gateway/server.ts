@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { connect as netConnect, type Socket as NetSocket } from "node:net";
 import { Readable } from "node:stream";
 import { URL } from "node:url";
 import { logger } from "../../logger";
@@ -8,6 +7,14 @@ import { buildModelCatalog, selectProvider } from "../providers";
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
 import { fetchMinimaxPromptTokens } from "../token-counter";
 import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
+import {
+    compareSemver,
+    GATEWAY_SERVICE_NAME,
+    isPortInUse,
+    probeServerVersion,
+    requestPeerShutdown,
+    waitUntilPortFree,
+} from "./probe";
 
 interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;
@@ -17,10 +24,43 @@ export type ResolveApiKeyFn = (vendor: string) => Promise<string | undefined>;
 export type TelemetryStateLoader = () => TelemetrySnapshot | undefined;
 export type TelemetryStateSaver = (snapshot: TelemetrySnapshot) => void;
 
+/**
+ * Optional pluggable hook used to make the singleton/version-aware restart
+ * flow testable. The default implementation shows a non-modal VS Code
+ * information message; tests inject a stub instead.
+ */
+export interface UserPrompt {
+  showInformationMessage(message: string, ...items: string[]): Promise<string | undefined>;
+}
+
+/**
+ * Outcome of `handleOccupiedPort()`. Used by the runtime to surface a
+ * targeted user-facing error when the user asked for a restart but the
+ * peer never freed the port (typical of Windows TIME_WAIT or a hung peer).
+ */
+export type HandleOccupiedPortResult =
+  | { kind: "joined" }
+  | { kind: "proceed-bind" }
+  | { kind: "restart-failed"; peerPid: number };
+
 export class GatewayService {
   private server: ReturnType<typeof createServer> | undefined;
+  /**
+   * Set to `true` when the service could not bind the configured port
+   * because an existing peer gateway was detected (and accepted as a
+   * joinable peer - same/newer version, or older version with the user
+   * choosing "Keep current version" / dismissing the prompt). When
+   * `joined` is true, the gateway is reachable through the peer at
+   * `config.gateway.baseUrl`, even though we do not own a local socket.
+   * Exposed via the `running` getter so the dashboard and status bar
+   * reflect that the user-facing service is up.
+   */
+  private joined = false;
   private config: AiFlowBridgeConfig;
+  private readonly bundledVersion: string;
+  private readonly startedAt: string;
   private readonly telemetry = new TelemetryStore();
+  private readonly userPrompt: UserPrompt;
   private unsubscribePersist: (() => void) | undefined;
   private persistDebounce: NodeJS.Timeout | undefined;
   private static readonly PERSIST_DEBOUNCE_MS = 1000;
@@ -32,8 +72,13 @@ export class GatewayService {
     private readonly resolveApiKey?: ResolveApiKeyFn,
     private readonly loadState?: TelemetryStateLoader,
     private readonly saveState?: TelemetryStateSaver,
+    bundledVersion: string = "0.0.0",
+    userPrompt?: UserPrompt,
   ) {
     this.config = config;
+    this.bundledVersion = bundledVersion;
+    this.startedAt = new Date().toISOString();
+    this.userPrompt = userPrompt ?? defaultUserPrompt;
     // Persistence wiring is deferred to init() so the caller has a chance
     // to set up its own state (e.g. VS Code ExtensionContext) before the
     // load/save callbacks run. Constructing the service and immediately
@@ -79,7 +124,7 @@ export class GatewayService {
   }
 
   get running(): boolean {
-    return Boolean(this.server);
+    return Boolean(this.server) || this.joined;
   }
 
   get baseUrl(): string {
@@ -109,22 +154,28 @@ export class GatewayService {
       return this.status();
     }
 
-    // Check if another instance already occupies the default port
+    // Check if another instance already occupies the configured port
     if (await isPortInUse(this.config.gateway.port)) {
-      logger.info(`[Gateway] Port ${this.config.gateway.port} is in use, checking for existing gateway...`);
-
-      // Verify the existing service is actually a reachable AIFlowBridge gateway
-      if (await isGatewayReachable(this.config.gateway.baseUrl)) {
-        // Another AIFlowBridge instance owns the port - reuse it
-        logger.info(`[Gateway] Existing gateway detected, joining on ${this.config.gateway.baseUrl}`);
-        this.emitUpdate();
+      const result = await this.handleOccupiedPort();
+      if (result.kind === "joined") {
         return this.status();
       }
-
-      // Port is occupied by something else - this should not happen in normal use
-      logger.warn(`[Gateway] Port ${this.config.gateway.port} is occupied by a non-gateway service`);
+      if (result.kind === "restart-failed") {
+        // Surface the peer PID to the caller (runtime) so it can show a
+        // targeted user-facing error. Per ACTION PLAN: "Si timeout atteint
+        // -> erreur claire a l'utilisateur avec le PID de l'ancienne
+        // instance."
+        const error = new Error(
+          `Peer gateway (pid ${result.peerPid}) did not free port ${this.config.gateway.port} within timeout. ` +
+            `If another AIFlowBridge is binding this port, stop it manually; otherwise wait for TIME_WAIT to clear.`,
+        );
+        (error as Error & { code?: string; peerPid?: number }).code = "EPEERSTALLED";
+        (error as Error & { code?: string; peerPid?: number }).peerPid = result.peerPid;
+        throw error;
+      }
+      // result.kind === "proceed-bind": the port may have been freed by
+      // the peer we asked to shut down. Fall through to listen().
     }
-
     this.server = createServer((request, response) => {
       void this.handleRequest(request, response).catch((error: unknown) => {
         logger.error("[Gateway] Request handling error", error);
@@ -145,6 +196,18 @@ export class GatewayService {
 
       const onError = (error: Error): void => {
         server.off("listening", onListening);
+        // Drop the half-constructed server so `running` reports `false` and a
+        // subsequent `start()` (e.g. after the peer frees the port, or via the
+        // "Start local gateway" command) re-enters the bind path instead of
+        // short-circuiting on a stale `this.server` reference. Without this
+        // cleanup, an EACCES/EADDRINUSE leaves `this.server` truthy and the
+        // runtime falsely reports the gateway as "already running" (MT05).
+        this.server = undefined;
+        try {
+          server.close();
+        } catch {
+          // The server never reached 'listening'; close() is best-effort.
+        }
         logger.error(`[Gateway] Failed to start on port ${this.config.gateway.port}: ${error.message}`);
         reject(error);
       };
@@ -172,16 +235,18 @@ export class GatewayService {
   }
 
   async stop(): Promise<void> {
-    if (!this.server) {
+    if (!this.server && !this.joined) {
       return;
     }
 
-    const current = this.server;
-    this.server = undefined;
-
-    await new Promise<void>((resolve) => {
-      current.close(() => resolve());
-    });
+    this.joined = false;
+    if (this.server) {
+      const current = this.server;
+      this.server = undefined;
+      await new Promise<void>((resolve) => {
+        current.close(() => resolve());
+      });
+    }
 
     this.emitUpdate();
   }
@@ -203,9 +268,114 @@ export class GatewayService {
     this.onUpdate?.(this.status(), this.telemetry.snapshot());
   }
 
+  /**
+   * Decide what to do when the configured port is already in use.
+   *
+   * - `joined`         - the caller should treat the gateway as joined to
+   *                      the peer and return `this.status()` without
+   *                      binding.
+   * - `proceed-bind`   - the caller should attempt to bind. Used when the
+   *                      port is occupied by a non-gateway service (the
+   *                      bind will fail loudly), or when the user asked
+   *                      for a restart and `waitUntilPortFree` returned
+   *                      `true` (the peer has released the port).
+   * - `restart-failed` - the user asked for a restart and the peer did not
+   *                      free the port within the timeout (typical of
+   *                      Windows TIME_WAIT or a hung peer). The caller
+   *                      should surface a user-facing error that includes
+   *                      the peer PID.
+   *
+   * All probe and shutdown requests are sent to the hard-coded loopback
+   * URL (`http://127.0.0.1:<port>`), never to the user-configurable
+   * `baseUrl`, to prevent SSRF via a hostile setting value.
+   */
+  private async handleOccupiedPort(): Promise<HandleOccupiedPortResult> {
+    logger.info(`[Gateway] Port ${this.config.gateway.port} is in use, probing peer...`);
+
+    const port = this.config.gateway.port;
+    const peer = await probeServerVersion(port, { timeoutMs: 200 });
+
+    if (peer && peer.name === GATEWAY_SERVICE_NAME) {
+      if (compareSemver(peer.version, this.bundledVersion) < 0) {
+        const restartLabel = `Restart with v${this.bundledVersion}`;
+        const keepLabel = "Keep current version";
+        const choice = await this.userPrompt.showInformationMessage(
+          `AIFlowBridge gateway v${peer.version} is running. Restart with v${this.bundledVersion}?`,
+          restartLabel,
+          keepLabel,
+        );
+
+        if (choice === restartLabel) {
+          logger.info(`[Gateway] User chose to restart peer v${peer.version} (pid=${peer.pid})`);
+          await requestPeerShutdown(port);
+          const freed = await waitUntilPortFree(port, { timeoutMs: 3000 });
+          if (!freed) {
+            logger.warn(`[Gateway] Port ${port} did not free up within timeout (peer pid=${peer.pid})`);
+            return { kind: "restart-failed", peerPid: peer.pid };
+          }
+          // Port is free; caller will attempt to bind.
+          return { kind: "proceed-bind" };
+        }
+
+        // Keep current version (or user dismissed the prompt): join the peer.
+        logger.info(`[Gateway] Joining existing gateway v${peer.version} on 127.0.0.1:${port}`);
+        this.joined = true;
+        this.emitUpdate();
+        return { kind: "joined" };
+      }
+
+      // Same or newer version: join silently (legacy behaviour).
+      logger.info(`[Gateway] Existing gateway v${peer.version} detected, joining on 127.0.0.1:${port}`);
+      this.joined = true;
+      this.emitUpdate();
+      return { kind: "joined" };
+    }
+
+    if (peer) {
+      logger.warn(
+        `[Gateway] Port ${port} is occupied by another service named "${peer.name}" (not aiflowbridge-gateway)`,
+      );
+    } else {
+      logger.warn(`[Gateway] Port ${port} is occupied by a non-gateway service`);
+    }
+    return { kind: "proceed-bind" };
+  }
+
   private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestUrl = new URL(request.url ?? "/", this.config.gateway.baseUrl);
     const path = requestUrl.pathname;
+
+    if (request.method === "GET" && path === "/version") {
+      // The server binds on 127.0.0.1 only, so this endpoint is reachable
+      // only from the local machine. Used by cooperative-restart detection
+      // (src/aiflowbridge/gateway/probe.ts).
+      this.writeJson(response, 200, {
+        name: GATEWAY_SERVICE_NAME,
+        version: this.bundledVersion,
+        pid: process.pid,
+        startedAt: this.startedAt,
+      });
+      return;
+    }
+
+    if (request.method === "POST" && path === "/shutdown") {
+      // Loopback-only (server binds 127.0.0.1). Used by peers that detected
+      // a version mismatch and want to start a fresh instance.
+      //
+      // We intentionally do NOT call process.exit(0) here: the gateway
+      // runs inside the VS Code extension host, and killing that process
+      // would also kill every other extension the user has installed.
+      // Closing the listening socket is enough to let the new activation
+      // bind the port; the extension host itself stays alive.
+      logger.info(
+        `[Gateway] Shutdown requested by peer on ${request.socket.remoteAddress ?? "unknown"}`,
+      );
+      this.writeJson(response, 200, { ok: true });
+      setTimeout(() => {
+        void this.server?.close();
+      }, 100);
+      return;
+    }
 
     if (request.method === "GET" && path === "/health") {
       this.writeJson(response, 200, {
@@ -514,39 +684,6 @@ function extractUsage(raw: string): { promptTokens: number; completionTokens: nu
   };
 }
 
-function isPortInUse(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket: NetSocket = netConnect(port, "127.0.0.1", () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.on("error", () => {
-      resolve(false);
-    });
-    socket.setTimeout(500);
-  });
-}
-
-export { isPortInUse };
-
-async function isGatewayReachable(baseUrl: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 500);
-    const response = await fetch(`${baseUrl}/health`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) {
-      return false;
-    }
-    const data = await response.json() as { service?: string };
-    return data.service === "AIFlowBridge";
-  } catch {
-    return false;
-  }
-}
-
 function isMinimaxProvider(provider: ProviderProfile): boolean {
   const host = provider.baseUrl.toLowerCase();
   if (host.includes("minimaxi.com") || host.includes("minimax.io")) {
@@ -554,3 +691,14 @@ function isMinimaxProvider(provider: ProviderProfile): boolean {
   }
   return provider.id.toLowerCase().startsWith("minimax");
 }
+
+const defaultUserPrompt: UserPrompt = {
+  // Lazy import to avoid pulling vscode into pure unit tests.
+  async showInformationMessage(message: string, ...items: string[]): Promise<string | undefined> {
+    const vscode = await import("vscode");
+    return vscode.window.showInformationMessage(message, ...items);
+  },
+};
+
+// Re-export so existing import paths (aiflowbridge/index.ts) keep working.
+export { isPortInUse };

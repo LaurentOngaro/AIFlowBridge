@@ -1,9 +1,15 @@
 /**
  * Unit tests for src/config.ts
  * Tests the configuration getter functions for all providers.
+ *
+ * The model registry is populated from the bundled `resources/models.json`
+ * via a `setLoadedRegistry()` call in `beforeAll`. This replaces the
+ * previous static import of `DEFAULT_PROVIDER_URLS` from `src/consts.ts`
+ * (now removed - see ACTION PLAN.md step 3).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 // --- VScode mock - must include default export for "import vscode from 'vscode'" ---
 const { mockWorkspaceConfig } = vi.hoisted(() => {
@@ -39,8 +45,44 @@ import {
   getRequestDumpEnabled,
   getStabilizeToolListEnabled,
 } from '../src/config';
+import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
+import {
+ validateRegistryStructure,
+	validateRegistryContent,
+} from '../src/aiflowbridge/modelRegistry.schema';
 
-import { DEFAULT_PROVIDER_URLS } from '../src/consts';
+const BUNDLED_REGISTRY_PATH = 'D:/Projets_Perso/03_Code/_Extensions/vsCode/AIFlowBridge/resources/models.json';
+
+function loadBundledVendors(): { deepseek: string; minimax: string; xiaomi: string } {
+	const raw = JSON.parse(readFileSync(BUNDLED_REGISTRY_PATH, 'utf8'));
+	validateRegistryStructure(raw);
+	const content = validateRegistryContent(raw);
+	return {
+		deepseek: content.vendors.deepseek.baseUrl,
+		minimax: content.vendors.minimax.baseUrl,
+		xiaomi: content.vendors.xiaomi.baseUrl,
+	};
+}
+
+let VENDOR_URLS: { deepseek: string; minimax: string; xiaomi: string };
+
+beforeAll(() => {
+	VENDOR_URLS = loadBundledVendors();
+	setLoadedRegistry({
+		version: 1,
+		vendors: {
+			deepseek: { baseUrl: VENDOR_URLS.deepseek, apiKeySecret: 'aiflowbridge.providers.deepseek.apiKey' },
+			minimax: { baseUrl: VENDOR_URLS.minimax, apiKeySecret: 'aiflowbridge.providers.minimax.apiKey' },
+			xiaomi: { baseUrl: VENDOR_URLS.xiaomi, apiKeySecret: 'aiflowbridge.providers.xiaomi.apiKey' },
+		},
+		models: [],
+		sources: {
+			bundled: { exists: true, path: BUNDLED_REGISTRY_PATH },
+			globalStorage: { exists: false, path: '' },
+			workspace: { exists: false, path: '' },
+		},
+	});
+});
 
 describe('config.ts - Provider URL', () => {
   beforeEach(() => {
@@ -51,21 +93,21 @@ describe('config.ts - Provider URL', () => {
     mockWorkspaceConfig.get.mockReturnValue(undefined);
 
     const url = getProviderBaseUrl('deepseek');
-    expect(url).toBe(DEFAULT_PROVIDER_URLS.deepseek);
+    expect(url).toBe(VENDOR_URLS.deepseek);
   });
 
   it('should return default URL for minimax', () => {
     mockWorkspaceConfig.get.mockReturnValue(undefined);
 
     const url = getProviderBaseUrl('minimax');
-    expect(url).toBe(DEFAULT_PROVIDER_URLS.minimax);
+    expect(url).toBe(VENDOR_URLS.minimax);
   });
 
   it('should return default URL for xiaomi', () => {
     mockWorkspaceConfig.get.mockReturnValue(undefined);
 
     const url = getProviderBaseUrl('xiaomi');
-    expect(url).toBe(DEFAULT_PROVIDER_URLS.xiaomi);
+    expect(url).toBe(VENDOR_URLS.xiaomi);
   });
 
   it('should return workspace value when set', () => {

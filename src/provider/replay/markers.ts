@@ -3,9 +3,9 @@ import { safeStringify } from '../../json';
 import {
 	BASE64URL_PATTERN,
 	ENCODED_JSON_MARKER_PREFIX,
+	getReplayMarkerPrefixes,
 	LEGACY_SEGMENT_ID_PATTERN,
 	REPLAY_MARKER_MIME,
-	REPLAY_MARKER_PREFIXES,
 	REPLAY_MARKER_WRITER_ID,
 } from './consts';
 import type {
@@ -70,7 +70,7 @@ export function parseReplayMarkerData(data: Uint8Array): ReplayMarkerParseResult
 	}
 
 	const markerPrefix = decoded.slice(0, separatorIndex);
-	if (!REPLAY_MARKER_PREFIXES.has(markerPrefix)) {
+	if (!getReplayMarkerPrefixes().has(markerPrefix)) {
 		return { valid: false, error: 'marker-prefix-mismatch' };
 	}
 

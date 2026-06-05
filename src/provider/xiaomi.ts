@@ -1,4 +1,5 @@
 import vscode from 'vscode';
+import { getLoadedRegistry, tryGetLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import {
     getProviderApiModelId,
     getProviderBaseUrl,
@@ -7,7 +8,7 @@ import {
     getProviderTemperature,
     getProviderTopP,
 } from '../config';
-import { API_KEY_SECRETS, DEFAULT_PROVIDER_URLS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE, MODELS } from '../consts';
+import { API_KEY_SECRETS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
 import { t } from '../i18n';
 import { logger } from '../logger';
 import { BaseChatProvider } from './base';
@@ -17,7 +18,7 @@ import { estimateTokenCount } from './tokens';
 import { createVisionModelGetter, resolveImageMessages } from './vision/index';
 
 const XIAOMI_API_KEY_SECRET = API_KEY_SECRETS.xiaomi;
-const XIAOMI_BASE_URL = DEFAULT_PROVIDER_URLS.xiaomi;
+const XIAOMI_BASE_URL = tryGetLoadedRegistry()?.vendors.xiaomi?.baseUrl ?? '';
 
 interface XiaomiAuthManager {
 	hasApiKey(): Promise<boolean>;
@@ -182,7 +183,7 @@ export class XiaomiChatProvider extends BaseChatProvider {
 			throw new Error(t('auth.notConfigured', providerName, providerName));
 		}
 
-		const modelDef = MODELS.find((m) => m.id === modelInfo.id);
+		const modelDef = getLoadedRegistry().models.find((m) => m.id === modelInfo.id);
 		const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 		// imageInput in the model definition controls the VS Code paste-image button.
 		// Native vision support depends on the actual model ID - V2.5 (non-pro) supports

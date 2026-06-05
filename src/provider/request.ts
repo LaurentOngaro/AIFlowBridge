@@ -1,8 +1,8 @@
 import vscode from 'vscode';
 import { AuthManager } from '../auth';
+import { getLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import { DeepSeekClient } from '../client';
 import { getApiModelId, getProviderBaseUrl, getMaxTokens } from '../config';
-import { MODELS } from '../consts';
 import { t } from '../i18n';
 import type { DeepSeekRequest } from '../types';
 import { convertMessages, countMessageChars } from './convert';
@@ -62,7 +62,7 @@ export async function prepareChatRequest({
 	}
 
 	const client = new DeepSeekClient(getProviderBaseUrl('deepseek'), apiKey);
-	const modelDef = MODELS.find((m) => m.id === modelInfo.id);
+	const modelDef = getLoadedRegistry().models.find((m) => m.id === modelInfo.id);
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 	const thinkingEffort = getConfiguredThinkingEffort(options as ModelConfigurationOptions);
 	const maxTokens = getMaxTokens();

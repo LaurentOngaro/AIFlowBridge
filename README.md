@@ -110,7 +110,7 @@ Notes:
 
 ### Why is the model list hardcoded?
 
-The list of officially supported models lives in [`src/consts.ts`](src/consts.ts) and is **not auto-discovered** from the upstream APIs. This is a deliberate design choice driven by VS Code's `vscode.lm.registerLanguageModelChatProvider` API.
+The list of officially supported models lives in [`resources/models.json`](resources/models.json) (with its JSON Schema in [`resources/models.schema.json`](resources/models.schema.json)) and is **not auto-discovered** from the upstream APIs. This is a deliberate design choice driven by VS Code's `vscode.lm.registerLanguageModelChatProvider` API.
 
 VS Code requires each model to declare its capabilities at registration time:
 
@@ -127,13 +127,13 @@ The upstream APIs (`GET /v1/models`) only return `{ id, owned_by, created }`. Th
 - Skip the thinking-effort selector for reasoning models
 - Allow context overflow with no warning
 
-A bad capability is a worse user experience than a missing model. Hardcoding ensures every supported model works end-to-end on day one.
+A bad capability is a worse user experience than a missing model. A hardcoded registry ensures every supported model works end-to-end on day one. See the [Model registry](#model-registry) section below for how to override individual entries.
 
-**Convention** : the `id` field in `MODELS` is the **upstream API id** itself (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`), not a kebab-case VS Code alias. The picker shows the human-readable `name` field. This avoids any id translation layer between VS Code and the upstream API.
+**Convention** : the `id` field in `resources/models.json` is the **upstream API id** itself (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`), not a kebab-case VS Code alias. The picker shows the human-readable `name` field. This avoids any id translation layer between VS Code and the upstream API.
 
 ### Adding a model without waiting for a release
 
-You do **not** need a new AIFlowBridge release to use a newly released provider model. Two options:
+You do **not** need a new AIFlowBridge release to use a newly released provider model. Three options, from simplest to most powerful:
 
 #### Option 1 - Command Palette (easiest)
 
@@ -147,7 +147,7 @@ Run **`AIFlowBridge: Add a custom model`** from the Command Palette. The command
 
 The new model appears in the Copilot Chat picker immediately. You can edit or remove the entry in your user settings at any time.
 
-#### Option 2 - Direct setting
+#### Option 2 - Direct setting (`aiflowbridge.userModels`)
 
 Add an entry to `settings.json` under `aiflowbridge.userModels`:
 
@@ -174,13 +174,18 @@ Add an entry to `settings.json` under `aiflowbridge.userModels`:
 
 **Trade-off** : user-declared models are your responsibility. If you mark `imageInput: true` for a model that does not accept images, the Copilot Chat paste button will appear but the model will fail on upload. Capabilities are not validated against the upstream API.
 
+#### Option 3 - Registry override (workspace or per-user)
+
+For a more permanent, structured change (pricing, vendor defaults, full schema validation in the editor), use the **model registry** instead of `aiflowbridge.userModels`. Run **`AIFlowBridge: Edit model registry`** - it opens `<globalStorageUri>/models.json` in the editor (creating it from the bundled file if needed). See the [Model registry](#model-registry) section below for the full schema and override rules. Changes apply to the **next VS Code window reload**.
+
 ### Promoting a user model to the official registry
 
-If a user-defined model is widely useful, the recommended path is to add it to the official registry in `src/consts.ts` via a pull request. The PR will be reviewed for:
+If a user-defined model is widely useful, the recommended path is to add it to the official bundled registry in [`resources/models.json`](resources/models.json) via a pull request. The PR will be reviewed for:
 
 - Correct `id` matching the upstream API exactly (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm)
 - Correct capabilities (especially image input and thinking)
 - Matching `maxInputTokens` / `maxOutputTokens` from the provider's documentation
+- Per-model `pricing` block (USD per 1M tokens) - see the `ModelPricing` shape in the [Model registry](#model-registry) section
 - Translation key in `package.nls.json` (`model.<id>.detail`)
 - Entry in the Providers table above
 
@@ -225,13 +230,17 @@ Once installed, the metrics dashboard is one keyboard shortcut away: press **`Ct
 | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | ![Metrics dashboard](resources/screenshots_v1.1.1/01_AIFB_dashboard_after_a_prompt.png) | ![Copilot picker](resources/screenshots_v1.1.1/03_AIFB_copilot%20LLM%20picker.png) | ![Kilo Code picker](resources/screenshots_v1.1.1/02_AIFB_kiloCode%20LLM%20picker.png) |
 
-| Vision proxy (v1.1.1)                                                                           | Gateway health (v1.1.1)                                                | Gateway metrics (v1.1.1)                                                 |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| ![Vision module](resources/screenshots_v1.1.1/04_AIFB_vision_module_for_Minimax_in_copilot.png) | ![Gateway health](resources/screenshots_v1.1.1/05_AIFB_API_health.png) | ![Gateway metrics](resources/screenshots_v1.1.1/06_AIFB_API_metrics.png) |
+| Vision proxy (v1.1.1)                                                                           | Gateway health (v1.1.1)                                                |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| ![Vision module](resources/screenshots_v1.1.1/04_AIFB_vision_module_for_Minimax_in_copilot.png) | ![Gateway health](resources/screenshots_v1.1.1/05_AIFB_API_health.png) |
 
 | Output log (v1.1.1)                                                | Settings (v1.1.1)                                                |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | ![Output log](resources/screenshots_v1.1.1/07_AIFB_Output_Log.png) | ![Settings](resources/screenshots_v1.1.1/08_AIFB_settings_1.png) |
+
+| Gateway metrics (v1.4.0)                                                    | Gateway metrics (v1.4.0)                                                    |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| ![Gateway metrics](resources/screenshots_v1.4.0/06a_AIFB_API_metrics_1.png) | ![Gateway metrics](resources/screenshots_v1.4.0/06b_AIFB_API_metrics_2.png) |
 
 ### What the dashboard shows
 
@@ -251,59 +260,33 @@ cost = (promptTokens * pricing.inputPerMillion
       + completionTokens * pricing.outputPerMillion) / 1_000_000
 ```
 
-**Indicative defaults** — AIFlowBridge ships with indicative per-million-token rates for the token-plan vendors (MiniMax, Xiaomi MiMo) so the dashboard shows non-zero costs out of the box. The current family-level defaults are:
+**Indicative defaults** - AIFlowBridge ships with indicative per-million-token rates baked into the bundled model registry ([`resources/models.json`](resources/models.json)) so the dashboard shows non-zero costs out of the box. The current per-model rates are:
 
-| Family             | Input / 1M | Output / 1M | Applies to                                                                                  |
-| ------------------ | ---------- | ----------- | ------------------------------------------------------------------------------------------- |
-| MiniMax            | $0.30      | $1.20       | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3                   |
-| Xiaomi MiMo        | $0.10      | $0.30       | V2 Omni, V2 Pro, V2.5, V2.5 Pro                                                             |
+| Family      | Input / 1M    | Output / 1M   | Currency | Applies to                                                               |
+| ----------- | ------------- | ------------- | -------- | ------------------------------------------------------------------------ |
+| DeepSeek    | $0.27 - $0.55 | $1.10 - $2.19 | USD      | V4 Flash, V4 Pro (per-model rates in the registry)                       |
+| MiniMax     | $0.30         | $1.20         | USD      | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 |
+| Xiaomi MiMo | $0.10         | $0.30         | USD      | V2 Omni, V2 Pro, V2.5, V2.5 Pro                                          |
 
-Every model in `MODELS` is auto-synthesized into the gateway catalog with the appropriate family rate, so the [complete default `settings.json`](.#configuring-gateway-providers) covers all 14 models without any user input.
+Every model in the registry is auto-synthesized into the gateway catalog with the appropriate rate, so the catalog covers all 14 models without any user input.
 
 These are **estimates**, not a quote. The actual tariff depends on your plan tier, region (Xiaomi ships separate plans per cluster: `token-plan-ams`, `token-plan-sgp`, `token-plan-cn`), and whether you use token-plan keys (`tp-*`) or pay-as-you-go. The per-row tooltip on each Est. cost cell shows the rate that was used to compute it.
 
-**Overriding the pricing** — add a `pricing` block to the matching provider entry in `aiflowbridge.providers` (in `settings.json`). User-configured values always win over the built-in defaults. Example:
+**Overriding the pricing** - there are three layers, from most permanent to most local:
 
-```json
-{
-  "aiflowbridge.providers": [
-    {
-      "id": "minimax",
-      "label": "MiniMax V2.7",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2.7",
-      "enabled": true,
-      "pricing": {
-        "inputPerMillion": 0.3,
-        "outputPerMillion": 1.2,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "xiaomi",
-      "label": "Xiaomi MiMo V2.5 Pro (AMS)",
-      "kind": "openai-compat",
-      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
-      "model": "mimo-v2.5-pro",
-      "enabled": true,
-      "pricing": {
-        "inputPerMillion": 0.1,
-        "outputPerMillion": 0.3,
-        "currency": "EUR"
-      }
-    }
-  ]
-}
-```
+1. **Workspace override** (`.vscode/aiflowbridge.models.json`) - committed to the project repo, affects only the current workspace, picks up the next time VS Code loads the workspace.
+2. **Per-user override** (`<globalStorageUri>/models.json`) - opened via `AIFlowBridge: Edit model registry`, affects all workspaces for the current OS user, picks up on the next VS Code window reload.
+3. **Provider override** (`aiflowbridge.providers[].pricing` in `settings.json`) - the most surgical option, lets you change the rate of a single gateway entry without touching the registry. Useful for one-off experiments or per-region billing.
 
-User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge: Add a custom model** command) inherit the family-level default pricing automatically — so a custom MiniMax-M3 model gets the same indicative rate as the built-in MiniMax M2.7 profile. Override it the same way by adding a `pricing` block to the synthesized provider entry.
+To override the rate for one model only (e.g. Xiaomi on the Singapore cluster, billed in EUR), the easiest path is a globalStorage override of the registry. See the [Model registry](#model-registry) section for the full schema and override rules.
 
-Providers without a `pricing` block show `—` in the Est. cost column, and requests routed through them contribute `0` to the total.
+User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge: Add a custom model** command) inherit the family-level default pricing automatically - so a custom MiniMax-M3 model gets the same indicative rate as the built-in MiniMax M2.7 profile. Override it the same way by adding a `pricing` block to the synthesized provider entry.
+
+Providers without a `pricing` block show `-` in the Est. cost column, and requests routed through them contribute `0` to the total.
 
 ### What the metrics dashboard actually tracks
 
-> **TL;DR** — the dashboard counts requests that go through AIFlowBridge's **local gateway** (Kilo Code, Continue, Open WebUI, curl, OpenAI SDK pointed at `http://127.0.0.1:8787/v1`, etc.). It does **not** count prompts sent directly from Copilot Chat. This is by design, not a bug.
+> **TL;DR** - the dashboard counts requests that go through AIFlowBridge's **local gateway** (Kilo Code, Continue, Open WebUI, curl, OpenAI SDK pointed at `http://127.0.0.1:8787/v1`, etc.). It does **not** count prompts sent directly from Copilot Chat. This is by design, not a bug.
 
 AIFlowBridge ships two complementary integrations. They share models and API keys but have **different telemetry** paths:
 
@@ -316,7 +299,7 @@ AIFlowBridge ships two complementary integrations. They share models and API key
 
 The reason is structural: VS Code's language model API is a push-only interface - the extension returns a stream of tokens, but the framework owns the request lifecycle. AIFlowBridge does not see a "request started / request ended" event it can hook into. The gateway, in contrast, is a regular HTTP server, so it has full request/response metadata (status, duration, prompt/completion token counts from the upstream `usage` field) at the right granularity for per-request metrics.
 
-**Practical implication** — if you want to populate the dashboard, point an OpenAI-compatible client at the gateway. The README's [Gateway](#gateway-optional) section has the full config. Sending a single `curl` is enough to verify the pipeline:
+**Practical implication** - if you want to populate the dashboard, point an OpenAI-compatible client at the gateway. The README's [Gateway](#gateway-optional) section has the full config. Sending a single `curl` is enough to verify the pipeline:
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
@@ -328,7 +311,7 @@ The status bar reflects the same source: it shows the gateway state, not Copilot
 
 ### Example workflow
 
-1. Pick a model in Copilot Chat — the gateway stays empty until you exercise it (see the note above)
+1. Pick a model in Copilot Chat - the gateway stays empty until you exercise it (see the note above)
 2. Switch to Kilo Code (or Continue / any OpenAI-compatible client) and point it at `http://127.0.0.1:8787/v1`
 3. Send a prompt through that client - the dashboard increments in real time
 4. Press `Ctrl+Alt+M` to open the dashboard and inspect token usage, latency, and estimated cost
@@ -373,7 +356,29 @@ curl http://127.0.0.1:8787/v1/models
 
 # View metrics
 curl http://127.0.0.1:8787/metrics
+
+# Version probe (used by the cooperative restart flow)
+curl http://127.0.0.1:8787/version
 ```
+
+#### Version handling
+
+The gateway exposes `GET /version`, which returns:
+
+```json
+{ "name": "aiflowbridge-gateway", "version": "1.4.0", "pid": 1234, "startedAt": "2026-06-04T10:00:00.000Z" }
+```
+
+When the extension activates, it probes this endpoint on the configured port. Three outcomes:
+
+- **Same or newer version running** → join silently (no UI). This is the normal case when you open a second VS Code window.
+- **Older version running** (typical during extension development / after a marketplace update) → a non-modal information message appears: `AIFlowBridge gateway v1.2.0 is running. Restart with v1.4.0?` with two buttons:
+  - **Restart with v1.4.0** → the new activation sends a cooperative `POST /shutdown` to the old gateway, waits up to 3s for the port to free, then binds. The old instance closes its listening socket (no `process.exit(0)`, so the extension host stays alive); no `taskkill`, no orphan node process.
+  - **Keep current version** → the new window joins the old gateway, just like a second window would. Use this if you need to keep the old instance alive (e.g. mid-debug with state on it).
+  - Dismiss (close the toast) → same as **Keep**. This is the default behaviour for users who do not interact with the toast: no surprise behaviour change.
+- **Port occupied by something else** (e.g. `python -m http.server 8787`, or a process from another tool) → the extension logs a warning and lets the bind fail with `EADDRINUSE`. **No** shutdown request is sent, because the peer identifies itself as something other than `aiflowbridge-gateway` and we never touch foreign processes.
+
+A stale-lock guard (`<globalStorageUri>/gateway.lock`, acquired with `fs.openSync(path, 'wx')`) prevents the ping-pong loop when two debug sessions try to restart the gateway at the same time. It is best-effort: if the lock cannot be acquired, the new activation logs a warning and lets the holding activation make the restart decision.
 
 #### Using with Kilo Code or Other OpenAI-Compatible Clients
 
@@ -394,134 +399,16 @@ The gateway routes requests to the correct upstream provider based on the model 
 
 #### Configuring Gateway Providers
 
-The gateway catalog is built in three layers, in this order:
+The gateway catalog is built from the [model registry](#model-registry) and a few optional `settings.json` overrides. No need to maintain a long list of provider entries by hand - the registry already lists all 14 supported models, and the gateway synthesizes one catalog entry per registry model on activation.
 
-1. **Your overrides** in `aiflowbridge.providers` (highest priority - you take full control and replace the defaults below)
-2. **Hand-curated defaults** for the flagship models (DeepSeek V4 Flash/Pro, MiniMax M2.7, Xiaomi MiMo V2.5 Pro)
-3. **Auto-synthesized** entries for every other model in the built-in `MODELS` registry (MiniMax-M2 / M2.1 / M2.1 Highspeed / M2.5 / M2.5 Highspeed / M2.7 Highspeed / M3, Xiaomi MiMo V2 Omni / V2 Pro / V2.5)
+**Auto-synthesized entries** - for every model in the registry, the gateway creates a provider entry using the vendor defaults (from `registry.vendors[<family>].baseUrl`) and the model's per-token pricing. The synthesized `id` matches the registry model `id` exactly, so `GET /v1/models` returns the same set you see in the Copilot Chat picker.
 
-The synthesized entries inherit the family-level indicative pricing, so the dashboard's "Est. cost" column is non-zero out of the box for every model.
+**Overriding the catalog** - the priority order is:
 
-The following `settings.json` shows the **complete default catalog** the gateway exposes when no overrides are set. Each entry has a `pricing` block with the indicative token-plan rate (USD per 1M tokens) used by the dashboard. **You normally do not need to copy this verbatim** - AIFlowBridge generates it automatically. Override only the entries you want to customize (different tier, different region, pay-as-you-go, EUR billing, etc.).
+1. **Your overrides** in `aiflowbridge.providers` (highest priority - you take full control and replace the synthesized entry). Use this to point a specific model at a different region/cluster, or to disable it.
+2. **Auto-synthesized** entries from the [model registry](#model-registry) - one per `registry.models` entry, with the vendor default `baseUrl` and the per-model `pricing` block.
 
-```json
-{
-  "aiflowbridge.providers": [
-    {
-      "id": "deepseek-flash",
-      "label": "DeepSeek V4 Flash",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.deepseek.com",
-      "model": "deepseek-v4-flash"
-    },
-    {
-      "id": "deepseek-pro",
-      "label": "DeepSeek V4 Pro",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.deepseek.com",
-      "model": "deepseek-v4-pro"
-    },
-    {
-      "id": "minimax",
-      "label": "MiniMax V2.7",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2.7",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "MiniMax-M2",
-      "label": "MiniMax M2",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "MiniMax-M2.1",
-      "label": "MiniMax M2.1",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2.1",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "MiniMax-M2.1-highspeed",
-      "label": "MiniMax M2.1 Highspeed",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2.1-highspeed",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "MiniMax-M2.5",
-      "label": "MiniMax M2.5",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2.5",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "MiniMax-M2.5-highspeed",
-      "label": "MiniMax M2.5 Highspeed",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2.5-highspeed",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "MiniMax-M2.7-highspeed",
-      "label": "MiniMax M2.7 Highspeed",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M2.7-highspeed",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "MiniMax-M3",
-      "label": "MiniMax M3",
-      "kind": "openai-compat",
-      "baseUrl": "https://api.minimax.io/v1",
-      "model": "MiniMax-M3",
-      "pricing": { "inputPerMillion": 0.30, "outputPerMillion": 1.20, "currency": "USD" }
-    },
-    {
-      "id": "xiaomi",
-      "label": "Xiaomi MiMo V2.5 Pro",
-      "kind": "openai-compat",
-      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
-      "model": "mimo-v2.5-pro",
-      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
-    },
-    {
-      "id": "mimo-v2-omni",
-      "label": "Xiaomi MiMo V2 Omni",
-      "kind": "openai-compat",
-      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
-      "model": "mimo-v2-omni",
-      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
-    },
-    {
-      "id": "mimo-v2-pro",
-      "label": "Xiaomi MiMo V2 Pro",
-      "kind": "openai-compat",
-      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
-      "model": "mimo-v2-pro",
-      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
-    },
-    {
-      "id": "mimo-v2.5",
-      "label": "Xiaomi MiMo V2.5",
-      "kind": "openai-compat",
-      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
-      "model": "mimo-v2.5",
-      "pricing": { "inputPerMillion": 0.10, "outputPerMillion": 0.30, "currency": "USD" }
-    }
-  ]
-}
-```
-
-**To override the rate for one model only** (e.g. Xiaomi on the Singapore cluster, billed in EUR), declare it in `aiflowbridge.providers` with a different `baseUrl` / `pricing`. The first entry that matches the model wins. Removing an entry from the array does **not** disable the corresponding model - use `"enabled": false` instead.
+To override the rate or endpoint for a single model (e.g. Xiaomi on the Singapore cluster, billed in EUR), add an entry to `aiflowbridge.providers` with the matching `model` field. The first entry that matches the model wins.
 
 **Disabling a model from the dashboard catalog** while keeping the others:
 
@@ -540,7 +427,9 @@ The following `settings.json` shows the **complete default catalog** the gateway
 }
 ```
 
-The dashboard and the `GET /v1/models` catalog will skip any provider with `"enabled": false`.
+The dashboard and the `GET /v1/models` catalog will skip any provider with `"enabled": false`. Removing an entry from the array does **not** disable the corresponding model - use `"enabled": false` instead, or override it in the [model registry](#model-registry).
+
+**For pricing-only changes** that should apply to all your workspaces (e.g. you have a custom MiniMax rate that you pay via a reseller), prefer editing the registry instead of `aiflowbridge.providers`. See the [Model registry](#model-registry) section below.
 
 ### Metrics Dashboard
 
@@ -561,9 +450,11 @@ The dashboard shows:
 
 ### Models
 
-| Setting                   | Default | Description                                                                                                                                                                                                                                       |
-| ------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `aiflowbridge.userModels` | `[]`    | User-declared models merged with the built-in registry. See [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release). User-declared models are also exposed by the local gateway's `GET /v1/models` (BUG04). |
+| Setting                   | Default | Description                                                                                                                                                                                                                                                             |
+| ------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aiflowbridge.userModels` | `[]`    | User-declared models merged with the [model registry](#model-registry) on every read. See [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release). User-declared models are also exposed by the local gateway's `GET /v1/models`. |
+
+The official 14-model catalog lives in [`resources/models.json`](resources/models.json) and is overridable per-user (`AIFlowBridge: Edit model registry`) or per-project (`.vscode/aiflowbridge.models.json`). See the [Model registry](#model-registry) section for the full schema.
 
 ### Gateway
 
@@ -618,64 +509,136 @@ The dashboard shows:
 
 In the Command Palette, the provider key commands are grouped under the `AIFlowBridge` category. If you do not see them immediately, search for `set api` or `add custom`.
 
-| Command                                   | Description                           |
-| ----------------------------------------- | ------------------------------------- |
-| **AIFlowBridge**                          |                                       |
-| `AIFlowBridge: Show metrics dashboard`    | Open metrics dashboard                |
-| `AIFlowBridge: Refresh metrics`           | Refresh status bar                    |
-| `AIFlowBridge: Reset metrics`             | Clear cumulative counters and disk    |
-| `AIFlowBridge: Start local gateway`       | Start proxy                           |
-| `AIFlowBridge: Stop local gateway`        | Stop proxy                            |
-| `AIFlowBridge: Copy gateway URL`          | Copy URL to clipboard                 |
-| `AIFlowBridge: Open settings`             | Open extension settings               |
-| `AIFlowBridge: Set vision proxy model`    | Choose vision model                   |
-| `AIFlowBridge: Add a custom model`        | Declare a new model from `/v1/models` |
-| `AIFlowBridge: Open request dumps folder` | Open the folder of last request dumps |
-| `AIFlowBridge: Show logs`                 | Open output log                       |
-| **DeepSeek**                              |                                       |
-| `DeepSeek: Set API Key`                   | Configure API key                     |
-| `DeepSeek: Clear API Key`                 | Remove stored key                     |
-| `DeepSeek: Set vision proxy model`        | Choose vision model (DeepSeek)        |
-| **MiniMax**                               |                                       |
-| `MiniMax: Set API Key`                    | Configure API key                     |
-| `MiniMax: Clear API Key`                  | Remove stored key                     |
-| **Xiaomi MiMo**                           |                                       |
-| `Xiaomi MiMo: Set API Key`                | Configure API key                     |
-| `Xiaomi MiMo: Clear API Key`              | Remove stored key                     |
+| Command                                                  | Description                                                                                    |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **AIFlowBridge**                                         |                                                                                                |
+| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard                                                                         |
+| `AIFlowBridge: Refresh metrics`                          | Refresh status bar                                                                             |
+| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk                                                             |
+| `AIFlowBridge: Start local gateway`                      | Start proxy                                                                                    |
+| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                                                                     |
+| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                                                          |
+| `AIFlowBridge: Open settings`                            | Open extension settings                                                                        |
+| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                                                            |
+| `AIFlowBridge: Add a custom model`                       | Declare a new model from `/v1/models`                                                          |
+| `AIFlowBridge: Edit model registry`                      | Open the per-user registry override in the editor (creates it from the bundled file if needed) |
+| `AIFlowBridge: Reset model registry to bundled defaults` | Delete the per-user override and revert to the bundled file                                    |
+| `AIFlowBridge: Open request dumps folder`                | Open the folder of last request dumps                                                          |
+| `AIFlowBridge: Show logs`                                | Open output log                                                                                |
+| **DeepSeek**                                             |                                                                                                |
+| `DeepSeek: Set API Key`                                  | Configure API key                                                                              |
+| `DeepSeek: Clear API Key`                                | Remove stored key                                                                              |
+| `DeepSeek: Set vision proxy model`                       | Choose vision model (DeepSeek)                                                                 |
+| **MiniMax**                                              |                                                                                                |
+| `MiniMax: Set API Key`                                   | Configure API key                                                                              |
+| `MiniMax: Clear API Key`                                 | Remove stored key                                                                              |
+| **Xiaomi MiMo**                                          |                                                                                                |
+| `Xiaomi MiMo: Set API Key`                               | Configure API key                                                                              |
+| `Xiaomi MiMo: Clear API Key`                             | Remove stored key                                                                              |
 
 ## Architecture
 
 ```
 src/
-├── aiflowbridge/         # Extension-specific: gateway, telemetry, dashboard
-│   ├── gateway/          # OpenAI-compatible proxy server
-│   ├── ui/               # Dashboard webview, status bar
-│   ├── token-counter.ts  # MiniMax /v1/responses/input_tokens wrapper
-│   ├── telemetry.ts      # TelemetryStore + cost estimation
-│   ├── config.ts         # Gateway settings loader (incl. userModel synthesis)
+├── aiflowbridge/                  # Extension-specific: gateway, telemetry, dashboard
+│   ├── gateway/                   # OpenAI-compatible proxy server
+│   ├── ui/                        # Dashboard webview, status bar
+│   ├── token-counter.ts           # MiniMax /v1/responses/input_tokens wrapper
+│   ├── telemetry.ts               # TelemetryStore + cost estimation
+│   ├── config.ts                  # Gateway settings loader (incl. userModel synthesis)
+│   ├── modelRegistry.ts           # 3-tier loader (bundled < globalStorage < workspace)
+│   ├── modelRegistry.schema.ts    # Hand-rolled registry validators + deep merge
+│   ├── providers.ts               # Gateway upstream provider normalization
 │   └── types.ts
-├── provider/             # Language model providers (Copilot Chat)
-│   ├── base.ts           # Abstract base (merges MODELS + userModels)
-│   ├── index.ts          # DeepSeek
-│   ├── minimax.ts        # MiniMax (HTTP streaming)
-│   ├── xiaomi.ts         # Xiaomi MiMo
-│   ├── tools/            # Tool-calling adapters
-│   ├── replay/           # Reasoning replay (Xiaomi)
-│   ├── debug/            # Request dumps
-│   ├── segment/          # Stream segmentation
-│   └── vision/           # Transparent vision proxy
-├── runtime/              # Extension lifecycle
+├── provider/                      # Language model providers (Copilot Chat)
+│   ├── base.ts                    # Abstract base (reads registry cache + userModels)
+│   ├── index.ts                   # DeepSeek
+│   ├── minimax.ts                 # MiniMax (HTTP streaming)
+│   ├── xiaomi.ts                  # Xiaomi MiMo
+│   ├── tools/                     # Tool-calling adapters
+│   ├── replay/                    # Reasoning replay (Xiaomi)
+│   ├── debug/                     # Request dumps
+│   ├── segment/                   # Stream segmentation
+│   └── vision/                    # Transparent vision proxy
+├── runtime/                       # Extension lifecycle, commands, diagnostics
 │   ├── lifecycle.ts
 │   ├── commands.ts
 │   ├── addCustomModel.ts
+│   ├── editModelRegistry.ts
+│   ├── resetModelRegistry.ts
 │   ├── provider.ts
 │   └── actions.ts
-└── consts.ts             # MODELS registry, CONFIG_SECTION, defaults
+└── consts.ts                      # Static constants only (CONFIG_SECTION, API_KEY_SECRETS, ...)
+resources/
+├── models.json                    # Bundled model registry (14 models, 3 vendors)
+└── models.schema.json             # JSON Schema for editor autocompletion
 ```
 
 ### Model registry
 
-The list of officially supported models is hardcoded in [`src/consts.ts`](src/consts.ts) under `MODELS: ModelDefinition[]`. This is intentional - see [Why is the model list hardcoded?](#why-is-the-model-list-hardcoded) above. The runtime merges this list with user-declared models from the [`aiflowbridge.userModels`](#settings) setting on every read. Adding a new model without a release is supported via the **`AIFlowBridge: Add a custom model`** command or by editing the `aiflowbridge.userModels` setting directly.
+The list of officially supported models, vendors, capabilities, and per-model pricing lives in an external JSON file rather than a TypeScript constant. The runtime reads it from a 3-tier chain on activation:
+
+```
+.vscode/aiflowbridge.models.json   (per-project override, takes priority)
+       ↓ deep merge
+<globalStorageUri>/models.json     (per-user override, opened via AIFlowBridge: Edit model registry)
+       ↓ deep merge
+resources/models.json              (bundled with the extension, source of truth on first run)
+```
+
+- **Bundled** - `resources/models.json` lists the 14 supported models and the 3 vendors (baseUrl, apiKeySecret, external URLs, indicative token-plan rates).
+- **Per-user override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user across all workspaces.
+- **Per-project override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
+
+Merge rules:
+
+- Per `model.id`: `deepMergeModel(base, override)` - top-level fields + `capabilities` + `pricing` are deep-merged, so an override that only sets `pricing` keeps every other field from the bundled entry.
+- Per `vendor` key: `deepMergeVendor(base, override)` - `externalUrls` is shallow-merged per key.
+- A `model.id` or `vendor` key present only in a higher tier is preserved (lets you add a new model without touching the bundled file).
+- Tier existence is fail-safe: a missing tier is fine. A structure error in the bundled tier is **fatal** (the bundled file is shipped with the extension). A structure error in an override tier is **logged and skipped** (the user can fix their override without bricking the extension). A per-entry content error is **logged and dropped** (the rest of the tier is still used).
+
+Schema: [`resources/models.schema.json`](resources/models.schema.json) - JSON Schema Draft 2020-12, referenced via `$schema` in the bundled file for editor autocompletion.
+
+**Minimal override example** (in `<globalStorageUri>/models.json` or `.vscode/aiflowbridge.models.json`) - change the MiniMax M2.7 pricing to whatever your reseller charges:
+
+```json
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "MiniMax-M2.7",
+      "pricing": {
+        "inputPerMillion": 0.25,
+        "outputPerMillion": 1.0,
+        "currency": "USD"
+      }
+    }
+  ]
+}
+```
+
+The loader will deep-merge this on top of the bundled entry: every other field (name, capabilities, max tokens, etc.) comes from the bundled file, and only the `pricing` block is replaced.
+
+**Add a brand-new model** without editing the bundled file:
+
+```json
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "MiniMax-M4",
+      "name": "MiniMax M4",
+      "family": "minimax",
+      "maxInputTokens": 131072,
+      "maxOutputTokens": 8192,
+      "capabilities": { "toolCalling": true, "imageInput": false, "thinking": false },
+      "pricing": { "inputPerMillion": 0.3, "outputPerMillion": 1.2, "currency": "USD" }
+    }
+  ]
+}
+```
+
+Validation is hand-rolled (no `ajv` runtime dependency). See [`src/aiflowbridge/modelRegistry.schema.ts`](src/aiflowbridge/modelRegistry.schema.ts) for the validator source.
 
 ## Development
 

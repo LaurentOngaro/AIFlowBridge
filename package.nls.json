@@ -13,8 +13,6 @@
   "model.mimo-v2-pro.detail": "Xiaomi MiMo V2 Pro reasoning model",
   "model.mimo-v2.5.detail": "Multimodal model with vision support",
   "model.mimo-v2.5-pro.detail": "Reasoning model without vision",
-  "model.mimo-v2.5.detail": "Multimodal model with vision support",
-  "model.mimo-v2.5-pro.detail": "Reasoning model without vision",
   "auth.apiKeyRequiredDetail": "Please run \"Set API Key\" to configure.",
   "auth.notConfigured": "{0} API key not configured. Run \"{1}: Set API Key\" from the Command Palette.",
   "status.thinking": "Thinking Effort",
@@ -70,5 +68,11 @@
   "command.apiKeyRemoved": "{0} API key removed.",
   "command.apiKeyPrompt": "Enter your {0} API key",
   "command.apiKeyPlaceholder": "{0} API key",
-  "command.apiKeyEmptyValidation": "API key cannot be empty"
+  "command.apiKeyEmptyValidation": "API key cannot be empty",
+  "command.editModelRegistryFailed": "Failed to open model registry: {0}",
+  "command.resetModelRegistryNone": "No model registry override to reset - the bundled defaults are already in effect.",
+  "command.resetModelRegistryConfirm": "Reset the model registry override to bundled defaults? Your customizations will be lost.",
+  "command.resetModelRegistryDone": "Model registry override removed. Reload the window to apply the bundled defaults?",
+  "command.resetModelRegistryReload": "Reload Window",
+  "command.resetModelRegistryFailed": "Failed to reset model registry: {0}"
 }

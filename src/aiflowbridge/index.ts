@@ -3,7 +3,7 @@ import { loadConfig } from "./config";
 import { GatewayService, isPortInUse } from "./gateway/server";
 import { resolveVendorApiKey } from "./api-key-resolver";
 import { TelemetryStore } from "./telemetry";
-import type { GatewayStatus, TelemetrySnapshot } from "./types";
+import type { AiFlowBridgeConfig, GatewayStatus, TelemetrySnapshot } from "./types";
 import { showMetricsDashboard } from "./ui/dashboard";
 import { StatusBarController } from "./ui/statusbar";
 import { logger } from "../logger";
@@ -11,27 +11,20 @@ import { logger } from "../logger";
 const TELEMETRY_STORAGE_KEY = "aiflowbridge.telemetry.v1";
 
 class AIFlowBridgeRuntime {
-  private config = loadConfig();
-  private readonly gateway: GatewayService;
+  private config!: AiFlowBridgeConfig;
+  private gateway!: GatewayService;
   private readonly statusBar: StatusBarController;
   private readonly telemetryFallback = new TelemetryStore();
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    // The gateway is built here (not as a class field) so that the load /
-    // save callbacks can close over `this.context`, which is only set by
-    // the parameter property above. Class field initializers run before
-    // the parameter property assignment, so wiring the gateway in the
-    // field initializer would crash with `Cannot read properties of
-    // undefined (reading 'globalState')` (BUG06). The `init()` call then
-    // safely wires persistence now that the context exists.
-    this.gateway = new GatewayService(
-      this.config,
-      (status, snapshot) => this.refreshUi(status, snapshot),
-      (vendor) => resolveVendorApiKey(vendor, this.context.secrets),
-      () => this.loadPersistedTelemetry(),
-      (snapshot) => this.savePersistedTelemetry(snapshot),
-    );
-    this.gateway.init();
+    // The gateway and config are built in `activate()` (not as class
+    // fields) so the load / save callbacks can close over `this.context`,
+    // which is only set by the parameter property above. Class field
+    // initializers run before the parameter property assignment, so
+    // wiring the gateway in the field initializer would crash with
+    // `Cannot read properties of undefined (reading 'globalState')`
+    // (BUG06). The `init()` call then safely wires persistence now that
+    // the context exists.
     this.statusBar = new StatusBarController();
   }
 
@@ -45,6 +38,17 @@ class AIFlowBridgeRuntime {
 
   async activate(): Promise<void> {
     logger.info("[AIFlowBridge] Activating...");
+
+    this.config = await loadConfig(this.context);
+    this.gateway = new GatewayService(
+      this.config,
+      (status, snapshot) => this.refreshUi(status, snapshot),
+      (vendor) => resolveVendorApiKey(vendor, this.context.secrets),
+      () => this.loadPersistedTelemetry(),
+      (snapshot) => this.savePersistedTelemetry(snapshot),
+      this.context.extension.packageJSON.version ?? "0.0.0",
+    );
+    this.gateway.init();
 
     this.context.subscriptions.push(this.statusBar);
     this.context.subscriptions.push(this.gateway);
@@ -63,6 +67,8 @@ class AIFlowBridgeRuntime {
         logger.info(`[AIFlowBridge] Gateway started successfully on ${this.config.gateway.baseUrl}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        const code = (error as NodeJS.ErrnoException).code;
+        const peerPid = (error as { peerPid?: number }).peerPid;
         console.error("[AIFlowBridge] Gateway failed to start:", message);
         logger.error(`[AIFlowBridge] Gateway failed to start: ${message}`);
         const running = this.gateway.running;
@@ -70,6 +76,15 @@ class AIFlowBridgeRuntime {
           logger.info(`[AIFlowBridge] Gateway already running at ${this.config.gateway.baseUrl}`);
           void vscode.window.showInformationMessage(
             `AIFlowBridge gateway is already running on ${this.config.gateway.baseUrl}`,
+          );
+        } else if (code === "EPEERSTALLED" && typeof peerPid === "number") {
+          // The user picked "Restart" but the old peer never freed the
+          // port (typical of Windows TIME_WAIT or a hung peer). Surface
+          // the PID so the user can kill the stale process manually.
+          logger.warn(`[AIFlowBridge] Peer gateway (pid ${peerPid}) did not free port ${this.config.gateway.port} within timeout.`);
+          void vscode.window.showWarningMessage(
+            `AIFlowBridge gateway could not restart: the older instance (pid ${peerPid}) did not free port ${this.config.gateway.port} within 3s. ` +
+              `Stop that process manually (or wait for TIME_WAIT to clear), then reload the window.`,
           );
         } else {
           const port = this.config.gateway.port;
@@ -129,7 +144,15 @@ class AIFlowBridgeRuntime {
     }));
 
     this.context.subscriptions.push(vscode.commands.registerCommand("aiflowbridge.startGateway", async () => {
-      await this.gateway.start();
+      try {
+        await this.gateway.start();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(`[AIFlowBridge] Gateway failed to start: ${message}`);
+        this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
+        void vscode.window.showWarningMessage(`AIFlowBridge gateway failed to start: ${message}`);
+        return;
+      }
       this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
       void vscode.window.showInformationMessage(`AIFlowBridge gateway started on ${this.config.gateway.baseUrl}`);
     }));
@@ -160,7 +183,7 @@ class AIFlowBridgeRuntime {
       await this.gateway.stop();
     }
 
-    this.config = loadConfig();
+    this.config = await loadConfig(this.context);
     this.gateway.updateConfig(this.config);
 
     if (this.config.gateway.enabled) {

@@ -1,5 +1,5 @@
 import vscode from 'vscode';
-import { MODELS } from '../consts';
+import { getLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import type { ModelDefinition } from '../types';
 import { toChatInfo } from './models';
 import type { DeepSeekChatProvider } from './index';
@@ -110,7 +110,7 @@ export class UnifiedChatProvider implements vscode.LanguageModelChatProvider {
 	private getModelsForProvider(provider: AnyProvider): ModelDefinition[] {
 		// Each provider exposes its models via the family filter
 		const vendor = this.getProviderVendor(provider);
-		return MODELS.filter((m) => m.family === vendor);
+		return getLoadedRegistry().models.filter((m) => m.family === vendor);
 	}
 
 	private getProviderVendor(provider: AnyProvider): string {

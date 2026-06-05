@@ -1,0 +1,156 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://aiflowbridge.dev/schemas/models.schema.json",
+	"title": "AIFlowBridge Model Registry",
+	"description": "Schema for the AIFlowBridge bundled model registry and its overrides. Lives in three tiers: bundled (resources/models.json) < globalStorage (<globalStorageUri>/models.json) < workspace (.vscode/aiflowbridge.models.json). Higher tiers override lower tiers per model id and per vendor key. The schema is referenced from models.json via the $schema property for editor autocompletion.",
+	"type": "object",
+	"required": ["version", "models"],
+	"additionalProperties": false,
+	"properties": {
+		"$schema": {
+			"type": "string",
+			"description": "Reference to this JSON Schema. Lets VS Code provide autocompletion and validation while editing the file."
+		},
+		"version": {
+			"type": "integer",
+			"const": 1,
+			"description": "Registry file format version. Currently always 1."
+		},
+		"vendors": {
+			"type": "object",
+			"description": "Map of vendor config key (e.g. 'deepseek') to its upstream connection settings and external URLs. The key must match a `ModelDefinition.family` value used by the models in this file. Keys are free-form; adding a new vendor does not require a schema change.",
+			"additionalProperties": { "$ref": "#/$defs/vendor" }
+		},
+		"models": {
+			"type": "array",
+			"description": "List of model definitions exposed by this registry tier.",
+			"items": { "$ref": "#/$defs/model" }
+		}
+	},
+	"$defs": {
+		"vendor": {
+			"type": "object",
+			"description": "A vendor (upstream provider) and its connection settings.",
+			"required": ["baseUrl", "apiKeySecret"],
+			"additionalProperties": false,
+			"properties": {
+				"baseUrl": {
+					"type": "string",
+					"format": "uri",
+					"description": "Default upstream API base URL used when the user has not overridden it via aiflowbridge.providers.<vendor>.baseUrl."
+				},
+				"apiKeySecret": {
+					"type": "string",
+					"description": "VS Code SecretStorage key holding the API key for this vendor. Read via the SecretStorage API, never written to settings.json."
+				},
+				"externalUrls": {
+					"type": "object",
+					"description": "Links to the vendor's web console (API key management, usage, status pages, regional endpoints). Keys are free-form; consumers look them up by name.",
+					"additionalProperties": {
+						"type": "string",
+						"format": "uri"
+					}
+				}
+			}
+		},
+		"model": {
+			"type": "object",
+			"description": "A single model definition. The `id` is the upstream API id (sent verbatim in the `model` field of the request body). The `name` is the human-readable label shown in the Copilot Chat picker.",
+			"required": [
+				"id",
+				"name",
+				"family",
+				"version",
+				"detail",
+				"maxInputTokens",
+				"maxOutputTokens",
+				"capabilities",
+				"requiresThinkingParam"
+			],
+			"additionalProperties": false,
+			"properties": {
+				"id": {
+					"type": "string",
+					"description": "Upstream API model id. Must match exactly what the vendor's /v1/models endpoint returns."
+				},
+				"name": {
+					"type": "string",
+					"description": "Human-readable display name shown in the Copilot Chat model picker."
+				},
+				"family": {
+					"type": "string",
+					"description": "Vendor config key. Must match a key in the `vendors` map of this registry (deepseek, minimax, or xiaomi).",
+					"enum": ["deepseek", "minimax", "xiaomi"]
+				},
+				"version": {
+					"type": "string",
+					"description": "Free-form version label (e.g. 'v4', 'm2.5', 'v2.5-pro'). Not interpreted by the code, used for display and filtering only."
+				},
+				"detail": {
+					"type": "string",
+					"description": "Short marketing description shown in the Copilot Chat picker."
+				},
+				"maxInputTokens": {
+					"type": "integer",
+					"exclusiveMinimum": 0,
+					"description": "Maximum number of input tokens the model accepts (context window)."
+				},
+				"maxOutputTokens": {
+					"type": "integer",
+					"exclusiveMinimum": 0,
+					"description": "Maximum number of output tokens the model can generate in a single response."
+				},
+				"capabilities": {
+					"type": "object",
+					"description": "Capability flags advertised to VS Code. `toolCalling` is a number (max parallel tool calls) for DeepSeek, a boolean for other vendors.",
+					"required": ["toolCalling", "imageInput", "thinking"],
+					"additionalProperties": false,
+					"properties": {
+						"toolCalling": {
+							"description": "Tool calling support. `true` = unlimited, a positive integer = max parallel tool calls (DeepSeek currently advertises 128).",
+							"oneOf": [
+								{ "type": "boolean" },
+								{ "type": "integer", "exclusiveMinimum": 0 }
+							]
+						},
+						"imageInput": {
+							"type": "boolean",
+							"description": "Whether the model accepts image inputs. The vision proxy transparently converts images to text descriptions for models that do not."
+						},
+						"thinking": {
+							"type": "boolean",
+							"description": "Whether the model exposes a 'thinking' / reasoning mode in the picker."
+						}
+					}
+				},
+				"requiresThinkingParam": {
+					"type": "boolean",
+					"description": "Whether the upstream API requires a `thinking` parameter on every request (DeepSeek). When false, the parameter is omitted unless the user opts in."
+				},
+				"pricing": {
+					"type": "object",
+					"description": "Indicative token-plan tariff. Used by the dashboard's 'Est. cost' column. Override per-profile via aiflowbridge.providers[].pricing.",
+					"required": ["inputPerMillion", "outputPerMillion", "currency"],
+					"additionalProperties": false,
+					"properties": {
+						"inputPerMillion": {
+							"type": "number",
+							"exclusiveMinimum": 0,
+							"description": "USD cost per 1,000,000 input tokens."
+						},
+						"outputPerMillion": {
+							"type": "number",
+							"exclusiveMinimum": 0,
+							"description": "USD cost per 1,000,000 output tokens."
+						},
+						"currency": {
+							"type": "string",
+							"const": "USD",
+							"description": "ISO 4217 currency code. Currently always 'USD'."
+						}
+					}
+				}
+			}
+		}
+	}
+}

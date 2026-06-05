@@ -1,5 +1,12 @@
 import * as vscode from "vscode";
-import type { AiFlowBridgeConfig, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from "../types";
+import type {
+    AiFlowBridgeConfig,
+    ProviderPricing,
+    ProviderProfile,
+    ProviderSnapshot,
+    RequestTelemetry,
+    TelemetrySnapshot,
+} from "../types";
 
 let currentPanel: vscode.WebviewPanel | undefined;
 
@@ -52,6 +59,53 @@ function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, runn
   return buildDashboardHtml(config, snapshot, running);
 }
 
+export interface PricingMaps {
+  byProviderId: Record<string, ProviderPricing>;
+  byModel: Record<string, ProviderPricing>;
+}
+
+/**
+ * Build two lookup tables from the configured provider profiles so the
+ * dashboard can resolve the indicative per-million-token tariff for a given
+ * row (looked up by providerId for the recent and provider tables, and by
+ * upstream model id for the by-model table).
+ */
+export function buildPricingMaps(providers: readonly ProviderProfile[]): PricingMaps {
+  const byProviderId: Record<string, ProviderPricing> = {};
+  const byModel: Record<string, ProviderPricing> = {};
+  for (const profile of providers) {
+    if (!profile.pricing) {
+      continue;
+    }
+    byProviderId[profile.id] = profile.pricing;
+    if (profile.model) {
+      byModel[profile.model] = profile.pricing;
+    }
+  }
+  return { byProviderId, byModel };
+}
+
+/**
+ * Format a USD (or other-currency) amount as a short monospace cell. Returns
+ * the em-dash placeholder when the amount is zero, non-finite, or
+ * unpriced - so unpriced requests do not pollute the totals visually.
+ */
+export function formatCostCell(cost: number, pricing: ProviderPricing | undefined): string {
+  if (!Number.isFinite(cost) || cost <= 0) {
+    return '<span class="muted">-</span>';
+  }
+  const currency = pricing?.currency || "USD";
+  const symbol = currency === "USD" ? "$" : `${currency} `;
+  const title = pricing
+    ? `in ${symbol}${(pricing.inputPerMillion ?? 0).toFixed(2)} / out ${symbol}${(pricing.outputPerMillion ?? 0).toFixed(2)} per 1M tokens (${escapeHtml(currency)})`
+    : `Estimated cost (${escapeHtml(currency)})`;
+  // 4 decimals covers sub-cent values (token-plan rates produce costs in
+  // the $0.0001-$0.01 range for typical prompts). Trim trailing zeros so
+  // $0.0010 reads as $0.001.
+  const formatted = cost.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  return `<code title="${title}">${symbol}${formatted}</code>`;
+}
+
 /**
  * Pure HTML builder for the metrics dashboard. Exported separately from
  * `showMetricsDashboard` so it can be unit-tested without instantiating a
@@ -64,6 +118,7 @@ export function buildDashboardHtml(
 ): string {
   const providers = config.providers.filter((provider) => provider.enabled);
   const entries = Object.entries(snapshot.byModel);
+  const pricingMaps = buildPricingMaps(config.providers);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -267,7 +322,7 @@ export function buildDashboardHtml(
           <button class="filter-btn" data-range="30d">Last 30 days</button>
         </div>
       </div>
-      ${snapshot.recent.length === 0 ? "<p class=\"muted\">No request recorded yet.</p>" : renderRecentTable(snapshot)}
+      ${snapshot.recent.length === 0 ? "<p class=\"muted\">No request recorded yet.</p>" : renderRecentTable(snapshot, pricingMaps)}
     </div>
 
     <div class="panel">
@@ -281,12 +336,12 @@ export function buildDashboardHtml(
           <button class="filter-btn" data-range="30d">Last 30 days</button>
         </div>
       </div>
-      ${entries.length === 0 ? "<p class=\"muted\">No model telemetry yet.</p>" : renderModelSummary(snapshot)}
+      ${entries.length === 0 ? "<p class=\"muted\">No model telemetry yet.</p>" : renderModelSummary(snapshot, pricingMaps)}
     </div>
 
     <div class="panel">
       <h2>Provider summary</h2>
-      ${renderProviderSummary(snapshot)}
+      ${renderProviderSummary(snapshot, pricingMaps)}
     </div>
 
     <div class="footer">Refresh the dashboard after a few calls to see request patterns, latency, and estimated usage.</div>
@@ -313,6 +368,19 @@ export function buildDashboardHtml(
 
       const recent = ${serializeRecent(snapshot.recent)};
       const byModel = ${serializeByModel(snapshot.byModel)};
+      const pricingMaps = ${serializePricingMaps(pricingMaps)};
+
+      function lookupPricing(entry) {
+        return (pricingMaps.byProviderId && pricingMaps.byProviderId[entry.providerId])
+          || (pricingMaps.byModel && pricingMaps.byModel[entry.model])
+          || undefined;
+      }
+      function lookupPricingForModel(model) {
+        return pricingMaps.byModel && pricingMaps.byModel[model];
+      }
+      function lookupPricingForProvider(providerId) {
+        return pricingMaps.byProviderId && pricingMaps.byProviderId[providerId];
+      }
 
       function filterByRange(entries, range) {
         if (range === "all" || !range) return entries;
@@ -329,7 +397,7 @@ export function buildDashboardHtml(
         const tbody = document.getElementById("recent-tbody");
         if (!tbody) return;
         if (filtered.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center; padding:24px;">No requests in this range.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center; padding:24px;">No requests in this range.</td></tr>';
           return;
         }
         tbody.innerHTML = filtered.map((entry) => {
@@ -343,6 +411,7 @@ export function buildDashboardHtml(
             '<td><code>' + escapeHtml(entry.model) + '</code></td>' +
             '<td>' + formatNumber(entry.durationMs) + ' ms</td>' +
             '<td>' + formatNumber(entry.totalTokens) + '</td>' +
+            '<td>' + formatCostCell(entry.estimatedCost || 0, lookupPricing(entry)) + '</td>' +
             '<td>' + (entry.estimated ? "estimated" : "usage") + '</td>' +
           '</tr>';
         }).join("");
@@ -358,21 +427,23 @@ export function buildDashboardHtml(
             '<td>' + formatNumber(snap.totalTokens) + '</td>' +
             '<td>' + formatNumber(Math.round(snap.averageDurationMs)) + ' ms</td>' +
             '<td>' + formatNumber(snap.errors) + '</td>' +
+            '<td>' + formatCostCell(snap.estimatedCost || 0, lookupPricingForModel(model)) + '</td>' +
           '</tr>';
         });
-        tbody.innerHTML = rows.length > 0 ? rows.join("") : '<tr><td colspan="5" class="muted" style="text-align:center; padding:24px;">No data in this range.</td></tr>';
+        tbody.innerHTML = rows.length > 0 ? rows.join("") : '<tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">No data in this range.</td></tr>';
       }
 
       function aggregateModels(filtered) {
         const map = new Map();
         for (const entry of filtered) {
-          const existing = map.get(entry.model) || { model: entry.model, requests: 0, totalTokens: 0, promptTokens: 0, completionTokens: 0, errors: 0, durationSum: 0 };
+          const existing = map.get(entry.model) || { model: entry.model, requests: 0, totalTokens: 0, promptTokens: 0, completionTokens: 0, errors: 0, durationSum: 0, estimatedCost: 0 };
           existing.requests += 1;
           existing.totalTokens += entry.totalTokens || 0;
           existing.promptTokens += entry.promptTokens || 0;
           existing.completionTokens += entry.completionTokens || 0;
           existing.errors += entry.status >= 400 ? 1 : 0;
           existing.durationSum += entry.durationMs || 0;
+          existing.estimatedCost += entry.estimatedCost || 0;
           map.set(entry.model, existing);
         }
         const result = {};
@@ -382,6 +453,7 @@ export function buildDashboardHtml(
             totalTokens: snap.totalTokens,
             errors: snap.errors,
             averageDurationMs: snap.requests > 0 ? snap.durationSum / snap.requests : 0,
+            estimatedCost: snap.estimatedCost,
           };
         }
         return result;
@@ -401,6 +473,20 @@ export function buildDashboardHtml(
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#39;");
+      }
+      function formatCostCell(cost, pricing) {
+        if (!isFinite(cost) || cost <= 0) {
+          return '<span class="muted">-</span>';
+        }
+        var currency = (pricing && pricing.currency) || "USD";
+        var symbol = currency === "USD" ? "$" : (currency + " ");
+        var inputRate = pricing && pricing.inputPerMillion ? Number(pricing.inputPerMillion).toFixed(2) : "0.00";
+        var outputRate = pricing && pricing.outputPerMillion ? Number(pricing.outputPerMillion).toFixed(2) : "0.00";
+        var title = pricing
+          ? "in " + symbol + inputRate + " / out " + symbol + outputRate + " per 1M tokens (" + escapeHtml(currency) + ")"
+          : "Estimated cost (" + escapeHtml(currency) + ")";
+        var formatted = Number(cost).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+        return '<code title="' + title + '">' + symbol + formatted + '</code>';
       }
 
       function bindFilterGroup(containerId, onChange) {
@@ -438,7 +524,7 @@ function metricCard(title: string, value: string, detail: string): string {
     </div>`;
 }
 
-function renderRecentTable(snapshot: TelemetrySnapshot): string {
+function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps): string {
   return `
     <table>
       <thead>
@@ -449,16 +535,18 @@ function renderRecentTable(snapshot: TelemetrySnapshot): string {
           <th>Model</th>
           <th>Duration</th>
           <th>Tokens</th>
+          <th>Est. cost</th>
           <th>Source</th>
         </tr>
       </thead>
       <tbody id="recent-tbody">
-        ${snapshot.recent.map((entry) => recentRow(entry)).join("")}
+        ${snapshot.recent.map((entry) => recentRow(entry, pricing)).join("")}
       </tbody>
     </table>`;
 }
 
-function recentRow(entry: RequestTelemetry): string {
+function recentRow(entry: RequestTelemetry, pricing: PricingMaps): string {
+  const rate = pricing.byProviderId[entry.providerId] ?? pricing.byModel[entry.model];
   return `<tr>
         <td><span class="pill ${entry.status >= 400 ? "warn" : "ok"}">${entry.status}</span></td>
         <td class="muted">${escapeHtml(formatClock(entry.timestamp))}</td>
@@ -466,6 +554,7 @@ function recentRow(entry: RequestTelemetry): string {
         <td><code>${escapeHtml(entry.model)}</code></td>
         <td>${formatNumber(entry.durationMs)} ms</td>
         <td>${formatNumber(entry.totalTokens)}</td>
+        <td>${formatCostCell(entry.estimatedCost, rate)}</td>
         <td>${entry.estimated ? "estimated" : "usage"}</td>
       </tr>`;
 }
@@ -477,7 +566,7 @@ function formatClock(iso: string): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-function renderProviderSummary(snapshot: TelemetrySnapshot): string {
+function renderProviderSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps): string {
   const entries = Object.entries(snapshot.byProvider);
   if (entries.length === 0) {
     return "<p class=\"muted\">No provider telemetry yet.</p>";
@@ -491,6 +580,7 @@ function renderProviderSummary(snapshot: TelemetrySnapshot): string {
         <td>${formatNumber(entry.totalTokens)}</td>
         <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
         <td>${formatNumber(entry.errors)}</td>
+        <td>${formatCostCell(entry.estimatedCost, pricing.byProviderId[providerId])}</td>
       </tr>`)
     .join("");
 
@@ -503,6 +593,7 @@ function renderProviderSummary(snapshot: TelemetrySnapshot): string {
           <th>Tokens</th>
           <th>Avg duration</th>
           <th>Errors</th>
+          <th>Est. cost</th>
         </tr>
       </thead>
       <tbody>
@@ -511,7 +602,7 @@ function renderProviderSummary(snapshot: TelemetrySnapshot): string {
     </table>`;
 }
 
-function renderModelSummary(snapshot: TelemetrySnapshot): string {
+function renderModelSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps): string {
   const entries = Object.entries(snapshot.byModel);
   if (entries.length === 0) {
     return "<p class=\"muted\">No model telemetry yet.</p>";
@@ -525,21 +616,23 @@ function renderModelSummary(snapshot: TelemetrySnapshot): string {
           <th>Tokens</th>
           <th>Avg duration</th>
           <th>Errors</th>
+          <th>Est. cost</th>
         </tr>
       </thead>
       <tbody id="model-tbody">
-        ${entries.map(([model, entry]) => modelRow(model, entry)).join("")}
+        ${entries.map(([model, entry]) => modelRow(model, entry, pricing)).join("")}
       </tbody>
     </table>`;
 }
 
-function modelRow(model: string, entry: ProviderSnapshot): string {
+function modelRow(model: string, entry: ProviderSnapshot, pricing: PricingMaps): string {
   return `<tr>
         <td><code>${escapeHtml(model)}</code></td>
         <td>${formatNumber(entry.requests)}</td>
         <td>${formatNumber(entry.totalTokens)}</td>
         <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
         <td>${formatNumber(entry.errors)}</td>
+        <td>${formatCostCell(entry.estimatedCost, pricing.byModel[model])}</td>
       </tr>`;
 }
 
@@ -554,12 +647,17 @@ function serializeRecent(recent: readonly RequestTelemetry[]): string {
     promptTokens: entry.promptTokens,
     completionTokens: entry.completionTokens,
     totalTokens: entry.totalTokens,
+    estimatedCost: entry.estimatedCost,
     estimated: entry.estimated,
   })));
 }
 
 function serializeByModel(byModel: Record<string, ProviderSnapshot>): string {
   return JSON.stringify(byModel);
+}
+
+function serializePricingMaps(maps: PricingMaps): string {
+  return JSON.stringify(maps);
 }
 
 function formatNumber(value: number): string {

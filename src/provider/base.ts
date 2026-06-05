@@ -1,5 +1,5 @@
 import vscode from 'vscode';
-import { MODELS } from '../consts';
+import { getLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import { getUserModels } from '../config';
 import type { ModelDefinition } from '../types';
 import { toChatInfo } from './models';
@@ -26,7 +26,7 @@ export abstract class BaseChatProvider implements vscode.LanguageModelChatProvid
 	abstract getAuthManager(): { hasApiKey(): Promise<boolean>; getApiKey(): Promise<string | undefined> };
 
 	getModelsForVendor(): ModelDefinition[] {
-		const builtIn = MODELS.filter((m) => m.family === this.vendor);
+		const builtIn = getLoadedRegistry().models.filter((m) => m.family === this.vendor);
 		const userModelsRaw = getUserModels().filter((m) => m.family === this.vendor);
 		if (userModelsRaw.length === 0) {
 			return builtIn;

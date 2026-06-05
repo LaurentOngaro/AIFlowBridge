@@ -1,12 +1,13 @@
 import vscode from 'vscode';
-import { CONFIG_SECTION, DEFAULT_PROVIDER_URLS } from './consts';
+import { tryGetLoadedRegistry } from './aiflowbridge/modelRegistry';
+import { CONFIG_SECTION } from './consts';
 
 export type DebugMode = 'minimal' | 'metadata' | 'verbose';
 
 export function getProviderBaseUrl(vendor: string): string {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 	const key = `providers.${vendor}.baseUrl` as const;
-	return config.get<string>(key) || DEFAULT_PROVIDER_URLS[vendor as keyof typeof DEFAULT_PROVIDER_URLS] || '';
+	return config.get<string>(key) || tryGetLoadedRegistry()?.vendors[vendor]?.baseUrl || '';
 }
 
 export function getProviderApiModelId(vendor: string, vscodeModelId: string): string {
@@ -97,6 +98,7 @@ export function getUserModels(): Array<{
 		thinking?: boolean;
 	};
 	requiresThinkingParam?: boolean;
+	pricing?: { inputPerMillion: number; outputPerMillion: number; currency: string };
 }> {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 	const raw = config.get<unknown[]>('userModels', []);
@@ -127,6 +129,7 @@ export function getUserModels(): Array<{
 				? (e.capabilities as { toolCalling?: boolean | number; imageInput?: boolean; thinking?: boolean })
 				: undefined,
 			requiresThinkingParam: typeof e.requiresThinkingParam === 'boolean' ? e.requiresThinkingParam : undefined,
+			pricing: parseUserModelPricing(e.pricing),
 		});
 	}
 	return result;
@@ -137,4 +140,28 @@ function normalizeDebugMode(value: unknown): DebugMode | undefined {
 		return value;
 	}
 	return undefined;
+}
+
+/**
+ * Parse the optional `pricing` block of a user-declared model from the
+ * `aiflowbridge.userModels` setting. Same shape as the registry's
+ * `ModelPricing` (input/output per million tokens + currency). Loose
+ * validation: missing or invalid fields are dropped silently, mirroring the
+ * behavior of the other user-model fields.
+ */
+function parseUserModelPricing(raw: unknown): { inputPerMillion: number; outputPerMillion: number; currency: string } | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+	const p = raw as Record<string, unknown>;
+	if (typeof p.inputPerMillion !== 'number' || !Number.isFinite(p.inputPerMillion) || p.inputPerMillion < 0) {
+		return undefined;
+	}
+	if (typeof p.outputPerMillion !== 'number' || !Number.isFinite(p.outputPerMillion) || p.outputPerMillion < 0) {
+		return undefined;
+	}
+	const currency = typeof p.currency === 'string' && p.currency.trim().length > 0
+		? p.currency.trim()
+		: 'USD';
+	return { inputPerMillion: p.inputPerMillion, outputPerMillion: p.outputPerMillion, currency };
 }

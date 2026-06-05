@@ -1,5 +1,114 @@
 # Changelog
 
+## 1.4.0
+
+Minor release: version-aware cooperative restart for the local gateway. Fixes a long-standing dev-experience issue where reloading the extension while a previous gateway was still running would silently reuse the stale instance.
+
+### Fixed
+
+- BUG10: prices are not updated on metrics
+- BUG09: "Edit model registry" fails
+
+### Added
+
+- **`GET /version`** on the gateway, returning `{ name, version, pid, startedAt }`. When the configured port is already in use, the new activation probes the peer:
+  - **Same or newer version** → join the peer silently (legacy singleton behaviour, no UI).
+  - **Older version** → show a non-modal information message with two buttons: `Restart with vX.Y.Z` (cooperative shutdown of the peer, then bind) and `Keep current version` (join the peer as before). If the user dismisses the prompt, the default is to **join** (no surprise behaviour change).
+  - **Port occupied by a non-gateway service** → log a warning, no prompt, let the bind fail loudly. The peer is **never** asked to shut down unless it identifies itself as `aiflowbridge-gateway`.
+  - **Port occupied by another named service** (`name !== "aiflowbridge-gateway"`) → same as above: log a warning, no prompt, no shutdown.
+
+- **`POST /shutdown`** endpoint on the gateway, used internally by the version-aware restart flow. The server binds on `127.0.0.1` only, so the endpoint is reachable only from the local machine. The handler logs the peer IP, sends `{ ok: true }`, then closes the listening socket. We intentionally do **not** call `process.exit(0)`: the gateway runs inside the VS Code extension host, and killing that process would also kill every other extension the user has installed. Endpoints `/version` and `/shutdown` are deliberately excluded from the telemetry counters.
+
+- **New helpers in `src/aiflowbridge/gateway/probe.ts`** (all pure functions, no VS Code dependency):
+  - `peerControlUrl(port)` - hard-coded loopback URL builder, used for both the probe and the shutdown request. Deriving the URL from the configured port (not from the user-configurable `aiflowbridge.gateway.baseUrl`) prevents SSRF via a hostile setting value.
+  - `probeServerVersion(port, { timeoutMs })` - `fetch /version` with `AbortController`. Returns `null` on timeout or non-2xx.
+  - `requestPeerShutdown(port, { timeoutMs })` - `POST /shutdown`. Never throws (logs and returns `false` on error).
+  - `waitUntilPortFree(port, { timeoutMs, intervalMs })` - polls the port until `ECONNREFUSED` or timeout. Needed because Windows can keep a port in `TIME_WAIT` for a few seconds after the listening socket closes.
+  - `compareSemver(a, b)` - hand-rolled `<0 / 0 / >0` for `MAJOR.MINOR.PATCH` (ignores prerelease tag for v1, so `1.4.0-beta.1` is treated as `1.4.0`).
+  - `isPortInUse(port)` - shared TCP-connect probe (exported, single source of truth). Handles `'timeout'`, `'error'`, and `'connect'` events; destroys the socket on all non-connect paths.
+
+- **New helpers in `src/aiflowbridge/gateway/lock.ts`**: `acquireGatewayLock(path)` / `releaseGatewayLock(handle)`. Returns a discriminated result (`{ ok: true, handle } | { ok: false, reason: "held" | "not-acquirable", error? }`). Refuses to follow a symlink at the lock path (mitigates an arbitrary-file-creation primitive that would otherwise be available to a co-installed malicious extension). Creates the parent directory with `mkdirSync({ recursive: true })` if missing. The lock has a **30s mtime-based stale reaper**: a lock file older than 30s is treated as orphaned (the previous activation crashed between `acquire` and `release`), deleted, and acquisition is retried once. Acquired in `lifecycle.ts:activate()`, released in `deactivate()`. **The lock is enforced, not just logged**: only the lock-owning activation may start the gateway, so two concurrent activations can no longer both probe the peer and both POST `/shutdown` (the ping-pong scenario the lock was added to prevent).
+
+- **`GatewayService` constructor** now takes an optional `bundledVersion: string` (defaults to `"0.0.0"`) and an optional `userPrompt: UserPrompt` (defaults to a lazy `vscode.window.showInformationMessage`). The runtime passes `context.extension.packageJSON.version` to the former. The latter is what makes the version-aware flow unit-testable without a VS Code window.
+
+- **User-facing error on restart-timeout** (per the plan's "erreur claire avec le PID"): when the user picks "Restart" and the peer never frees the port (Windows TIME_WAIT, hung peer), `handleOccupiedPort` throws an `Error` with `code: "EPEERSTALLED"` and `peerPid: number`. The runtime (`src/aiflowbridge/index.ts`) catches it and shows a warning message that includes the old PID and a hint to wait for TIME_WAIT or kill the process manually.
+
+### Changed
+
+- **`src/aiflowbridge/gateway/server.ts`**:
+  - The startup flow now routes through a new `private async handleOccupiedPort()` method (extracted from `start()` for readability and testability). Returns a structured `HandleOccupiedPortResult` so the runtime can branch on `joined` / `proceed-bind` / `restart-failed`.
+  - The legacy `isGatewayReachable(baseUrl)` helper (which probed `/health` and checked `service === "AIFlowBridge"`) is gone. The new probe is `probeServerVersion(port)` and checks `name === "aiflowbridge-gateway"` (a stable string, not a translatable UI label).
+  - `handleRequest` adds two new routes at the very top, before `/health` and the rest: `GET /version` and `POST /shutdown`. Both refuse to record telemetry hits.
+  - `isPortInUse` is no longer duplicated; it lives in `probe.ts` and is re-exported from `server.ts` for backward compatibility.
+- **`src/aiflowbridge/index.ts`** passes `this.context.extension.packageJSON.version` to the `GatewayService` constructor (was previously only logged at the end of `activate()`).
+- **`src/runtime/lifecycle.ts`** acquires the gateway lock at the very beginning of `activate()` (before the registry is loaded, so the lock is held as briefly as possible across the rest of activation) and releases it in `deactivate()`. The lock result is now a discriminated union: a "held" lock (peer activation or stale from a previous crash) or a "not-acquirable" lock (I/O failure, symlink refused, ...); each is logged differently. **Only the lock-owning activation calls `activateAIFlowBridge(context)`** - the other activation logs and continues without starting a gateway, which is what actually prevents the ping-pong loop.
+
+### Tests
+
+- 407 tests across 25 files (was 370 / 22 in 1.3.0). New test files:
+  - `tests/gateway-version.test.ts` (21 tests): `compareSemver` edge cases (12 cases including prerelease, missing segments, non-numeric, 0.0.0), `probeServerVersion` (success / invalid payload / unreachable), `requestPeerShutdown` (success / unreachable), `waitUntilPortFree` (free / freed mid-poll / timeout).
+  - `tests/gateway-restart.test.ts` (9 tests): end-to-end cooperative restart scenarios. Uses a fake peer HTTP server and a stubbed `UserPrompt`:
+    - same version → join silently, no prompt, no shutdown
+    - newer version → join silently, no prompt, no shutdown
+    - older version + user keeps → join, no shutdown
+    - older version + user dismisses → join (default), no shutdown
+    - older version + user restarts → bind fresh instance + peer receives `POST /shutdown`
+    - port occupied by a foreign service → no prompt, listen fails
+    - peer named differently → no prompt, listen fails
+    - `GET /version` returns the expected JSON shape (`name`, `version`, `pid`, `startedAt`)
+    - **restart-timeout throws `EPEERSTALLED` with peer PID** when the user picks "Restart" but the peer never frees the port (simulated with a peer that responds 200 to `/shutdown` but never closes)
+  - `tests/gateway-lock.test.ts` (7 tests): free acquire, "held" on conflict, symlink refused (returns `not-acquirable`), missing parent dir is created, null-safe release, **stale-lock reaper** (lock file with mtime > 30s is reaped and acquisition retried), reaper respects a non-stale lock.
+- `tests/gateway.test.ts` (updated): the legacy "singleton detection" test now probes `/version` (with `name: "aiflowbridge-gateway"`) instead of `/health` (with `service: "AIFlowBridge"`).
+
+### Security notes
+
+- The cooperative-restart control plane (`/version` + `/shutdown`) only ever talks to `http://127.0.0.1:<port>`, never to the user-configurable `aiflowbridge.gateway.baseUrl`. This is intentional: a malicious `.vscode/settings.json` pointing `baseUrl` at an internal service would otherwise turn the gateway probe + shutdown into an SSRF primitive. `peerControlUrl(port)` is the only URL builder used for these calls.
+- `POST /shutdown` does not call `process.exit(0)`. The gateway runs inside the VS Code extension host, and killing that process would also kill every other extension the user has installed. The handler closes the listening socket; the extension host continues. The new activation (same process or new process) then binds the port.
+- The gateway lock (`fs.openSync(path, 'wx')`) refuses to follow a symlink at the lock path. Without this check, a co-installed malicious extension could pre-place a symlink at `<globalStorageUri>/gateway.lock` targeting e.g. `~/.ssh/authorized_keys`, and the "lock acquisition" would create an empty file at the symlink target.
+- `isPortInUse` has a proper `'timeout'` handler: a hung peer cannot keep `waitUntilPortFree` waiting past its own timeout.
+
+### Notes
+
+- The cooperative restart is a **dev-experience** fix: end users of the gateway see no change in the common case. The only new user-visible surface is the "Restart with vX.Y.Z?" prompt, which only appears when (a) a debug session is reloaded while the old gateway is still alive, OR (b) the user installs a new version of the extension over an old running one.
+- **Stale-lock reaper** closes the "Lock non libéré sur crash" pitfall from the plan: if the extension crashes between `acquire` and `release`, the `.lock` file remains. The next activation with `mtime > 30s` reaps it and retries acquisition once. A healthy activation finishes well under 30s, so a stale lock is always an orphan.
+- 6 manual test scenarios (`_helpers/MANUAL_TESTS_v1.4.0+.md`, MT01-MT06) are required to ship 1.4.0 - they validate the cooperative-restart UX in a real VS Code instance and cannot be automated.
+
+## 1.3.0
+
+Minor release: the canonical list of models and vendors is now an external JSON file, overridable without editing source or waiting for a release.
+
+### Added
+
+- **External model registry** (`FEAT2`): the canonical list of models and vendor defaults is now `resources/models.json` (bundled with the extension), overridable at two levels:
+  - **globalStorage override** (`<globalStorageUri>/models.json`) - per-user
+  - **workspace override** (`<workspaceFolder>/.vscode/aiflowbridge.models.json`) - per-project
+
+  The three tiers are deep-merged in priority order bundled < globalStorage < workspace, per `model.id` and per `vendor` key. A field absent from a higher tier falls through to the lower tier, so a workspace override that only sets `pricing` keeps every other field from the bundled entry. A `model.id` or `vendor` key present only in workspace is preserved (lets you add a new model without touching the bundled file).
+
+  The bundled file is the source of truth for what shows in the Copilot Chat picker (`vscode.lm` model list) and what gets auto-synthesized into the gateway catalog. Per-model `pricing` blocks (USD per 1M tokens) live alongside the model definition - the family-level indicative rates that used to be hardcoded in `src/aiflowbridge/config.ts` are now derived from the registry.
+
+- **`resources/models.schema.json`**: JSON Schema Draft 2020-12 description of the registry file, referenced from `models.json` via `$schema`. VS Code's built-in JSON language server uses it to provide autocompletion, hover help, and inline validation while editing. Covers the root shape, the `vendors` map, the `models` array, capability flags (`toolCalling` accepting `boolean | non-negative integer`), and the `pricing` block (USD only).
+
+- **Two new Command Palette commands** to manage the registry without leaving VS Code:
+  - `AIFlowBridge: Edit model registry` - opens `<globalStorageUri>/models.json` in the editor. If the file does not exist yet, it is created by copying the bundled registry (so the user has a valid starting point with the `$schema` reference and all required fields). Edits take effect on the next window reload.
+  - `AIFlowBridge: Reset model registry to bundled defaults` - asks for confirmation, deletes the globalStorage override, and offers to reload the window so the bundled defaults take effect immediately.
+
+### Changed
+
+- **Architecture cleanup**: `src/consts.ts` is now 50 lines (was 202). It only carries truly static, never-edited constants (`API_KEY_SECRETS`, `CONFIG_SECTION`, `WALKTHROUGH_ID`, ...). The `MODELS`, `DEFAULT_PROVIDER_URLS`, and `EXTERNAL_URLS` compile-time constants are gone - their data is in the registry, read at activation via `loadModelRegistry(context)`.
+- **Providers** (`src/provider/index.ts`, `minimax.ts`, `xiaomi.ts`, `base.ts`, `unified.ts`, `request.ts`) read their model and vendor data from the registry cache (`getLoadedRegistry()`), not from a `const MODELS` import. The cache is populated by `loadModelRegistry(context)` at activation, before any provider or command is registered.
+- **`loadConfig` is now async** (`src/aiflowbridge/config.ts:loadConfig(context)`): it awaits the registry, then derives the gateway catalog from `registry.vendors` and `registry.models`. The four synthesis helpers (`buildDefaultGatewayProfiles`, `synthesizeProviderForModel`, `synthesizeProvidersFromBuiltInModels`, `synthesizeProvidersFromUserModels`) take the `ModelRegistry` as a parameter, which makes them pure and unit-testable without touching the cache.
+- **Replays, client errors, and the "add custom model" command** also read from the registry. Two module-level constants that depended on a synchronous `MODELS` lookup at import time are now lazy getters (`getReplayMarkerPrefixes()` in `src/provider/replay/consts.ts`, `getApiProviderHttpErrorLinks()` in `src/client/consts.ts`) that resolve on first use, after the registry cache is populated.
+- **Registry loading is idempotent** (bug fix discovered while writing the loader tests): a second call to `loadModelRegistry(context)` from inside `loadConfig` (called from `AIFlowBridgeRuntime.activate()`) used to silently re-read the bundled file from disk and overwrite the cache. It now consults the cache first. This means activating with the globalStorage override does one disk read for the bundled, one for the override, and zero for the second call from `loadConfig`. Editing the globalStorage file at runtime still requires a window reload (planned in v1, as documented in `ACTION PLAN.md` "Pièges à éviter").
+
+### Tests
+
+- 370 tests across 22 files (was 320 / 20). Two new test files:
+  - `tests/modelRegistry.schema.test.ts` (~33 tests): hand-rolled validator coverage. Fail-hard structure checks (root, version, models array, vendors object), fail-soft content checks (model entry: id / name / family / version / detail / token counts / capabilities / pricing; vendor entry: baseUrl / apiKeySecret / externalUrls; family must be one of `deepseek`, `minimax`, `xiaomi`; `toolCalling` accepts `boolean | non-negative integer`; pricing currency must be `USD`; etc.), field helpers (`nonEmptyString`, `booleanField`, `positiveInt`, `nonNegativeNumber`, `toolCallingField`), and the three deep-merge primitives (`deepMergeModel`, `deepMergeVendor`, `mergeTiers`).
+  - `tests/modelRegistry.test.ts` (11 tests): 3-tier merge with a fake `vscode.workspace.fs`, including override-only models, override-only vendors, deep-merged vendor `externalUrls`, cache idempotency, fatal structure error on the bundled tier, soft-fail structure error on an override tier, and content-error dropping with logger warnings.
+- `tests/aiflowbridge-config.test.ts`, `tests/config.test.ts`, and `tests/xiaomi.test.ts` updated to seed the registry cache (`setLoadedRegistry(bundledRegistry)`) in `beforeAll`, since they no longer import `MODELS` / `DEFAULT_PROVIDER_URLS` from `src/consts.ts`.
+- Mock strategy: `tests/modelRegistry.test.ts` uses a minimal `vi.mock('vscode', ...)` shim that exposes `Uri.joinPath` (returning a Uri-like with `toString()`), `workspace.fs.readFile`, and `window.createOutputChannel` (for the logger). The shim is hoisted via `vi.hoisted` so it can be referenced from inside the factory function. Both default-import (`import vscode from 'vscode'`, used by the logger) and namespace-import (`import * as vscode from 'vscode'`, used by the loader) shapes are supported by setting `mock.default = mock`.
+
 ## 1.2.2
 
 Patch release: one bug fix for user-added models.
