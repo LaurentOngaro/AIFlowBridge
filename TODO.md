@@ -27,6 +27,7 @@ _None for now._
   - [ ] add the current version of the extension (under the Title) with text: "current version: vX.X.X"
   - [ ] make sections collapsible in dashboard metrics
   - [ ] add custom date filter options to the dashboard (with start and end date pickers)
+  - [ ] add request filter (text field on all the request data including model, provider, timestamp, etc.)
 
 ### Features (last: FEAT3)
 

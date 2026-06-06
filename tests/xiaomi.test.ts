@@ -5,6 +5,7 @@
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // --- VSCode mock ---
 const { mockWorkspaceConfig } = vi.hoisted(() => {
@@ -78,7 +79,7 @@ import {
 	type ModelRegistry,
 } from '../src/aiflowbridge/modelRegistry.schema';
 
-const BUNDLED_REGISTRY_PATH = 'D:/Projets_Perso/03_Code/_Extensions/vsCode/AIFlowBridge/resources/models.json';
+const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json');
 
 let bundledRegistry: ModelRegistry;
 

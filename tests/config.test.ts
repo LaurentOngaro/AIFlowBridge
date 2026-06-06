@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // --- VScode mock - must include default export for "import vscode from 'vscode'" ---
 const { mockWorkspaceConfig } = vi.hoisted(() => {
@@ -51,7 +52,7 @@ import {
 	validateRegistryContent,
 } from '../src/aiflowbridge/modelRegistry.schema';
 
-const BUNDLED_REGISTRY_PATH = 'D:/Projets_Perso/03_Code/_Extensions/vsCode/AIFlowBridge/resources/models.json';
+const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json');
 
 function loadBundledVendors(): { deepseek: string; minimax: string; xiaomi: string } {
 	const raw = JSON.parse(readFileSync(BUNDLED_REGISTRY_PATH, 'utf8'));

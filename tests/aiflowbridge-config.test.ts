@@ -17,6 +17,7 @@
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const { mockUserModels, mockRegistry, mockConfiguration } = vi.hoisted(() => {
 	const mockUserModels = { value: [] as unknown[] };
@@ -56,7 +57,7 @@ import {
 import { selectProvider, buildModelCatalog } from '../src/aiflowbridge/providers';
 import type { ProviderProfile } from '../src/aiflowbridge/types';
 
-const BUNDLED_REGISTRY_PATH = 'D:/Projets_Perso/03_Code/_Extensions/vsCode/AIFlowBridge/resources/models.json';
+const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json');
 
 function loadBundledRegistry(): import('../src/aiflowbridge/modelRegistry.schema').ModelRegistry {
 	const raw = JSON.parse(readFileSync(BUNDLED_REGISTRY_PATH, 'utf8'));
