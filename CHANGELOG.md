@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.2
+
+Patch release: restores CI on Linux/macOS runners, fixes `vsce publish` / `vsce package` missing-entrypoint, and silences a noisy `getUserModels()` warning.
+
+### Fixed
+
+- **CI: hardcoded Windows path in 3 test files broke `npm test` on Linux/macOS since v1.4.0.** When the static `MODELS` / `DEFAULT_PROVIDER_URLS` imports were removed in v1.4.0 (ACTION PLAN.md step 3), three test files started loading the bundled registry directly from disk with a hardcoded absolute path to the developer's local checkout:
+- **`getUserModels()` printed a useless `console.warn` on every invalid entry.** The previous message (`[AIFlowBridge] Skipping invalid userModels entry: missing required field (id/name/family/version)`) didn't say which entry was invalid, fired via `console.warn` (bypassing the VS Code Output channel and polluting `npm test` / `npm run package` output 6 times per run), and listed all four fields as missing even when only one was.
+  - Fix: switched to `logger.warn` (so the message goes to the AIFlowBridge Output channel instead of stdout), and made the message actionable:
+
 ## 1.4.1
 
 Patch release: closes BUG10 and BUG08
