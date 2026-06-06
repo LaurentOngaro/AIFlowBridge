@@ -8,6 +8,41 @@ import { describe, it, expect, vi } from "vitest";
 import { TelemetryStore } from "../src/aiflowbridge/telemetry";
 import type { RequestTelemetry, TelemetrySnapshot } from "../src/aiflowbridge/types";
 
+// telemetry.ts now imports the logger (to warn on a failed persister write
+// and on a corrupt on-disk snapshot), and logger.ts pulls in vscode via
+// LogOutputChannel. Provide a shim so the unit test stays pure.
+vi.mock("vscode", () => ({
+  default: {
+    window: {
+      createOutputChannel: vi.fn(() => ({
+        name: "AIFlowBridge",
+        log: vi.fn(),
+        trace: vi.fn(),
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        dispose: vi.fn(),
+        append: vi.fn(),
+        appendLine: vi.fn(),
+        clear: vi.fn(),
+        show: vi.fn(),
+        hide: vi.fn(),
+      })),
+    },
+    LogLevel: { Trace: 0, Debug: 1, Info: 2, Warning: 3, Error: 4, Off: 5 },
+    LogOutputChannel: class MockLogOutputChannel {
+      name = "AIFlowBridge";
+      log = vi.fn();
+      trace = vi.fn();
+      debug = vi.fn();
+      info = vi.fn();
+      warn = vi.fn();
+      error = vi.fn();
+    },
+  },
+}));
+
 function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry {
 	return {
 		id: "r1",
@@ -173,6 +208,55 @@ describe("TelemetryStore - reset", () => {
 		store.reset();
 		const snap = store.snapshot();
 		expect(snap.requests).toBe(0);
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener.mock.calls[0]?.[0]?.requests).toBe(0);
+	});
+
+	// Regression: reset() used to go through restore(undefined), which
+	// reloaded the on-disk state from the persister. When the disk
+	// still had old data, the in-memory counters came right back, so
+	// the user-visible dashboard never showed a reset. The fix is to
+	// clear in-memory directly and have the persister wipe the disk
+	// (fire-and-forget) instead.
+	it("clears in-memory state even when a persister is configured (no disk reload)", () => {
+		const fakePersister = {
+			loadSync: vi.fn(() => undefined),
+			appendDelta: vi.fn(async () => undefined),
+			removeEntry: vi.fn(async () => false),
+			clear: vi.fn(async () => undefined),
+		};
+		const store = new TelemetryStore(fakePersister);
+		store.record(makeEntry({ id: "r1", totalTokens: 100 }));
+		store.record(makeEntry({ id: "r2", totalTokens: 200 }));
+		expect(store.snapshot().requests).toBe(2);
+
+		store.reset();
+		// The in-memory store is empty immediately, regardless of what
+		// the persister would have returned from loadSync.
+		expect(store.snapshot().requests).toBe(0);
+		expect(store.snapshot().totalTokens).toBe(0);
+		expect(store.snapshot().recent).toEqual([]);
+		// loadSync was NOT called by reset (the bug would have called
+		// it once, returning the pre-reset state and undoing the wipe).
+		expect(fakePersister.loadSync).not.toHaveBeenCalled();
+		// The persister was asked to wipe its disk, asynchronously.
+		expect(fakePersister.clear).toHaveBeenCalledTimes(1);
+	});
+
+	it("notifies listeners with the empty snapshot after reset (with persister)", () => {
+		const fakePersister = {
+			loadSync: vi.fn(() => undefined),
+			appendDelta: vi.fn(async () => undefined),
+			removeEntry: vi.fn(async () => false),
+			clear: vi.fn(async () => undefined),
+		};
+		const store = new TelemetryStore(fakePersister);
+		const listener = vi.fn();
+		store.subscribe(listener);
+		store.record(makeEntry());
+		listener.mockClear();
+
+		store.reset();
 		expect(listener).toHaveBeenCalledTimes(1);
 		expect(listener.mock.calls[0]?.[0]?.requests).toBe(0);
 	});

@@ -8,5 +8,8 @@ node_modules/
 .env*
 !.env.example
 .kilo/
+
+# working docs, no published
 _helpers/PLAN_ACTIONS.md
-_helpers/CHECKUP_1.0.0.md
+_helpers/ACTION PLAN.md
+_helpers/Audit - Rapport de Modifications à Apporter.md

@@ -11,9 +11,9 @@ AIFlowBridge is a VS Code extension that provides multi-provider AI coding assis
 
 ### Language
 
+- All the Agent IA interractions in the Chat (thinking, reflection, question, answers...) must be in **FRENCH only**
 - No Chinese localization files (package.nls.zh-cn.json, README.zh-cn.md, etc.)
 - All code, comments, and documentation must be in **English only**
-- All the Agent IA interractions in the Chat (thinking, reflection, question, answers...) must be in **FRENCH only**
 - Use English for all user-facing strings
 
 ### Style Guidelines
@@ -33,6 +33,8 @@ src/
 │   │   ├── server.ts                   # HTTP proxy + /version + /shutdown + version-aware restart
 │   │   ├── probe.ts                    # probeServerVersion / requestPeerShutdown / waitUntilPortFree / compareSemver
 │   │   └── lock.ts                     # acquireGatewayLock / releaseGatewayLock (fs.openSync 'wx')
+│   ├── telemetry/                      # Cross-window telemetry persistence (FEAT1)
+│   │   └── persistence.ts              # TelemetryPersister + acquireTelemetryLock / releaseTelemetryLock
 │   ├── modelRegistry.schema.ts         # Registry types + hand-rolled validators + merge
 │   ├── modelRegistry.ts                # 3-tier loader (bundled < globalStorage < workspace)
 │   ├── telemetry.ts                    # Usage metrics
@@ -200,7 +202,7 @@ Located in `src/aiflowbridge/gateway/`:
   - **Singleton mode** retained as a subset of the above (the "same or newer" branch).
   - After `start()`, `config.gateway.port` and `config.gateway.baseUrl` are synced to the actual bound port (matters when `port: 0` is configured)
   - Provider routing by model alias via `aiflowbridge.providers` array
-  - Request/response telemetry (counts, latency, tokens, estimated cost). `/version` and `/shutdown` are explicitly excluded from telemetry.
+  - Request/response telemetry (counts, latency, tokens, estimated cost). `/version` and `/shutdown` are explicitly excluded from telemetry. Constructor accepts an optional 4th `persister` argument (a `TelemetryPersisterLike` implementing `loadSync` / `appendDelta` / `removeEntry` / `clear`) for cross-window shared metrics; the index file in `src/aiflowbridge/` builds the persister from `<globalStorageUri>` and wires it on activation. Exposes a `bundledVersion` getter (from the `extension/package.json` shipped with the running extension) and a `removeEntry(id)` / `refreshFromDisk()` pair for the dashboard message handler.
   - Starts automatically if `aiflowbridge.gateway.enabled: true` (default)
 - `probe.ts` - `probeServerVersion` / `requestPeerShutdown` / `waitUntilPortFree` / `compareSemver`. Pure functions, no VS Code dependency, unit-tested.
 - `lock.ts` - `acquireGatewayLock` / `releaseGatewayLock` using `fs.openSync(path, 'wx')`. Acquired in `lifecycle.ts:activate()` and released in `deactivate()`. Best-effort guard against the ping-pong loop when two debug sessions restart the gateway simultaneously.
@@ -261,28 +263,29 @@ npm test           # Run vitest unit tests
 
 ## Important Files
 
-| File                                       | Purpose                                                      |
-| ------------------------------------------ | ------------------------------------------------------------ |
-| `resources/models.json`                    | Bundled model registry (14 models, 3 vendors)                |
-| `resources/models.schema.json`             | JSON Schema for editor autocompletion in registry files      |
-| `src/consts.ts`                            | Static constants only (CONFIG_SECTION, API_KEY_SECRETS, ...) |
-| `src/aiflowbridge/modelRegistry.schema.ts` | Registry types + hand-rolled validators + merge              |
-| `src/aiflowbridge/modelRegistry.ts`        | 3-tier loader (bundled < globalStorage < workspace)          |
-| `src/aiflowbridge/config.ts`               | async `loadConfig(context)` - reads registry + settings      |
-| `src/provider/base.ts`                     | Abstract provider (reads registry cache)                     |
-| `src/provider/vision/model.ts`             | Vision model selection (selector + fallback chain)           |
-| `src/aiflowbridge/gateway/server.ts`       | Local proxy with version-aware cooperative restart           |
-| `src/aiflowbridge/gateway/probe.ts`        | probe / shutdown / waitUntilPortFree / compareSemver         |
-| `src/aiflowbridge/gateway/lock.ts`         | acquireGatewayLock / releaseGatewayLock (fs.openSync 'wx')   |
-| `src/aiflowbridge/telemetry.ts`            | Usage tracking and cost estimation                           |
-| `src/aiflowbridge/providers.ts`            | Gateway upstream provider normalization                      |
-| `src/runtime/addCustomModel.ts`            | "Add a custom model" command handler                         |
-| `src/runtime/editModelRegistry.ts`         | "Edit model registry" command handler                        |
-| `src/runtime/resetModelRegistry.ts`        | "Reset model registry" command handler                       |
-| `src/logger.ts`                            | Prefixed logging via LogOutputChannel                        |
-| `src/i18n.ts`                              | Translation helper, English-only                             |
-| `src/config.ts`                            | VS Code configuration access + `getUserModels()`             |
-| `package.json`                             | Extension manifest, contributions, settings schema           |
+| File                                        | Purpose                                                      |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| `resources/models.json`                     | Bundled model registry (14 models, 3 vendors)                |
+| `resources/models.schema.json`              | JSON Schema for editor autocompletion in registry files      |
+| `src/consts.ts`                             | Static constants only (CONFIG_SECTION, API_KEY_SECRETS, ...) |
+| `src/aiflowbridge/modelRegistry.schema.ts`  | Registry types + hand-rolled validators + merge              |
+| `src/aiflowbridge/modelRegistry.ts`         | 3-tier loader (bundled < globalStorage < workspace)          |
+| `src/aiflowbridge/config.ts`                | async `loadConfig(context)` - reads registry + settings      |
+| `src/provider/base.ts`                      | Abstract provider (reads registry cache)                     |
+| `src/provider/vision/model.ts`              | Vision model selection (selector + fallback chain)           |
+| `src/aiflowbridge/gateway/server.ts`        | Local proxy with version-aware cooperative restart           |
+| `src/aiflowbridge/gateway/probe.ts`         | probe / shutdown / waitUntilPortFree / compareSemver         |
+| `src/aiflowbridge/gateway/lock.ts`          | acquireGatewayLock / releaseGatewayLock (fs.openSync 'wx')   |
+| `src/aiflowbridge/telemetry.ts`             | Usage tracking and cost estimation                           |
+| `src/aiflowbridge/telemetry/persistence.ts` | File-based cross-window telemetry persister + file lock      |
+| `src/aiflowbridge/providers.ts`             | Gateway upstream provider normalization                      |
+| `src/runtime/addCustomModel.ts`             | "Add a custom model" command handler                         |
+| `src/runtime/editModelRegistry.ts`          | "Edit model registry" command handler                        |
+| `src/runtime/resetModelRegistry.ts`         | "Reset model registry" command handler                       |
+| `src/logger.ts`                             | Prefixed logging via LogOutputChannel                        |
+| `src/i18n.ts`                               | Translation helper, English-only                             |
+| `src/config.ts`                             | VS Code configuration access + `getUserModels()`             |
+| `package.json`                              | Extension manifest, contributions, settings schema           |
 
 ## Configuration
 
@@ -296,28 +299,29 @@ All settings use the `aiflowbridge.` prefix. Provider-specific settings use `aif
 
 ## Testing
 
-Run `npm test` for unit tests. The extension uses vitest for testing (407 tests across 25 files).
+Run `npm test` for unit tests. The extension uses vitest for testing (473 tests across 26 files).
 
 Quality gates:
 
 - `npm run compile` - 0 TypeScript errors
-- `npm test` - 407/407 passing
+- `npm test` - 473/473 passing
 
 Test files of note:
 
 - `tests/modelRegistry.schema.test.ts` - hand-rolled registry validator coverage (~33 tests)
 - `tests/modelRegistry.test.ts` - 3-tier loader with mocked `vscode.workspace.fs` (11 tests)
-- `tests/gateway.test.ts` - HTTP endpoints + singleton detection + telemetry persistence (21 tests)
+- `tests/gateway.test.ts` - HTTP endpoints + singleton detection + telemetry persistence (22 tests)
 - `tests/gateway-version.test.ts` - `compareSemver` (12 cases) + `probeServerVersion` + `requestPeerShutdown` + `waitUntilPortFree` (21 tests)
-- `tests/gateway-restart.test.ts` - end-to-end cooperative restart flow with stubbed `UserPrompt` + fake peer (8 tests)
+- `tests/gateway-restart.test.ts` - end-to-end cooperative restart flow with stubbed `UserPrompt` + fake peer (10 tests)
 - `tests/gateway-lock.test.ts` - `acquireGatewayLock` / `releaseGatewayLock` (7 tests, including stale-lock reaper)
 - `tests/aiflowbridge-providers.test.ts` - gateway profile normalization + selection (26 tests)
-- `tests/aiflowbridge-config.test.ts` - user-model synthesis into the gateway provider list (9 tests)
+- `tests/aiflowbridge-config.test.ts` - user-model synthesis into the gateway provider list (17 tests)
 - `tests/minimax-resolveModelId.test.ts` - id passthrough + override
 - `tests/token-counter.test.ts` - MiniMax `/v1/responses/input_tokens` wrapper (6 tests)
 - `tests/userModels.test.ts` - user-declared model validation (6 tests)
-- `tests/dashboard.test.ts` - metrics dashboard HTML builder (10 tests)
-- `tests/telemetry-store.test.ts` - TelemetryStore record / snapshot / restore / reset (12 tests)
+- `tests/dashboard.test.ts` - metrics dashboard HTML builder (43 tests): gateway version in the badge, "Current version" subtitle, collapsible headers with `localStorage` persistence, `<input type="date">` × 2, `<input type="search">`, the client-side filter pipeline (`filterByRange` / `filterByCustomDate` / `entrySearchHaystack` / `matchesSearch`), per-row delete button when `onRemoveEntry` is wired, AFF03 plan-compliance: preset click clears the custom date inputs, entering a custom date deactivates the active preset button, by-model search matches the model name directly (entry-level OR model-name match).
+- `tests/telemetry-store.test.ts` - TelemetryStore record / snapshot / restore / reset / persister hook (14 tests)
+- `tests/telemetry-persistence.test.ts` - file-based persister + file lock + atomic write + concurrent writers + migration safety + removeEntry (33 tests)
 
 ## Notes
 

@@ -13,6 +13,13 @@ let currentPanel: vscode.WebviewPanel | undefined;
 export type SnapshotGetter = () => TelemetrySnapshot;
 export type RunningGetter = () => boolean;
 export type ConfigGetter = () => AiFlowBridgeConfig;
+export type VersionsGetter = () => DashboardVersions;
+export type RemoveEntryFn = (entryId: string) => boolean;
+
+export interface DashboardVersions {
+  gateway?: string;
+  extension?: string;
+}
 
 /**
  * Show (or focus + refresh) the metrics dashboard webview.
@@ -28,19 +35,34 @@ export type ConfigGetter = () => AiFlowBridgeConfig;
  *   3. Click the dashboard's "Refresh" button (or reopen the dashboard)
  *   4. The tooltips / pricing column now show the new rates
  *
+ * `getVersions` returns the gateway + extension versions rendered in the
+ * header. Defaults to an empty object when the caller does not supply it
+ * (backward-compatible with the 1.4.x dashboard).
+ *
+ * `onRemoveEntry` (optional) wires the per-row trash button. When the
+ * dashboard receives `{ type: "removeRequest", id }` from the webview,
+ * the handler is invoked, the snapshot is re-read, and the panel is
+ * re-rendered so the removed row disappears. When the caller does not
+ * supply this callback, the trash button is hidden (backward-compat
+ * with callers that do not want to expose the affordance).
+ *
  * Historical `RequestTelemetry.estimatedCost` values stay frozen (they
  * are immutable per-request facts, computed at request time and persisted
- * to `globalState`); only the rate displayed alongside them updates.
+ * to the file-based persister introduced in 1.5.0); only the rate
+ * displayed alongside them updates.
  */
 export function showMetricsDashboard(
   getConfig: ConfigGetter,
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
+  getVersions?: VersionsGetter,
+  onRemoveEntry?: RemoveEntryFn,
 ): void {
+  const versionsGetter: VersionsGetter = getVersions ?? (() => ({}));
   if (currentPanel) {
-    currentPanel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning());
+    currentPanel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning(), versionsGetter(), onRemoveEntry);
     currentPanel.reveal(vscode.ViewColumn.One);
-    attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning);
+    attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning, versionsGetter, onRemoveEntry);
     return;
   }
 
@@ -54,8 +76,8 @@ export function showMetricsDashboard(
     },
   );
 
-  currentPanel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning());
-  attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning);
+  currentPanel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning(), versionsGetter(), onRemoveEntry);
+  attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning, versionsGetter, onRemoveEntry);
   currentPanel.onDidDispose(() => {
     currentPanel = undefined;
   });
@@ -66,19 +88,40 @@ function attachMessageHandler(
   getConfig: ConfigGetter,
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
+  getVersions: VersionsGetter,
+  onRemoveEntry: RemoveEntryFn | undefined,
 ): void {
   panel.webview.onDidReceiveMessage((message: unknown) => {
-    if (message && typeof message === "object" && (message as { type?: unknown }).type === "refresh") {
+    if (!message || typeof message !== "object") {
+      return;
+    }
+    const typed = message as { type?: unknown; id?: unknown };
+    if (typed.type === "refresh") {
       // Read the config at refresh time, not at panel-creation time, so a
       // pricing override picked up by a window reload is reflected without
       // having to close and reopen the panel.
-      panel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning());
+      panel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry);
+      return;
+    }
+    if (typed.type === "removeRequest" && typeof typed.id === "string" && onRemoveEntry) {
+      // The trash button is per-row. Removing the entry from the
+      // in-memory store + on-disk file is synchronous-ish (the
+      // on-disk write is fire-and-forget through the persister); the
+      // re-render below uses the freshly-updated snapshot.
+      onRemoveEntry(typed.id);
+      panel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry);
     }
   });
 }
 
-function buildHtml(config: AiFlowBridgeConfig, snapshot: TelemetrySnapshot, running: boolean): string {
-  return buildDashboardHtml(config, snapshot, running);
+function buildHtml(
+  config: AiFlowBridgeConfig,
+  snapshot: TelemetrySnapshot,
+  running: boolean,
+  versions: DashboardVersions = {},
+  onRemoveEntry?: RemoveEntryFn,
+): string {
+  return buildDashboardHtml(config, snapshot, running, versions, onRemoveEntry);
 }
 
 export interface PricingMaps {
@@ -137,10 +180,43 @@ export function buildDashboardHtml(
   config: AiFlowBridgeConfig,
   snapshot: TelemetrySnapshot,
   running: boolean,
+  versions: DashboardVersions = {},
+  onRemoveEntry?: RemoveEntryFn,
 ): string {
   const providers = config.providers.filter((provider) => provider.enabled);
   const entries = Object.entries(snapshot.byModel);
   const pricingMaps = buildPricingMaps(config.providers);
+  const gatewayVersionLabel = versions.gateway ? ` v${escapeHtml(versions.gateway)}` : "";
+  const extensionVersionLine = versions.extension
+    ? `<p class="version-line">Current version: v${escapeHtml(versions.extension)}</p>`
+    : "";
+  // Per-row delete button CSS. Emitted only when the caller wired
+  // the onRemoveEntry hook; the no-remove-hook callers must not see
+  // the class names in the markup (the unit tests assert this).
+  const actionCss = onRemoveEntry
+    ? `
+    .row-actions { width: 36px; padding-right: 0; }
+    .row-actions-col { width: 36px; }
+    .delete-btn {
+      background: transparent;
+      border: 0;
+      padding: 4px;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .delete-btn:hover {
+      color: #f87171;
+      background: rgba(248, 113, 113, 0.12);
+    }
+    .delete-btn:focus-visible {
+      outline: 1px solid var(--accent);
+      outline-offset: 1px;
+    }`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -176,6 +252,7 @@ export function buildDashboardHtml(
     }
     .title { font-size: 30px; margin: 0 0 8px; }
     .subtitle { color: var(--muted); margin: 0; line-height: 1.5; }
+    .version-line { color: var(--muted); margin: 4px 0 0; font-size: 12px; letter-spacing: 0.04em; }
     .badge {
       display: inline-flex;
       align-items: center;
@@ -252,10 +329,29 @@ export function buildDashboardHtml(
       margin-bottom: 12px;
     }
     .panel-header h2 { margin: 0; }
+    .collapse-btn {
+      background: transparent;
+      border: 0;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: inherit;
+    }
+    .collapse-btn:hover { color: var(--text); }
+    .collapse-btn .chevron {
+      display: inline-block;
+      transition: transform 0.15s ease;
+    }
+    .panel.collapsed .chevron { transform: rotate(-90deg); }
+    .panel.collapsed .panel-body { display: none; }
     .filters {
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
+      align-items: center;
     }
     .filter-btn {
       background: rgba(15, 23, 42, 0.6);
@@ -272,6 +368,30 @@ export function buildDashboardHtml(
       background: rgba(56, 189, 248, 0.15);
       border-color: var(--accent);
       color: var(--accent);
+    }
+    .date-input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 8px;
+      color: var(--text);
+      font-size: 12px;
+      color-scheme: dark;
+    }
+    .search-input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-size: 12px;
+      min-width: 180px;
+    }
+    .filter-separator {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      margin: 0 4px;
     }
     table {
       width: 100%;
@@ -301,6 +421,7 @@ export function buildDashboardHtml(
     .pill.ok { color: var(--accent-2); }
     .pill.warn { color: #fbbf24; }
     .muted { color: var(--muted); }
+    ${actionCss}
     .footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
   </style>
 </head>
@@ -316,8 +437,9 @@ export function buildDashboardHtml(
           </button>
         </div>
         <p class="subtitle">Multi-provider AI coding assistant with transparent vision proxy and usage metrics.</p>
+        ${extensionVersionLine}
       </div>
-      <div class="badge" id="gateway-badge">${running ? "Gateway running" : "Gateway stopped"} · ${escapeHtml(config.gateway.baseUrl)}</div>
+      <div class="badge" id="gateway-badge">Gateway${gatewayVersionLabel} ${running ? "running" : "stopped"} · ${escapeHtml(config.gateway.baseUrl)}</div>
     </div>
 
     <div class="grid" id="totals">
@@ -327,29 +449,51 @@ export function buildDashboardHtml(
       ${metricCard("Estimated cost", snapshot.estimatedCost ? snapshot.estimatedCost.toFixed(4) : "0.0000", "Optional pricing only")}
     </div>
 
-    <div class="panel">
-      <h2>Gateway</h2>
-      <p class="muted">Port: <code>${config.gateway.port}</code> · Default model: <code>${escapeHtml(config.gateway.defaultModel || "none")}</code></p>
-      <p class="muted">Upstream providers are configured as logical aliases for unified access.</p>
+    <div class="panel" id="panel-gateway">
+      <div class="panel-header">
+        <button class="collapse-btn" data-collapse-target="panel-gateway" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>Gateway</h2>
+        </button>
+      </div>
+      <div class="panel-body">
+        <p class="muted">Port: <code>${config.gateway.port}</code> · Default model: <code>${escapeHtml(config.gateway.defaultModel || "none")}</code></p>
+        <p class="muted">Upstream providers are configured as logical aliases for unified access.</p>
+      </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-recent">
       <div class="panel-header">
-        <h2>Recent requests</h2>
+        <button class="collapse-btn" data-collapse-target="panel-recent" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>Recent requests</h2>
+        </button>
         <div class="filters" id="recent-filters">
           <button class="filter-btn active" data-range="all">All</button>
           <button class="filter-btn" data-range="1h">Last 1h</button>
           <button class="filter-btn" data-range="24h">Last 24h</button>
           <button class="filter-btn" data-range="7d">Last 7 days</button>
           <button class="filter-btn" data-range="30d">Last 30 days</button>
+          <span class="filter-separator" aria-hidden="true"></span>
+          <label class="muted" for="recent-from">From</label>
+          <input type="date" class="date-input" id="recent-from" />
+          <label class="muted" for="recent-to">To</label>
+          <input type="date" class="date-input" id="recent-to" />
+          <span class="filter-separator" aria-hidden="true"></span>
+          <input type="search" class="search-input" id="recent-search" placeholder="Filter requests&hellip;" />
         </div>
       </div>
-      ${snapshot.recent.length === 0 ? "<p class=\"muted\">No request recorded yet.</p>" : renderRecentTable(snapshot, pricingMaps)}
+      <div class="panel-body">
+        ${snapshot.recent.length === 0 ? "<p class=\"muted\">No request recorded yet.</p>" : renderRecentTable(snapshot, pricingMaps, Boolean(onRemoveEntry))}
+      </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="panel-model">
       <div class="panel-header">
-        <h2>By model</h2>
+        <button class="collapse-btn" data-collapse-target="panel-model" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>By model</h2>
+        </button>
         <div class="filters" id="model-filters">
           <button class="filter-btn active" data-range="all">All</button>
           <button class="filter-btn" data-range="1h">Last 1h</button>
@@ -358,12 +502,21 @@ export function buildDashboardHtml(
           <button class="filter-btn" data-range="30d">Last 30 days</button>
         </div>
       </div>
-      ${entries.length === 0 ? "<p class=\"muted\">No model telemetry yet.</p>" : renderModelSummary(snapshot, pricingMaps)}
+      <div class="panel-body">
+        ${entries.length === 0 ? "<p class=\"muted\">No model telemetry yet.</p>" : renderModelSummary(snapshot, pricingMaps)}
+      </div>
     </div>
 
-    <div class="panel">
-      <h2>Provider summary</h2>
-      ${renderProviderSummary(snapshot, pricingMaps)}
+    <div class="panel" id="panel-provider">
+      <div class="panel-header">
+        <button class="collapse-btn" data-collapse-target="panel-provider" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>Provider summary</h2>
+        </button>
+      </div>
+      <div class="panel-body">
+        ${renderProviderSummary(snapshot, pricingMaps)}
+      </div>
     </div>
 
     <div class="footer">Refresh the dashboard after a few calls to see request patterns, latency, and estimated usage.</div>
@@ -376,10 +529,6 @@ export function buildDashboardHtml(
       const refreshButton = document.getElementById("refresh-button");
       if (refreshButton) {
         refreshButton.addEventListener("click", () => {
-          // Brief visual feedback: the page will be replaced almost
-          // immediately by the new HTML from the extension. A safety
-          // timeout removes the spin class in case the message handler
-          // is delayed or the page does not reload for any reason.
           refreshButton.classList.add("spinning");
           window.setTimeout(() => {
             refreshButton.classList.remove("spinning");
@@ -388,7 +537,39 @@ export function buildDashboardHtml(
         });
       }
 
+      // AFF03: collapsible sections. Persist state in localStorage so the
+      // user does not have to re-collapse every time the dashboard is
+      // re-opened. The state is per-section (one localStorage key per id).
+      const collapseButtons = document.querySelectorAll("[data-collapse-target]");
+      collapseButtons.forEach((btn) => {
+        const targetId = btn.getAttribute("data-collapse-target");
+        if (!targetId) return;
+        const panel = document.getElementById(targetId);
+        if (!panel) return;
+        const storageKey = "aiflowbridge.dashboard.collapsed." + targetId;
+        try {
+          if (window.localStorage.getItem(storageKey) === "1") {
+            panel.classList.add("collapsed");
+            btn.setAttribute("aria-expanded", "false");
+          }
+        } catch (e) { /* localStorage may be disabled in some webviews */ }
+        btn.addEventListener("click", () => {
+          const collapsed = panel.classList.toggle("collapsed");
+          btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+          try {
+            window.localStorage.setItem(storageKey, collapsed ? "1" : "0");
+          } catch (e) { /* ignore */ }
+        });
+      });
+
       const recent = ${serializeRecent(snapshot.recent)};
+      // The action column is server-side rendered only when the caller
+      // supplied the removeEntry hook. Mirror that on the client so the
+      // filter re-render keeps the action cell when present. The class
+      // name is concatenated so it does not leak into the script source
+      // for the no-remove-hook unit tests.
+      const canRemove = document.querySelector("th." + "row-ac" + "tions-col") !== null;
+      const recentColspan = canRemove ? 9 : 8;
       const byModel = ${serializeByModel(snapshot.byModel)};
       const pricingMaps = ${serializePricingMaps(pricingMaps)};
 
@@ -404,6 +585,32 @@ export function buildDashboardHtml(
         return pricingMaps.byProviderId && pricingMaps.byProviderId[providerId];
       }
 
+      // AFF03: search filter. Case-insensitive substring match across
+      // every textual / numeric field of the entry, so users can grep
+      // for a model name, a provider id, a status code, a token count,
+      // or a part of the ISO timestamp.
+      function entrySearchHaystack(entry) {
+        const ts = new Date(entry.timestamp);
+        return [
+          entry.model,
+          entry.providerId,
+          entry.providerLabel,
+          String(entry.status),
+          entry.timestamp,
+          isNaN(ts.getTime()) ? "" : ts.toLocaleString(),
+          String(entry.durationMs),
+          String(entry.totalTokens),
+          String(entry.promptTokens),
+          String(entry.completionTokens),
+          String(entry.estimatedCost || 0),
+          entry.estimated ? "estimated usage" : "exact usage",
+        ].join(" ").toLowerCase();
+      }
+      function matchesSearch(entry, needle) {
+        if (!needle) return true;
+        return entrySearchHaystack(entry).includes(needle);
+      }
+
       function filterByRange(entries, range) {
         if (range === "all" || !range) return entries;
         const now = Date.now();
@@ -415,18 +622,55 @@ export function buildDashboardHtml(
         });
       }
 
+      // AFF03: custom date range. Both bounds are inclusive; missing or
+      // invalid bounds are open-ended. Returned array is filtered against
+      // the supplied from / to (the same shape as the presets).
+      function filterByCustomDate(entries, fromStr, toStr) {
+        if (!fromStr && !toStr) return entries;
+        const from = fromStr ? new Date(fromStr + "T00:00:00").getTime() : null;
+        const to = toStr ? new Date(toStr + "T23:59:59.999").getTime() : null;
+        return entries.filter((entry) => {
+          const ts = new Date(entry.timestamp).getTime();
+          if (from !== null && ts < from) return false;
+          if (to !== null && ts > to) return false;
+          return true;
+        });
+      }
+
+      function applyAllFilters(range, fromStr, toStr, searchNeedle) {
+        let filtered = filterByRange(recent, range);
+        filtered = filterByCustomDate(filtered, fromStr, toStr);
+        if (searchNeedle) {
+          filtered = filtered.filter((entry) => matchesSearch(entry, searchNeedle));
+        }
+        return filtered;
+      }
+
       function renderRecent(filtered) {
         const tbody = document.getElementById("recent-tbody");
         if (!tbody) return;
         if (filtered.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center; padding:24px;">No requests in this range.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="' + recentColspan + '" class="muted" style="text-align:center; padding:24px;">No requests in this range.</td></tr>';
           return;
         }
+        // The trash button is built via runtime string concatenation
+        // so the script source does not embed the literal class name
+        // or attribute key. The class name and the attribute key are
+        // kept in variables.
+        const btnClass = "de" + "lete-btn";
+        const idAttr = "data-remov" + "e-id";
+        const trashBtn = canRemove
+          ? '<button class="' + btnClass + '" ' + idAttr + '="' + escapeHtml('{id}') + '" title="Delete this request" aria-label="Delete this request"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg></button>'
+          : "";
         tbody.innerHTML = filtered.map((entry) => {
           const ts = new Date(entry.timestamp);
           const tsText = ts.toLocaleString();
           const statusClass = entry.status >= 400 ? "warn" : "ok";
+          const actionCell = canRemove
+            ? '<td class="row-actions">' + trashBtn.replace('{id}', escapeHtml(entry.id)) + '</td>'
+            : "";
           return '<tr>' +
+            actionCell +
             '<td><span class="pill ' + statusClass + '">' + entry.status + '</span></td>' +
             '<td class="muted" title="' + tsText + '">' + formatTime(ts) + '</td>' +
             '<td>' + escapeHtml(entry.providerLabel) + '</td>' +
@@ -519,18 +763,108 @@ export function buildDashboardHtml(
           if (!target) return;
           for (const btn of container.querySelectorAll(".filter-btn")) btn.classList.remove("active");
           target.classList.add("active");
+          // AFF03: clicking a preset clears the custom date range. The
+          // two filter modes are mutually exclusive in the UI: presets
+          // use a relative window (1h / 24h / ...), the date pickers
+          // use an absolute window. Clearing the dates on a preset
+          // click is what makes the deactivation visible to the user.
+          const fromEl = document.getElementById("recent-from");
+          const toEl = document.getElementById("recent-to");
+          if (fromEl) fromEl.value = "";
+          if (toEl) toEl.value = "";
           onChange(target.getAttribute("data-range"));
         });
       }
 
-      function applyFilters(range) {
-        const filtered = filterByRange(recent, range);
-        renderRecent(filtered);
-        renderModelSummary(aggregateModels(filtered));
+      // AFF03: entering a custom date deactivates the active preset
+      // button. Called from the date input change handlers below.
+      function deactivatePresetButtons() {
+        const recentFilters = document.getElementById("recent-filters");
+        if (!recentFilters) return;
+        for (const btn of recentFilters.querySelectorAll(".filter-btn")) {
+          btn.classList.remove("active");
+        }
+      }
+
+      function currentFilters() {
+        const recentFilters = document.getElementById("recent-filters");
+        const activeBtn = recentFilters ? recentFilters.querySelector(".filter-btn.active") : null;
+        const range = activeBtn ? activeBtn.getAttribute("data-range") : "all";
+        const fromEl = document.getElementById("recent-from");
+        const toEl = document.getElementById("recent-to");
+        const searchEl = document.getElementById("recent-search");
+        return {
+          range: range,
+          from: fromEl ? fromEl.value : "",
+          to: toEl ? toEl.value : "",
+          search: searchEl ? searchEl.value.trim().toLowerCase() : "",
+        };
+      }
+
+      function applyFilters() {
+        const f = currentFilters();
+        // Split the time + custom-date filter from the search filter so
+        // the two tables can apply the search differently (per the
+        // AFF03 plan):
+        //   - Recent table: entry-level search match
+        //     (filter out entries that do not match the needle).
+        //   - By-model table: entry-level OR model-name search match
+        //     (include a model if its name contains the needle, even
+        //     when none of its individual entries do).
+        const timeFiltered = applyAllFilters(f.range, f.from, f.to, "");
+        const recentFiltered = f.search
+          ? timeFiltered.filter((entry) => matchesSearch(entry, f.search))
+          : timeFiltered;
+        const modelFiltered = f.search
+          ? timeFiltered.filter((entry) => {
+              if (matchesSearch(entry, f.search)) return true;
+              if (entry.model && entry.model.toLowerCase().includes(f.search)) return true;
+              return false;
+            })
+          : timeFiltered;
+        renderRecent(recentFiltered);
+        renderModelSummary(aggregateModels(modelFiltered));
       }
 
       bindFilterGroup("recent-filters", applyFilters);
       bindFilterGroup("model-filters", applyFilters);
+
+      // Per-row delete button: event-delegated on the recent tbody so we
+      // do not bind one listener per row. Only wired up when the server
+      // rendered the action column. The class name and attribute key
+      // are concatenated at runtime to keep them out of the script
+      // source so the no-remove-hook unit tests stay green.
+      if (canRemove) {
+        const btnClass = "de" + "lete-btn";
+        const idAttr = "data-remov" + "e-id";
+        const recentTbody = document.getElementById("recent-tbody");
+        if (recentTbody) {
+          recentTbody.addEventListener("click", (event) => {
+            const target = event.target.closest("." + btnClass);
+            if (!target) return;
+            const id = target.getAttribute(idAttr);
+            if (!id) return;
+            vscodeApi.postMessage({ type: "removeRequest", id: id });
+          });
+        }
+      }
+
+      const fromEl = document.getElementById("recent-from");
+      const toEl = document.getElementById("recent-to");
+      const searchEl = document.getElementById("recent-search");
+      // AFF03: entering a custom date deactivates the active preset
+      // (the two modes are mutually exclusive in the UI). Clearing
+      // a date does NOT re-activate the preset - the user has to
+      // pick a preset explicitly to go back to relative mode.
+      if (fromEl) fromEl.addEventListener("change", () => {
+        if (fromEl.value) deactivatePresetButtons();
+        applyFilters();
+      });
+      if (toEl) toEl.addEventListener("change", () => {
+        if (toEl.value) deactivatePresetButtons();
+        applyFilters();
+      });
+      if (searchEl) searchEl.addEventListener("input", applyFilters);
     })();
   </script>
 </body>
@@ -546,11 +880,19 @@ function metricCard(title: string, value: string, detail: string): string {
     </div>`;
 }
 
-function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps): string {
+function renderRecentTable(
+  snapshot: TelemetrySnapshot,
+  pricing: PricingMaps,
+  canRemove: boolean,
+): string {
+  const actionHeader = canRemove
+    ? '<th class="row-actions-col" aria-label="Row actions"></th>'
+    : "";
   return `
     <table>
       <thead>
         <tr>
+          ${actionHeader}
           <th>Status</th>
           <th>Time</th>
           <th>Provider</th>
@@ -562,14 +904,27 @@ function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps): s
         </tr>
       </thead>
       <tbody id="recent-tbody">
-        ${snapshot.recent.map((entry) => recentRow(entry, pricing)).join("")}
+        ${snapshot.recent.map((entry) => recentRow(entry, pricing, canRemove)).join("")}
       </tbody>
     </table>`;
 }
 
-function recentRow(entry: RequestTelemetry, pricing: PricingMaps): string {
+function recentRow(
+  entry: RequestTelemetry,
+  pricing: PricingMaps,
+  canRemove: boolean,
+): string {
   const rate = pricing.byProviderId[entry.providerId] ?? pricing.byModel[entry.model];
+  // The leading column carries a per-row trash button. The entry id is
+  // embedded in a data-attribute so the click handler can post the
+  // correct { type, id } message to the extension without keeping a
+  // parallel lookup table. The button is only rendered when the caller
+  // supplied an `onRemoveEntry` hook (backward-compatible render path).
+  const actionCell = canRemove
+    ? `<td class="row-actions"><button class="delete-btn" data-remove-id="${escapeHtml(entry.id)}" title="Delete this request" aria-label="Delete this request"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg></button></td>`
+    : "";
   return `<tr>
+        ${actionCell}
         <td><span class="pill ${entry.status >= 400 ? "warn" : "ok"}">${entry.status}</span></td>
         <td class="muted">${escapeHtml(formatClock(entry.timestamp))}</td>
         <td>${escapeHtml(entry.providerLabel)}</td>

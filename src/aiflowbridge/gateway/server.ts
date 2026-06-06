@@ -5,6 +5,7 @@ import { URL } from "node:url";
 import { logger } from "../../logger";
 import { buildModelCatalog, selectProvider } from "../providers";
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
+import type { TelemetryPersisterLike } from "../telemetry";
 import { fetchMinimaxPromptTokens } from "../token-counter";
 import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
 import {
@@ -57,9 +58,15 @@ export class GatewayService {
    */
   private joined = false;
   private config: AiFlowBridgeConfig;
-  private readonly bundledVersion: string;
+  /**
+   * Bundled gateway version (the extension's `package.json` version the
+   * runtime passed to the constructor). Exposed via the `bundledVersion`
+   * getter so the dashboard header (AFF03) can show which build the
+   * running gateway corresponds to.
+   */
+  private readonly bundledVersionField: string;
   private readonly startedAt: string;
-  private readonly telemetry = new TelemetryStore();
+  private readonly telemetry: TelemetryStore;
   private readonly userPrompt: UserPrompt;
   private unsubscribePersist: (() => void) | undefined;
   private persistDebounce: NodeJS.Timeout | undefined;
@@ -74,11 +81,18 @@ export class GatewayService {
     private readonly saveState?: TelemetryStateSaver,
     bundledVersion: string = "0.0.0",
     userPrompt?: UserPrompt,
+    persister?: TelemetryPersisterLike,
   ) {
     this.config = config;
-    this.bundledVersion = bundledVersion;
+    this.bundledVersionField = bundledVersion;
     this.startedAt = new Date().toISOString();
     this.userPrompt = userPrompt ?? defaultUserPrompt;
+    // When a file-based persister is supplied, `TelemetryStore.record()`
+    // fires the on-disk write directly (fire-and-forget). The legacy
+    // `saveState` debounce path below is only used as a fallback for
+    // unit tests and any caller that still relies on the globalState
+    // hook. See `src/aiflowbridge/telemetry/persistence.ts`.
+    this.telemetry = new TelemetryStore(persister);
     // Persistence wiring is deferred to init() so the caller has a chance
     // to set up its own state (e.g. VS Code ExtensionContext) before the
     // load/save callbacks run. Constructing the service and immediately
@@ -131,6 +145,16 @@ export class GatewayService {
     return this.config.gateway.baseUrl;
   }
 
+  /**
+   * Bundled gateway version (i.e. the extension's `package.json` version
+   * the runtime passed to the constructor). Exposed for the dashboard
+   * header (AFF03) so the user can see which build the running gateway
+   * corresponds to.
+   */
+  get bundledVersion(): string {
+    return this.bundledVersionField;
+  }
+
   updateConfig(config: AiFlowBridgeConfig): void {
     this.config = config;
     this.emitUpdate();
@@ -147,6 +171,28 @@ export class GatewayService {
    */
   resetMetrics(): void {
     this.telemetry.reset();
+  }
+
+  /**
+   * Reload the cumulative telemetry from the on-disk snapshot. Returns
+   * `true` if a snapshot was loaded (i.e. the persister is configured
+   * AND the file existed), `false` otherwise. Used by the dashboard
+   * Refresh button on a non-leader window to pick up writes from the
+   * leader window without a reload.
+   */
+  refreshFromDisk(): boolean {
+    return this.telemetry.refreshFromDisk();
+  }
+
+  /**
+   * Remove a single request entry from the cumulative state. Used by
+   * the dashboard's per-row trash button. The in-memory store is
+   * updated synchronously; the on-disk file is updated asynchronously
+   * through the persister (under a file lock when one is configured).
+   * Returns `true` if the entry was found in the in-memory store.
+   */
+  removeEntry(entryId: string): boolean {
+    return this.telemetry.removeEntry(entryId);
   }
 
   async start(): Promise<GatewayStatus> {

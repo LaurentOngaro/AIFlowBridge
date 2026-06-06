@@ -2,36 +2,28 @@
 
 Track open bugs, improvements, and active tickets. For the detailled implementation plan, see `_helpers/ACTION PLAN.md`.
 
-## Immediate Fixes (last:)
-
-_Placeholder section - no urgent fixes._
-
 ## Project Improvements
 
-For implementation details, see `_helpers/ACTION PLAN.md`.
+See `_helpers/ACTION PLAN.md` for implementation details, if required for some items bellow.
 
-### Implementation Priorities
+### Studies (last: STU02)
 
-Tickets ranked by priority (most urgent first):
+- [ ] STU01: external audit: optimisation  (see internal doc `_helpers\Audits\01 Modifications à Apporter_2026_06_05`)
+- [ ] STU02: external audit: commercial and marketshare (see internal doc `_helpers\Audits\02_Recommandations_succes_commercial_2026_06_05`)
 
-## Bugs (last: BUG10)
+### Bugs (last: BUG11)
 
-### Documentation (last: DOC01)
+- [ ] BUG11: [metric dashboard: requests in error have an estimated cost](https://github.com/LaurentOngaro/AIFlowBridge/issues/5)
+
+### Documentation (last: DOC03)
 
 _None for now._
 
-### Display (last:AFF02)
+### Display (last:AFF03)
 
-- [ ] AFF03: improve metrics dashboard UI
-  - [ ] add the current version of the server running to the text "Gateway vX.X.X running..."
-  - [ ] add the current version of the extension (under the Title) with text: "current version: vX.X.X"
-  - [ ] make sections collapsible in dashboard metrics
-  - [ ] add custom date filter options to the dashboard (with start and end date pickers)
-  - [ ] add request filter (text field on all the request data including model, provider, timestamp, etc.)
+_None for now._
 
-### Features (last: FEAT3)
-
-- [ ] FEAT1: I would like the llm usage stats appearing in the metrics to be common to all vscode sessions using AIFlowBridge (which makes sense for tracking a budget), which also means that the data must be saved in a file independent of the workspace and that you MUST manage concurrent access
+### Features (last: FEAT4)
 
 ### Refactoring (last:)
 
@@ -49,7 +41,7 @@ _None for now._
 
 _None for now._
 
-### Roadmap / Ideas to Investigate (last:)
+### Roadmap / Ideas to Investigate
 
 _The README has a public-facing version of this roadmap in the "Roadmap" section. This file tracks the same items with more implementation detail._
 
@@ -59,7 +51,6 @@ _The README has a public-facing version of this roadmap in the "Roadmap" section
 
 **Next up:**
 
-- [ ] Telemetry export - JSON / CSV export of the metrics snapshot for billing or analysis
 - [ ] More Agentic coding extension adapters (e.g., Claude Code)
 - [ ] More openAI-compatible providers - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
 - [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway
@@ -73,10 +64,15 @@ _The README has a public-facing version of this roadmap in the "Roadmap" section
 
 ## Completed
 
+### 1.5.0
+
+- FEAT1: cross-window shared metrics with concurrent access management**. Telemetry is now stored in a real file at `<globalStorageUri>/telemetry.json` (no longer in VS Code's internal `globalState`). A sibling `<globalStorageUri>/telemetry.lock` file serializes writers across VS Code windows. The lock follows the same pattern as the existing gateway lock (stale mtime reaper at 30s, symlink refusal, mkdir-recursive, atomic write via `write-tmp` + `rename`). `TelemetryStore.record()` now fires an async `persister.appendDelta()` per call (with an idempotency check on `entry.id` to defend against a debounce fire-twice). The in-process write chain (`this.writeChain.then(fn, fn)`) guarantees the cross-process lock is acquired and released in the right order even when N parallel record() calls land in the same microtask. Concurrent writers are tested with 50 parallel `appendDelta` calls: zero lost updates. The `AIFlowBridge: Refresh metrics` command now calls `gateway.refreshFromDisk()` + `telemetryFallback.refreshFromDisk()` so a non-leader window picks up the leader's writes without a reload. A one-time migration runs on first activation after the upgrade: if the legacy `globalState` slot has data and the new file does not, the snapshot is moved over and the legacy slot is cleared (logged at INFO with the request/token counts). New file `src/aiflowbridge/telemetry/persistence.ts`; new file `tests/telemetry-persistence.test.ts` (24 tests covering the lock, atomic write, concurrent writers, idempotency, corruption recovery, and the TelemetryStore integration). 453 tests / 26 files (was 420 / 25).
+- AFF03: metrics dashboard UI improvements**. The header now shows the running gateway version (`Gateway vX.Y.Z running/stopped`) and the installed extension version under the title (`Current version: vX.Y.Z`). All four panel sections (Gateway / Recent requests / By model / Provider summary) are now collapsible via a chevron in their header, with the collapsed state persisted in `localStorage` per-section. The Recent requests panel gains two `<input type="date">` controls (From / To) and one `<input type="search">` ("Filter requests…"). The text search is case-insensitive and matches across `model`, `providerId`, `providerLabel`, `status`, `timestamp` (ISO + locale-formatted), `durationMs`, `totalTokens`, `promptTokens`, `completionTokens`, `estimatedCost`, and the `estimated`/`usage` source tag. The custom date range and the text search apply on top of the existing preset time filter (intersection, not replacement). The `buildDashboardHtml` signature gains an optional 4th `versions` parameter (`{ gateway?, extension? }`) so the 1.4.x callers that do not pass versions keep working unchanged. `GatewayService` exposes a `bundledVersion` getter for the header. 9 new dashboard tests in `tests/dashboard.test.ts` (was 25, now 34).
+
 ### 1.4.1
 
 - BUG08: [image not analysed](https://github.com/LaurentOngaro/AIFlowBridge/issues/1)
-- BUG10: [prices are not updated on metrics](https://github.com/LaurentOngaro/AIFlowBridge/issues/3) - 3 corrections indépendantes étaient nécessaires pour que l'override de pricing remonte jusqu'au dashboard : (1) `synthesizeProviderForModel` (`src/aiflowbridge/config.ts`) acceptait `model.pricing` en option et l'utilisait avant le fallback family-level ; `buildDefaultGatewayProfiles` fait `entry.pricing ?? toProviderPricing(registryEntry?.pricing)`. (2) `validateModelEntry` (`src/aiflowbridge/modelRegistry.schema.ts`) accepte un `mode: 'strict' | 'partial'` ; les tiers globalStorage et workspace chargent en `'partial'`, donc un override `{ "id": "MiniMax-M3", "pricing": { ... } }` (sans `name`/`family`/etc.) n'est plus silencieusement droppé. (3) `showMetricsDashboard` (`src/aiflowbridge/ui/dashboard.ts`) accepte un `ConfigGetter` au lieu d'une `AiFlowBridgeConfig` capturée, donc le bouton Refresh du dashboard re-lit `this.config` (re-evalué par `loadConfig()` à chaque activation) et les tooltips reflètent le pricing actuel sans rouvrir le panel. Diagnostic logging ajouté dans `loadModelRegistry` et `loadConfig` (chemin du fichier, `exists=true/false`, pricing par modèle, source de la synthèse) pour repérer d'un coup d'œil les `aiflowbridge.providers` qui court-circuitent le registry. 420 tests / 25 fichiers (était 407 / 25). Note : les `RequestTelemetry.estimatedCost` historiques restent **figés** (coût = fait historique), seule la **rate** affichée dans le tooltip / la nouvelle requête utilisent le pricing actuel — pour repartir à zéro avec le nouveau tarif, `AIFlowBridge: Reset metrics`.
+- BUG10: [prices are not updated on metrics](https://github.com/LaurentOngaro/AIFlowBridge/issues/3) - 3 corrections indépendantes étaient nécessaires pour que l'override de pricing remonte jusqu'au dashboard : (1) `synthesizeProviderForModel` (`src/aiflowbridge/config.ts`) acceptait `model.pricing` en option et l'utilisait avant le fallback family-level ; `buildDefaultGatewayProfiles` fait `entry.pricing ?? toProviderPricing(registryEntry?.pricing)`. (2) `validateModelEntry` (`src/aiflowbridge/modelRegistry.schema.ts`) accepte un `mode: 'strict' | 'partial'` ; les tiers globalStorage et workspace chargent en `'partial'`, donc un override `{ "id": "MiniMax-M3", "pricing": { ... } }` (sans `name`/`family`/etc.) n'est plus silencieusement droppé. (3) `showMetricsDashboard` (`src/aiflowbridge/ui/dashboard.ts`) accepte un `ConfigGetter` au lieu d'une `AiFlowBridgeConfig` capturée, donc le bouton Refresh du dashboard re-lit `this.config` (re-evalué par `loadConfig()` à chaque activation) et les tooltips reflètent le pricing actuel sans rouvrir le panel. Diagnostic logging ajouté dans `loadModelRegistry` et `loadConfig` (chemin du fichier, `exists=true/false`, pricing par modèle, source de la synthèse) pour repérer d'un coup d'œil les `aiflowbridge.providers` qui court-circuitent le registry. 420 tests / 25 fichiers (était 407 / 25). Note : les `RequestTelemetry.estimatedCost` historiques restent **figés** (coût = fait historique), seule la **rate** affichée dans le tooltip / la nouvelle requête utilisent le pricing actuel - pour repartir à zéro avec le nouveau tarif, `AIFlowBridge: Reset metrics`.
 
 ### 1.4.0
 

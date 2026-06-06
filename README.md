@@ -31,7 +31,7 @@
 AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi MiMo) under a unified interface inside Copilot Chat - with built-in metrics, proxy routing, and vision bridge capabilities.
 
 > **AIFlowBridge can save you time or money, so consider [sponsoring its development](https://github.com/sponsors/LaurentOngaro)**.
-> The extension is free, ad-free, tracker-free and no personal data is collected - **your support is what keeps it that way ->[more info on how to become one of our sponsor](#sponsoring)**
+> The extension is free, ad-free, tracker-free and no personal data is collected - **your support is what keeps it that way ->[more info on how to become one of our sponsors](#sponsoring)**
 >
 > **Spread the word**
 > ![GitHub Repo stars](https://badgen.net/github/stars/LaurentOngaro/aiflowbridge)
@@ -43,7 +43,7 @@ AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi Mi
 
 - **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See the [Providers](#providers) table for the canonical list and which ones have **native** vision vs use the [vision proxy](#vision-proxy). To add a model not in the list, run **`AIFlowBridge: Add a custom model`** (see [Adding a model without waiting for a release](#adding-a-model-without-waiting-for-a-release)).
 - **Transparent vision proxy** - text-only models handle images via automatic proxy through another installed Copilot model (Claude, GPT-4o, etc.). Zero configuration required; pick your preferred vision model once.
-- **Built-in OpenAI-compatible gateway** - starts automatically on port 8787 (singleton across VS Code instances) so Kilo Code, Continue, Open WebUI, and any OpenAI-compatible client can use the same models. Per-request metrics, tokens, and estimated cost, persisted across restarts.
+- **Built-in OpenAI-compatible gateway** - starts automatically on port 8787 (singleton across VS Code instances) so Kilo Code, Continue, Open WebUI, and any OpenAI-compatible client can use the same models. Per-request metrics, tokens, and estimated cost, persisted across restarts and **shared across windows** in `<globalStorageUri>/telemetry.json` (file-locked).
 - **Copilot Chat integration** - agent mode, tool calling, instructions, MCP, skills. 1M token context on supporting models. Thinking mode with reasoning effort control (DeepSeek, Xiaomi).
 - **Secure by default** - API keys in VS Code's `SecretStorage` (OS keychain), never in `settings.json` or in Git history. Telemetry stays local.
 
@@ -246,8 +246,12 @@ Once installed, the metrics dashboard is one keyboard shortcut away: press **`Ct
 
 - **Totals**: requests, prompt/completion tokens, estimated cost
 - **By model**: requests, tokens, and **Est. cost** sliced by model ID, with time filters (All / Last 1h / 24h / 7d / 30d)
-- **Recent requests table**: timestamp, model, tokens, latency, status, **Est. cost** (with the same time filters)
+- **Recent requests table**: timestamp, model, tokens, latency, status, **Est. cost** (with the same time filters). Each row has a **trash button** in a leading column that removes the entry from the cumulative counters and from the on-disk file (see [Per-row delete](#per-row-delete)).
 - **Provider summary**: requests, tokens, and **Est. cost** by DeepSeek / MiniMax / Xiaomi
+- **Gateway badge** in the header shows the running gateway version (`Gateway vX.Y.Z running/stopped`), and a "Current version: vX.Y.Z" subtitle shows the installed extension version
+- **Collapsible panels** - each of the four panel sections (Gateway / Recent / By model / Provider) can be collapsed by clicking the chevron in its header. The collapsed state is persisted per-panel in `localStorage`.
+- **Custom date range** - two `<input type="date">` controls (From / To) on the Recent requests panel apply on top of the preset time filter. Entering a date deactivates the active preset button; clicking a preset clears the From / To inputs.
+- **Text search** - a single search box ("Filter requests…") on the Recent panel matches case-insensitively across model, provider, status, timestamp, duration, tokens, and estimated cost. The by-model panel additionally matches against the model name itself (so a model whose name contains the needle is included even if no individual entry matches).
 
 The status bar shows the current gateway state (running / stopped / error).
 
@@ -445,6 +449,26 @@ The dashboard shows:
 - Per-provider and per-model breakdown
 - Recent request history with latency
 - Gateway status
+- Collapsible panels (state persisted per-panel in `localStorage`)
+- Gateway version badge + "Current version" subtitle
+- Custom date range (From / To) and a text search field on the Recent requests panel
+- Per-row delete button (trash icon) in the Recent requests table
+
+#### Per-row delete
+
+Each row in the "Recent requests" table has a leading trash-icon column. Clicking it:
+
+1. Removes the entry from the in-memory `TelemetryStore` (totals, recent list, per-provider / per-model maps, durations array) and from the on-disk `<globalStorageUri>/telemetry.json` file under the same file lock as `appendDelta` (see [Cross-window shared metrics](#cross-window-shared-metrics))
+2. Recomputes p95 from the now-shrunk durations array
+3. Re-renders the panel with the updated cumulative counters and the updated recent list
+
+The action column is only rendered when the dashboard is opened from the extension host (which wires an `onRemoveEntry` hook). Backward-compat callers that pass no hook see neither the action column nor the trash button. `AIFlowBridge: Refresh metrics` in any window picks up the deletion because the persister writes through to the on-disk file, which is the source of truth.
+
+#### Cross-window shared metrics
+
+Metrics live in `<globalStorageUri>/telemetry.json` (a sibling `<globalStorageUri>/telemetry.lock` serializes writers across processes). The data is shared across all VS Code windows: every `record()` goes through a file lock, the in-process write chain guarantees sequential file access, and a `Refresh metrics` in any window reloads from disk. This means the totals you see in a non-leader window are the same as the ones the leader just wrote, without needing a window reload.
+
+The file is plain JSON. The Output channel (`AIFlowBridge: Show logs`) prints the path under `[Telemetry]` debug lines, which is the easiest way to find it on Windows / macOS / Linux.
 
 ## Settings
 
@@ -543,6 +567,8 @@ src/
 ├── aiflowbridge/                  # Extension-specific: gateway, telemetry, dashboard
 │   ├── gateway/                   # OpenAI-compatible proxy server
 │   ├── ui/                        # Dashboard webview, status bar
+│   ├── telemetry/                 # Cross-window telemetry persistence (file lock + persister)
+│   │   └── persistence.ts         # TelemetryPersister + file lock (fs.openSync 'wx')
 │   ├── token-counter.ts           # MiniMax /v1/responses/input_tokens wrapper
 │   ├── telemetry.ts               # TelemetryStore + cost estimation
 │   ├── config.ts                  # Gateway settings loader (incl. userModel synthesis)
@@ -744,9 +770,10 @@ The 404 body lists the available provider ids for reference.
 
 **`Metrics are empty after restart`**
 
-Since 1.2.0, metrics are persisted in VS Code's `globalState` and restored on the next activation. If the dashboard shows 0, one of:
+Since 1.5.0, metrics are persisted in `<globalStorageUri>/telemetry.json` and shared across VS Code windows. If the dashboard shows 0, one of:
 
 - You're testing through **Copilot Chat**, which goes through the language model provider APIs directly, not the gateway. Only requests that hit the gateway (Kilo Code, Continue, Open WebUI, curl, etc.) are recorded.
+- The legacy `globalState` slot had no data and the new file is empty (1.4.x users: the migration runs once on the first activation after the upgrade and logs `[AIFlowBridge] Migrating telemetry from globalState to ...`).
 - Run `AIFlowBridge: Reset metrics` and verify the cumulative counters increment as you make gateway calls.
 
 **`Gateway not detected by Kilo Code`**
@@ -780,10 +807,11 @@ AIFlowBridge is in active development. The roadmap below is a high-level view of
 - **v1.0** - initial release, DeepSeek + MiniMax + Xiaomi MiMo providers, vision proxy, OpenAI-compatible gateway, metrics dashboard
 - **v1.1** - user-defined models via `AIFlowBridge: Add a custom model`, per-model settings, offline docs
 - **v1.2** - accurate MiniMax token counting via `/v1/responses/input_tokens`, persistent metrics across restarts, gateway-safe model routing, "By model" dashboard panel with time filters, screenshots, language polish (English only)
+- **v1.5** - cross-window shared metrics in `<globalStorageUri>/telemetry.json` (file lock + atomic writes + one-time migration from `globalState`), dashboard UX upgrade (collapsible panels, custom date range, text search, gateway version badge, "Current version" subtitle), per-row delete button in the Recent requests table
 
 ### In progress
 
-_Nothing actively in flight right now - the 1.2.0 backlog has shipped._
+_Nothing actively in flight right now - the 1.5.0 backlog has shipped._
 
 ### Next up
 

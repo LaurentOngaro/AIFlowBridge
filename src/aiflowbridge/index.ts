@@ -3,6 +3,7 @@ import { loadConfig } from "./config";
 import { GatewayService, isPortInUse } from "./gateway/server";
 import { resolveVendorApiKey } from "./api-key-resolver";
 import { TelemetryStore } from "./telemetry";
+import { TelemetryPersister, defaultTelemetryPaths } from "./telemetry/persistence";
 import type { AiFlowBridgeConfig, GatewayStatus, TelemetrySnapshot } from "./types";
 import { showMetricsDashboard } from "./ui/dashboard";
 import { StatusBarController } from "./ui/statusbar";
@@ -14,7 +15,8 @@ class AIFlowBridgeRuntime {
   private config!: AiFlowBridgeConfig;
   private gateway!: GatewayService;
   private readonly statusBar: StatusBarController;
-  private readonly telemetryFallback = new TelemetryStore();
+  private telemetryFallback!: TelemetryStore;
+  private persister: TelemetryPersister | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     // The gateway and config are built in `activate()` (not as class
@@ -29,17 +31,40 @@ class AIFlowBridgeRuntime {
   }
 
   private loadPersistedTelemetry(): TelemetrySnapshot | undefined {
+    // File is the source of truth (FEAT1). If the file does not exist
+    // yet (e.g. first ever activation), fall back to the legacy
+    // globalState slot for the one-time migration in `activate()`.
+    if (this.persister) {
+      const fromDisk = this.persister.loadSync();
+      if (fromDisk) {
+        return fromDisk;
+      }
+    }
     return this.context.globalState.get<TelemetrySnapshot>(TELEMETRY_STORAGE_KEY);
   }
 
   private savePersistedTelemetry(snapshot: TelemetrySnapshot): void {
-    void this.context.globalState.update(TELEMETRY_STORAGE_KEY, snapshot);
+    // No-op: the file-based persister is wired directly into the
+    // TelemetryStore.record() path. The callback is preserved for the
+    // GatewayService contract but does nothing when a persister is set.
+    if (!this.persister) {
+      void this.context.globalState.update(TELEMETRY_STORAGE_KEY, snapshot);
+    }
   }
 
   async activate(): Promise<void> {
     logger.info("[AIFlowBridge] Activating...");
 
     this.config = await loadConfig(this.context);
+
+    // FEAT1: build the file-based telemetry persister (per-OS-user,
+    // per-machine, NOT per-workspace). Stored under globalStorageUri
+    // so the file is independent of the current workspace and shared
+    // across every VS Code window the user opens.
+    const telemetryPaths = defaultTelemetryPaths(this.context.globalStorageUri.fsPath);
+    this.persister = new TelemetryPersister(telemetryPaths);
+    this.telemetryFallback = new TelemetryStore(this.persister);
+
     this.gateway = new GatewayService(
       this.config,
       (status, snapshot) => this.refreshUi(status, snapshot),
@@ -47,8 +72,32 @@ class AIFlowBridgeRuntime {
       () => this.loadPersistedTelemetry(),
       (snapshot) => this.savePersistedTelemetry(snapshot),
       this.context.extension.packageJSON.version ?? "0.0.0",
+      undefined,
+      this.persister,
     );
     this.gateway.init();
+
+    // One-time migration: if the user is upgrading from a version
+    // older than 1.5.0, the legacy `globalState` slot has their
+    // cumulative counters but the new file does not. Move them over
+    // and clear the legacy slot so the file is the only source of
+    // truth going forward.
+    const diskEmpty = this.persister.loadSync() === undefined;
+    const legacySnapshot = this.context.globalState.get<TelemetrySnapshot>(TELEMETRY_STORAGE_KEY);
+    if (diskEmpty && legacySnapshot) {
+      logger.info(
+        `[AIFlowBridge] Migrating telemetry from globalState to ${telemetryPaths.filePath} ` +
+          `(${legacySnapshot.requests} requests, ${legacySnapshot.totalTokens} tokens).`,
+      );
+      try {
+        await this.persister.saveFull(legacySnapshot);
+        await this.context.globalState.update(TELEMETRY_STORAGE_KEY, undefined);
+      } catch (error) {
+        logger.warn(
+          `[AIFlowBridge] Telemetry migration failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
 
     this.context.subscriptions.push(this.statusBar);
     this.context.subscriptions.push(this.gateway);
@@ -115,6 +164,13 @@ class AIFlowBridgeRuntime {
 
   private registerCommands(): void {
     this.context.subscriptions.push(vscode.commands.registerCommand("aiflowbridge.refreshMetrics", async () => {
+      // FEAT1: also pull the latest snapshot from disk so a non-leader
+      // window picks up writes from a peer window. The local in-memory
+      // store is replaced with the on-disk state (under a file lock
+      // when the persister is configured), and the dashboard is then
+      // re-rendered with the fresh data.
+      this.gateway.refreshFromDisk();
+      this.telemetryFallback.refreshFromDisk();
       this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
       const snapshot = this.gatewaySnapshot();
       void vscode.window.showInformationMessage(`AIFlowBridge: ${snapshot.requests} request${snapshot.requests === 1 ? "" : "s"}, ${snapshot.totalTokens} tokens`);
@@ -129,8 +185,16 @@ class AIFlowBridgeRuntime {
       if (confirm !== "Reset") {
         return;
       }
+      // `gateway.resetMetrics()` delegates to `TelemetryStore.reset()`,
+      // which clears the in-memory counters and schedules a
+      // fire-and-forget `persister.clear()` to wipe the on-disk file
+      // under a file lock (FEAT1). The legacy globalState slot is
+      // cleared for the no-persister path (e.g. unit tests / older
+      // builds that have not migrated yet).
       this.gateway.resetMetrics();
-      void this.context.globalState.update(TELEMETRY_STORAGE_KEY, undefined);
+      if (!this.persister) {
+        void this.context.globalState.update(TELEMETRY_STORAGE_KEY, undefined);
+      }
       this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
       void vscode.window.showInformationMessage("AIFlowBridge: metrics reset.");
     }));
@@ -140,6 +204,15 @@ class AIFlowBridgeRuntime {
         () => this.config,
         () => this.gatewaySnapshot(),
         () => this.gateway.running,
+        () => ({
+          // AFF03: header shows the running gateway version and the
+          // installed extension version. Both come from the same source
+          // the gateway itself reports on GET /version, so the user
+          // can tell at a glance which build produced the metrics.
+          gateway: this.gateway.bundledVersion,
+          extension: this.context.extension.packageJSON.version,
+        }),
+        (entryId) => this.gateway.removeEntry(entryId),
       );
     }));
 
