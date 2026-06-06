@@ -12,16 +12,35 @@ let currentPanel: vscode.WebviewPanel | undefined;
 
 export type SnapshotGetter = () => TelemetrySnapshot;
 export type RunningGetter = () => boolean;
+export type ConfigGetter = () => AiFlowBridgeConfig;
 
+/**
+ * Show (or focus + refresh) the metrics dashboard webview.
+ *
+ * `getConfig` is a callback rather than a captured `AiFlowBridgeConfig`
+ * because the dashboard's rate tooltips and pricing column must reflect
+ * the **current** provider pricing every time the panel is refreshed, not
+ * the pricing at the moment the panel was first opened. The user's T3
+ * workflow is:
+ *
+ *   1. Edit `<globalStorageUri>/models.json` to override a model's pricing
+ *   2. Reload the window (Ctrl+R)
+ *   3. Click the dashboard's "Refresh" button (or reopen the dashboard)
+ *   4. The tooltips / pricing column now show the new rates
+ *
+ * Historical `RequestTelemetry.estimatedCost` values stay frozen (they
+ * are immutable per-request facts, computed at request time and persisted
+ * to `globalState`); only the rate displayed alongside them updates.
+ */
 export function showMetricsDashboard(
-  config: AiFlowBridgeConfig,
+  getConfig: ConfigGetter,
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
 ): void {
   if (currentPanel) {
-    currentPanel.webview.html = buildHtml(config, getSnapshot(), isRunning());
+    currentPanel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning());
     currentPanel.reveal(vscode.ViewColumn.One);
-    attachMessageHandler(currentPanel, config, getSnapshot, isRunning);
+    attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning);
     return;
   }
 
@@ -35,8 +54,8 @@ export function showMetricsDashboard(
     },
   );
 
-  currentPanel.webview.html = buildHtml(config, getSnapshot(), isRunning());
-  attachMessageHandler(currentPanel, config, getSnapshot, isRunning);
+  currentPanel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning());
+  attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning);
   currentPanel.onDidDispose(() => {
     currentPanel = undefined;
   });
@@ -44,13 +63,16 @@ export function showMetricsDashboard(
 
 function attachMessageHandler(
   panel: vscode.WebviewPanel,
-  config: AiFlowBridgeConfig,
+  getConfig: ConfigGetter,
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
 ): void {
   panel.webview.onDidReceiveMessage((message: unknown) => {
     if (message && typeof message === "object" && (message as { type?: unknown }).type === "refresh") {
-      panel.webview.html = buildHtml(config, getSnapshot(), isRunning());
+      // Read the config at refresh time, not at panel-creation time, so a
+      // pricing override picked up by a window reload is reflected without
+      // having to close and reopen the panel.
+      panel.webview.html = buildHtml(getConfig(), getSnapshot(), isRunning());
     }
   });
 }

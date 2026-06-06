@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { getUserModels } from "../config";
+import { logger } from "../logger";
 import { loadModelRegistry } from "./modelRegistry";
 import type { ModelRegistry } from "./modelRegistry.schema";
 import { normalizeProviderProfiles } from "./providers";
@@ -298,6 +299,20 @@ export async function loadConfig(context: vscode.ExtensionContext): Promise<AiFl
   // model has the family-level indicative pricing attached for the
   // dashboard's "Est. cost" column.
   const providers = synthesizeProvidersFromBuiltInModels(withUserModels, configuration, registry);
+
+  // Diagnostic: surface the final gateway provider pricing. The user can
+  // diff this against the registry dump from `loadModelRegistry` to find
+  // out which step drops their override. Sources are tagged so a provider
+  // coming from `aiflowbridge.providers` (raw user config) is clearly
+  // distinguished from one synthesized from the registry.
+  const hasRawProfiles = Array.isArray(rawProfiles) && rawProfiles.length > 0;
+  logger.info(`[AIFlowBridge] Gateway provider synthesis: ${providers.length} entries, source=${hasRawProfiles ? "aiflowbridge.providers (raw user config)" : "buildDefaultGatewayProfiles + synthesis"}`);
+  for (const provider of providers) {
+    const pricingStr = provider.pricing
+      ? `in=${provider.pricing.inputPerMillion}/M out=${provider.pricing.outputPerMillion}/M ${provider.pricing.currency}`
+      : '<no pricing>';
+    logger.info(`[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} pricing=${pricingStr}`);
+  }
 
   return {
     gateway,

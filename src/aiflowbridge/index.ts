@@ -137,7 +137,7 @@ class AIFlowBridgeRuntime {
 
     this.context.subscriptions.push(vscode.commands.registerCommand("aiflowbridge.showMetrics", async () => {
       showMetricsDashboard(
-        this.config,
+        () => this.config,
         () => this.gatewaySnapshot(),
         () => this.gateway.running,
       );

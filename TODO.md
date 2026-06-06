@@ -16,8 +16,6 @@ Tickets ranked by priority (most urgent first):
 
 ## Bugs (last: BUG10)
 
-- [ ] BUG08: [image not analysed](https://github.com/LaurentOngaro/AIFlowBridge/issues/1)
-
 ### Documentation (last: DOC01)
 
 _None for now._
@@ -26,7 +24,7 @@ _None for now._
 
 - [ ] AFF03: improve metrics dashboard UI
   - [ ] add the current version of the server running to the text "Gateway vX.X.X running..."
-  - [ ] add the current version of the extension (under the Title) with text: current version: vX.X.X)
+  - [ ] add the current version of the extension (under the Title) with text: "current version: vX.X.X"
   - [ ] make sections collapsible in dashboard metrics
   - [ ] add custom date filter options to the dashboard (with start and end date pickers)
 
@@ -74,9 +72,13 @@ _The README has a public-facing version of this roadmap in the "Roadmap" section
 
 ## Completed
 
+### 1.4.1
+
+- BUG08: [image not analysed](https://github.com/LaurentOngaro/AIFlowBridge/issues/1)
+- BUG10: [prices are not updated on metrics](https://github.com/LaurentOngaro/AIFlowBridge/issues/3) - 3 corrections indépendantes étaient nécessaires pour que l'override de pricing remonte jusqu'au dashboard : (1) `synthesizeProviderForModel` (`src/aiflowbridge/config.ts`) acceptait `model.pricing` en option et l'utilisait avant le fallback family-level ; `buildDefaultGatewayProfiles` fait `entry.pricing ?? toProviderPricing(registryEntry?.pricing)`. (2) `validateModelEntry` (`src/aiflowbridge/modelRegistry.schema.ts`) accepte un `mode: 'strict' | 'partial'` ; les tiers globalStorage et workspace chargent en `'partial'`, donc un override `{ "id": "MiniMax-M3", "pricing": { ... } }` (sans `name`/`family`/etc.) n'est plus silencieusement droppé. (3) `showMetricsDashboard` (`src/aiflowbridge/ui/dashboard.ts`) accepte un `ConfigGetter` au lieu d'une `AiFlowBridgeConfig` capturée, donc le bouton Refresh du dashboard re-lit `this.config` (re-evalué par `loadConfig()` à chaque activation) et les tooltips reflètent le pricing actuel sans rouvrir le panel. Diagnostic logging ajouté dans `loadModelRegistry` et `loadConfig` (chemin du fichier, `exists=true/false`, pricing par modèle, source de la synthèse) pour repérer d'un coup d'œil les `aiflowbridge.providers` qui court-circuitent le registry. 420 tests / 25 fichiers (était 407 / 25). Note : les `RequestTelemetry.estimatedCost` historiques restent **figés** (coût = fait historique), seule la **rate** affichée dans le tooltip / la nouvelle requête utilisent le pricing actuel — pour repartir à zéro avec le nouveau tarif, `AIFlowBridge: Reset metrics`.
+
 ### 1.4.0
 
-- BUG10: [prices are not updated on metrics](https://github.com/LaurentOngaro/AIFlowBridge/issues/3)
 - BUG09: ["Edit model registry" fails](https://github.com/LaurentOngaro/AIFlowBridge/issues/2)
 - FEAT3: Version-aware cooperative gateway restart** (`src/aiflowbridge/gateway/probe.ts` + `lock.ts` + `/version` + `/shutdown` endpoints on `server.ts`). The new activation probes the peer on `http://127.0.0.1:<port>` (hard-coded loopback, not the user-configurable `baseUrl` - see Security note below) and:
 

@@ -147,10 +147,19 @@ export function validateRegistryStructure(raw: unknown): asserts raw is Registry
 
 // ---- Fail-soft content validators ----
 
-/** Result of validating the content of one registry tier. */
-export interface ValidatedContent {
+/**
+ * Result of validating the content of one registry tier.
+ *
+ * The `M` parameter is `RegistryModelDefinition` for the `'strict'` mode
+ * (every field is required and the returned entries are complete) and
+ * `Partial<RegistryModelDefinition>` for the `'partial'` mode (only `id`
+ * is required; other fields are present iff the source file provided
+ * them). The TypeScript overloads on `validateRegistryContent` pin the
+ * return type so callers don't have to cast.
+ */
+export interface ValidatedContent<M = RegistryModelDefinition> {
   vendors: Record<string, VendorDefinition>;
-  models: Partial<RegistryModelDefinition>[];
+  models: M[];
   log: ValidationLog;
 }
 
@@ -159,15 +168,26 @@ export interface ValidatedContent {
  * Fail-soft: drops invalid entries, accumulates skip reasons in `log`.
  *
  * `mode` is forwarded to `validateModelEntry`:
- *   - `'strict'` for the bundled tier (all fields required)
+ *   - `'strict'` for the bundled tier (all fields required). Returned
+ *     `models` are `RegistryModelDefinition[]` - every field is non-null
+ *     and the entries can be assigned to a `ModelRegistry.models` slot
+ *     without a cast.
  *   - `'partial'` for the globalStorage / workspace overrides (only `id`
  *     required; other fields are validated if present and deep-merged
- *     over the lower-priority tier)
+ *     over the lower-priority tier). Returned `models` are
+ *     `Partial<RegistryModelDefinition>[]` - they MUST be deep-merged
+ *     over a strict entry before they are usable.
  */
+export function validateRegistryContent(raw: RegistryFile, mode: 'strict'): ValidatedContent<RegistryModelDefinition>;
+export function validateRegistryContent(raw: RegistryFile, mode: 'partial'): ValidatedContent<Partial<RegistryModelDefinition>>;
+export function validateRegistryContent(
+  raw: RegistryFile,
+  mode: 'strict' | 'partial',
+): ValidatedContent<RegistryModelDefinition> | ValidatedContent<Partial<RegistryModelDefinition>>;
 export function validateRegistryContent(
   raw: RegistryFile,
   mode: 'strict' | 'partial' = 'strict',
-): ValidatedContent {
+): ValidatedContent<RegistryModelDefinition> | ValidatedContent<Partial<RegistryModelDefinition>> {
   const log = emptyValidationLog();
   const vendors: Record<string, VendorDefinition> = {};
   if (raw.vendors) {
@@ -187,7 +207,12 @@ export function validateRegistryContent(
       models.push(m);
     }
   });
-  return { vendors, models, log };
+  // In strict mode the runtime invariant (every required field present) is
+  // enforced by `validateModelEntry`, so the array of partials IS an array
+  // of complete entries. In partial mode the array stays partial. The
+  // overloads above are the source of truth for the call-site types; this
+  // cast is the only place that bridges runtime and types.
+  return { vendors, models: models as never, log };
 }
 
 /**
@@ -573,7 +598,7 @@ export function deepMergeVendor(base: VendorDefinition, override: Partial<Vendor
  * adding it.
  */
 export function mergeTiers(
-	...tiers: Array<ValidatedContent | undefined>
+	...tiers: Array<ValidatedContent<RegistryModelDefinition | Partial<RegistryModelDefinition>> | undefined>
 ): Pick<ModelRegistry, 'version' | 'vendors' | 'models'> {
 	const vendors: Record<string, VendorDefinition> = {};
 	const models = new Map<string, RegistryModelDefinition>();

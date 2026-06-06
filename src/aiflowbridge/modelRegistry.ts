@@ -36,6 +36,7 @@ import * as vscode from 'vscode';
 import { logger } from '../logger';
 import {
 	type ModelRegistry,
+	type RegistryModelDefinition,
 	type RegistrySources,
 	type ValidatedContent,
 	validateRegistryStructure,
@@ -66,7 +67,7 @@ export interface LoadModelRegistryOptions {
 }
 
 interface TierLoadResult {
-  tier: ValidatedContent | undefined;
+  tier: ValidatedContent<RegistryModelDefinition> | ValidatedContent<Partial<RegistryModelDefinition>> | undefined;
   exists: boolean;
 }
 
@@ -101,11 +102,11 @@ export async function loadModelRegistry(
 		? vscode.Uri.joinPath(workspaceFolder.uri, ...WORKSPACE_REGISTRY_RELATIVE_PATH)
 		: undefined;
 
-  const bundled = await loadTier(fs, bundledUri, 'bundled', { fatal: true, mode: 'strict' });
-  const globalStorage = await loadTier(fs, globalStorageUri, 'globalStorage', { fatal: false, mode: 'partial' });
-  const workspace = workspaceUri
-    ? await loadTier(fs, workspaceUri, 'workspace', { fatal: false, mode: 'partial' })
-    : { tier: undefined, exists: false };
+	const bundled = await loadTier(fs, bundledUri, 'bundled', { fatal: true, mode: 'strict' });
+	const globalStorage = await loadTier(fs, globalStorageUri, 'globalStorage', { fatal: false, mode: 'partial' });
+	const workspace = workspaceUri
+		? await loadTier(fs, workspaceUri, 'workspace', { fatal: false, mode: 'partial' })
+		: { tier: undefined, exists: false };
 
 	const merged = mergeTiers(bundled.tier, globalStorage.tier, workspace.tier);
 
@@ -117,6 +118,22 @@ export async function loadModelRegistry(
 
 	const result: ModelRegistry = { ...merged, sources };
 	cachedRegistry = result;
+
+	// Diagnostic: surface the resolved registry's pricing so the user can
+	// confirm T3 (pricing override) is actually flowing through the loader.
+	// Cheap, runs only once per activation, and is essential to debug the
+	// "I edited the file but the dashboard still shows the old price" report.
+	logger.info(`[AIFlowBridge] Model registry loaded (version ${result.version})`);
+	logger.info(`[AIFlowBridge]   bundled      = ${sources.bundled.path} (always present)`);
+	logger.info(`[AIFlowBridge]   globalStorage= ${sources.globalStorage.path} (exists=${globalStorage.exists})`);
+	logger.info(`[AIFlowBridge]   workspace    = ${sources.workspace.path || '<none>'} (exists=${workspace.exists})`);
+	for (const model of result.models) {
+		const pricingStr = model.pricing
+			? `in=${model.pricing.inputPerMillion}/M out=${model.pricing.outputPerMillion}/M ${model.pricing.currency}`
+			: '<no pricing>';
+		logger.info(`[AIFlowBridge]   model ${model.id.padEnd(20)} family=${model.family.padEnd(10)} pricing=${pricingStr}`);
+	}
+
 	return result;
 }
 
