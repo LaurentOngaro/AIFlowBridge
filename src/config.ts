@@ -1,6 +1,7 @@
 import vscode from 'vscode';
 import { tryGetLoadedRegistry } from './aiflowbridge/modelRegistry';
 import { CONFIG_SECTION } from './consts';
+import { logger } from './logger';
 
 export type DebugMode = 'minimal' | 'metadata' | 'verbose';
 
@@ -106,16 +107,25 @@ export function getUserModels(): Array<{
 		return [];
 	}
 	const result: ReturnType<typeof getUserModels> = [];
-	for (const entry of raw) {
-		if (!entry || typeof entry !== 'object') continue;
+	raw.forEach((entry, index) => {
+		if (!entry || typeof entry !== 'object') return;
 		const e = entry as Record<string, unknown>;
 		const id = typeof e.id === 'string' ? e.id.trim() : '';
 		const name = typeof e.name === 'string' ? e.name.trim() : '';
 		const family = typeof e.family === 'string' ? e.family.trim() : '';
 		const version = typeof e.version === 'string' ? e.version.trim() : '';
-		if (!id || !name || !family || !version) {
-			console.warn('[AIFlowBridge] Skipping invalid userModels entry: missing required field (id/name/family/version)');
-			continue;
+		const missing: string[] = [];
+		if (!id) missing.push('id');
+		if (!name) missing.push('name');
+		if (!family) missing.push('family');
+		if (!version) missing.push('version');
+		if (missing.length > 0) {
+			logger.warn(
+				`[AIFlowBridge] Skipping invalid aiflowbridge.userModels entry #${index + 1}` +
+				(id ? ` (id="${id}")` : '') +
+				`: missing required field(s): ${missing.join(', ')}`
+			);
+			return;
 		}
 		result.push({
 			id,
@@ -131,7 +141,7 @@ export function getUserModels(): Array<{
 			requiresThinkingParam: typeof e.requiresThinkingParam === 'boolean' ? e.requiresThinkingParam : undefined,
 			pricing: parseUserModelPricing(e.pricing),
 		});
-	}
+	});
 	return result;
 }
 

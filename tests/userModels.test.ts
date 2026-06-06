@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { mockUserModels } = vi.hoisted(() => ({
-	mockUserModels: { value: [] as unknown[] },
+	mockUserModels: { value: [] as unknown },
 }));
 
 vi.mock('vscode', () => {
@@ -20,6 +20,23 @@ vi.mock('vscode', () => {
 						}
 						return fallback;
 					}),
+				})),
+			},
+			window: {
+				createOutputChannel: vi.fn(() => ({
+					name: 'AIFlowBridge',
+					log: vi.fn(),
+					trace: vi.fn(),
+					debug: vi.fn(),
+					info: vi.fn(),
+					warn: vi.fn(),
+					error: vi.fn(),
+					dispose: vi.fn(),
+					append: vi.fn(),
+					appendLine: vi.fn(),
+					clear: vi.fn(),
+					show: vi.fn(),
+					hide: vi.fn(),
 				})),
 			},
 		},
