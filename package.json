@@ -441,8 +441,8 @@
     "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
     "compile": "npm run clean && tsc -p ./",
     "watch": "npm run clean && tsc -watch -p ./",
-    "package": "vsce package -o dist/",
-    "publish": "vsce publish",
+    "package": "npm run compile && npm test && vsce package -o dist/",
+    "publish": "npm run compile && npm test && vsce publish",
     "test": "vitest run"
   },
   "devDependencies": {
