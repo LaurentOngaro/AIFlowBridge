@@ -70,7 +70,7 @@ describe('compareSemver', () => {
 	});
 
 	it('treats prerelease as equal to its core for v1', () => {
-		// Per the plan: prerelease tag is ignored in v1 (split on '-').
+		// Per the plan: prerelease tag is ignored in v1 (split on "-").
 		expect(compareSemver('1.4.0-beta.1', '1.4.0')).toBe(0);
 	});
 
@@ -126,13 +126,14 @@ describe('probeServerVersion', () => {
 			res.statusCode = 404;
 			res.end();
 		});
-		await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
-		port = (server.address() as { port: number }).port;
+		const currentServer = server!;
+		await new Promise<void>((resolve) => currentServer.listen(0, '127.0.0.1', resolve));
+		port = (currentServer.address() as { port: number }).port;
 	});
 
 	afterEach(async () => {
 		if (server) {
-			await new Promise<void>((resolve) => server.close(() => resolve()));
+			await new Promise<void>((resolve) => server!.close(() => resolve()));
 			server = undefined;
 		}
 	});
@@ -155,15 +156,16 @@ describe('probeServerVersion', () => {
 	it('returns null on invalid payload shape', async () => {
 		// Re-bind the server to return an invalid /version payload
 		if (server) {
-			await new Promise<void>((resolve) => server.close(() => resolve()));
+			await new Promise<void>((resolve) => server!.close(() => resolve()));
 		}
 		server = createServer((_req, res) => {
 			res.statusCode = 200;
 			res.setHeader('Content-Type', 'application/json');
 			res.end(JSON.stringify({ wrong: 'shape' }));
 		});
-		await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
-		const p = (server.address() as { port: number }).port;
+		const currentServer = server!;
+		await new Promise<void>((resolve) => currentServer.listen(0, '127.0.0.1', resolve));
+		const p = (currentServer.address() as { port: number }).port;
 		const peer = await probeServerVersion(p, { timeoutMs: 500 });
 		expect(peer).toBeNull();
 	});
@@ -190,13 +192,14 @@ describe('requestPeerShutdown', () => {
 			res.statusCode = 404;
 			res.end();
 		});
-		await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
-		port = (server.address() as { port: number }).port;
+		const currentServer = server!;
+		await new Promise<void>((resolve) => currentServer.listen(0, '127.0.0.1', resolve));
+		port = (currentServer.address() as { port: number }).port;
 	});
 
 	afterEach(async () => {
 		if (server) {
-			await new Promise<void>((resolve) => server.close(() => resolve()));
+			await new Promise<void>((resolve) => server!.close(() => resolve()));
 			server = undefined;
 		}
 	});
@@ -236,7 +239,7 @@ describe('waitUntilPortFree', () => {
 			const ok = await waitUntilPortFree(port, { timeoutMs: 300, intervalMs: 50 });
 			expect(ok).toBe(false);
 		} finally {
-			await new Promise<void>((resolve) => server.close(() => resolve()));
+			await new Promise<void>((resolve) => server!.close(() => resolve()));
 		}
 	});
 });

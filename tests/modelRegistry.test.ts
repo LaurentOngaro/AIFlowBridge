@@ -66,6 +66,7 @@ vi.mock('vscode', () => {
 	return mock;
 });
 
+import * as vscode from 'vscode';
 import {
 	loadModelRegistry,
 	setLoadedRegistry,
@@ -76,16 +77,16 @@ const BUNDLED_PATH = '/extension/resources/models.json';
 const GLOBAL_STORAGE_PATH = '/globalStorage';
 const WORKSPACE_PATH = '/workspace';
 
-function makeContext(): { extensionUri: MockUri; globalStorageUri: MockUri; subscriptions: unknown[] } {
+function makeContext(): vscode.ExtensionContext {
 	return {
 		extensionUri: new MockUri(BUNDLED_PATH.replace('/resources/models.json', '')),
 		globalStorageUri: new MockUri(GLOBAL_STORAGE_PATH),
 		subscriptions: [],
-	};
+	} as unknown as vscode.ExtensionContext;
 }
 
-function makeWorkspaceFolder(): { uri: MockUri; name: string; index: number } {
-	return { uri: new MockUri(WORKSPACE_PATH), name: 'test', index: 0 };
+function makeWorkspaceFolder(): vscode.WorkspaceFolder {
+	return { uri: new MockUri(WORKSPACE_PATH), name: 'test', index: 0 } as unknown as vscode.WorkspaceFolder;
 }
 
 interface FakeFs {

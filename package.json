@@ -3,7 +3,7 @@
   "displayName": "AIFlowBridge",
   "description": "Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. Free multi-provider models with transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.",
   "icon": "resources/icon.png",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.1
+
+Patch release: type-only fixes in the registry loader test mocks. No behavior change, no new tests.
+
+### Fixed
+
+- clean minor warnings in test files
+- minor changes in AGENTS.md .
+
 ## 1.5.0 (post-release patches)
 
 Incremental additions on top of 1.5.0 without bumping the version. Each entry is self-contained and ships as a patch update.

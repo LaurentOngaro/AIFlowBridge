@@ -4,17 +4,20 @@
 
 AIFlowBridge is a VS Code extension that provides multi-provider AI coding assistance through Copilot Chat and an OpenAI-compatible local gateway. It supports DeepSeek, MiniMax, and Xiaomi MiMo with usage metrics, vision proxy, and singleton gateway routing.
 
-**Repository**: Originally forked from deepseek-v4-for-copilot, now significantly diverged
-**Maintainer**: [Laurent Ongaro](https://github.com/LaurentOngaro)
+## DO's and DON'Ts
+
+ALWAYS follows th efollowing rules:
+
+- ❌ DO NOT USE long dashes `—` ou `–`: Use only the standard hyphen `-` (ASCII 45), never long or half-long hyphens (e.g.: `—`, `–`)
+-✅ DU USE FRENCH for All the Agent IA interractions in the Chat (thinking, reflection, question, answers...)
 
 ## Code Standards
 
 ### Language
 
-- All the Agent IA interractions in the Chat (thinking, reflection, question, answers...) must be in **FRENCH only**
-- No Chinese localization files (package.nls.zh-cn.json, README.zh-cn.md, etc.)
-- All code, comments, and documentation must be in **English only**
-- Use English for all user-facing strings
+- ❌ No Chinese localization files (package.nls.zh-cn.json, README.zh-cn.md, etc.)
+- ✅ All code, comments, and documentation must be in **English only**
+- ✅ Use English for all user-facing strings
 
 ### Style Guidelines
 

@@ -13,11 +13,11 @@ import type { ConversationSegment } from '../segment';
 import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
 import type { VisionResolutionStats } from '../vision/index';
 import {
-	classifyDeepSeekRequest,
-	classifyProviderRequest,
-	formatModelFields,
-	formatRequestLogLine,
-	type RequestKind,
+  classifyDeepSeekRequest,
+  classifyProviderRequest,
+  formatModelFields,
+  formatRequestLogLine,
+  type RequestKind,
 } from './classifier';
 
 let dumpCounter = 0;
@@ -254,7 +254,7 @@ function createDumpContext(
 	seq: number,
 	requestKind: RequestKind,
 ): DumpContext {
-	const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 	return {
 		root: getRequestDumpRoot(globalStorageUri, segment),
 		timestamp,

@@ -62,7 +62,7 @@ const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json
 function loadBundledRegistry(): import('../src/aiflowbridge/modelRegistry.schema').ModelRegistry {
 	const raw = JSON.parse(readFileSync(BUNDLED_REGISTRY_PATH, 'utf8'));
 	validateRegistryStructure(raw);
-	const content = validateRegistryContent(raw);
+	const content = validateRegistryContent(raw, 'strict');
 	return {
 		version: 1,
 		vendors: content.vendors,

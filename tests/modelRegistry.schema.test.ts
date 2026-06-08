@@ -24,11 +24,12 @@ import {
 	validateRegistryContent,
 	validateRegistryStructure,
 	validateVendorEntry,
-	type ModelDefinition,
 	type RegistryFile,
 	type RegistryModelDefinition,
+	type ValidationLog,
 	type VendorDefinition,
 } from '../src/aiflowbridge/modelRegistry.schema';
+import type { ModelDefinition } from '../src/types';
 
 describe('validateRegistryStructure (fail-hard)', () => {
 	it('accepts a valid registry', () => {
@@ -105,32 +106,32 @@ describe('validateModelEntry (fail-soft)', () => {
 	}
 
 	it('accepts a valid entry', () => {
-		const result = validateModelEntry(validEntry());
+		const result = validateModelEntry(validEntry(), 0);
 		expect(result).not.toBeNull();
 		expect(result?.id).toBe('m1');
 	});
 
 	it('rejects non-object entry', () => {
-		expect(validateModelEntry(null)).toBeNull();
-		expect(validateModelEntry('oops')).toBeNull();
-		expect(validateModelEntry([])).toBeNull();
+		expect(validateModelEntry(null, 0)).toBeNull();
+		expect(validateModelEntry('oops', 0)).toBeNull();
+		expect(validateModelEntry([], 0)).toBeNull();
 	});
 
 	it('rejects missing id / name / family / version / detail', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(validateModelEntry({ ...validEntry(), id: '' }, 0, log)).toBeNull();
 		expect(validateModelEntry({ ...validEntry(), id: '   ' }, 0, log)).toBeNull();
 		expect(log.skipped.length).toBeGreaterThan(0);
 	});
 
 	it('rejects unknown family', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(validateModelEntry(validEntry({ family: 'made-up' }), 0, log)).toBeNull();
 		expect(log.skipped[0].reason).toMatch(/unknown "family"/);
 	});
 
 	it('rejects zero/negative token counts', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(validateModelEntry(validEntry({ maxInputTokens: 0 }), 0, log)).toBeNull();
 		expect(validateModelEntry(validEntry({ maxInputTokens: -1 }), 0, log)).toBeNull();
 		expect(validateModelEntry(validEntry({ maxOutputTokens: 0 }), 0, log)).toBeNull();
@@ -138,28 +139,28 @@ describe('validateModelEntry (fail-soft)', () => {
 	});
 
 	it('rejects non-boolean requiresThinkingParam', () => {
-		const log = { skipped: [] };
-		expect(validateModelEntry(validEntry({ requiresThinkingParam: 'yes' }), 0, log)).toBeNull();
-		expect(validateModelEntry(validEntry({ requiresThinkingParam: 1 }), 0, log)).toBeNull();
+		const log: ValidationLog = { skipped: [] };
+		expect(validateModelEntry(validEntry({ requiresThinkingParam: 'yes' as never }), 0, log)).toBeNull();
+		expect(validateModelEntry(validEntry({ requiresThinkingParam: 1 as never }), 0, log)).toBeNull();
 	});
 
 	it('rejects capabilities that is not an object', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(validateModelEntry(validEntry({ capabilities: null as never }), 0, log)).toBeNull();
 		expect(validateModelEntry(validEntry({ capabilities: [] as never }), 0, log)).toBeNull();
 	});
 
 	it('rejects non-boolean / non-integer toolCalling', () => {
-		const log = { skipped: [] };
-		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: -1, imageInput: false, thinking: false } }), 0, log)).toBeNull();
-		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: 'yes', imageInput: false, thinking: false } }), 0, log)).toBeNull();
-		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: 1.5, imageInput: false, thinking: false } }), 0, log)).toBeNull();
+		const log: ValidationLog = { skipped: [] };
+		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: -1 as never, imageInput: false, thinking: false } }), 0, log)).toBeNull();
+		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: 'yes' as never, imageInput: false, thinking: false } }), 0, log)).toBeNull();
+		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: 1.5 as never, imageInput: false, thinking: false } }), 0, log)).toBeNull();
 	});
 
 	it('rejects non-boolean imageInput / thinking', () => {
-		const log = { skipped: [] };
-		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: true, imageInput: 1, thinking: false } }), 0, log)).toBeNull();
-		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: true, imageInput: false, thinking: 'maybe' } }), 0, log)).toBeNull();
+		const log: ValidationLog = { skipped: [] };
+		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: true, imageInput: 1 as never, thinking: false } }), 0, log)).toBeNull();
+		expect(validateModelEntry(validEntry({ capabilities: { toolCalling: true, imageInput: false, thinking: 'maybe' as never } }), 0, log)).toBeNull();
 	});
 
 	it('accepts numeric toolCalling (DeepSeek limit)', () => {
@@ -168,8 +169,9 @@ describe('validateModelEntry (fail-soft)', () => {
 				family: 'deepseek',
 				capabilities: { toolCalling: 128, imageInput: true, thinking: true },
 			}),
+			0,
 		);
-		expect(result?.capabilities.toolCalling).toBe(128);
+		expect(result?.capabilities?.toolCalling).toBe(128);
 	});
 
 	it('accepts a valid pricing block', () => {
@@ -177,15 +179,16 @@ describe('validateModelEntry (fail-soft)', () => {
 			validEntry({
 				pricing: { inputPerMillion: 0.27, outputPerMillion: 1.1, currency: 'USD' },
 			}),
+			0,
 		);
 		expect(result?.pricing).toEqual({ inputPerMillion: 0.27, outputPerMillion: 1.1, currency: 'USD' });
 	});
 
 	it('rejects unsupported pricing currency', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(
 			validateModelEntry(
-				validEntry({ pricing: { inputPerMillion: 0.27, outputPerMillion: 1.1, currency: 'EUR' } }),
+				validEntry({ pricing: { inputPerMillion: 0.27, outputPerMillion: 1.1, currency: 'EUR' as never } }),
 				0,
 				log,
 			),
@@ -194,7 +197,7 @@ describe('validateModelEntry (fail-soft)', () => {
 	});
 
 	it('rejects negative pricing numbers', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(
 			validateModelEntry(
 				validEntry({ pricing: { inputPerMillion: -1, outputPerMillion: 1.1, currency: 'USD' } }),
@@ -221,7 +224,7 @@ describe('validateModelEntry (partial mode - override tiers)', () => {
 	// would be silently dropped, which is the T3 bug.
 
 	it('accepts an entry that only sets pricing (the canonical T3 user scenario)', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		const result = validateModelEntry(
 			{
 				id: 'MiniMax-M2.7',
@@ -240,26 +243,26 @@ describe('validateModelEntry (partial mode - override tiers)', () => {
 	});
 
 	it('accepts an entry that only sets id (workspace-only model)', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		const result = validateModelEntry({ id: 'm1' }, 0, log, 'partial');
 		expect(result).toEqual({ id: 'm1' });
 		expect(log.skipped).toHaveLength(0);
 	});
 
 	it('still requires id in partial mode', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(validateModelEntry({ pricing: { inputPerMillion: 1, outputPerMillion: 1, currency: 'USD' } }, 0, log, 'partial')).toBeNull();
 		expect(log.skipped.some((entry) => /missing\/invalid "id"/.test(entry.reason))).toBe(true);
 	});
 
 	it('still rejects unknown family when explicitly provided', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(validateModelEntry({ id: 'm1', family: 'made-up' }, 0, log, 'partial')).toBeNull();
 		expect(log.skipped.some((entry) => /unknown "family"/.test(entry.reason))).toBe(true);
 	});
 
 	it('still rejects invalid pricing when explicitly provided', () => {
-		const log = { skipped: [] };
+		const log: ValidationLog = { skipped: [] };
 		expect(
 			validateModelEntry(
 				{ id: 'm1', pricing: { inputPerMillion: -1, outputPerMillion: 1, currency: 'USD' } },
@@ -337,7 +340,7 @@ describe('validateRegistryContent', () => {
 			vendors: { deepseek: { baseUrl: 'https://x', apiKeySecret: 'k' } },
 			models: [model('a')],
 		};
-		const result = validateRegistryContent(raw);
+		const result = validateRegistryContent(raw, 'strict');
 		expect(result.log.skipped).toEqual([]);
 		expect(Object.keys(result.vendors)).toEqual(['deepseek']);
 		expect(result.models.map((m) => m.id)).toEqual(['a']);
@@ -346,10 +349,10 @@ describe('validateRegistryContent', () => {
 	it('drops invalid entries and logs reasons', () => {
 		const raw: RegistryFile = {
 			version: 1,
-			vendors: { good: { baseUrl: 'https://x', apiKeySecret: 'k' }, bad: { baseUrl: 'https://x' } },
+			vendors: { good: { baseUrl: 'https://x', apiKeySecret: 'k' }, bad: { baseUrl: 'https://x' } as VendorDefinition },
 			models: [model('good'), model('bad', 'made-up' as 'minimax')],
 		};
-		const result = validateRegistryContent(raw);
+		const result = validateRegistryContent(raw, 'strict');
 		expect(Object.keys(result.vendors)).toEqual(['good']);
 		expect(result.models.map((m) => m.id)).toEqual(['good']);
 		expect(result.log.skipped.length).toBe(2);
