@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/LaurentOngaro/AIFlowBridge/compare/v1.2.2...v1.3.0) (2026-06-08)
+
+
+### Features
+
+* enhance user model validation with detailed logging and improve test mock structure ([ffaf6ab](https://github.com/LaurentOngaro/AIFlowBridge/commit/ffaf6ab85a549f4f5039c077443a8597fac590d9))
+
+
+### Bug Fixes
+
+* update package and publish scripts to ensure compilation and testing before packaging ([7a9d5ec](https://github.com/LaurentOngaro/AIFlowBridge/commit/7a9d5ec1484b59f8a7d427a37fffbabfe1dd9119))
+* update test files to use path resolution for bundled registry path ([b4224d7](https://github.com/LaurentOngaro/AIFlowBridge/commit/b4224d7d88d4459ec090440806c1494906b402d7))
+* use release-please PAT fallback in release workflow ([7e2af81](https://github.com/LaurentOngaro/AIFlowBridge/commit/7e2af81f97da342c4e1bc6bc723ebdd90d362db2))
+
 ## 1.5.1
 
 Patch release: type-only fixes in the registry loader test mocks. No behavior change, no new tests.
