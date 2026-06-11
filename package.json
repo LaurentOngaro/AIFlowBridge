@@ -3,7 +3,7 @@
   "displayName": "AIFlowBridge",
   "description": "Use DeepSeek, MiniMax, and Xiaomi MiMo directly in GitHub Copilot Chat. Free multi-provider models with transparent vision proxy, usage metrics, and an OpenAI-compatible local gateway for Kilo Code, Continue, and more.",
   "icon": "resources/icon.png",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "publisher": "LaurentOngaro",
   "license": "MIT",
   "repository": {
@@ -442,13 +442,16 @@
     "compile": "npm run clean && tsc -p ./",
     "watch": "npm run clean && tsc -watch -p ./",
     "package": "npm run compile && npm test && vsce package -o dist/",
-    "publish": "npm run compile && npm test && vsce publish",
+    "publish:vscode": "npm run compile && npm test && vsce publish",
+    "publish:openvsx": "npm run compile && npm test && ovsx publish",
+    "publish:all": "npm run publish:vscode && npm run publish:openvsx",
     "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.0.0",
+    "ovsx": "^1.0.1",
     "typescript": "^6.0.3",
     "vitest": "^2.0.5"
   }

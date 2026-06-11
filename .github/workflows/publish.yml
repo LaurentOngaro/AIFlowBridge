@@ -1,4 +1,4 @@
-name: Publish to VS Code Marketplace
+name: Publish to VS Code Marketplace + Open VSX
 
 on:
   release:
@@ -27,3 +27,11 @@ jobs:
         run: |
           npm install -g @vscode/vsce
           vsce publish --pat ${{ secrets.VSCE_PAT }} --packagePath dist/*.vsix
+
+      - name: Publish to Open VSX
+        run: |
+          # ovsx is a devDependency in package.json, so npm ci above already
+          # installed it. Use npx to invoke it without polluting global state.
+          OVSX_PAT=${{ secrets.OVSX_PAT }} npx --no-install ovsx publish \
+            --packagePath dist/*.vsix \
+            --publisher LaurentOngaro

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.3
+
+Patch release: Open VSX publication plumbing (reach Cursor / Windsurf / VSCodium / code-server users). No user-facing change for VS Code Marketplace users.
+
+### Added
+
+- **Open VSX Registry publication via `ovsx` CLI.** The release workflow (`.github/workflows/publish.yml`) now publishes the extension to Open VSX in addition to the VS Code Marketplace. Users on alternative VS Code distributions (Cursor, Windsurf, VSCodium, code-server, Gitpod, ...) can now install AIFlowBridge from the [Open VSX Registry](https://open-vsx.org/extension/LaurentOngaro/aiflowbridge). The new `ovsx` devDependency (`@eclipse/openvsx` CLI repackaged under the short `ovsx` name on npm) reads `dist/*.vsix` (the exact same artifact produced by `vsce package` for the Marketplace) and uploads it using the `OVSX_PAT` GitHub secret. No new code in the extension, no new user setting, no breaking change for existing Marketplace users.
+
+### Changed
+
+- **`.github/workflows/publish.yml`** renamed from "Publish to VS Code Marketplace" to "Publish to VS Code Marketplace + Open VSX", and now invokes `npx --no-install ovsx publish --packagePath dist/*.vsix --publisher LaurentOngaro` after the Marketplace step. The two steps share the same `dist/*.vsix` artifact so there is no risk of a version mismatch between the two registries. The trigger remains a published GitHub release.
+
+### Notes
+
+- **First release on Open VSX (1.5.2) was published manually** using `npx ovsx publish --packagePath ...`. The 1.5.3 release is the first one published automatically through the GitHub workflow.
+
 ## 1.5.2
 
 Patch release: optional reasoning mode for MiniMax M3 in Copilot Chat, Kilo Code reasoning-checkbox pass-through in the gateway, and BUG11 fix (errored requests no longer bill the user).

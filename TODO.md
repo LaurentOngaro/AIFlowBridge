@@ -37,7 +37,7 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Publish (last: PUB02)
 
-- [ ] PUB01: Publish on Open VSX Registry (reach Cursor / Windsurf / VSCodium / code-server users)
+- [x] PUB01: Publish on Open VSX Registry (reach Cursor / Windsurf / VSCodium / code-server users)
 - [ ] PUB02: Refactor VS Code Marketplace listing (title, description, tags, screenshots)
 
 ### Refactoring (last:)

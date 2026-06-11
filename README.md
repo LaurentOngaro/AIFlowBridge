@@ -23,6 +23,10 @@
   <a href="https://github.com/LaurentOngaro/aiflowbridge/releases/latest">
     <img src="https://badgen.net/github/release/LaurentOngaro/aiflowbridge" alt="Latest release">
   </a>
+  <a href="https://github.com/LaurentOngaro/aiflowbridge/releases/latest">
+    <img src="https://badgen.net/static/%20/Open%20vsx/a60ee5" alt="Open VSX">
+    <img src="https://badgen.net/open-vsx/version/LaurentOngaro/aiflowbridge?label=Open%20VSX" alt="Latest release on Open-vsx">
+  </a>
 </p>
 <!-- markdownlint-enable MD033 -->
 
@@ -823,6 +827,7 @@ AIFlowBridge is in active development. The roadmap below is a high-level view of
 - **v1.0** - initial release, DeepSeek + MiniMax + Xiaomi MiMo providers, vision proxy, OpenAI-compatible gateway, metrics dashboard
 - **v1.1** - user-defined models via `AIFlowBridge: Add a custom model`, per-model settings, offline docs
 - **v1.2** - accurate MiniMax token counting via `/v1/responses/input_tokens`, persistent metrics across restarts, gateway-safe model routing, "By model" dashboard panel with time filters, screenshots, language polish (English only)
+- **v1.5.3** - Open VSX Registry publication plumbing: the release workflow now publishes to [open-vsx.org](https://open-vsx.org/extension/LaurentOngaro/aiflowbridge) in addition to the VS Code Marketplace, so users on Cursor / Windsurf / VSCodium / code-server can install AIFlowBridge natively. New `npm run publish:vscode` / `publish:openvsx` / `publish:all` scripts. No user-facing change for VS Code Marketplace users.
 - **v1.5.2** - optional reasoning mode for MiniMax M3: "Thinking Effort" selector in the Copilot Chat picker (None / High / Max), and Kilo Code reasoning-checkbox pass-through in the gateway (auto-translated to the upstream `reasoning_split` boolean)
 - **v1.5** - cross-window shared metrics in `<globalStorageUri>/telemetry.json` (file lock + atomic writes + one-time migration from `globalState`), dashboard UX upgrade (collapsible panels, custom date range, text search, gateway version badge, "Current version" subtitle), per-row delete button in the Recent requests table
 
@@ -856,10 +861,10 @@ AIFlowBridge is **free, open-source, and ad-free**. It will never ask you to pay
 <!-- markdownlint-disable MD033 -->
 <p align="center">
   <a href="https://github.com/sponsors/LaurentOngaro">
-    <img src="https://img.shields.io/github/sponsors/LaurentOngaro?style=for-the-badge&logo=github-sponsors&logoColor=EA4AAA&label=Sponsor%20on%20GitHub" alt="Sponsor on GitHub">
+    <img src="https://badgen.net/static/become/a%20GitHub%20SPONSOR/ae5487?icon=githubsponsors&scale=1.2" alt="Become a GitHub Sponsor">
   </a>
   <a href="https://www.patreon.com/LaurentOngaro">
-    <img src="https://img.shields.io/badge/Support_on-Patreon-orange?style=for-the-badge&logo=patreon&logoColor=white" alt="Support on Patreon">
+    <img src="https://badgen.net/static/Support%20me%20on/Patreon/F96854?icon=patreon&scale=1.2" alt="Support me on Patreon">
   </a>
 </p>
 <!-- markdownlint-enable MD033 -->
