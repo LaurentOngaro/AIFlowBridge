@@ -32,6 +32,8 @@ jobs:
         run: |
           # ovsx is a devDependency in package.json, so npm ci above already
           # installed it. Use npx to invoke it without polluting global state.
+          # The publisher namespace is read from the "publisher" field in
+          # the .vsix's package.json (LaurentOngaro here) - there is no
+          # --publisher CLI flag on `ovsx publish`.
           OVSX_PAT=${{ secrets.OVSX_PAT }} npx --no-install ovsx publish \
-            --packagePath dist/*.vsix \
-            --publisher LaurentOngaro
+            --packagePath dist/*.vsix

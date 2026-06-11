@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.4
+
+Patch release: fix the Open VSX publication step in the release workflow. No code change in the extension, no user-facing change for any install channel (VS Code Marketplace, Open VSX, manual install).
+
+### Fixed
+
+- **Open VSX publication step in `.github/workflows/publish.yml` failed with `error: unknown option '--publisher'`.**
+
 ## 1.5.3
 
 Patch release: Open VSX publication plumbing (reach Cursor / Windsurf / VSCodium / code-server users). No user-facing change for VS Code Marketplace users.
