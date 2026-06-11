@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.5
+
+Patch release: README polish
+
+### Fixed
+
+- README: badge bar refreshed for Open VSX discoverability and other minor changes.
+
+### Notes
+
+- **Documentation-only release.** No source file under `src/` was touched, no test was added or modified, no `package.json` dependency changed. The only repo-level changes are: `README.md` (this entry) and `package.json` (version bump `1.5.4` -> `1.5.5`). All three quality gates are still green: `npm run compile` (0 TypeScript errors), `npm test` (515 / 515 passing), and the Open VSX + Marketplace publication workflow is unchanged.
+
 ## 1.5.4
 
 Patch release: fix the Open VSX publication step in the release workflow. No code change in the extension, no user-facing change for any install channel (VS Code Marketplace, Open VSX, manual install).

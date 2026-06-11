@@ -5,27 +5,30 @@
   <img src="resources/icon.png" height="100" alt="Version"><hr/>
 </p>
 <p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
-    <img src="https://badgen.net/vs-marketplace/v/laurentOngaro.aiflowbridge" alt="Version">
+  <a target="_blank" href="https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge">
+    <img src="https://badgen.net/vs-marketplace/v/laurentOngaro.aiflowbridge?color=c61452&icon=rolldown" alt="Version">
   </a>
-  <a href="https://github.com/LaurentOngaro/aiflowbridge">
-    <img src="https://badgen.net/github/last-commit/LaurentOngaro/aiflowbridge" alt="Last Commit">
+  <a target="_blank" href="https://open-vsx.org/extension/LaurentOngaro/aiflowbridge">
+    <img src="https://badgen.net/open-vsx/version/LaurentOngaro/aiflowbridge?label=Open%20VSX&color=a60ee5&icon=rolldown" alt="Latest release on Open-vsx">
   </a>
-  <a href="https://github.com/LaurentOngaro/aiflowbridge/stargazers">
-    <img src="https://badgen.net/github/stars/LaurentOngaro/aiflowbridge" alt="GitHub stars">
+  <a target="_blank" href="https://github.com/LaurentOngaro/aiflowbridge/stargazers">
+    <img src="https://badgen.net/github/stars/LaurentOngaro/aiflowbridge?icon=github" alt="GitHub stars">
   </a>
-  <a href="https://github.com/LaurentOngaro/aiflowbridge/blob/main/LICENSE">
-    <img src="https://badgen.net/github/license/LaurentOngaro/aiflowbridge" alt="License">
+  <a target="_blank" href="https://github.com/LaurentOngaro/aiflowbridge/releases/latest">
+    <img src="https://badgen.net/github/release/LaurentOngaro/aiflowbridge?icon=github" alt="Latest release">
   </a>
-  <a href="https://github.com/LaurentOngaro/aiflowbridge/issues">
-    <img src="https://badgen.net/github/issues/LaurentOngaro/aiflowbridge" alt="Open issues">
+  <a target="_blank" href="https://github.com/LaurentOngaro/aiflowbridge/blob/main/LICENSE">
+    <img src="https://badgen.net/github/license/LaurentOngaro/aiflowbridge?icon=github" alt="License">
   </a>
-  <a href="https://github.com/LaurentOngaro/aiflowbridge/releases/latest">
-    <img src="https://badgen.net/github/release/LaurentOngaro/aiflowbridge" alt="Latest release">
+  <br/>
+  <a target="_blank" href="https://github.com/LaurentOngaro/aiflowbridge">
+    <img src="https://badgen.net/github/last-commit/LaurentOngaro/aiflowbridge?icon=github" alt="Last Commit">
   </a>
-  <a href="https://github.com/LaurentOngaro/aiflowbridge/releases/latest">
-    <img src="https://badgen.net/static/%20/Open%20vsx/a60ee5" alt="Open VSX">
-    <img src="https://badgen.net/open-vsx/version/LaurentOngaro/aiflowbridge?label=Open%20VSX" alt="Latest release on Open-vsx">
+  <a target="_blank" href="https://github.com/LaurentOngaro/aiflowbridge/issues">
+    <img src="https://badgen.net/github/open-issues/LaurentOngaro/aiflowbridge?icon=github" alt="Open issues">
+  </a>
+  <a target="_blank" href="https://github.com/LaurentOngaro/aiflowbridge/issues">
+    <img src="https://badgen.net/github/closed-issues/LaurentOngaro/aiflowbridge?icon=github" alt="Closed issues">
   </a>
 </p>
 <!-- markdownlint-enable MD033 -->
@@ -36,12 +39,18 @@ AIFlowBridge brings together multiple AI providers (DeepSeek, MiniMax, Xiaomi Mi
 
 > **AIFlowBridge can save you time or money, so consider [sponsoring its development](https://github.com/sponsors/LaurentOngaro)**.
 > The extension is free, ad-free, tracker-free and no personal data is collected - **your support is what keeps it that way ->[more info on how to become one of our sponsors](#sponsoring)**
+
+<!-- markdownlint-disable MD033 -->
+
+> If this project was useful, **Spread the word**:
 >
-> **Spread the word**
-> ![GitHub Repo stars](https://badgen.net/github/stars/LaurentOngaro/aiflowbridge)
-> Increase the project's visibility by adding a star to its GitHub repository
->
-> **That's the easiest way to show your support and help others discover the extension**
+> - Increase the project's visibility by adding a star to its GitHub repository <a target="_blank" href="https://marketplace.visualstudio.com/items?itemName=laurentOngaro.aiflowbridge&ssr=false#review-details"><img src="https://badgen.net/github/stars/LaurentOngaro/aiflowbridge?icon=github" alt="Github Stars"></a>
+> - add it to your watches <a target="_blank" href="https://marketplace.visualstudio.com/items?itemName=laurentOngaro.aiflowbridge&ssr=false#review-details"><img src="https://badgen.net/github/watchers/LaurentOngaro/aiflowbridge?icon=github" alt="Github Watchers"></a>
+> - leave your honest review <a target="_blank" href="https://marketplace.visualstudio.com/items?itemName=laurentOngaro.aiflowbridge&ssr=false#review-details"><img src="https://badgen.net/static/Review/[..]?icon=github" alt="Github Reviews"></a>
+
+<!-- markdownlint-enable MD033 -->
+
+> **That's the easiest way to show your support and help others discover the extension, at no cost**
 
 ## Features
 
@@ -339,11 +348,11 @@ The status bar reflects the same source: it shows the gateway state, not Copilot
 
 MiniMax M3 supports an optional reasoning mode. AIFlowBridge exposes a **"Thinking Effort"** selector in the Copilot Chat model picker for M3 only (None / High / Max). The selection is translated to the upstream `reasoning_split` boolean:
 
-| Picker | `reasoning_split` | Effect |
-| ------ | ----------------- | ------ |
-| `None` | `false` | Plain response, no reasoning tokens |
-| `High` | `true`  | Reasoning tokens split into a separate field (default) |
-| `Max`  | `true`  | Same as `High` (MiniMax does not expose a higher effort) |
+| Picker | `reasoning_split` | Effect                                                   |
+| ------ | ----------------- | -------------------------------------------------------- |
+| `None` | `false`           | Plain response, no reasoning tokens                      |
+| `High` | `true`            | Reasoning tokens split into a separate field (default)   |
+| `Max`  | `true`            | Same as `High` (MiniMax does not expose a higher effort) |
 
 If you do not touch the selector, the global `aiflowbridge.providers.minimax.reasoningSplit` setting is honored as the fallback (default: `true`).
 
@@ -860,12 +869,8 @@ AIFlowBridge is **free, open-source, and ad-free**. It will never ask you to pay
 
 <!-- markdownlint-disable MD033 -->
 <p align="center">
-  <a href="https://github.com/sponsors/LaurentOngaro">
-    <img src="https://badgen.net/static/become/a%20GitHub%20SPONSOR/ae5487?icon=githubsponsors&scale=1.2" alt="Become a GitHub Sponsor">
-  </a>
-  <a href="https://www.patreon.com/LaurentOngaro">
-    <img src="https://badgen.net/static/Support%20me%20on/Patreon/F96854?icon=patreon&scale=1.2" alt="Support me on Patreon">
-  </a>
+  <a target="_blank" href="https://github.com/sponsors/LaurentOngaro"><img src="https://badgen.net/static/become/a%20GitHub%20SPONSOR?color=EA4AAA&labelColor=blue&icon=githubsponsors&scale=1.2" alt="Become a GitHub Sponsor"></a>&nbsp;&nbsp;
+  <a target="_blank" href="https://www.patreon.com/LaurentOngaro"><img src="https://badgen.net/static/Support%20me%20on/Patreon?color=E000000&labelColor=blue&icon=patreon&scale=1.2" alt="Support me on Patreon"></a>
 </p>
 <!-- markdownlint-enable MD033 -->
 
