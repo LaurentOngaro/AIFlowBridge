@@ -51,6 +51,50 @@ export function getProviderReasoningSplit(vendor: string): boolean | undefined {
 	return typeof value === 'boolean' ? value : undefined;
 }
 
+/**
+ * Picker-driven reasoning effort values emitted by the Copilot Chat model
+ * picker's "Thinking Effort" dropdown (see `buildThinkingEffortSchema` in
+ * `src/provider/models.ts`). Mirrored here to avoid an import cycle between
+ * `config.ts` and the provider layer.
+ */
+export type PickerReasoningEffort = 'none' | 'high' | 'max';
+
+/**
+ * Resolve the effective `reasoning_split` value sent to the MiniMax API for
+ * a given request.
+ *
+ * Resolution order:
+ *   1. If the model does NOT advertise `capabilities.thinking`, the picker
+ *      has no effect - fall through to the global `reasoningSplit` setting.
+ *   2. Otherwise, if the user picked a value in the model picker, it wins:
+ *      - `'none'`  -> reasoning OFF  (no reasoning tokens in the response)
+ *      - `'high'`  -> reasoning ON   (full reasoning split, the MiniMax default)
+ *      - `'max'`   -> reasoning ON   (MiniMax API does not expose a higher
+ *                                    effort; treated as "on" for parity with
+ *                                    the DeepSeek `Thinking Effort` UI)
+ *   3. If the picker value is absent/unknown, fall back to the global
+ *      `reasoningSplit` setting (default: `true` for backward compatibility).
+ *
+ * Pure function - the caller resolves the model definition, picker value,
+ * and global setting. Kept separate from VS Code so it is unit-testable.
+ */
+export function resolveReasoningSplit(
+	thinkingCapable: boolean,
+	pickerReasoningEffort: PickerReasoningEffort | undefined,
+	globalReasoningSplit: boolean | undefined,
+): boolean {
+	if (!thinkingCapable) {
+		return globalReasoningSplit ?? true;
+	}
+	if (pickerReasoningEffort === 'none') {
+		return false;
+	}
+	if (pickerReasoningEffort === 'high' || pickerReasoningEffort === 'max') {
+		return true;
+	}
+	return globalReasoningSplit ?? true;
+}
+
 export function getProviderReasoningRequiredForToolCalls(vendor: string): boolean {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 	const key = `providers.${vendor}.reasoningRequiredForToolCalls` as const;

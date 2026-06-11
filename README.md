@@ -105,7 +105,7 @@ The cheapest "Copilot Chat with image paste" workflow is AIFlowBridge + DeepSeek
 Notes:
 
 - All models expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [Transparent Vision Proxy](#vision-proxy)).
-- "Thinking" indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2/M2.1/M3 generations do not expose a thinking selector.
+- "Thinking" indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2 / M2.1 / M2.5 / M2.7 generations do not expose a thinking selector. **MiniMax M3 exposes a "Thinking Effort" selector** (None / High / Max) that maps to the upstream `reasoning_split` boolean — see [MiniMax M3 reasoning mode](#minimax-m3-reasoning-mode) below.
 - Configure the proxied vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
 
 ### Why is the model list hardcoded?
@@ -330,6 +330,22 @@ The status bar reflects the same source: it shows the gateway state, not Copilot
 3. Click the model picker at the top of the chat
 4. Select a model from DeepSeek, MiniMax, or Xiaomi
 5. Start chatting - all Copilot features (agent mode, tools, etc.) work automatically
+
+### MiniMax M3 reasoning mode
+
+MiniMax M3 supports an optional reasoning mode. AIFlowBridge exposes a **"Thinking Effort"** selector in the Copilot Chat model picker for M3 only (None / High / Max). The selection is translated to the upstream `reasoning_split` boolean:
+
+| Picker | `reasoning_split` | Effect |
+| ------ | ----------------- | ------ |
+| `None` | `false` | Plain response, no reasoning tokens |
+| `High` | `true`  | Reasoning tokens split into a separate field (default) |
+| `Max`  | `true`  | Same as `High` (MiniMax does not expose a higher effort) |
+
+If you do not touch the selector, the global `aiflowbridge.providers.minimax.reasoningSplit` setting is honored as the fallback (default: `true`).
+
+**For OpenAI-compatible clients (Kilo Code, Continue) using the local gateway:** the gateway translates Kilo Code's `reasoning: true/false` checkbox field into the upstream `reasoning_split` boolean on the fly (`src/aiflowbridge/gateway/server.ts`, `translatePayloadForUpstream`). No configuration needed - toggle the reasoning checkbox in the AiflowBridge provider settings and the change is reflected on the wire.
+
+**To enable the picker on another M-series model:** add an entry to `aiflowbridge.userModels` with `capabilities.thinking: true` (the 3-tier registry merge picks it up immediately), or edit the globalStorage / workspace registry override. M2 / M2.1 / M2.5 / M2.7 do not expose a thinking selector in the bundled registry; M3 does.
 
 ### Vision Proxy
 
@@ -807,6 +823,7 @@ AIFlowBridge is in active development. The roadmap below is a high-level view of
 - **v1.0** - initial release, DeepSeek + MiniMax + Xiaomi MiMo providers, vision proxy, OpenAI-compatible gateway, metrics dashboard
 - **v1.1** - user-defined models via `AIFlowBridge: Add a custom model`, per-model settings, offline docs
 - **v1.2** - accurate MiniMax token counting via `/v1/responses/input_tokens`, persistent metrics across restarts, gateway-safe model routing, "By model" dashboard panel with time filters, screenshots, language polish (English only)
+- **v1.5.2** - optional reasoning mode for MiniMax M3: "Thinking Effort" selector in the Copilot Chat picker (None / High / Max), and Kilo Code reasoning-checkbox pass-through in the gateway (auto-translated to the upstream `reasoning_split` boolean)
 - **v1.5** - cross-window shared metrics in `<globalStorageUri>/telemetry.json` (file lock + atomic writes + one-time migration from `globalState`), dashboard UX upgrade (collapsible panels, custom date range, text search, gateway version badge, "Current version" subtitle), per-row delete button in the Recent requests table
 
 ### In progress

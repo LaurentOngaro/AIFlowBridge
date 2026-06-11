@@ -45,6 +45,7 @@ import {
   getDebugLoggingEnabled,
   getRequestDumpEnabled,
   getStabilizeToolListEnabled,
+  resolveReasoningSplit,
 } from '../src/config';
 import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
 import {
@@ -448,5 +449,58 @@ describe('config.ts - Stabilize Tool List', () => {
 
     const enabled = getStabilizeToolListEnabled();
     expect(enabled).toBe(true);
+  });
+});
+
+describe('config.ts - resolveReasoningSplit (picker-aware)', () => {
+  it('thinking-incapable model: falls back to global setting (true)', () => {
+    expect(resolveReasoningSplit(false, 'high', true)).toBe(true);
+  });
+
+  it('thinking-incapable model: falls back to global setting (false)', () => {
+    expect(resolveReasoningSplit(false, 'high', false)).toBe(false);
+  });
+
+  it('thinking-incapable model: ignores picker value entirely', () => {
+    // Even if the picker claims "none", a non-thinking model must use the setting
+    expect(resolveReasoningSplit(false, 'none', false)).toBe(false);
+    expect(resolveReasoningSplit(false, 'none', true)).toBe(true);
+  });
+
+  it('thinking-incapable model: defaults to true when global setting is undefined', () => {
+    expect(resolveReasoningSplit(false, undefined, undefined)).toBe(true);
+  });
+
+  it('thinking-capable model: picker "none" wins over global true', () => {
+    expect(resolveReasoningSplit(true, 'none', true)).toBe(false);
+  });
+
+  it('thinking-capable model: picker "none" wins over global false', () => {
+    expect(resolveReasoningSplit(true, 'none', false)).toBe(false);
+  });
+
+  it('thinking-capable model: picker "high" wins over global false', () => {
+    expect(resolveReasoningSplit(true, 'high', false)).toBe(true);
+  });
+
+  it('thinking-capable model: picker "max" wins over global false', () => {
+    // MiniMax API does not expose a higher effort level - "max" is treated as "on"
+    expect(resolveReasoningSplit(true, 'max', false)).toBe(true);
+  });
+
+  it('thinking-capable model: picker "high" wins over global true', () => {
+    expect(resolveReasoningSplit(true, 'high', true)).toBe(true);
+  });
+
+  it('thinking-capable model: undefined picker falls back to global true', () => {
+    expect(resolveReasoningSplit(true, undefined, true)).toBe(true);
+  });
+
+  it('thinking-capable model: undefined picker falls back to global false', () => {
+    expect(resolveReasoningSplit(true, undefined, false)).toBe(false);
+  });
+
+  it('thinking-capable model: undefined picker + undefined setting defaults to true', () => {
+    expect(resolveReasoningSplit(true, undefined, undefined)).toBe(true);
   });
 });

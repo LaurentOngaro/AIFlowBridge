@@ -512,3 +512,208 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 		expect(service.snapshot().requests).toBe(0);
 	});
 });
+
+/**
+ * BUG11: requests that failed (status >= 400) must not contribute to the
+ * "Estimated cost" total. They are still recorded (error count, model usage,
+ * duration averages, per-row delete) but with `estimatedCost: 0`. Cost is a
+ * fait historique - we never bill the user for a request that never produced
+ * a billable completion.
+ */
+describe('GatewayService - BUG11: errored requests have zero cost', () => {
+	// Pricing block large enough to produce a clearly non-zero cost on the
+	// success path: (100 * 1 + 200 * 2) / 1_000_000 = 0.0005 USD.
+	const testPricing = { inputPerMillion: 1, outputPerMillion: 2, currency: 'USD' };
+
+	async function startFakeUpstream(handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+		const server = createServer(handler);
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		const port = await findListeningPort(server);
+		return {
+			baseUrl: `http://127.0.0.1:${port}/v1`,
+			close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+		};
+	}
+
+	it('records the computed cost for a successful 200 upstream response', async () => {
+		const upstream = await startFakeUpstream((_req, res) => {
+			res.statusCode = 200;
+			res.setHeader('Content-Type', 'application/json');
+			res.end(JSON.stringify({
+				id: 'test',
+				object: 'chat.completion',
+				created: 1234567890,
+				model: 'model-1',
+				choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }],
+				usage: { prompt_tokens: 100, completion_tokens: 200, total_tokens: 300 },
+			}));
+		});
+
+		const provider = makeProvider({ id: 'p1', baseUrl: upstream.baseUrl, model: 'model-1', pricing: testPricing });
+		const service = new GatewayService(makeConfig({ providers: [provider], telemetryEnabled: true }));
+		const status = await service.start();
+
+		try {
+			const res = await fetch(`${status.baseUrl}/v1/chat/completions`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'hi' }] }),
+			});
+			expect(res.status).toBe(200);
+
+			const snap = service.snapshot();
+			expect(snap.requests).toBe(1);
+			expect(snap.errors).toBe(0);
+			expect(snap.promptTokens).toBe(100);
+			expect(snap.completionTokens).toBe(200);
+			expect(snap.estimatedCost).toBeCloseTo(0.0005, 6);
+		} finally {
+			await service.stop();
+			await upstream.close();
+		}
+	});
+
+	it('records estimatedCost=0 for a 5xx upstream response (BUG11)', async () => {
+		const upstream = await startFakeUpstream((_req, res) => {
+			res.statusCode = 500;
+			res.setHeader('Content-Type', 'application/json');
+			res.end(JSON.stringify({ error: { message: 'internal error' } }));
+		});
+
+		const provider = makeProvider({ id: 'p1', baseUrl: upstream.baseUrl, model: 'model-1', pricing: testPricing });
+		const service = new GatewayService(makeConfig({ providers: [provider], telemetryEnabled: true }));
+		const status = await service.start();
+
+		try {
+			const res = await fetch(`${status.baseUrl}/v1/chat/completions`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'hi' }] }),
+			});
+			// The gateway forwards the upstream status to the client.
+			expect(res.status).toBe(500);
+
+			const snap = service.snapshot();
+			expect(snap.requests).toBe(1);
+			expect(snap.errors).toBe(1);
+			// BUG11: an errored request must NOT contribute to estimated cost.
+			expect(snap.estimatedCost).toBe(0);
+			// The request is still recorded (model usage, prompt tokens seen).
+			// The model key in `byModel` comes from the request body's `model`
+			// field, which is what the client asked for (the provider id used
+			// for routing).
+			expect(snap.byModel['p1']?.requests).toBe(1);
+		} finally {
+			await service.stop();
+			await upstream.close();
+		}
+	});
+
+	it('records estimatedCost=0 for a 4xx upstream response (BUG11)', async () => {
+		const upstream = await startFakeUpstream((_req, res) => {
+			res.statusCode = 401;
+			res.setHeader('Content-Type', 'application/json');
+			res.end(JSON.stringify({ error: { message: 'invalid api key' } }));
+		});
+
+		const provider = makeProvider({ id: 'p1', baseUrl: upstream.baseUrl, model: 'model-1', pricing: testPricing });
+		const service = new GatewayService(makeConfig({ providers: [provider], telemetryEnabled: true }));
+		const status = await service.start();
+
+		try {
+			const res = await fetch(`${status.baseUrl}/v1/chat/completions`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'hi' }] }),
+			});
+			expect(res.status).toBe(401);
+
+			const snap = service.snapshot();
+			expect(snap.requests).toBe(1);
+			expect(snap.errors).toBe(1);
+			expect(snap.estimatedCost).toBe(0);
+		} finally {
+			await service.stop();
+			await upstream.close();
+		}
+	});
+
+	it('records estimatedCost=0 when the upstream is unreachable (catch block, statusCode=502)', async () => {
+		// Unreachable upstream: port 1 is a privileged port that is not
+		// listening, so `fetch` will reject with ECONNREFUSED. This
+		// exercises the catch block at server.ts:605 (statusCode stays at
+		// the initial 502 because the try block throws before the
+		// `statusCode = upstreamResponse.status` line is reached).
+		const unreachableBaseUrl = 'http://127.0.0.1:1/v1';
+		const provider = makeProvider({ id: 'p1', baseUrl: unreachableBaseUrl, model: 'model-1', pricing: testPricing });
+		const service = new GatewayService(makeConfig({ providers: [provider], telemetryEnabled: true }));
+		const status = await service.start();
+
+		try {
+			const res = await fetch(`${status.baseUrl}/v1/chat/completions`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'hi' }] }),
+			});
+			// The gateway returns 502 (Bad Gateway) when the upstream is unreachable.
+			expect(res.status).toBe(502);
+
+			const snap = service.snapshot();
+			expect(snap.requests).toBe(1);
+			expect(snap.errors).toBe(1);
+			// BUG11: catch-block (status=502) must also have cost=0.
+			expect(snap.estimatedCost).toBe(0);
+		} finally {
+			await service.stop();
+		}
+	});
+
+	it('mixed success/error sequence: only successful requests contribute to estimated cost', async () => {
+		let requestCount = 0;
+		const upstream = await startFakeUpstream((_req, res) => {
+			requestCount += 1;
+			if (requestCount % 2 === 0) {
+				// Every even request: 500 error
+				res.statusCode = 500;
+				res.setHeader('Content-Type', 'application/json');
+				res.end(JSON.stringify({ error: { message: 'fail' } }));
+			} else {
+				// Every odd request: success
+				res.statusCode = 200;
+				res.setHeader('Content-Type', 'application/json');
+				res.end(JSON.stringify({
+					id: 'test',
+					object: 'chat.completion',
+					created: 1234567890,
+					model: 'model-1',
+					choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+					usage: { prompt_tokens: 100, completion_tokens: 200, total_tokens: 300 },
+				}));
+			}
+		});
+
+		const provider = makeProvider({ id: 'p1', baseUrl: upstream.baseUrl, model: 'model-1', pricing: testPricing });
+		const service = new GatewayService(makeConfig({ providers: [provider], telemetryEnabled: true }));
+		const status = await service.start();
+
+		try {
+			// 4 requests: success, error, success, error
+			for (let i = 0; i < 4; i += 1) {
+				await fetch(`${status.baseUrl}/v1/chat/completions`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'hi' }] }),
+				});
+			}
+
+			const snap = service.snapshot();
+			expect(snap.requests).toBe(4);
+			expect(snap.errors).toBe(2);
+			// BUG11: 2 successful * 0.0005 = 0.001, 2 errored * 0 = 0
+			expect(snap.estimatedCost).toBeCloseTo(0.001, 6);
+		} finally {
+			await service.stop();
+			await upstream.close();
+		}
+	});
+});

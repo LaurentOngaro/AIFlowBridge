@@ -6,7 +6,7 @@ Track open bugs, improvements, and active tickets. For the detailled implementat
 
 Implementation order is not strictly defined, but the general priority is:
 
-- PUB01 > PUB02 > DOC04 > BUG11 > AFF04 > STU01 > STU02
+- PUB01 > PUB02 > DOC04 > AFF04 > STU01 > STU02
 
 ## Project Improvements
 
@@ -19,8 +19,6 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Bugs (last: BUG11)
 
-- [ ] BUG11: [metric dashboard: requests in error have an estimated cost](https://github.com/LaurentOngaro/AIFlowBridge/issues/5)
-
 ### Documentation (last: DOC04)
 
 - [ ] DOC04: Update README with new features and improvements
@@ -32,9 +30,10 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 - [ ] AFF04: metrics dashboard
   - [ ] add a pagination system (with controls: '>', '<', '>>', '<<', "direct page # entry" and "# request/page entry") on each section (currently, too few requests are visible)
 
-### Features (last: FEAT4)
+### Features (last: FEAT5)
 
-_None for now._
+- [ ] FEAT5: reasoning picker for MiniMax M3 (see issue on [kilocode](https://github.com/Kilo-Org/kilocode/issues/11116))
+  - can't change anything, issue reported to Kilo Code, waiting for their fix (see issue #11116)
 
 ### Publish (last: PUB02)
 
@@ -78,6 +77,10 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 1.5.2
+
+- BUG11: [metric dashboard: requests in error have an estimated cost](https://github.com/LaurentOngaro/AIFlowBridge/issues/5) - `GatewayService.recordTelemetry()` now sets `estimatedCost = 0` whenever the recorded `status` is `>= 400` (4xx / 5xx upstream response, or the catch-block default of 502 when the upstream never responded). The request is still recorded (error count, per-provider / per-model usage, duration averages, per-row delete affordance) - it just no longer contributes to the "Estimated cost" totals. Cost = fait historique: we never bill the user for a request that never produced a billable completion. The fix naturally propagates to the cumulative `TelemetryStore.snapshot()` (`applyEntryToSnapshot` / `applyEntryInMemory` just add `entry.estimatedCost` to the totals, so a zero-cost entry contributes nothing), to the on-disk file (the persister applies the same delta), and to the per-row delete path (`removeEntry` decrements under `Math.max(0, ...)` guards). 5 new regression tests in `tests/gateway.test.ts` (new "BUG11: errored requests have zero cost" describe block) cover: successful 200 (cost computed normally), 5xx upstream response (cost=0, errors=1, model usage still recorded), 4xx upstream response (cost=0, errors=1), unreachable upstream / catch block (statusCode=502, cost=0), and a mixed success/error sequence (only successful requests contribute to the total). 507 tests / 27 fichiers (était 502 / 27).
 
 ### 1.5.0
 

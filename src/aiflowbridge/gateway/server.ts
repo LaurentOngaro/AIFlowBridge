@@ -518,11 +518,19 @@ export class GatewayService {
     request.once("aborted", abort);
     response.once("close", abort);
 
+    // Translate AIFB-specific body fields into the upstream API's expected
+    // shape (e.g. Kilo Code's `reasoning: true/false` checkbox -> MiniMax's
+    // `reasoning_split: true/false`). The translator strips any AIFB-specific
+    // fields it consumed so the upstream never sees them.
+    const translatedPayload = translatePayloadForUpstream(payload, provider);
     // Override the model name in the forwarded request with the provider's
     // upstream model name, so Kilo Code and other clients can use any alias.
-    const upstreamBody = provider.model && payload?.model !== provider.model
-      ? JSON.stringify({ ...payload, model: provider.model })
-      : bodyText;
+    // We always re-serialize (never pass `bodyText` through) so the
+    // translation above is guaranteed to reach the upstream.
+    const finalPayload = provider.model && translatedPayload.model !== provider.model
+      ? { ...translatedPayload, model: provider.model }
+      : translatedPayload;
+    const upstreamBody = JSON.stringify(finalPayload);
 
     let statusCode = 502;
     let promptTokens = estimatePromptTokensFromPayload(payload);
@@ -637,6 +645,17 @@ export class GatewayService {
       return;
     }
 
+    // BUG11: errored requests (status >= 400, including the catch-block
+    // default of 502 when the upstream never responded) must not contribute
+    // to the "Estimated cost" totals. The request is still recorded (it
+    // still counts toward the error rate, the model usage, the duration
+    // averages, and the per-row delete affordance) but with cost = 0.
+    // Cost = fait historique: we never bill the user for a request that
+    // never produced a billable completion.
+    const estimatedCost = status >= 400
+      ? 0
+      : estimateCostFromProfile(provider, promptTokens, completionTokens);
+
     const entry: RequestTelemetry = {
       id: randomUUID(),
       timestamp: new Date().toISOString(),
@@ -648,7 +667,7 @@ export class GatewayService {
       promptTokens,
       completionTokens,
       totalTokens,
-      estimatedCost: estimateCostFromProfile(provider, promptTokens, completionTokens),
+      estimatedCost,
       estimated,
     };
 
@@ -736,6 +755,81 @@ function isMinimaxProvider(provider: ProviderProfile): boolean {
     return true;
   }
   return provider.id.toLowerCase().startsWith("minimax");
+}
+
+/**
+ * Translate AIFB-specific body fields sent by OpenAI-compatible clients
+ * (Kilo Code, Continue, ...) into the upstream provider's expected shape.
+ *
+ * Currently handles, for MiniMax upstreams only:
+ * - Kilo Code's AiflowBridge provider `reasoning: true/false` checkbox
+ *   -> MiniMax's `reasoning_split: true/false` for thinking-capable models.
+ *   The `reasoning` field is stripped from the upstream body because
+ *   MiniMax's OpenAI-compatible API does not recognize it.
+ * - Kilo Code's `reasoning_effort: "none" | "high" | "max"` dropdown
+ *   (the same field it sends for DeepSeek) -> MiniMax's
+ *   `reasoning_split: true/false`. This is what makes the "Reasoning
+ *   Effort" picker in the Kilo Code chat input work for MiniMax models
+ *   even though MiniMax's API uses a different field name. `none` maps
+ *   to `false`, `high` / `max` map to `true`. The `reasoning_effort`
+ *   field is stripped from the upstream body.
+ *
+ * When BOTH `reasoning` and `reasoning_effort` are present, the explicit
+ * `reasoning` boolean wins (it is the AIFB-specific checkbox; clients
+ * that send both are using the checkbox as the override and the dropdown
+ * as a fallback).
+ *
+ * Returns a new object (never mutates the input). Returns `{}` when the
+ * input payload is undefined/empty so the caller can always safely spread
+ * or JSON.stringify the result.
+ *
+ * Exported for unit testing - keep the function pure (no side effects, no
+ * VS Code dependency) so it stays trivially testable.
+ */
+export function translatePayloadForUpstream(
+  payload: Record<string, unknown> | undefined,
+  provider: ProviderProfile,
+): Record<string, unknown> {
+  if (!payload) {
+    return {};
+  }
+  if (!isMinimaxProvider(provider)) {
+    return payload;
+  }
+
+  // Priority 1: explicit `reasoning: true/false` boolean (Kilo Code's
+  // AiflowBridge provider checkbox). Always wins over `reasoning_effort`.
+  // Both AIFB-specific fields are stripped from the upstream body so the
+  // MiniMax API never sees an unknown parameter.
+  const reasoning = payload.reasoning;
+  if (typeof reasoning === "boolean") {
+    const { reasoning: _r, reasoning_effort: _e, ...rest } = payload;
+    return { ...rest, reasoning_split: reasoning };
+  }
+
+  // Priority 2: Kilo Code's DeepSeek-style `reasoning_effort` dropdown.
+  // MiniMax's API does not recognize this field - it uses `reasoning_split`.
+  // We translate and strip the Kilo Code field so the upstream never sees
+  // an unknown parameter. Mapping:
+  //   "none"        -> false (no reasoning tokens in the response)
+  //   "high"        -> true  (reasoning split into a separate field)
+  //   "max"         -> true  (MiniMax does not expose a higher effort;
+  //                          treated as "on" for parity with the picker)
+  //   anything else -> true  (defensive: unknown values default to "on"
+  //                          so a typo in the client does not silently
+  //                          disable reasoning)
+  const effort = payload.reasoning_effort;
+  if (typeof effort === "string") {
+    const reasoningSplit = effort !== "none";
+    const { reasoning_effort: _stripped, ...rest } = payload;
+    return { ...rest, reasoning_split: reasoningSplit };
+  }
+
+  // No reasoning signal in the body: pass through unchanged. The gateway
+  // has no per-profile default here (the global setting
+  // `aiflowbridge.providers.minimax.reasoningSplit` is consumed by the
+  // direct VS Code Copilot Chat provider, not the gateway path).
+  return payload;
 }
 
 const defaultUserPrompt: UserPrompt = {

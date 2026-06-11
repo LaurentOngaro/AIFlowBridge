@@ -7,12 +7,14 @@ import {
     getProviderReasoningSplit,
     getProviderTemperature,
     getProviderTopP,
+    resolveReasoningSplit,
 } from '../config';
 import { API_KEY_SECRETS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
 import { t } from '../i18n';
 import { logger } from '../logger';
 import { BaseChatProvider } from './base';
 import { createHttpProviderError, ProviderRequestError } from './errors';
+import { getConfiguredThinkingEffort, type ModelConfigurationOptions } from './models';
 import { updateCharsPerToken } from './stream';
 import { estimateTokenCount } from './tokens';
 import { createVisionModelGetter, resolveImageMessages } from './vision/index';
@@ -194,7 +196,19 @@ export class MiniMaxChatProvider extends BaseChatProvider {
 		// MiniMax API accepts temperature in (0.0, 1.0]; clamp values outside this range
 		const temperature = clampTemperature(getProviderTemperature(this.vendor));
 		const topP = getProviderTopP(this.vendor);
-		const reasoningSplit = getProviderReasoningSplit(this.vendor);
+		// Resolve reasoning_split: the Copilot Chat model picker wins for
+		// thinking-capable models (currently MiniMax M3), otherwise fall back
+		// to the global `aiflowbridge.providers.minimax.reasoningSplit` setting.
+		const thinkingCapable =
+			tryGetLoadedRegistry()?.models.find((m) => m.id === modelInfo.id)?.capabilities.thinking ?? false;
+		const pickerReasoningEffort = thinkingCapable
+			? getConfiguredThinkingEffort(_options as ModelConfigurationOptions)
+			: undefined;
+		const reasoningSplit = resolveReasoningSplit(
+			thinkingCapable,
+			pickerReasoningEffort,
+			getProviderReasoningSplit(this.vendor),
+		);
 		const modelId = resolveMiniMaxModelId(modelInfo.id);
 
 		// MiniMax OpenAI-compatible API expects reasoning_split at the top level,
