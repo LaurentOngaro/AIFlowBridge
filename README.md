@@ -818,6 +818,9 @@ _Nothing actively in flight right now - the 1.5.0 backlog has shipped._
 - **Telemetry export** - export the metrics snapshot to JSON / CSV for billing or analysis
 - **More agentic coding extension adapters** (e.g. Claude Code) - first-class support for the OpenAI-compatible clients so `aiflowbridge.providers` is auto-pushed to them on activation
 - **More openAI-compatible providers** - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
+- **OpenRouter upstream** - 100+ models (GPT, Claude, Gemini, Llama, Mistral) reachable through a single API key, synthesized into the gateway catalog and dashboard like the existing 3 vendors
+- **Ollama upstream** - local LLMs (Llama, Mistral, Qwen, DeepSeek-R1) routed through the same gateway; no cloud cost, no data leaving the machine
+- **Auto-routing with failover** - ordered provider fallback list (e.g. DeepSeek -> MiniMax -> Ollama local) for production resilience
 - **Custom OpenAI-compatible upstreams** - bring-your-own endpoint (LM Studio, vLLM, llama.cpp) routed through the same gateway
 - **Token-by-token streaming diff in the dashboard** - show the first/last token of each response, not just the total
 
