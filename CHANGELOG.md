@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.6.0
+
+Metrics dashboard overhaul: pagination, filtering, and history fixes.
+
+### Fixed
+
+- **Pagination strip now updates after page navigation.** The strip (page number, prev/next button state, "X-Y/Z" counter) used to render once at init and stay frozen - clicking next would slice the rows but the bar still showed page 1. Fixed by routing every page change through a single `refresh` closure that re-renders both the table and the pagination controls. Affects all three paginated panels (Recent / By model / Provider).
+- **By model panel filter was a no-op.** Preset buttons (`Last 1h`, `Last 24h`, ...) in the By model panel visually activated but never filtered anything - `currentFilters()` only read the Recent panel's active button. Fixed by accepting a `rangeOverride` parameter on `applyFilters` and syncing the active state across both filter groups via `syncPresetButtons()`. Custom date pickers now also deactivate preset buttons in **both** panels (renamed `deactivateAllPresetButtons` for accuracy).
+- **Listener leak on the extension-host message bus.** Every call to `showMetricsDashboard()` on an already-open panel accumulated a fresh `onDidReceiveMessage` handler. A single refresh click triggered N rebuilds of the HTML. Fixed by disposing the previous handler before attaching a new one (tracked in a module-level `Disposable`).
+- **`buildPricingMaps` was including disabled providers.** Replaced `buildPricingMaps(config.providers)` with `buildPricingMaps(providers)` (filtered to `enabled`) so disabled providers no longer contribute pricing tooltips or estimates.
+- **XSS via `</script>` in JSON payloads.** Provider labels and model names are embedded in a `<script>` block; a name containing `</script>` would have broken out of the tag and executed arbitrary code. Fixed by a new `serializeForScript()` helper that escapes `<`, `>`, and `&` to their unicode equivalents (`\u003c`, `\u003e`, `\u0026`) before JSON.stringify output. Applied to every serializer (`serializeRecent`, `serializeByModel`, `serializeByProvider`, `serializeCumulativeTotals`, `serializePricingMaps`).
+- **"Estimated cost" card formatting drifted between server and client renders.** Server used `toFixed(4)`, client used `toFixed(4).replace(/0+$/, "").replace(/\.$/, "")`. The card showed `$0.0230` on first open and `$0.023` after one filter toggle. Aligned by extracting a shared `formatCostValue()` helper used by both render paths.
+- **Date column rendered locale date+time, header said "Time".** Renamed header to "Date" and switched both server (`formatClock`) and client (`formatTime`) helpers to `Date.toLocaleString()` so dates from different days are distinguishable in the per-row table.
+- **`id` field was missing from `serializeRecent`.** After any client-side re-render (pagination, filter), the per-row delete button had `data-remove-id="undefined"` and clicking it would no-op or trigger a wrong removal. Fixed by including `id` in the serialized payload.
+
+### Added
+
+- **Truncation detection banner + one-click reset.** When `snapshot.recent.length < snapshot.requests` by 5 or more (the tell-tale sign of a telemetry file written under the old `MAX_RECENT` cap), the dashboard shows a yellow banner explaining that recent history is incomplete and offers a **Reset history** button. The button delegates to the existing `aiflowbridge.resetMetrics` command (which keeps its native confirmation dialog) and re-renders the dashboard on completion. This is the only recovery path - aggregated totals cannot reconstruct individual entries that were never persisted.
+- **Accessibility improvements.** `aria-label="Filter requests"` on the search input; `type="button"` on every non-submit button (refresh + 4 collapse toggles).
+- **Cost card alignment.** Both render paths now share `formatCostValue()` for the `$X.YYYY` formatting with trailing-zero trimming.
+
+### Changed
+
+- **`TelemetryStore.MAX_RECENT` cap removed.** The `recent` tail was capped at 100 entries (previously 20), forcing the per-row table to silently hide older entries even though `requests` and `byProvider`/`byModel` aggregates covered the full history. **The cap is no longer applied to new writes.** Affected users (whose files were written under ≤ 1.5.5) will see the truncation banner described above and need to click Reset once.
+- **Pagination counter format.** `X-Y of Z` -> `X-Y/Z` per the requested UX.
+- **`aggregateModels` trimmed.** No longer computes unused `promptTokens` / `completionTokens` per row.
+- **`serializeByModel` / `serializeByProvider` payload slimmed.** New `slimProviderSnapshots()` keeps only the fields the client actually renders (drops `promptTokens` / `completionTokens`), shrinking the on-the-wire JSON by ~40%.
+
+### Code quality / refactor
+
+- Extracted `formatCostValue`, `serializeForScript`, `slimProviderSnapshots`, `syncPresetButtons` as named helpers.
+- Renamed `applyAllFilters` to `applyTimeAndDateFilters` (the search needle parameter was dead code).
+- Removed trivial `buildHtml` wrapper around `buildDashboardHtml`.
+- Removed redundant `&&` guards in `lookupPricing*` (the maps are always defined).
+- Tightened comment-level documentation (refresh closure semantics, cap removal rationale, optional-chain for nullable TS API).
+
+### Notes
+
+- Telemetry files written under 1.5.5 or earlier are **permanently truncated** at 20 entries in their `recent` tail. The cumulative counters (`Requests`, `Tokens`, `Estimated cost`, per-provider / per-model aggregates) are unaffected and remain correct. The new truncation banner surfaces a one-click reset for users in this state. From 1.6.0 forward, every recorded request is appended with no eviction.
+
 ## 1.5.5
 
 Patch release: README polish
@@ -48,7 +88,7 @@ Patch release: optional reasoning mode for MiniMax M3 in Copilot Chat, Kilo Code
 
 ### Fixed
 
-- **BUG11: [metric dashboard: requests in error have an estimated cost](https://github.com/LaurentOngaro/AIFlowBridge/issues/5).** `GatewayService.recordTelemetry()` (`src/aiflowbridge/gateway/server.ts:634-664`) now sets `estimatedCost = 0` whenever the recorded `status` is `>= 400` (4xx / 5xx upstream response, or the catch-block default of 502 when the upstream never responded). The request is still recorded (error count, per-provider / per-model usage, duration averages, per-row delete affordance) — it just no longer contributes to the "Estimated cost" totals. Cost is a fait historique: we never bill the user for a request that never produced a billable completion. The fix naturally propagates to the cumulative `TelemetryStore.snapshot()` (`applyEntryToSnapshot` / `applyEntryInMemory` just add `entry.estimatedCost` to the totals, so a zero-cost entry contributes nothing), to the on-disk file (the persister applies the same delta), and to the per-row delete path (`removeEntry` decrements under `Math.max(0, ...)` guards). 5 new regression tests in `tests/gateway.test.ts` (new "BUG11: errored requests have zero cost" describe block) cover: successful 200 (cost computed normally), 5xx upstream response (cost=0, errors=1, model usage still recorded), 4xx upstream response (cost=0, errors=1), unreachable upstream / catch block (statusCode=502, cost=0), and a mixed success/error sequence (only successful requests contribute to the total).
+- **BUG11: [metric dashboard: requests in error have an estimated cost](https://github.com/LaurentOngaro/AIFlowBridge/issues/5).** `GatewayService.recordTelemetry()` (`src/aiflowbridge/gateway/server.ts:634-664`) now sets `estimatedCost = 0` whenever the recorded `status` is `>= 400` (4xx / 5xx upstream response, or the catch-block default of 502 when the upstream never responded). The request is still recorded (error count, per-provider / per-model usage, duration averages, per-row delete affordance) - it just no longer contributes to the "Estimated cost" totals. Cost is a fait historique: we never bill the user for a request that never produced a billable completion. The fix naturally propagates to the cumulative `TelemetryStore.snapshot()` (`applyEntryToSnapshot` / `applyEntryInMemory` just add `entry.estimatedCost` to the totals, so a zero-cost entry contributes nothing), to the on-disk file (the persister applies the same delta), and to the per-row delete path (`removeEntry` decrements under `Math.max(0, ...)` guards). 5 new regression tests in `tests/gateway.test.ts` (new "BUG11: errored requests have zero cost" describe block) cover: successful 200 (cost computed normally), 5xx upstream response (cost=0, errors=1, model usage still recorded), 4xx upstream response (cost=0, errors=1), unreachable upstream / catch block (statusCode=502, cost=0), and a mixed success/error sequence (only successful requests contribute to the total).
 
 ### Tests
 

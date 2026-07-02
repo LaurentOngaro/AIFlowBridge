@@ -243,16 +243,18 @@ describe("TelemetryPersister.appendDelta", () => {
 	});
 
 	it("accumulates N distinct entries into a single on-disk snapshot", async () => {
-		for (let i = 0; i < 25; i++) {
+		// Record well past any previous cap to verify the on-disk `recent`
+		// tail keeps every entry (the dashboard paginates the full history).
+		const total = 250;
+		for (let i = 0; i < total; i++) {
 			await persister.appendDelta(
 				makeEntry({ id: `r${i}`, model: `m${i}` }),
 				emptyTelemetrySnapshot(),
 			);
 		}
 		const loaded = persister.loadSync();
-		expect(loaded?.requests).toBe(25);
-		// `recent` is capped at 20
-		expect(loaded?.recent).toHaveLength(20);
+		expect(loaded?.requests).toBe(total);
+		expect(loaded?.recent).toHaveLength(total);
 	});
 
 	it("is idempotent when the same entry.id is appended twice", async () => {
