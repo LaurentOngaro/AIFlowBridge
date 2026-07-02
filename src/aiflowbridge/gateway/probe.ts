@@ -8,6 +8,15 @@ export interface PeerVersion {
   version: string;
   pid: number;
   startedAt: string;
+  /**
+   * Optional per-instance shutdown token, surfaced by GET /version. The
+   * caller is expected to echo it back as the
+   * `X-AIFlowBridge-Shutdown-Token` header when calling POST /shutdown.
+   * Older gateways (pre-shutdown-auth) do not return this field; the
+   * `requestPeerShutdown` caller falls back to no token in that case,
+   * which the new server rejects with 403.
+   */
+  shutdownToken?: string;
 }
 
 export interface ProbeOptions {
@@ -45,6 +54,7 @@ export async function probeServerVersion(
       version: data.version,
       pid: typeof data.pid === "number" ? data.pid : 0,
       startedAt: typeof data.startedAt === "string" ? data.startedAt : "",
+      shutdownToken: typeof data.shutdownToken === "string" ? data.shutdownToken : undefined,
     };
   } catch {
     return null;
@@ -55,6 +65,15 @@ export async function probeServerVersion(
 
 export interface ShutdownOptions {
   timeoutMs?: number;
+  /**
+   * The shutdown token returned by the peer's GET /version. Must be
+   * echoed in the `X-AIFlowBridge-Shutdown-Token` header for the peer
+   * to accept the request. Empty string is accepted (and will fail
+   * authentication against a token-bearing peer) so callers can keep
+   * the existing 2-arg signature; passing the real token is the
+   * supported path.
+   */
+  shutdownToken?: string;
 }
 
 export async function requestPeerShutdown(
@@ -64,10 +83,15 @@ export async function requestPeerShutdown(
   const timeoutMs = options.timeoutMs ?? 500;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const headers: Record<string, string> = {};
+  if (options.shutdownToken) {
+    headers["X-AIFlowBridge-Shutdown-Token"] = options.shutdownToken;
+  }
   try {
     const response = await fetch(`${peerControlUrl(port)}/shutdown`, {
       method: "POST",
       signal: controller.signal,
+      headers,
     });
     clearTimeout(timeoutId);
     return response.ok;

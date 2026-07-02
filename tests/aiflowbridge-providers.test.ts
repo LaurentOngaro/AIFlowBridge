@@ -8,6 +8,8 @@ import {
 	normalizeProviderProfiles,
 	selectProvider,
 	buildModelCatalog,
+	isValidProviderBaseUrl,
+	normalizeHost,
 } from '../src/aiflowbridge/providers';
 
 describe('normalizeProviderProfiles', () => {
@@ -314,5 +316,131 @@ describe('buildModelCatalog', () => {
 		const catalog = buildModelCatalog(providers);
 		expect(catalog).toHaveLength(1);
 		expect(catalog[0].id).toBe('p1');
+	});
+});
+
+describe('isValidProviderBaseUrl (SSRF protection)', () => {
+	// Allow-list: legitimate provider URLs.
+	it('accepts https on a public hostname', () => {
+		expect(isValidProviderBaseUrl('https://api.example.com/v1')).toBe(true);
+	});
+
+	it('accepts http on a public hostname', () => {
+		expect(isValidProviderBaseUrl('http://api.example.com/v1')).toBe(true);
+	});
+
+	it('accepts http on loopback (Ollama use case)', () => {
+		expect(isValidProviderBaseUrl('http://127.0.0.1:11434/v1')).toBe(true);
+		expect(isValidProviderBaseUrl('http://localhost:11434/v1')).toBe(true);
+		// IPv6 loopback — Ollama and other local tools bind ::1 too.
+		expect(isValidProviderBaseUrl('http://[::1]:11434/v1')).toBe(true);
+	});
+
+	// Block-list: cloud metadata endpoints.
+	it('rejects AWS / GCP / Azure metadata (169.254.169.254)', () => {
+		expect(isValidProviderBaseUrl('http://169.254.169.254/latest/meta-data/')).toBe(false);
+	});
+
+	it('rejects Alibaba Cloud metadata (100.100.100.200)', () => {
+		expect(isValidProviderBaseUrl('http://100.100.100.200/latest/meta-data/')).toBe(false);
+	});
+
+	// Scheme whitelist.
+	it('rejects non-http(s) schemes', () => {
+		expect(isValidProviderBaseUrl('file:///etc/passwd')).toBe(false);
+		expect(isValidProviderBaseUrl('gopher://example.com/')).toBe(false);
+		expect(isValidProviderBaseUrl('javascript:alert(1)')).toBe(false);
+	});
+
+	// Parse failures.
+	it('rejects unparseable URLs', () => {
+		expect(isValidProviderBaseUrl('not a url')).toBe(false);
+		expect(isValidProviderBaseUrl('')).toBe(false);
+	});
+});
+
+describe('normalizeProviderProfiles - rejects blocked baseUrl', () => {
+	it('drops the entry when baseUrl points to a metadata IP', () => {
+		const result = normalizeProviderProfiles([
+			{
+				id: 'malicious',
+				label: 'Malicious',
+				kind: 'openai-compat',
+				baseUrl: 'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+				model: 'm1',
+			},
+		]);
+		expect(result).toEqual([]);
+	});
+
+	it('keeps the entry when baseUrl is loopback (Ollama)', () => {
+		const result = normalizeProviderProfiles([
+			{
+				id: 'ollama',
+				label: 'Ollama',
+				kind: 'ollama',
+				baseUrl: 'http://127.0.0.1:11434/v1',
+				model: 'llama3',
+			},
+		]);
+		expect(result).toHaveLength(1);
+		expect(result[0]?.id).toBe('ollama');
+	});
+
+	it('keeps the entry when baseUrl is a legitimate public host', () => {
+		const result = normalizeProviderProfiles([
+			{
+				id: 'p1',
+				label: 'P1',
+				kind: 'openai-compat',
+				baseUrl: 'https://api.deepseek.com/v1',
+				model: 'deepseek-chat',
+			},
+		]);
+		expect(result).toHaveLength(1);
+	});
+});
+
+describe('normalizeHost (IPv4-mapped IPv6 -> IPv4)', () => {
+	it('returns decimal IPv4 as-is', () => {
+		expect(normalizeHost('169.254.169.254')).toBe('169.254.169.254');
+		expect(normalizeHost('127.0.0.1')).toBe('127.0.0.1');
+	});
+
+	it('strips brackets from IPv6 hostname (WHATWG URL behavior)', () => {
+		// Node 20+ URL.hostname includes brackets for IPv6 addresses.
+		expect(normalizeHost('[::ffff:169.254.169.254]')).toBe('169.254.169.254');
+		expect(normalizeHost('[::ffff:a9fe:a9fe]')).toBe('169.254.169.254');
+	});
+
+	it('strips ::ffff: prefix in decimal form', () => {
+		expect(normalizeHost('::ffff:169.254.169.254')).toBe('169.254.169.254');
+		expect(normalizeHost('::ffff:127.0.0.1')).toBe('127.0.0.1');
+		// Capitalisation variation.
+		expect(normalizeHost('::FFFF:127.0.0.1')).toBe('127.0.0.1');
+	});
+
+	it('converts hex ::ffff: form to decimal', () => {
+		// ::ffff:a9fe:a9fe = 169.254.169.254 (AWS metadata)
+		expect(normalizeHost('::ffff:a9fe:a9fe')).toBe('169.254.169.254');
+		// ::ffff:7f00:1 = 127.0.0.1 (loopback)
+		expect(normalizeHost('::ffff:7f00:1')).toBe('127.0.0.1');
+		// Mixed case
+		expect(normalizeHost('::FFFF:A9FE:A9FE')).toBe('169.254.169.254');
+	});
+
+	it('leaves non-IPv4-mapped IPv6 untouched', () => {
+		expect(normalizeHost('::1')).toBe('::1');
+		expect(normalizeHost('[::1]')).toBe('::1');
+		expect(normalizeHost('fd00:ec2::254')).toBe('fd00:ec2::254');
+		expect(normalizeHost('api.example.com')).toBe('api.example.com');
+	});
+
+	it('rejects hex SSRF bypass via normalizeHost + isValidProviderBaseUrl integration', () => {
+		// The decimal form is blocked by BLOCKED_HOSTS. The hex form
+		// must also be blocked once normalizeHost converts it.
+		expect(isValidProviderBaseUrl('http://[::ffff:a9fe:a9fe]/latest/meta-data/')).toBe(false);
+		// Loopback over hex IPv4-mapped IPv6 must still be accepted.
+		expect(isValidProviderBaseUrl('http://[::ffff:7f00:1]:11434/v1')).toBe(true);
 	});
 });

@@ -19,10 +19,6 @@ export function getProviderApiModelId(vendor: string, vscodeModelId: string): st
 	return override || vscodeModelId;
 }
 
-export function getApiModelId(vscodeModelId: string): string {
-	return getProviderApiModelId('deepseek', vscodeModelId);
-}
-
 export function getProviderMaxTokens(vendor: string): number | undefined {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 	const key = `providers.${vendor}.maxTokens` as const;

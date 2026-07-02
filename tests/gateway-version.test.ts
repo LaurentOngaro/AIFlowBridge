@@ -213,6 +213,41 @@ describe('requestPeerShutdown', () => {
 		const ok = await requestPeerShutdown(1, { timeoutMs: 100 });
 		expect(ok).toBe(false);
 	});
+
+	it('sends the shutdown token in the X-AIFlowBridge-Shutdown-Token header when provided', async () => {
+		// Stub the http loopback with a server that echoes the headers
+		// back in the response body, so we can assert the header was
+		// actually transmitted (not just that the request was made).
+		await new Promise<void>((resolve) => server!.close(() => resolve()));
+		server = createServer((req, res) => {
+			if (req.method === 'POST' && req.url === '/shutdown') {
+				const token = req.headers['x-aiflowbridge-shutdown-token'] ?? '';
+				res.statusCode = 200;
+				res.setHeader('Content-Type', 'application/json');
+				res.end(JSON.stringify({ receivedToken: token }));
+				return;
+			}
+			res.statusCode = 404;
+			res.end();
+		});
+		const currentServer = server!;
+		await new Promise<void>((resolve) => currentServer.listen(0, '127.0.0.1', resolve));
+		port = (currentServer.address() as { port: number }).port;
+
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+		await requestPeerShutdown(port, { shutdownToken: 'secret-token-123' });
+		const sentHeaders = fetchSpy.mock.calls[0]?.[1]?.headers as Record<string, string> | undefined;
+		expect(sentHeaders?.['X-AIFlowBridge-Shutdown-Token']).toBe('secret-token-123');
+		fetchSpy.mockRestore();
+	});
+
+	it('omits the X-AIFlowBridge-Shutdown-Token header when no token is provided', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+		await requestPeerShutdown(port);
+		const sentHeaders = fetchSpy.mock.calls[0]?.[1]?.headers as Record<string, string> | undefined;
+		expect(sentHeaders?.['X-AIFlowBridge-Shutdown-Token']).toBeUndefined();
+		fetchSpy.mockRestore();
+	});
 });
 
 describe('waitUntilPortFree', () => {

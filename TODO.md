@@ -6,16 +6,14 @@ Track open bugs, improvements, and active tickets. For the detailled implementat
 
 Implementation order is not strictly defined, but the general priority is:
 
-- BUG12 > DOC04 > AFF04 > PUB02
-
 ## Project Improvements
 
 See `_helpers/ACTION PLAN.md` for implementation details, if required for some items bellow.
 
 ### Studies (last: STU02)
 
-- [ ] STU01: external audit: commercial and marketshare (see internal doc `_helpers\Docs\03_Synthese_Strategique_2026_06_09.md`)
-- [ ] STU02: external audit: optimisation (see internal doc `_helpers\Docs\01 Modifications à Apporter_2026_06_05`)
+- [ ] STU01: external audit: commercial and marketshare (see internal doc `_helpers\Docs\03_Synthese_Strategique_2026_06_09.md`) - actions #1, #2, #3 livrées (1.5.3 / 1.6.0); actions #4-#13 restantes (OpenRouter, Ollama, export CSV/JSON, sponsors, failover, vidéos, contact Kilo/Continue, awesome-lists, articles, posts Reddit)
+  -3/13 actions livrées
 
 ### Bugs (last: BUG12)
 
@@ -64,6 +62,20 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 1.7.0 (Hardening) — STU02 audit items
+
+- STU02: external audit: optimisation (see internal doc `_helpers\Docs\01 Modifications à Apporter_2026_06_05`) - **les 8 items livrés en 1.7.0 "Hardening"** (security + bugs + refactoring)
+- **SEC01 (audit 1.1)**: `POST /shutdown` now requires a per-instance random token returned by `GET /version` and echoed in the `X-AIFlowBridge-Shutdown-Token` header. The token is a `randomUUID()` generated at `GatewayService` construction. Requests without the header or with a wrong token get a 403. `PeerVersion.shutdownToken` is optional in `probe.ts` for backward compat with pre-hardening peers; `requestPeerShutdown(port, { shutdownToken })` adds the header. Backward-compat note: a process that does not have a peer's token (e.g. an older pre-hardening peer) will see a 403, the same behavior as any unauthorised local process.
+- **SEC02 (audit 1.2)**: `isValidProviderBaseUrl()` helper added to `src/aiflowbridge/providers.ts`. Rejects: non-http(s) schemes (`file:`, `gopher:`, `javascript:`, ...), unparseable URLs, and metadata endpoints (AWS/GCP/Azure `169.254.x.x`, Alibaba `100.100.100.200`, AWS IMDS-over-IPv6 `fd00:ec2::254`, IPv4-mapped `::ffff:169.254.x.x` and `::ffff:100.100.100.200`). Loopback is intentionally allowed (Ollama use case). `normalizeProviderProfiles` drops entries that fail the check. Exported so the unit tests cover the matrix.
+- **BUG13 (audit 2.1)**: `gatewaySnapshot()` (`src/aiflowbridge/index.ts`) no longer falls back to `telemetryFallback.snapshot()` whenever the live snapshot has `requests === 0`. The fallback now only applies when the gateway is NOT running AND has not processed any request - i.e. only the genuine "showing the dashboard immediately after activation" case. Before the fix, a freshly-started gateway would display persisted data as if it were live.
+- **BUG14 (audit 2.2)**: `readBody()` (`src/aiflowbridge/gateway/server.ts`) now uses a `settled` flag to guard against the `end` / `close` race. On a normal disconnect `end` resolves with the buffered body and `close` becomes a no-op; on a brutal disconnect `close` rejects. The previous version could both resolve AND reject (no-op in Promise spec) and leak listeners via the dangling `request.socket`. On `MAX_BODY_SIZE` overflow, the socket is now `destroy()`'d to stop further buffer accumulation.
+- **BUG15 (audit 2.3)**: `reloadConfiguration()` (`src/aiflowbridge/index.ts`) wraps `gateway.start()` in `try/catch` and shows a targeted warning message when `EPEERSTALLED` is thrown (peer did not free the port within the timeout). The user now sees the peer PID and a clear actionable message, mirroring the `activate()` flow.
+- **REF01 (audit 3.1)**: `synthesizeProvidersFromUserModels` and `synthesizeProvidersFromBuiltInModels` now share a private `synthesizeProvidersFromModels()` helper. The public signatures are unchanged; the 22 existing tests in `tests/aiflowbridge-config.test.ts` pass without modification.
+- **REF02 (audit 3.2)**: `isPortLikelyOccupied()` removed from `src/aiflowbridge/index.ts`. The single call site now uses `isPortInUse()` directly. The wrapper added no value.
+- **REF03 (audit 3.3)**: `getApiModelId(vscodeModelId)` (the hardcoded `'deepseek'` alias) removed from `src/config.ts`. The single call site in `src/provider/request.ts` now uses `getProviderApiModelId('deepseek', modelInfo.id)`. Verified by `grep -rn "getApiModelId\b" src/ tests/` - zero remaining call sites.
+- **Tests**: 551/551 passing (was 535 in 1.6.0, +16). New regression tests in `tests/gateway-version.test.ts` (+2), `tests/gateway-restart.test.ts` (+5), `tests/aiflowbridge-providers.test.ts` (+9).
+- **Quality gates**: `npm run compile` (0 errors), `npm test` (551/551). The internal audit document (`_helpers/docs/01 Modifications à Apporter_2026_06_05.md`) has been moved to `_helpers/archives/` with a DONE banner.
 
 ### 1.6.0
 

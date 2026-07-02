@@ -422,11 +422,84 @@ describe('GatewayService - /version endpoint', () => {
 			version: string;
 			pid: number;
 			startedAt: string;
+			shutdownToken: string;
 		};
 		expect(body.name).toBe('aiflowbridge-gateway');
 		expect(body.version).toBe('1.4.2');
 		expect(body.pid).toBe(process.pid);
 		expect(typeof body.startedAt).toBe('string');
 		expect(body.startedAt.length).toBeGreaterThan(0);
+		// Per-instance shutdown token: a UUID generated at construction.
+		// Returned to peers so they can authenticate POST /shutdown.
+		expect(typeof body.shutdownToken).toBe('string');
+		expect(body.shutdownToken).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+	});
+});
+
+describe('GatewayService - /shutdown authentication', () => {
+	let service: GatewayService;
+	let baseUrl: string;
+	let shutdownToken: string;
+
+	beforeEach(async () => {
+		service = new GatewayService(
+			makeConfig(0, 'http://127.0.0.1:0'),
+		);
+		const status = await service.start();
+		baseUrl = status.baseUrl;
+		// Capture the per-instance token returned by /version so each
+		// test exercises the correct credential.
+		const res = await fetch(`${baseUrl}/version`);
+		const body = (await res.json()) as { shutdownToken: string };
+		shutdownToken = body.shutdownToken;
+	});
+
+	afterEach(async () => {
+		await service.stop();
+	});
+
+	it('POST /shutdown without a token returns 403', async () => {
+		const res = await fetch(`${baseUrl}/shutdown`, { method: 'POST' });
+		expect(res.status).toBe(403);
+	});
+
+	it('POST /shutdown with a wrong token returns 403', async () => {
+		const res = await fetch(`${baseUrl}/shutdown`, {
+			method: 'POST',
+			headers: { 'X-AIFlowBridge-Shutdown-Token': 'not-the-real-token' },
+		});
+		expect(res.status).toBe(403);
+	});
+
+	it('POST /shutdown with the correct token returns 200', async () => {
+		const res = await fetch(`${baseUrl}/shutdown`, {
+			method: 'POST',
+			headers: { 'X-AIFlowBridge-Shutdown-Token': shutdownToken },
+		});
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { ok: boolean };
+		expect(body.ok).toBe(true);
+	});
+
+	it('two instances get distinct shutdown tokens', async () => {
+		// Concurrent instances must not be able to shut each other down
+		// by replaying a peer's token. The UUID guarantees uniqueness
+		// across processes for the lifetime of the OS.
+		const other = new GatewayService(makeConfig(0, 'http://127.0.0.1:0'));
+		try {
+			const otherStatus = await other.start();
+			const otherRes = await fetch(`${otherStatus.baseUrl}/version`);
+			const otherBody = (await otherRes.json()) as { shutdownToken: string };
+			expect(otherBody.shutdownToken).not.toBe(shutdownToken);
+			// Cross-instance: using instance A's token against instance B
+			// must be rejected with 403.
+			const crossRes = await fetch(`${otherStatus.baseUrl}/shutdown`, {
+				method: 'POST',
+				headers: { 'X-AIFlowBridge-Shutdown-Token': shutdownToken },
+			});
+			expect(crossRes.status).toBe(403);
+		} finally {
+			await other.stop();
+		}
 	});
 });

@@ -2,7 +2,7 @@ import vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { getLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import { DeepSeekClient } from '../client';
-import { getApiModelId, getProviderBaseUrl, getMaxTokens } from '../config';
+import { getProviderApiModelId, getProviderBaseUrl, getMaxTokens } from '../config';
 import { t } from '../i18n';
 import type { DeepSeekRequest } from '../types';
 import { convertMessages, countMessageChars } from './convert';
@@ -74,7 +74,7 @@ export async function prepareChatRequest({
 
 	const totalRequestChars = countMessageChars(deepseekMessages);
 	const request: DeepSeekRequest = {
-		model: getApiModelId(modelInfo.id),
+		model: getProviderApiModelId('deepseek', modelInfo.id),
 		messages: deepseekMessages,
 		stream: true,
 		tools,

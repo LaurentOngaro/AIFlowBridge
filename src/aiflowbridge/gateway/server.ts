@@ -72,6 +72,15 @@ export class GatewayService {
   private persistDebounce: NodeJS.Timeout | undefined;
   private static readonly PERSIST_DEBOUNCE_MS = 1000;
   private persistenceInitialized = false;
+  /**
+   * Per-instance random token that peers must provide in the
+   * `X-AIFlowBridge-Shutdown-Token` header when calling `POST /shutdown`.
+   * Generated once at construction, returned by `GET /version`, and
+   * required to authenticate shutdown requests (see `01 Modifications`
+   * item 1.1: a prior version of the gateway trusted any loopback peer,
+   * which let any local process stop the gateway).
+   */
+  private readonly shutdownToken: string = randomUUID();
 
   constructor(
     config: AiFlowBridgeConfig,
@@ -353,7 +362,7 @@ export class GatewayService {
 
         if (choice === restartLabel) {
           logger.info(`[Gateway] User chose to restart peer v${peer.version} (pid=${peer.pid})`);
-          await requestPeerShutdown(port);
+          await requestPeerShutdown(port, peer.shutdownToken ? { shutdownToken: peer.shutdownToken } : {});
           const freed = await waitUntilPortFree(port, { timeoutMs: 3000 });
           if (!freed) {
             logger.warn(`[Gateway] Port ${port} did not free up within timeout (peer pid=${peer.pid})`);
@@ -400,6 +409,7 @@ export class GatewayService {
         version: this.bundledVersion,
         pid: process.pid,
         startedAt: this.startedAt,
+        shutdownToken: this.shutdownToken,
       });
       return;
     }
@@ -408,11 +418,24 @@ export class GatewayService {
       // Loopback-only (server binds 127.0.0.1). Used by peers that detected
       // a version mismatch and want to start a fresh instance.
       //
-      // We intentionally do NOT call process.exit(0) here: the gateway
-      // runs inside the VS Code extension host, and killing that process
-      // would also kill every other extension the user has installed.
-      // Closing the listening socket is enough to let the new activation
-      // bind the port; the extension host itself stays alive.
+      // Authentication: the peer must provide this instance's `shutdownToken`
+      // (returned by GET /version) in the `X-AIFlowBridge-Shutdown-Token`
+      // header. Without a valid token, we refuse with 403. Loopback binding
+      // is necessary but not sufficient: any other local process (or a
+      // misconfigured curl one-liner) could otherwise stop the gateway.
+      //
+      // We intentionally do NOT call process.exit(0): the gateway runs in
+      // the VS Code extension host, and killing that process would also
+      // kill every other extension the user has installed. Closing the
+      // listening socket is enough to let the new activation bind the port.
+      const providedToken = request.headers["x-aiflowbridge-shutdown-token"];
+      if (typeof providedToken !== "string" || providedToken !== this.shutdownToken) {
+        logger.warn(
+          `[Gateway] Rejected /shutdown from ${request.socket.remoteAddress ?? "unknown"} (missing or invalid token)`,
+        );
+        this.writeJson(response, 403, { error: "Unauthorized shutdown attempt" });
+        return;
+      }
       logger.info(
         `[Gateway] Shutdown requested by peer on ${request.socket.remoteAddress ?? "unknown"}`,
       );
@@ -687,28 +710,51 @@ function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   return new URL(path, baseUrl).toString();
 }
 
-const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
+export const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
 
-function readBody(request: IncomingMessage): Promise<string> {
+export function readBody(request: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let totalSize = 0;
+    let settled = false;
+
+    // `settled` guards the Promise against the `end` / `close` race:
+    // on a normal disconnect `end` fires first and we resolve with
+    // whatever was buffered; `close` then fires but is a no-op. On a
+    // brutal disconnect (client hangs up mid-body) `close` fires
+    // before `end` and we reject. Without this guard both listeners
+    // would race to settle the Promise, and the resolved-then-rejected
+    // noise would warn (or worse, leak an event listener that keeps
+    // the request IncomingMessage alive via its `request.socket`).
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      fn();
+    };
 
     request.on("data", (chunk: Buffer) => {
       totalSize += chunk.length;
       if (totalSize > MAX_BODY_SIZE) {
-        reject(new Error("Request body too large"));
+        settle(() => reject(new Error("Request body too large")));
+        // Drop the socket now so the partial body stops eating buffers
+        // and the `'error'` / `'close'` handlers do not pile up.
+        request.destroy();
         return;
       }
       chunks.push(chunk);
     });
 
     request.on("end", () => {
-      resolve(Buffer.concat(chunks).toString("utf8"));
+      settle(() => resolve(Buffer.concat(chunks).toString("utf8")));
     });
 
-    request.on("error", (error) => reject(error));
-    request.on("close", () => reject(new Error("Client disconnected")));
+    request.on("error", (error) => {
+      settle(() => reject(error));
+    });
+
+    request.on("close", () => {
+      settle(() => reject(new Error("Client disconnected")));
+    });
   });
 }
 

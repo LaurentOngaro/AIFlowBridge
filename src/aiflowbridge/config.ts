@@ -186,20 +186,37 @@ function synthesizeProviderForModel(
 }
 
 /**
- * Synthesize gateway `ProviderProfile` entries from the user's
- * `aiflowbridge.userModels` list. Each user model with a known `family`
- * (deepseek / MiniMax / xiaomi) becomes a virtual provider that:
- *
- * - Exposes the model in the gateway's `GET /v1/models` catalog
- *   (so Kilo Code, Continue, and any OpenAI-compatible client see it)
- * - Routes chat-completions to the right upstream via `selectProvider`
- *   (which matches by `profile.model`)
- *
- * Skipped when:
- * - The user model `family` is not a known vendor
- * - The model id is already covered by an existing provider
- *   (either as `provider.id` or `provider.model`)
+ * Shared body of `synthesizeProvidersFromUserModels` and
+ * `synthesizeProvidersFromBuiltInModels`. The only difference between the
+ * two is the source list of model definitions; everything else (taken-set
+ * computation, family-pricing lookup, per-model synthesis, dedupe) is
+ * identical. Factored out so a future change (e.g. a third model source)
+ * is a single edit instead of two near-identical blocks.
  */
+function synthesizeProvidersFromModels(
+	existing: ProviderProfile[],
+	configuration: vscode.WorkspaceConfiguration,
+	registry: ModelRegistry,
+	models: Parameters<typeof synthesizeProviderForModel>[0][],
+): ProviderProfile[] {
+	const taken = new Set<string>();
+	for (const profile of existing) {
+		taken.add(profile.id);
+		taken.add(profile.model);
+	}
+
+	const familyPricing = getFamilyPricing();
+	const synthesized: ProviderProfile[] = [];
+	for (const model of models) {
+		const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry);
+		if (synthesizedProfile) {
+			synthesized.push(synthesizedProfile);
+		}
+	}
+
+	return [...existing, ...synthesized];
+}
+
 export function synthesizeProvidersFromUserModels(
 	existing: ProviderProfile[],
 	configuration: vscode.WorkspaceConfiguration,
@@ -209,23 +226,7 @@ export function synthesizeProvidersFromUserModels(
 	if (userModels.length === 0) {
 		return existing;
 	}
-
-	const taken = new Set<string>();
-	for (const profile of existing) {
-		taken.add(profile.id);
-		taken.add(profile.model);
-	}
-
-	const familyPricing = getFamilyPricing();
-	const synthesized: ProviderProfile[] = [];
-	for (const model of userModels) {
-		const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry);
-		if (synthesizedProfile) {
-			synthesized.push(synthesizedProfile);
-		}
-	}
-
-	return [...existing, ...synthesized];
+	return synthesizeProvidersFromModels(existing, configuration, registry, userModels);
 }
 
 /**
@@ -244,22 +245,7 @@ export function synthesizeProvidersFromBuiltInModels(
 	configuration: vscode.WorkspaceConfiguration,
 	registry: ModelRegistry,
 ): ProviderProfile[] {
-	const taken = new Set<string>();
-	for (const profile of existing) {
-		taken.add(profile.id);
-		taken.add(profile.model);
-	}
-
-	const familyPricing = getFamilyPricing();
-	const synthesized: ProviderProfile[] = [];
-	for (const model of registry.models) {
-		const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry);
-		if (synthesizedProfile) {
-			synthesized.push(synthesizedProfile);
-		}
-	}
-
-	return [...existing, ...synthesized];
+	return synthesizeProvidersFromModels(existing, configuration, registry, registry.models);
 }
 
 export async function loadConfig(context: vscode.ExtensionContext): Promise<AiFlowBridgeConfig> {

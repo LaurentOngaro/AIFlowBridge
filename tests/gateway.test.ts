@@ -43,7 +43,10 @@ vi.mock('vscode', () => {
 
 // Import after mocking
 import { createServer } from 'node:http';
-import { GatewayService } from '../src/aiflowbridge/gateway/server';
+import { GatewayService, readBody, MAX_BODY_SIZE } from '../src/aiflowbridge/gateway/server';
+import { PassThrough } from 'node:stream';
+import { IncomingMessage } from 'node:http';
+import { Socket } from 'node:net';
 import type { AiFlowBridgeConfig, ProviderProfile } from '../src/aiflowbridge/types';
 
 function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile {
@@ -715,5 +718,65 @@ describe('GatewayService - BUG11: errored requests have zero cost', () => {
 			await service.stop();
 			await upstream.close();
 		}
+	});
+});
+
+describe('readBody (buffer + settled-flag guard)', () => {
+	it('resolves with the buffered body when the stream ends normally', async () => {
+		const stream = new PassThrough();
+		const promise = readBody(stream as unknown as IncomingMessage);
+		stream.write(Buffer.from('hello'));
+		stream.write(Buffer.from(' world'));
+		stream.end();
+		await expect(promise).resolves.toBe('hello world');
+	});
+
+	it('resolves with empty string on an empty stream', async () => {
+		const stream = new PassThrough();
+		const promise = readBody(stream as unknown as IncomingMessage);
+		stream.end();
+		await expect(promise).resolves.toBe('');
+	});
+
+	it('rejects when the body exceeds MAX_BODY_SIZE', async () => {
+		// Use a data chunk larger than the Max body size to trigger the
+		// `totalSize > MAX_BODY_SIZE` branch inside readBody.
+		const stream = new PassThrough();
+		const destroyedSpy = vi.spyOn(stream, 'destroy');
+		const promise = readBody(stream as unknown as IncomingMessage);
+		stream.write(Buffer.alloc(MAX_BODY_SIZE + 1, 'x'));
+		await expect(promise).rejects.toThrow('Request body too large');
+		expect(destroyedSpy).toHaveBeenCalled();
+		destroyedSpy.mockRestore();
+	});
+
+	it('rejects with "Client disconnected" when close fires before end', async () => {
+		const stream = new PassThrough();
+		const promise = readBody(stream as unknown as IncomingMessage);
+		stream.write(Buffer.from('partial'));
+		// destroy() emits 'close' before 'end' — simulates client hang-up.
+		stream.destroy();
+		await expect(promise).rejects.toThrow('Client disconnected');
+	});
+
+	it('rejects on stream error', async () => {
+		const stream = new PassThrough();
+		const promise = readBody(stream as unknown as IncomingMessage);
+		stream.destroy(new Error('network down'));
+		await expect(promise).rejects.toThrow('network down');
+	});
+
+	it('does not double-settle: end resolves, then close is a no-op', async () => {
+		// A normal stream finishes with `end`, and then `close` fires
+		// afterwards (Node.js lifecycle). The settled flag must prevent
+		// the second settle from rejecting an already-resolved Promise.
+		const stream = new PassThrough();
+		const promise = readBody(stream as unknown as IncomingMessage);
+		stream.write(Buffer.from('done'));
+		stream.end();
+		await expect(promise).resolves.toBe('done');
+		// Emit close manually — must not throw or produce an unhandled
+		// rejection warning (the settled flag absorbs it).
+		stream.emit('close');
 	});
 });

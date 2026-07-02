@@ -137,7 +137,7 @@ class AIFlowBridgeRuntime {
           );
         } else {
           const port = this.config.gateway.port;
-          const isOccupied = await isPortLikelyOccupied(port);
+          const isOccupied = await isPortInUse(port);
           if (isOccupied) {
             logger.warn(`[AIFlowBridge] Port ${port} is in use by another service`);
             void vscode.window.showWarningMessage(
@@ -251,6 +251,11 @@ class AIFlowBridgeRuntime {
   }
 
   private async reloadConfiguration(): Promise<void> {
+    // `running` is true whenever the service owns a local socket OR
+    // has joined an existing peer. In the joined case, `stop()` just
+    // clears the join flag (the peer stays alive) and the subsequent
+    // `start()` will probe the port again and re-join if the peer is
+    // still there. This mirrors the activate() path.
     const wasRunning = this.gateway.running;
     if (wasRunning) {
       await this.gateway.stop();
@@ -260,7 +265,26 @@ class AIFlowBridgeRuntime {
     this.gateway.updateConfig(this.config);
 
     if (this.config.gateway.enabled) {
-      await this.gateway.start();
+      // `start()` may throw EPEERSTALLED when the peer on the configured
+      // port refused to shut down within the timeout. Surface a
+      // targeted warning so the user knows what to do (stop the peer
+      // manually, or wait for TIME_WAIT to clear on Windows).
+      try {
+        await this.gateway.start();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const code = (error as NodeJS.ErrnoException).code;
+        const peerPid = (error as { peerPid?: number }).peerPid;
+        logger.error(`[AIFlowBridge] Gateway failed to restart after config reload: ${message}`);
+        if (code === "EPEERSTALLED" && typeof peerPid === "number") {
+          void vscode.window.showWarningMessage(
+            `AIFlowBridge gateway could not restart: the older instance (pid ${peerPid}) did not free port ${this.config.gateway.port} within the timeout. ` +
+              `Stop that process manually (or wait for TIME_WAIT to clear), then reload the window.`,
+          );
+        } else {
+          void vscode.window.showWarningMessage(`AIFlowBridge gateway failed to restart: ${message}`);
+        }
+      }
     }
 
     this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
@@ -280,11 +304,22 @@ class AIFlowBridgeRuntime {
   }
 
   private gatewaySnapshot(): TelemetrySnapshot {
+    // The live gateway snapshot is the source of truth whenever it
+    // has processed at least one request in this session, OR the
+    // gateway is currently running. The previous implementation
+    // fell back to the persisted snapshot whenever `requests === 0`,
+    // which made a freshly-started gateway appear to display data
+    // from the previous session as if it were live (BUG 2.1).
+    //
+    // The persisted snapshot is now only consulted when the gateway
+    // is NOT running AND has not processed any request - i.e. the
+    // dashboard is being shown immediately after activation, before
+    // the first request lands. In that case the persisted data is
+    // genuinely the only thing available.
     const snapshot = this.gateway.snapshot();
-    if (snapshot.requests > 0) {
+    if (this.gateway.running || snapshot.requests > 0) {
       return snapshot;
     }
-
     return this.telemetryFallback.snapshot();
   }
 }
@@ -299,8 +334,4 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 export async function deactivate(): Promise<void> {
   await runtime?.deactivate();
   runtime = undefined;
-}
-
-async function isPortLikelyOccupied(port: number): Promise<boolean> {
-  return isPortInUse(port);
 }

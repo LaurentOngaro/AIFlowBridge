@@ -12,6 +12,86 @@ function toNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+/**
+ * Hostnames that must never appear in a provider `baseUrl` - they
+ * resolve to cloud-instance metadata services, which would leak
+ * credentials to a hostile extension or a malicious settings.json edit
+ * (SSRF). Loopback (`127.x.x.x`, `::1`) is intentionally NOT blocked
+ * because Ollama and other local servers need it.
+ *
+ * Matched against the hostname (lower-case, IPv4-mapped IPv6
+ * normalised), NOT the raw string, so `https://169.254.169.254/` and
+ * `https://[0xa9fe:a9fe]/` are both rejected.
+ */
+const BLOCKED_HOSTS: RegExp[] = [
+  /^169\.254\./,             // AWS / GCP / Azure / OpenStack metadata
+  /^100\.100\.100\.200$/,    // Alibaba Cloud metadata
+  /^fd00:ec2::254$/i,       // AWS IMDS over IPv6
+];
+
+/**
+ * Normalize IPv4-mapped IPv6 addresses back to plain IPv4 so the
+ * blocked-host regexes always operate on the canonical decimal form.
+ *
+ * Two forms exist:
+ *   1. Decimal:  `::ffff:169.254.169.254` -> `169.254.169.254`
+ *   2. Hex:      `::ffff:a9fe:a9fe`      -> `169.254.169.254`
+ *
+ * The hex form is the SSRF bypass: a hostile `settings.json` can use
+ * `http://[::ffff:a9fe:a9fe]/` and `new URL(...).hostname` will return
+ * `::ffff:a9fe:a9fe`, which the decimal-only regex misses.
+ *
+ * Loopback (`::1`) and native IPv6 (`fd00:ec2::254`) are left
+ * untouched — they are matched directly by the BLOCKED_HOSTS patterns.
+ */
+export function normalizeHost(host: string): string {
+  // WHATWG URL.hostname includes brackets for IPv6 addresses
+  // (`[::ffff:a9fe:a9fe]`). Strip them unconditionally so the
+  // IPv4-mapped patterns below operate on the bare address.
+  let bare = host;
+  if (bare.startsWith("[") && bare.endsWith("]")) {
+    bare = bare.slice(1, -1);
+  }
+
+  // Decimal form: ::ffff:1.2.3.4
+  const decimal = bare.match(/^::ffff:((?:[0-9]{1,3}\.){3}[0-9]{1,3})$/i);
+  if (decimal) return decimal[1];
+
+  // Hex form: ::ffff:x:x, ::ffff:xxxx:xxxx, etc.
+  const hex = bare.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (hex) {
+    const hi = parseInt(hex[1], 16);
+    const lo = parseInt(hex[2], 16);
+    return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+  }
+
+  return bare;
+}
+
+/**
+ * Strict provider baseUrl validator. Rejects:
+ * - non-HTTP(S) schemes (`file:`, `gopher:`, ...)
+ * - unparseable URLs
+ * - cloud metadata hostnames (`169.254.x.x`, `100.100.100.200`)
+ *
+ * Allows loopback (`127.x.x.x`, `::1`) on purpose, for Ollama. Exported
+ * so the unit tests can assert the matrix without going through the
+ * full `normalizeProviderProfiles` shape.
+ */
+export function isValidProviderBaseUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return false;
+  }
+  const host = normalizeHost(url.hostname.toLowerCase());
+  return !BLOCKED_HOSTS.some((pattern) => pattern.test(host));
+}
+
 export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile[] {
   if (!Array.isArray(rawProfiles)) {
     return [];
@@ -30,11 +110,18 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
       const baseUrl = toString(candidate.baseUrl);
       const model = toString(candidate.model);
 
-      if (!id || !label || !baseUrl || !model) {
+      // Strict baseUrl validation: refuse metadata IPs, non-HTTP(S)
+      // schemes, and unparseable URLs (see isValidProviderBaseUrl).
+      // Each rejected entry is dropped silently (the existing filter
+      // drops undefineds) - this matches the policy for malformed
+      // provider rows elsewhere in the loader.
+      if (!id || !label || !baseUrl || !model || !isValidProviderBaseUrl(baseUrl)) {
         return undefined;
       }
 
       const pricing = candidate.pricing && typeof candidate.pricing === "object" ? candidate.pricing as Record<string, unknown> : undefined;
+      const inputPerMillion = toNumber(pricing?.inputPerMillion, 0);
+      const outputPerMillion = toNumber(pricing?.outputPerMillion, 0);
 
       return {
         id,
@@ -44,10 +131,16 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
         model,
         apiKey: toString(candidate.apiKey),
         enabled: toBoolean(candidate.enabled, true),
+        // `|| undefined` was removed from inputPerMillion / outputPerMillion:
+        // the old expression `toNumber(x, 0) || undefined` collapsed an
+        // explicit `0` ("free tokens") into `undefined` ("no pricing"),
+        // which silently dropped the pricing block. 0 is now kept as-is;
+        // downstream consumers (`formatCostCell`, `estimateCostFromProfile`)
+        // already handle 0 correctly (zero-cost display + zero-cost math).
         pricing: pricing
           ? {
-              inputPerMillion: toNumber(pricing.inputPerMillion, 0) || undefined,
-              outputPerMillion: toNumber(pricing.outputPerMillion, 0) || undefined,
+              inputPerMillion,
+              outputPerMillion,
               currency: toString(pricing.currency, "USD") || "USD",
             }
           : undefined,
