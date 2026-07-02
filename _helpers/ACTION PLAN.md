@@ -1,6 +1,6 @@
 # ACTION PLAN
 
-This document details the implementation steps to make the AIFlowBridge extension publishable on the VS Code Marketplace. It completes the `TODO.md` file by adding the necessary technical details.
+This document details the steps to implement some of the features and fixes listed in `TODO.md`. It completes the `TODO.md` file by adding the necessary technical details.
 
 ---
 

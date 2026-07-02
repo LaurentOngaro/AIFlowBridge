@@ -6,7 +6,7 @@ Track open bugs, improvements, and active tickets. For the detailled implementat
 
 Implementation order is not strictly defined, but the general priority is:
 
-- PUB01 > PUB02 > DOC04 > AFF04 > STU01 > STU02
+- BUG12 > DOC04 > AFF04 > PUB02
 
 ## Project Improvements
 
@@ -19,11 +19,15 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Bugs (last: BUG11)
 
+- [ ] BUG12: metrics dashboard:
+  - [ ] date filters does not works fully (can only change once, then the second change is ignored)
+  - [ ] the "estimated cost" should be updated when the date filter is changed (currently, it is not) (total cost = no filter active)
+
 ### Documentation (last: DOC04)
 
-- [ ] DOC04: Update README with new features and improvements
-  - [ ] hook (first 10 lines + cost comparison table)
-  - [ ] Add 3-5 quality screenshots
+- [ ] DOC04: partial implementation of doc [03_Synthese_strategique_2026_06_09.md]
+  - [ ] Action #2 - Redesign of the VS Code Marketplace sheet
+  - [ ] Action #3 - Redesign of the README hook
 
 ### Display (last:AFF03)
 
@@ -32,12 +36,8 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Features (last: FEAT5)
 
-- [ ] FEAT5: reasoning picker for MiniMax M3 (see issue on [kilocode](https://github.com/Kilo-Org/kilocode/issues/11116))
-  - can't change anything, issue reported to Kilo Code, waiting for their fix (see issue #11116)
-
 ### Publish (last: PUB02)
 
-- [x] PUB01: Publish on Open VSX Registry (reach Cursor / Windsurf / VSCodium / code-server users)
 - [ ] PUB02: Refactor VS Code Marketplace listing (title, description, tags, screenshots)
 
 ### Refactoring (last:)
@@ -77,6 +77,12 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+## Unversioned
+
+- [x] PUB01: Publish on Open VSX Registry (reach Cursor / Windsurf / VSCodium / code-server users)
+- [x] FEAT5: reasoning picker for MiniMax M3 (see issue on [kilocode](https://github.com/Kilo-Org/kilocode/issues/11116))
+  - fixed by kilo team
 
 ### 1.5.2
 
