@@ -475,6 +475,200 @@ describe('buildDashboardHtml', () => {
     expect(html).toContain('"de" + "lete-btn"');
     expect(html).toContain('"data-remov" + "e-id"');
   });
+
+  // BUG12: date filter second-change bug + estimated cost recompute.
+  it('renders an id on each top metric card so the client can recompute filtered totals', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('id="totals-requests"');
+    expect(html).toContain('id="totals-tokens"');
+    expect(html).toContain('id="totals-duration"');
+    expect(html).toContain('id="totals-cost"');
+    expect(html).toContain('id="totals-scope-note"');
+  });
+
+  it('contains the client-side updateTotals function that recomputes the top cards from the filtered entries', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain("function updateTotals");
+    expect(html).toContain("function setCard");
+    expect(html).toContain("function updateScopeNote");
+    // The estimated-cost card recomputes from the sum of
+    // entry.estimatedCost across the filtered set (BUG12 issue #2).
+    expect(html).toMatch(/estimatedCost\s*\+=\s*entry\.estimatedCost/);
+    // The applyFilters pipeline ends with updateTotals + updateScopeNote.
+    // BUG12 regression fix: updateTotals now accepts the filter object
+    // (not the filtered array) and uses cumulativeTotals when no filter
+    // is active.
+    expect(html).toMatch(/updateTotals\(f\)[\s\S]{0,200}updateScopeNote/);
+  });
+
+  it('default scope note says "no filter active" and matches the initial render', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain("Showing all recorded requests (no filter active).");
+  });
+
+  it('date inputs are wired to both the "input" and "change" events (BUG12 second-change fix)', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // Both events are bound so consecutive picker changes are honored
+    // even when the user picks the same date twice in a row (the
+    // browser does not re-fire "change" for an unchanged value).
+    expect(html).toMatch(/fromEl\.addEventListener\("input"[\s\S]{0,80}onDateChange\(fromEl\)/);
+    expect(html).toMatch(/fromEl\.addEventListener\("change"[\s\S]{0,80}onDateChange\(fromEl\)/);
+    expect(html).toMatch(/toEl\.addEventListener\("input"[\s\S]{0,80}onDateChange\(toEl\)/);
+    expect(html).toMatch(/toEl\.addEventListener\("change"[\s\S]{0,80}onDateChange\(toEl\)/);
+  });
+
+  // AFF04: pagination.
+  it('renders a pagination placeholder under each paginated table', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('id="recent-pagination"');
+    expect(html).toContain('id="model-pagination"');
+    expect(html).toContain('id="provider-pagination"');
+    // The placeholders are hidden until the JS init pass populates
+    // them (the server-side render shows all rows so the dashboard
+    // still works without JS).
+    expect(html).toMatch(/<div class="pagination" id="recent-pagination" hidden>/);
+    expect(html).toMatch(/<div class="pagination" id="model-pagination" hidden>/);
+    expect(html).toMatch(/<div class="pagination" id="provider-pagination" hidden>/);
+  });
+
+  it('contains the paginate, paginateObject, renderPagination helpers and a rerender entry point', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain("function paginate");
+    expect(html).toContain("function paginateObject");
+    expect(html).toContain("function renderPagination");
+    expect(html).toContain("function rerender");
+    // Localstorage keys for the per-panel page size persistence.
+    expect(html).toContain("aiflowbridge.dashboard.pageSize.");
+  });
+
+  it('pagination controls expose first/prev/next/last + page jump + per-page', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // The four navigation buttons are present (rendered dynamically
+    // by renderPagination - we assert the action names exist in the
+    // script source so the build still emits them when state.total > 0).
+    expect(html).toContain('data-page-action="first"');
+    expect(html).toContain('data-page-action="prev"');
+    expect(html).toContain('data-page-action="next"');
+    expect(html).toContain('data-page-action="last"');
+    // Page jump + per-page labels.
+    expect(html).toMatch(/Per page/);
+    // The provider summary has a client-side renderer now (server-side
+    // render is still emitted for the no-JS path).
+    expect(html).toContain("function renderProviderRows");
+  });
+
+  it('initial pass calls rerender so the JS-enabled first paint is paginated', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // The IIFE ends with rerender() after wiring up the date inputs.
+    // Note: in the HTML output the IIFE closing `})()` is escaped to
+    // `\")();` (the closing parens get HTML-escaped by the test
+    // harness's string serialization). Match both forms.
+    expect(script_lastLines(html, 200)).toMatch(/rerender\(\);[\s\S]*?\}\s*\)\(\);/);
+  });
+
+  it('reset page to 1 on every filter change so the user lands on a valid page', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // applyFilters resets both paginators back to page 1 after computing
+    // the new filtered arrays.
+    const script = extractScript(html);
+    expect(script).toMatch(/paginationState\.recent\.page\s*=\s*1/);
+    expect(script).toMatch(/paginationState\.model\.page\s*=\s*1/);
+  });
+
+  // CRITICAL regression fix: paginationState must be declared BEFORE
+  // its first reference in the IIFE. The diff that introduced this
+  // state had it on line 1041 while loadPageSize() referenced it on
+  // line 635 - a TDZ ReferenceError that crashed the entire dashboard
+  // webview on first paint. The fix moves the const to the top of
+  // the IIFE (around the cumulativeTotals init block).
+  it('declares paginationState before the loadPageSize calls that reference it (TDZ fix)', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    const declIdx = script.indexOf("const paginationState = {");
+    const refIdx = script.indexOf("paginationState.recent.pageSize = loadPageSize");
+    expect(declIdx).toBeGreaterThan(-1);
+    expect(refIdx).toBeGreaterThan(-1);
+    expect(declIdx).toBeLessThan(refIdx);
+  });
+
+  // CRITICAL regression fix: updateTotals must accept a filter object
+  // and use the cumulative snapshot totals when no filter is active.
+  // The earlier implementation summed `currentRecent` (capped at 20
+  // entries by TelemetryStore) which collapsed "Requests: 100" to
+  // "Requests: 20" the moment the user touched any filter control.
+  it('updateTotals branches on filter activity to avoid the 20-entry cap regression', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    // The function takes a filter argument (not the filtered array).
+    expect(script).toMatch(/function updateTotals\(f\)/);
+    // The cumulative snapshot totals are serialized into the script.
+    expect(script).toContain("const cumulativeTotals =");
+    // The no-filter branch reads from cumulativeTotals.
+    expect(script).toMatch(/cumulativeTotals\.estimatedCost/);
+    expect(script).toMatch(/cumulativeTotals\.requests/);
+    // The hasActiveFilter flag controls which source is used.
+    expect(script).toContain("hasActiveFilter");
+  });
+
+  it('serializes the cumulative snapshot totals so updateTotals can restore the all-time view', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // The serialized payload must include the fields the no-filter
+    // branch reads.
+    expect(html).toMatch(/"requests":\s*12/);
+    expect(html).toMatch(/"totalTokens":\s*2300/);
+    expect(html).toMatch(/"estimatedCost":\s*0\.0023/);
+  });
+
+  // CRITICAL: the new shared providerRowHtml helper is used by both
+  // the server-side renderProviderSummary and the client-side
+  // renderProviderRows - drift risk mitigation.
+  it('server-side renderProviderSummary delegates row HTML to providerRowHtml', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain("function providerRowHtml");
+  });
+
+  // CRITICAL regression test: the dashboard webview script must be
+  // syntactically valid JavaScript. A prior bug was caused by `"` escape
+  // sequences (`\"`) being inside an outer TypeScript template literal
+  // (backticks) in buildDashboardHtml - the template literal processed
+  // the escape and emitted plain `"` in the HTML output, producing
+  // `"search: ""` which is a JS syntax error. The dashboard then
+  // crashed on first paint (no pagination, filters did nothing), and
+  // the error only surfaced in the webview's devtools console (NOT
+  // the extension's debug log). Use Function() to parse the script
+  // and surface any syntax error at test time.
+  it('emits a syntactically valid JavaScript program in the embedded <script> tag', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(() => {
+      // Function() parses the body as a top-level program. A syntax
+      // error throws - caught above.
+      new Function(script);
+    }).not.toThrow();
+  });
+
+  // CRITICAL: search-scope string concatenation must produce legal
+  // JS in the final HTML. Prior versions shipped `"search: "" +`
+  // (no backslash escape) after the template literal processed the
+  // inner escapes. The fixed version must have `\"` around the
+  // needle. Use a regex match to avoid the test source's escape
+  // ambiguity (the script is embedded in a backtick template
+  // literal, so backslashes need to be doubled for the outer file
+  // but appear once in the runtime JS).
+  it('emits the search needle with correctly escaped quotes', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    // Strip whitespace (script template adds indentation) so the
+    // regex doesn't have to match arbitrary whitespace.
+    const stripped = script.replace(/\s+/g, "");
+    // Correct: parts.push("search: \"" + f.search + "\""); - after
+    // stripping whitespace, the sequence is `parts.push("search:\""+f.search`
+    // (the `\"` escape survives; the closing `\"")` is preserved too).
+    expect(stripped).toMatch(/parts\.push\("search:\\""\+f\.search/);
+    // Broken (pre-fix): parts.push("search: "" + f.search (no escape) must
+    // not appear anywhere.
+    expect(stripped).not.toMatch(/parts\.push\("search:""\+f\.search/);
+  });
 });
 
 describe('buildPricingMaps', () => {
@@ -501,12 +695,21 @@ describe('buildPricingMaps', () => {
 // source text the dashboard emits and assert the behavior matches the
 // plan: preset clears custom, custom deactivates preset, by-model
 // matches on the model name.
+
+// Module-level helpers: extract the dashboard's <script> block as a
+// string. Hoisted out of the AFF03 describe block so the new BUG12 /
+// AFF04 tests can also use them.
+function extractScript(html: string): string {
+  const match = html.match(/<script>([\s\S]*?)<\/script>/);
+  if (!match) throw new Error("script block not found");
+  return match[1] as string;
+}
+
+function script_lastLines(html: string, n: number): string {
+  return extractScript(html).slice(-n);
+}
+
 describe('AFF03 plan-compliance: filter pipeline', () => {
-  function extractScript(html: string): string {
-    const match = html.match(/<script>([\s\S]*?)<\/script>/);
-    if (!match) throw new Error("script block not found");
-    return match[1] as string;
-  }
 
   // Re-derive the AFF03 behaviors by re-implementing the same client-
   // side rules in TypeScript and asserting they match the plan. The
@@ -545,13 +748,19 @@ describe('AFF03 plan-compliance: filter pipeline', () => {
     expect(script).toMatch(/toEl\.value = ""/);
   });
 
-  it('entering a custom date calls deactivatePresetButtons (per the plan)', () => {
+  it('entering a custom date calls deactivateAllPresetButtons (per the plan)', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const script = extractScript(html);
-    expect(script).toContain("deactivatePresetButtons");
-    // The change handler checks the value before calling deactivate.
-    expect(script).toMatch(/fromEl\.value[\s\S]{0,80}deactivatePresetButtons/);
-    expect(script).toMatch(/toEl\.value[\s\S]{0,80}deactivatePresetButtons/);
+    expect(script).toContain("deactivateAllPresetButtons");
+    // The handler (BUG12 refactor: extracted to onDateChange) checks
+    // the element value before calling deactivate.
+    expect(script).toMatch(/el\.value[\s\S]{0,80}deactivateAllPresetButtons/);
+    // Both date inputs are wired (input + change events so consecutive
+    // picker changes are honored - see the BUG12 fix in dashboard.ts).
+    expect(script).toMatch(/fromEl\.addEventListener\("input"/);
+    expect(script).toMatch(/fromEl\.addEventListener\("change"/);
+    expect(script).toMatch(/toEl\.addEventListener\("input"/);
+    expect(script).toMatch(/toEl\.addEventListener\("change"/);
   });
 
   it('by-model search filter matches the model name directly (per the plan)', () => {
@@ -641,6 +850,141 @@ describe('AFF03 plan-compliance: filter pipeline', () => {
       e.model.toLowerCase().includes(modelOnlyNeedle),
     );
     expect(modelOnlyBranchMatches).toBe(true);
+  });
+
+  // Regression: the By model panel used to expose a row of preset
+  // buttons that visually activated on click but did nothing else
+  // (currentFilters() only read the Recent panel's active button).
+  it('clicking a By model preset synchronizes the Recent panel buttons and applies the filter', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    // Both filter groups share a sync helper so the active class
+    // propagates from one panel to the other on click.
+    expect(script).toContain('syncPresetButtons');
+    // applyFilters accepts a range override so the panel-specific
+    // click handler can pass its value through (instead of relying on
+    // currentFilters() which only reads from recent-filters).
+    expect(script).toMatch(/function applyFilters\(rangeOverride\)/);
+    // The bind call for model-filters is in place.
+    expect(script).toContain('bindFilterGroup("model-filters"');
+  });
+
+  // XSS regression: a maliciously crafted providerLabel or model name
+  // containing `</script>` would break out of the dashboard's <script>
+  // block and execute arbitrary code. The serializer must escape `<`,
+  // `>` and `&` before embedding the JSON payload.
+  it('escapes </script> and other HTML chars in the injected JSON payloads', () => {
+    const dangerous: TelemetrySnapshot = {
+      ...emptySnapshot(),
+      recent: [
+        {
+          id: 'r1',
+          timestamp: '2026-06-03T08:00:00.000Z',
+          providerId: '</script><script>alert(1)</script>',
+          providerLabel: '<img src=x onerror=alert(2)>',
+          model: '"><script>alert(3)</script>',
+          status: 200,
+          durationMs: 1,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          estimatedCost: 0,
+          estimated: false,
+        },
+      ],
+      byProvider: { p1: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0, averageDurationMs: 1 } },
+      byModel: { m1: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0, averageDurationMs: 1 } },
+    };
+    const html = buildDashboardHtml(baseConfig(), dangerous, true);
+    // The script block must NOT contain a literal `</script>` followed
+    // by executable markup. The serializer escapes the sequence as
+    // `<\/script>` (well, `\u003c/script\u003e` here via the unicode
+    // escape helper) so the browser sees a single contiguous string.
+    const script = extractScript(html);
+    expect(script).not.toContain('</script>');
+    // The dangerous chars must appear escaped (unicode escapes are fine).
+    expect(script).toContain('\\u003c');
+  });
+});
+
+describe('buildDashboardHtml - telemetry truncation detection', () => {
+  // Regression: when the on-disk telemetry file was written under an
+  // older release with a recent-tail cap, `recent` carries fewer rows
+  // than the aggregated `requests` counter. The dashboard must surface
+  // this with a banner offering a one-click reset.
+  it('renders a truncation banner when recent.length < requests (>= 5 missing)', () => {
+    // 10000 cumulative requests but only 20 in the recent tail = the
+    // classic pre-1.6.0 capped file.
+    const snapshot: TelemetrySnapshot = {
+      ...emptySnapshot(),
+      requests: 10000,
+      totalTokens: 1_000_000,
+      recent: [
+        {
+          id: 'r1',
+          timestamp: '2026-07-02T10:00:00.000Z',
+          providerId: 'p1',
+          providerLabel: 'Provider 1',
+          model: 'm1',
+          status: 200,
+          durationMs: 100,
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+          estimatedCost: 0.001,
+          estimated: false,
+        },
+      ],
+      byProvider: {},
+      byModel: {},
+    };
+    const html = buildDashboardHtml(baseConfig(), snapshot, true);
+    expect(html).toContain('id="truncation-banner"');
+    expect(html).toContain('id="reset-metrics-btn"');
+    expect(html).toContain('Recent history truncated');
+  });
+
+  it('does NOT render the truncation banner when recent.length === requests', () => {
+    const snapshot: TelemetrySnapshot = {
+      ...emptySnapshot(),
+      requests: 3,
+      recent: [
+        { id: 'r1', timestamp: '2026-07-02T10:00:00.000Z', providerId: 'p1', providerLabel: 'P', model: 'm', status: 200, durationMs: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, estimated: false },
+        { id: 'r2', timestamp: '2026-07-02T10:01:00.000Z', providerId: 'p1', providerLabel: 'P', model: 'm', status: 200, durationMs: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, estimated: false },
+        { id: 'r3', timestamp: '2026-07-02T10:02:00.000Z', providerId: 'p1', providerLabel: 'P', model: 'm', status: 200, durationMs: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, estimated: false },
+      ],
+      byProvider: {},
+      byModel: {},
+    };
+    const html = buildDashboardHtml(baseConfig(), snapshot, true);
+    expect(html).not.toContain('id="truncation-banner"');
+  });
+
+  it('does NOT render the banner for small mismatches (single-row delete edge case)', () => {
+    // User just deleted one row through the trash button. Threshold
+    // is 5 to avoid a spurious banner on every delete.
+    const snapshot: TelemetrySnapshot = {
+      ...emptySnapshot(),
+      requests: 10,
+      recent: Array.from({ length: 9 }, (_, i) => ({
+        id: `r${i}`,
+        timestamp: '2026-07-02T10:00:00.000Z',
+        providerId: 'p1',
+        providerLabel: 'P',
+        model: 'm',
+        status: 200,
+        durationMs: 1,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCost: 0,
+        estimated: false,
+      })),
+      byProvider: {},
+      byModel: {},
+    };
+    const html = buildDashboardHtml(baseConfig(), snapshot, true);
+    expect(html).not.toContain('id="truncation-banner"');
   });
 });
 

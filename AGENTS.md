@@ -14,7 +14,8 @@ ALWAYS follows the following rules:
 
 ALWAYS follows the following rules:
 
-- ❌ DO NOT USE long dashes `—` ou `–`: Use only the standard hyphen `-` (ASCII 45), never long or half-long hyphens (e.g.: `—`, `–`)
+- **Never use the em-dash (Em dash) character (U+2014).** Use a plain ASCII hyphen-minus (`-`, U+002D) instead.
+- **Never use the en-dash (En dash) character (U+2013).** Use a plain ASCII hyphen-minus (`-`, U+002D) instead.
 
 ## Code Standards
 

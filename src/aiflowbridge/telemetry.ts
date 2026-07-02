@@ -72,9 +72,15 @@ export function applyEntryToSnapshot(snapshot: TelemetrySnapshot, entry: Request
       ? entry.durationMs
       : (snapshot.averageDurationMs * (snapshot.requests - 1) + entry.durationMs) / snapshot.requests;
 
-  if (snapshot.recent.length >= 20) {
-    snapshot.recent.shift();
-  }
+  // No cap on `recent`: the dashboard paginates the full history (page
+  // size up to 500). The cumulative totals (requests, byProvider,
+  // byModel) always cover the full history regardless of `recent`
+  // length, so dropping old entries from `recent` would only hide them
+  // from the per-row table while keeping them in the aggregates - a
+  // confusing UX (the "Requests" card says 10 000 but the table shows
+  // the last 100). The `durations` ring stays capped at MAX_DURATIONS
+  // for the p95 calculation.
+
   snapshot.recent.push(entry);
 
   const providerSnapshot = snapshot.byProvider[entry.providerId] ?? emptyProviderSnapshot();
@@ -225,10 +231,7 @@ export class TelemetryStore {
       this.durations.shift();
     }
 
-    if (this.recent.length >= 20) {
-      this.recent.shift();
-    }
-
+    // No cap on `recent` - see `applyEntryToSnapshot` for the rationale.
     this.recent.push(entry);
 
     const providerSnapshot = this.byProvider.get(entry.providerId) ?? emptyProviderSnapshot();

@@ -98,17 +98,19 @@ describe("TelemetryStore - record / snapshot", () => {
 		expect(snap.byProvider.p1?.errors).toBe(2);
 	});
 
-	it("caps the recent list at 20 entries (most recent first)", () => {
+	it("keeps the full recent list (no cap) so the dashboard can paginate the entire history", () => {
 		const store = new TelemetryStore();
-		for (let i = 0; i < 25; i++) {
+		// Record well past any previous cap to verify nothing is dropped.
+		const total = 250;
+		for (let i = 0; i < total; i++) {
 			store.record(makeEntry({ id: `r${i}`, model: `m${i}` }));
 		}
 		const snap = store.snapshot();
-		expect(snap.recent).toHaveLength(20);
-		expect(snap.recent[0]?.id).toBe("r24");
-		expect(snap.recent[19]?.id).toBe("r5");
-		// Older requests should be reflected in totals, not the recent list
-		expect(snap.requests).toBe(25);
+		expect(snap.recent).toHaveLength(total);
+		expect(snap.recent[0]?.id).toBe(`r${total - 1}`);
+		expect(snap.recent[total - 1]?.id).toBe(`r0`);
+		// Totals cover the full history.
+		expect(snap.requests).toBe(total);
 	});
 });
 

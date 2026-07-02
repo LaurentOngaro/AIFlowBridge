@@ -17,28 +17,15 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 - [ ] STU01: external audit: commercial and marketshare (see internal doc `_helpers\Docs\03_Synthese_Strategique_2026_06_09.md`)
 - [ ] STU02: external audit: optimisation (see internal doc `_helpers\Docs\01 Modifications à Apporter_2026_06_05`)
 
-### Bugs (last: BUG11)
-
-- [ ] BUG12: metrics dashboard:
-  - [ ] date filters does not works fully (can only change once, then the second change is ignored)
-  - [ ] the "estimated cost" should be updated when the date filter is changed (currently, it is not) (total cost = no filter active)
+### Bugs (last: BUG12)
 
 ### Documentation (last: DOC04)
 
-- [ ] DOC04: partial implementation of doc [03_Synthese_strategique_2026_06_09.md]
-  - [ ] Action #2 - Redesign of the VS Code Marketplace sheet
-  - [ ] Action #3 - Redesign of the README hook
-
-### Display (last:AFF03)
-
-- [ ] AFF04: metrics dashboard
-  - [ ] add a pagination system (with controls: '>', '<', '>>', '<<', "direct page # entry" and "# request/page entry") on each section (currently, too few requests are visible)
+### Display (last: AFF04)
 
 ### Features (last: FEAT5)
 
 ### Publish (last: PUB02)
-
-- [ ] PUB02: Refactor VS Code Marketplace listing (title, description, tags, screenshots)
 
 ### Refactoring (last:)
 
@@ -78,11 +65,18 @@ Backlog (value to confirm):
 
 ## Completed
 
+### 1.6.0
+
+- BUG12: metrics dashboard date filters. The two `<input type="date">` controls on the Recent requests panel were wired to the `change` event, which the browser does not re-fire when the user picks the same date as the last commit (the dashboard then silently ignored the second change). Fix: the date inputs are now wired to BOTH `input` and `change` events; the `onDateChange` handler always calls `applyFilters()`, regardless of whether the value is set or cleared. Entering a date still deactivates the active preset (the two modes are mutually exclusive); clearing a date does NOT re-activate the preset. Additionally, the four top metric cards (Requests / Tokens / Duration / Estimated cost) used to show the cumulative totals from the snapshot, so changing the date filter did not change the "Estimated cost" headline. Fix: `applyFilters()` now calls a new `updateTotals()` that recomputes Requests / prompt+completion tokens / average duration / total estimated cost from the filtered entries, and a new `updateScopeNote()` explains what the cards reflect ("Showing all recorded requests (no filter active)." vs "Filtered totals (preset: 24h · search: "minimax")."). 4 new dashboard tests in `tests/dashboard.test.ts` (was 47, now 52).
+- AFF04: pagination on the metrics dashboard. The Recent requests, By model, and Provider summary tables now expose a pagination strip underneath each one with the four navigation buttons (`<<` first, `<` prev, `>` next, `>>` last), a direct page-number `<input type="number">`, and a per-page size input (defaults: 20 for recent, 10 for by-model, 10 for provider). Page size is persisted per-panel in `localStorage` (`aiflowbridge.dashboard.pageSize.<panel>`), so the user's choice survives a dashboard refresh; page number resets to 1 on every filter change so the user always lands on a valid page. The pagination is purely client-side: the server-side render still emits ALL rows so the dashboard still shows data with JS disabled (the JS init pass + `rerender()` then slice the rows into the persisted page size for each panel). Provider summary gains a sort-by-requests-desc stable order so the first page shows the busiest vendors first. New CSS for `.pagination`, `.page-btn`, `.page-jump`. 5 new dashboard tests in `tests/dashboard.test.ts` (was 52, now 57).
+- DOC04: Action #2 (VS Code Marketplace listing): `displayName` now leads with the concrete model names users search for (`AIFlowBridge - DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat`), and `description` is restructured around the 3-problems-3-bullets model from the plan (multi-vendor picker / free vision / local OpenAI gateway). Added `galleryBanner` (dark theme, brand color `#0f172a`). `qna` was removed from the manifest after VS Code flagged it (`Expected one of string, boolean.`) - the field accepts only a URL or boolean, not an array of {question, answer} objects. The FAQ content now lives in `docs/*.md` instead. Action #3 (README hook): the first 10 lines lead with the cost-comparison story (Copilot $19 vs Cursor $20 vs Kilo+DeepSeek vs Kilo+MiMo vs Kilo+Ollama $0) instead of a feature list, with a "Migrating from Copilot alone?" callout directly under the tagline. Action #3 follow-up (SEO + readability): the README has been split into 9 focused pages under `docs/` (929 lines → 108 lines + 9 subpages). `docs/cost.md` carries the cost breakdown and pricing math; `docs/providers.md` carries the providers table + hardcoded rationale + adding a model; `docs/vision-proxy.md` covers the image-to-text proxy; `docs/reasoning.md` covers MiniMax M3; `docs/gateway.md` covers the singleton + version-aware restart + Kilo Code / OpenAI clients; `docs/dashboard.md` covers the metrics panel features + screenshots; `docs/architecture.md` carries the source layout + 3-tier model registry; `docs/development.md` covers build/test/package/privacy; `docs/troubleshooting.md` covers the common errors. Each page anchors back to `../README.md`. The README itself now reads in <2 minutes.
+- PUB02: VS Code Marketplace listing refactor. `keywords` array (28 entries, grouped: chat / vision / providers / agents / cost / openai-compatible) surfaces the listing in searches for "deepseek-v4", "minimax-m3", "copilot-alternative", "openai-compatible", "kilocode", "continue", "ollama", "agent-mode", "cost", "token-tracking". `qna` was simplified to a string pointing at GitHub Discussions after the manifest validator rejected the array-of-objects shape. The screenshots at `resources/screenshots_v1.4.0/` and `resources/screenshots_v1.1.1/` are referenced from `docs/dashboard.md` (which owns the Demo section in the new layout). When new v1.6.0 screenshots are captured (pagination strip, BUG12-filtered totals), they should be dropped into `resources/screenshots_v1.6.0/` and `docs/dashboard.md` updated to point at them.
+- BUG (1.6.0 follow-up): the in-memory `recent` list was capped at 20 entries (`src/aiflowbridge/telemetry.ts`), then raised to 100 (`TelemetryStore.MAX_RECENT`). The cap was still hiding entries from the dashboard pagination: clicking "All" on a user with 10 000 recorded requests showed `1-25/100` while the "Requests" card correctly displayed 10 000. The cap is now removed entirely from both the in-memory `TelemetryStore` and the on-disk `TelemetryPersister` - every recorded request is kept in `recent`, and the dashboard paginates the full history (`Per page` up to 500). Tests in `tests/telemetry-store.test.ts` and `tests/telemetry-persistence.test.ts` now assert that 250 entries all survive. Existing on-disk files written under the old cap only contain the last N entries; from this fix forward, every new request is appended with no eviction.
+
 ## Unversioned
 
-- [x] PUB01: Publish on Open VSX Registry (reach Cursor / Windsurf / VSCodium / code-server users)
-- [x] FEAT5: reasoning picker for MiniMax M3 (see issue on [kilocode](https://github.com/Kilo-Org/kilocode/issues/11116))
-  - fixed by kilo team
+- PUB01: Publish on Open VSX Registry (reach Cursor / Windsurf / VSCodium / code-server users)
+- FEAT5: reasoning picker for MiniMax M3 (see issue on [kilocode](https://github.com/Kilo-Org/kilocode/issues/11116)) - fixed by kilo team
 
 ### 1.5.2
 
