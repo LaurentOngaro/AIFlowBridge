@@ -120,10 +120,13 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 | `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials                    |
 | `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials                |
 
-## Roadmap
+## Roadmap (extract)
 
-- **v1.5** shipped: cross-window shared metrics (`<globalStorageUri>/telemetry.json`), dashboard UX (collapsible panels, date range, text search, version badge, per-row delete)
-- **Next**: OpenRouter upstream (100+ models via single key), Ollama local upstream, telemetry export (CSV/JSON), auto-routing with failover
+- telemetry export (CSV/JSON)
+- OpenRouter upstream (100+ models via single key)
+- Ollama local upstream
+- auto-routing with failover
+- ...
 
 Full roadmap: [TODO.md](TODO.md#1-versions-roadmap).
 

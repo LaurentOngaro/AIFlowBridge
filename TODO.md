@@ -12,14 +12,19 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Studies (last: STU02)
 
-- [ ] STU01: external audit: commercial and marketshare (see internal doc `_helpers\Docs\03_Synthese_Strategique_2026_06_09.md`) - actions #1, #2, #3 livrées (1.5.3 / 1.6.0); actions #4-#13 restantes (OpenRouter, Ollama, export CSV/JSON, sponsors, failover, vidéos, contact Kilo/Continue, awesome-lists, articles, posts Reddit)
-  -3/13 actions livrées
+- [-] STU01: external audit: commercial and marketshare (see internal doc `_helpers\Docs\03_Synthese_Strategique_2026_06_09.md`)
+  - [x] actions #1, #2, #3 delivered (1.5.3 / 1.7.0);
+  - [ ] actions #4-#13 remaining (OpenRouter, Ollama, CSV/JSON export, sponsors, failover, videos, Kilo/Continue contact, awesome-lists, articles, Reddit posts)
 
 ### Bugs (last: BUG12)
 
 ### Documentation (last: DOC04)
 
-### Display (last: AFF04)
+### Display (last: AFF05)
+
+- [ ] AFF05: metric dashboard:
+  - add the possibility to sort the data by clicking on the column headers (ascending / descending)
+  - telemetry export (CSV/JSON)
 
 ### Features (last: FEAT5)
 
