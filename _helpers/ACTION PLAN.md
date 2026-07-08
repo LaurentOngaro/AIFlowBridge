@@ -354,3 +354,103 @@ Toutes les cases ci-dessous sont cochées dans la version 1.7.0 (591 tests, 29 f
 - **Mise à jour de config à chaud** : en mode standalone, le watcher `fs.watch` sur `config.json` doit déclencher `reloadConfiguration()` sans redémarrer le process. La méthode existe déjà dans `AIFlowBridgeRuntime` - il suffit de la brancher sur le watcher.
 - **Windows** : `fs.watch` est moins fiable que sur Linux/macOS pour détecter les modifications de fichier. Prévoir un polling de fallback (interval 5s) si le watcher ne déclenche pas.
 - **VSIX packaging** : s'assurer que `dist/standalone/` et les dépendances standalone ne gonflent pas le bundle VSIX. Le `.vscodeignore` doit explicitement les exclure.
+
+---
+
+## FEAT7 follow-up: corrections post-audit (branche `fix/feat7-audit-followup`)
+
+> **Date** : 2026-07-08
+> **Pré-requis** : ce qui est coché ci-dessous a été implémenté dans 3 commits au-dessus de `adb793b` (cf. `_helpers/docs/audits/action Plan_synthese_by M3.md`).
+> **Quality gates actuels** : `npm test` 594/594, `npm run compile` 0 erreur, `npm run compile:standalone` 0 erreur.
+
+### Régressions UX corrigées (consensus 4/4 LLM)
+
+- [x] **R-01** `resetMetrics` exige une confirmation modale via `ctx.confirm` (`src/aiflowbridge/index.ts:211-232`).
+- [x] **R-02** `copyGatewayUrl` écrit dans le presse-papier via `ctx.clipboardWrite` (`src/aiflowbridge/index.ts:271-285`).
+- [x] **R-03** `openSettings` ouvre la page settings VS Code via `ctx.openSettings` (`src/aiflowbridge/index.ts:287-296`).
+- [x] **R-04** `aiflowbridge.setVisionModel` réenregistré comme alias vers `aiflowbridge.providers.deepseek.setVisionModel` (`src/aiflowbridge/index.ts:298-304`).
+- [x] Hooks `confirm` / `clipboardWrite` / `openSettings` / `executeCommand` ajoutés à `IGatewayContext` (`src/aiflowbridge/types.ts:127-144`) et implémentés dans `createVSCodeContext` (`src/aiflowbridge/vscode-context-adapter.ts:149-172`).
+
+### Bugs de comportement corrigés (consensus 2-3/4 LLM)
+
+- [x] **B-01** Migration legacy `globalState` → fichier de persistance réintroduite (`src/aiflowbridge/index.ts:29-92` + `GlobalStateLike` interface).
+- [x] **B-02** Tier workspace fonctionne à nouveau : `createVSCodeContext(context)` est appelé AVANT `loadModelRegistry(ctx)` dans `src/runtime/lifecycle.ts:54-60`.
+- [x] **B-03** `StandaloneConfigFile` (exportée, testée) alignée avec le runtime : `StandaloneConfigReader` interne supprimé, fallback `DEFAULT_STANDALONE_CONFIG` actif en standalone (`src/standalone/context.ts:223`).
+- [x] **B-04** `subscriptionsBag` est un vrai `Array` via `Proxy` qui forward `push` vers `context.subscriptions` ; `length`/`forEach`/`filter`/`map` fonctionnels (`src/aiflowbridge/vscode-context-adapter.ts:101-114`).
+
+### Sécurité pré-Action-Plan (audit `AUDIT_2026_07_08.md`)
+
+- [x] **BUG-A05** (HIGH) `stop()` draine les keep-alive : `closeAllConnections?.()` + fallback `Set<Socket>` + `socket.destroy()` (`src/aiflowbridge/gateway/server.ts:319-353`).
+- [x] **BUG-A01** (HIGH) `removeEntry` ne désynchronise plus `durations`/`recent` : p95 recalculé depuis `recent` + `p95Cache` invalidé à chaque mutation (`src/aiflowbridge/telemetry.ts:194-205, 222-225, 260-264, 288-340`).
+- [x] **BUG-A02** (MEDIUM) `durationMs` streaming capturé sur `response.once('finish', ...)` (`src/aiflowbridge/gateway/server.ts:669-684`).
+- [x] **BUG-A04** (LOW) `isPortInUse` : handler `settled` partagé + `setTimeout(0)` défensif (`src/aiflowbridge/gateway/probe.ts:184-206`).
+- [x] **WARN-B01** (MEDIUM) `recent` borné en mémoire via `memoryCap` configurable (défaut 10 000) (`src/aiflowbridge/telemetry.ts:170-220, 261`).
+- [x] **WARN-B02** (LOW) Clé API strippée du corps 502 via `sanitizeUpstreamErrorMessage()` (`src/aiflowbridge/gateway/server.ts:729-737, 820-845`).
+- [x] **WARN-B03** (LOW) `selectProvider` utilise `localeCompare(..., { sensitivity: 'base' })` (`src/aiflowbridge/providers.ts:163-176`).
+- [x] **WARN-B04** (LOW) `probeServerVersion` valide `content-length` ≤ 4 KiB avant parse (`src/aiflowbridge/gateway/probe.ts:50-77, 91`).
+- [x] **WARN-B07** (LOW) `dispose()` idempotente documentée (`src/aiflowbridge/gateway/server.ts:355-361`).
+
+### Améliorations
+
+- [x] **IMPROV-C01** `percentile()` : cache `p95Cache` invalidé à chaque mutation.
+- [x] **IMPROV-C02** `clearTimeout` appelé dans abort handler + finally (`src/aiflowbridge/token-counter.ts:50-75`).
+- [x] **IMPROV-C03** `created = 0` constant dans `buildModelCatalog` (`src/aiflowbridge/providers.ts:195-200`).
+- [x] **IMPROV-C05** `probeServerVersionWithRetry()` 500 ms + 1 retry 100 ms (`src/aiflowbridge/gateway/server.ts:407, 810-818`).
+- [x] **IMPROV-C06** `reloadConfiguration` ne redémarre le gateway que si `event.affectsGateway` (`src/aiflowbridge/index.ts:325-342`).
+- [x] **IMPROV-C07** Warning si `baseUrl` finit par `/v1` (`src/aiflowbridge/config.ts:290-307`).
+
+### Convention, sécurité mineure, documentation
+
+- [x] **C-01** em-dash `statusbar.ts:29` remplacé par ASCII `-` (vérifié 0 em/en-dash dans `src/`).
+- [x] **C-02** cast `as unknown as vscode.ExtensionContext` supprimé dans `config.ts:269`.
+- [x] **C-03** `void context;` supprimé dans `config.ts`.
+- [x] **C-04** branche `legacy` redondante supprimée dans `modelRegistry.ts:93-98`.
+- [x] **C-06** `getNestedValue` extrait dans `src/standalone/util.ts` (nouveau).
+- [x] **C-07** commentaire `config.ts:290-297` corrigé (le shim standalone lit `userModels` depuis `config.json`).
+- [x] **C-08** wrapper mort `loadConfig(context)` supprimé.
+- [x] **S-01** `require(package.json)` remplacé par `readFileSync` + `JSON.parse` dans `src/standalone/main.ts:71-83`.
+- [x] **S-02** Section "Security" dans `docs/standalone.md` documentant la limitation Windows ACL.
+- [x] **S-03** `resolveVendorApiKey` accepte `ResolveSecretSource = SecretStorageLike | SecretsLike` (`src/aiflowbridge/api-key-resolver.ts:23-50`).
+- [x] **D-02** Section "Known issues / breaking changes in 2.0.0" dans `TODO.md:81-90` listant les 6 items.
+
+### Tests
+
+- [x] 3 nouveaux tests dans `tests/telemetry-store.test.ts` (BUG-A01 : `computes p95 from the recent list` + `rebuilds the p95 cache after restore()` ; WARN-B01 : `drops the oldest entries from recent once memoryCap is reached`).
+- [x] Total : 594/594 passants (vs 591 baseline).
+
+### Reste à faire (cf. `_helpers/docs/audits/action Plan_synthese_by M3.md` section 7)
+
+#### Mineurs (sécurité + audit) - ~5h30
+
+- [ ] **BUG-A03** `gateway/server.ts` `readBody()` : retirer le handler `'error'` post-settle pour éviter un `UnhandledPromiseRejection` tardif.
+- [ ] **WARN-B05** `gateway/server.ts` `translatePayloadForUpstream()` : logger la traduction `reasoning_effort` → `reasoning_split` au niveau debug.
+- [ ] **WARN-B06** `config.ts` : introduire un type `SensitiveString` ou un `toJSON()` redacted sur `ProviderProfile.apiKey`.
+- [ ] **IMPROV-C04** `gateway/server.ts` : ajouter un `inFlightRequests` concurrency limit configurable via `aiflowbridge.gateway.maxConcurrentRequests` ; retourner `429` au-delà.
+
+#### Convention (1 item partiel) - 30min
+
+- [ ] **C-05** `modelRegistry.ts` : `RegistrySources.{bundled,globalStorage,workspace}.path` doit utiliser `uri.toString()` (et non `fsPath`) pour le dashboard et les logs ; vérifier la compatibilité avec `tests/modelRegistry.test.ts`.
+
+#### Tests dédiés (Phase 8 du plan initial) - ~2h
+
+- [ ] `tests/commands-ux.test.ts` : couvre R-01..R-04 avec un `IGatewayContext` mock.
+- [ ] `tests/telemetry-drain.test.ts` : couvre BUG-A05 avec un client HTTP en streaming.
+- [ ] `tests/migration-legacy.test.ts` : couvre B-01 (migration `globalState` → fichier) avec un `IGatewayContext` mock pré-rempli.
+- [ ] `tests/subscriptions-bag.test.ts` : couvre B-04 (Proxy `subscriptionsBag`).
+- [ ] Compléter `tests/telemetry-store.test.ts` pour `removeEntry` direct (au-delà de `restore()`).
+
+#### Hardening optionnel - ~1h
+
+- [ ] Ajouter `aiflowbridge.gateway.probeTimeoutMs` à `package.json#contributes.configuration` (actuellement hardcodé à 500 ms dans `probeServerVersionWithRetry`).
+- [ ] Ajouter `aiflowbridge.gateway.maxConcurrentRequests` à `package.json#contributes.configuration` (cf. IMPROV-C04 ci-dessus).
+
+#### Squash optionnel - 5min
+
+- [ ] Squash les 3 commits `a1492ef` + `dd59629` + `846f468` en un seul commit `fix(feat7): audit follow-up - UX commands, security, behavior bugs` avant merge.
+
+---
+
+## Légende statuts
+
+- `[x]` = implémenté, testé, documenté.
+- `[ ]` = reste à faire (voir section "Reste à faire" ci-dessus pour le détail).
