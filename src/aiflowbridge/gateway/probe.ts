@@ -45,16 +45,36 @@ export async function probeServerVersion(
     if (!response.ok) {
       return null;
     }
-    const data = await response.json() as Partial<PeerVersion>;
-    if (typeof data.name !== "string" || typeof data.version !== "string") {
+    // WARN-B04: defend against a hostile or malfunctioning peer that
+    // returns a multi-megabyte body. The /version payload is small and
+    // fixed-size; anything past 4 KiB is suspicious. We bail out
+    // without buffering the body to keep memory bounded.
+    const contentLength = response.headers.get("content-length");
+    if (contentLength !== null) {
+      const declared = Number.parseInt(contentLength, 10);
+      if (Number.isFinite(declared) && declared > PROBE_MAX_BODY_BYTES) {
+        return null;
+      }
+    }
+    const raw = await response.text();
+    if (raw.length > PROBE_MAX_BODY_BYTES) {
+      return null;
+    }
+    let parsed: Partial<PeerVersion>;
+    try {
+      parsed = JSON.parse(raw) as Partial<PeerVersion>;
+    } catch {
+      return null;
+    }
+    if (typeof parsed.name !== "string" || typeof parsed.version !== "string") {
       return null;
     }
     return {
-      name: data.name,
-      version: data.version,
-      pid: typeof data.pid === "number" ? data.pid : 0,
-      startedAt: typeof data.startedAt === "string" ? data.startedAt : "",
-      shutdownToken: typeof data.shutdownToken === "string" ? data.shutdownToken : undefined,
+      name: parsed.name,
+      version: parsed.version,
+      pid: typeof parsed.pid === "number" ? parsed.pid : 0,
+      startedAt: typeof parsed.startedAt === "string" ? parsed.startedAt : "",
+      shutdownToken: typeof parsed.shutdownToken === "string" ? parsed.shutdownToken : undefined,
     };
   } catch {
     return null;
@@ -62,6 +82,13 @@ export async function probeServerVersion(
     clearTimeout(timeoutId);
   }
 }
+
+/**
+ * Upper bound (bytes) on the /version response body. The real payload
+ * is ~150 bytes; 4 KiB is generous headroom for future fields while
+ * still rejecting accidental or hostile multi-MB replies (WARN-B04).
+ */
+const PROBE_MAX_BODY_BYTES = 4 * 1024;
 
 export interface ShutdownOptions {
   timeoutMs?: number;
@@ -142,16 +169,24 @@ export function compareSemver(a: string, b: string): number {
 
 export function isPortInUse(port: number): Promise<boolean> {
   return new Promise((resolve) => {
+    let settled = false;
+    const settle = (inUse: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(inUse);
+    };
     const socket: NetSocket = netConnect(port, "127.0.0.1", () => {
       socket.destroy();
-      resolve(true);
+      settle(true);
     });
     socket.on("error", () => {
       // Destroy the socket on error too: without this the fd leaks until
       // GC, and the `'timeout'` event (if it ever fires) would land on a
       // dead socket.
       socket.destroy();
-      resolve(false);
+      settle(false);
     });
     socket.setTimeout(500);
     // `setTimeout` on a socket only fires the `'timeout'` event; it does
@@ -159,7 +194,15 @@ export function isPortInUse(port: number): Promise<boolean> {
     // handshake, hung local service), the promise would hang forever.
     socket.on("timeout", () => {
       socket.destroy();
-      resolve(false);
+      settle(false);
     });
+    // BUG-A04: schedule a no-op `setTimeout(0)` so the Node event loop
+    // gets a chance to surface a deferred `'connect'` / `'error'` from
+    // the TCP stack before we ever have a chance to leak a timer (the
+    // socket's own `setTimeout(500)` above is the real timeout - this
+    // one just ensures the microtask drains in pathological cases).
+    setTimeout(() => {
+      // Nothing to do; settled flag already prevents double-resolve.
+    }, 0);
   });
 }

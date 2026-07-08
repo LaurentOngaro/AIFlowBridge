@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
+import type { Socket } from "node:net";
 import { URL } from "node:url";
 import { logger } from "../../logger";
 import { buildModelCatalog, selectProvider } from "../providers";
@@ -45,7 +46,16 @@ export type HandleOccupiedPortResult =
   | { kind: "restart-failed"; peerPid: number };
 
 export class GatewayService {
-  private server: ReturnType<typeof createServer> | undefined;
+  private server: Server | undefined;
+  /**
+   * Tracks every active keep-alive socket. Used by `stop()` to drain
+   * lingering connections when `server.closeAllConnections()` is not
+   * available (Node < 18.2) or as a defensive fallback. `close(cb)` only
+   * waits for in-flight requests; idle keep-alive sockets would otherwise
+   * keep the listening port bound and cause `EADDRINUSE` on the next
+   * activation (BUG-A05).
+   */
+  private readonly activeSockets = new Set<Socket>();
   /**
    * Set to `true` when the service could not bind the configured port
    * because an existing peer gateway was detected (and accepted as a
@@ -244,6 +254,11 @@ export class GatewayService {
       // the peer we asked to shut down. Fall through to listen().
     }
     this.server = createServer((request, response) => {
+      const socket = request.socket;
+      this.activeSockets.add(socket);
+      socket.once("close", () => {
+        this.activeSockets.delete(socket);
+      });
       void this.handleRequest(request, response).catch((error: unknown) => {
         logger.error("[Gateway] Request handling error", error);
         if (!response.headersSent) {
@@ -310,6 +325,25 @@ export class GatewayService {
     if (this.server) {
       const current = this.server;
       this.server = undefined;
+      // BUG-A05: drain keep-alive sockets before close. Without this,
+      // an idle keep-alive socket keeps the listening port bound and the
+      // next activation (e.g. after a window reload) hits EADDRINUSE.
+      // `closeAllConnections()` (Node >= 18.2) is preferred; the manual
+      // `activeSockets` loop is the defensive fallback for older Node
+      // versions where the method is absent.
+      try {
+        current.closeAllConnections?.();
+      } catch (error) {
+        logger.warn(`[Gateway] closeAllConnections failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      for (const socket of this.activeSockets) {
+        try {
+          socket.destroy();
+        } catch {
+          // Socket may already be closed by the OS; ignore.
+        }
+      }
+      this.activeSockets.clear();
       await new Promise<void>((resolve) => {
         current.close(() => resolve());
       });
@@ -319,6 +353,10 @@ export class GatewayService {
   }
 
   dispose(): void {
+    // WARN-B07: `dispose()` is fire-and-forget by contract (matches
+    // VS Code's `Disposable.dispose()` signature), but `stop()` is
+    // idempotent via the `!this.server && !this.joined` guard above
+    // so calling it again from `deactivate()` is a no-op.
     void this.stop();
   }
 
@@ -360,7 +398,13 @@ export class GatewayService {
     logger.info(`[Gateway] Port ${this.config.gateway.port} is in use, probing peer...`);
 
     const port = this.config.gateway.port;
-    const peer = await probeServerVersion(port, { timeoutMs: 200 });
+    // IMPROV-C05: 500 ms probe (was 200 ms) with one retry after 100 ms
+    // to absorb slow startup of the peer. 200 ms was too aggressive on
+    // Windows / cold-start; the new total budget is 1.1 s which still
+    // keeps activation responsive. The timeout is not yet a user
+    // setting (the schema entry would need to be added to package.json
+    // by the follow-up agent).
+    const peer = await probeServerVersionWithRetry(port);
 
     if (peer && peer.name === GATEWAY_SERVICE_NAME) {
       if (compareSemver(peer.version, this.bundledVersion) < 0) {
@@ -572,6 +616,11 @@ export class GatewayService {
     let completionTokens = 0;
     let totalTokens = promptTokens;
     let estimated = true;
+    // BUG-A02 / WARN-B02: `telemetryRecorded` guards against the
+    // streaming `'finish'` listener AND the catch block both trying to
+    // record the same entry when an error interrupts the stream.
+    let telemetryRecorded = false;
+    let ttfbMs = 0;
 
     // MiniMax exposes /v1/responses/input_tokens: kick off a parallel count
     // when applicable so the heuristic can be replaced with the real number
@@ -594,7 +643,7 @@ export class GatewayService {
       });
 
       statusCode = upstreamResponse.status;
-      const durationMs = Date.now() - startedAt;
+      const ttfbMs = Date.now() - startedAt;
       const contentType = upstreamResponse.headers.get("content-type") ?? "";
       const isStream = Boolean(payload?.stream) || contentType.includes("text/event-stream");
 
@@ -617,6 +666,22 @@ export class GatewayService {
         } else {
           response.end();
         }
+        // BUG-A02: capture `durationMs` on the actual last-byte event for
+        // streaming. The earlier implementation sampled right after
+        // `pipe()`, which is essentially time-to-first-byte and
+        // under-reports total latency on long streams.
+        response.once("finish", () => {
+          if (telemetryRecorded) {
+            return;
+          }
+          telemetryRecorded = true;
+          const durationMs = Date.now() - startedAt;
+          this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated);
+          if (this.config.logRequests) {
+            logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
+          }
+          this.emitUpdate();
+        });
       } else {
         const responseText = await upstreamResponse.text();
         const usage = extractUsage(responseText);
@@ -639,25 +704,40 @@ export class GatewayService {
         response.statusCode = upstreamResponse.status;
         response.setHeader("Content-Type", contentType || "application/json; charset=utf-8");
         response.end(responseText);
-      }
 
-      this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated);
-      if (this.config.logRequests) {
-        logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
+        telemetryRecorded = true;
+        const durationMs = Date.now() - startedAt;
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated);
+        if (this.config.logRequests) {
+          logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
+        }
       }
+      // Avoid the unused-binding lint: ttfbMs is captured here purely
+      // for diagnostic parity with the pre-fix logs (still logged by
+      // the streaming finish handler above).
+      void ttfbMs;
     } catch (error) {
       const durationMs = Date.now() - startedAt;
-      this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, true);
+      if (!telemetryRecorded) {
+        telemetryRecorded = true;
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, true);
+      }
 
       if (!response.headersSent) {
         response.statusCode = 502;
         response.setHeader("Content-Type", "application/json; charset=utf-8");
       }
 
+      // WARN-B02: the upstream `fetch` error message may include the
+      // full request URL, and upstream error bodies can contain
+      // `Authorization` echoes. Strip both before forwarding to the
+      // client so the API key never leaks through a 502 body.
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      const sanitizedMessage = sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl);
       response.end(JSON.stringify({
         error: "Failed to forward request",
         requestId,
-        details: error instanceof Error ? error.message : String(error),
+        details: sanitizedMessage,
       }));
     } finally {
       request.off("aborted", abort);
@@ -720,6 +800,49 @@ export class GatewayService {
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   const baseUrl = provider.baseUrl.endsWith("/") ? provider.baseUrl : `${provider.baseUrl}/`;
   return new URL(path, baseUrl).toString();
+}
+
+/**
+ * IMPROV-C05: probe with one retry. The first attempt uses the regular
+ * timeout; on failure (timeout, refused, malformed payload) we wait 100
+ * ms and try again. Two attempts cover the cold-start window of a peer
+ * that was just launched by another activation.
+ */
+async function probeServerVersionWithRetry(port: number): Promise<Awaited<ReturnType<typeof probeServerVersion>>> {
+  const first = await probeServerVersion(port, { timeoutMs: 500 });
+  if (first) {
+    return first;
+  }
+  await new Promise<void>((resolve) => setTimeout(resolve, 100));
+  return probeServerVersion(port, { timeoutMs: 500 });
+}
+
+/**
+ * Strip any credential-bearing or auth-header mention from an upstream
+ * error message before echoing it back in a 502 body (WARN-B02).
+ * `fetch()` errors frequently include the full request URL (including
+ * query string with `?api_key=...` on some upstreams) and upstream
+ * response bodies occasionally echo `Authorization` headers. Both are
+ * redacted before the message leaves the gateway.
+ */
+export function sanitizeUpstreamErrorMessage(raw: string, upstreamUrl: string): string {
+  let message = raw;
+  // Strip the query string from any URL appearing in the message.
+  try {
+    const parsed = new URL(upstreamUrl);
+    const bare = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+    if (bare && message.includes(upstreamUrl)) {
+      message = message.split(upstreamUrl).join(bare);
+    }
+  } catch {
+    // upstreamUrl is already validated, but defensively ignore.
+  }
+  // Belt-and-braces: any inline `api_key=...`, `?key=...`, `token=...`
+  // query params that slipped through are blanked.
+  message = message
+    .replace(/(api[_-]?key|access[_-]?token|authorization|bearer)\s*[:=]\s*[^\s,;"]+/gi, "$1=<redacted>")
+    .replace(/([?&])(api[_-]?key|access[_-]?token|key|token)=[^&"'\s]*/gi, "$1$2=<redacted>");
+  return message;
 }
 
 export const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB

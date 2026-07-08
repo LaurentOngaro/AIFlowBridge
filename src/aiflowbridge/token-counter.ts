@@ -44,13 +44,34 @@ export async function fetchMinimaxPromptTokens(
 	const controller = new AbortController();
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+	// IMPROV-C02: clear the timeout in the abort handler too, not only
+	// in `finally`. The `finally` branch is reached after `await fetch`
+	// settles, but a host that drops the connection before the fetch
+	// resolves can leave the timer firing `controller.abort()` on an
+	// already-settled request. The `cleared` flag prevents
+	// `clearTimeout` from racing with the `finally` cleanup.
+	let cleared = false;
+	const clearTimer = (): void => {
+		if (cleared) {
+			return;
+		}
+		cleared = true;
+		clearTimeout(timeoutId);
+	};
 
 	if (options.signal) {
 		if (options.signal.aborted) {
-			clearTimeout(timeoutId);
+			clearTimer();
 			return undefined;
 		}
-		options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+		options.signal.addEventListener(
+			"abort",
+			() => {
+				clearTimer();
+				controller.abort();
+			},
+			{ once: true },
+		);
 	}
 
 	try {
@@ -71,6 +92,6 @@ export async function fetchMinimaxPromptTokens(
 	} catch {
 		return undefined;
 	} finally {
-		clearTimeout(timeoutId);
+		clearTimer();
 	}
 }

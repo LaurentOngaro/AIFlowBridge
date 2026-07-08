@@ -72,14 +72,12 @@ export function applyEntryToSnapshot(snapshot: TelemetrySnapshot, entry: Request
       ? entry.durationMs
       : (snapshot.averageDurationMs * (snapshot.requests - 1) + entry.durationMs) / snapshot.requests;
 
-  // No cap on `recent`: the dashboard paginates the full history (page
-  // size up to 500). The cumulative totals (requests, byProvider,
-  // byModel) always cover the full history regardless of `recent`
-  // length, so dropping old entries from `recent` would only hide them
-  // from the per-row table while keeping them in the aggregates - a
-  // confusing UX (the "Requests" card says 10 000 but the table shows
-  // the last 100). The `durations` ring stays capped at MAX_DURATIONS
-  // for the p95 calculation.
+  // No cap on `recent` in the snapshot returned to the dashboard: the
+  // full history is paginated (page size up to 500). The in-memory
+  // store does enforce a cap (`memoryCap`, default 10 000) to keep
+  // memory bounded at high request rates; the on-disk persister still
+  // stores the full history. The p95 is derived lazily from `recent`
+  // on a sliding window of `MAX_P95_SAMPLE` entries.
 
   snapshot.recent.push(entry);
 
@@ -170,6 +168,18 @@ export function estimatePromptTokensFromPayload(payload: unknown): number {
 
 export type TelemetryListener = (snapshot: TelemetrySnapshot) => void;
 
+export interface TelemetryStoreOptions {
+  /**
+   * Maximum number of entries kept in memory (`recent` list). When the
+   * store grows past this cap, the oldest entries are dropped first.
+   * The on-disk persister still receives every entry, so no data is
+   * lost across reloads - only the in-memory list is bounded to keep
+   * long-running sessions from leaking memory at high request rates
+   * (WARN-B01). Defaults to 10 000.
+   */
+  memoryCap?: number;
+}
+
 export class TelemetryStore {
   private readonly recent: RequestTelemetry[] = [];
   private readonly byProvider = new Map<string, ProviderSnapshot>();
@@ -181,8 +191,19 @@ export class TelemetryStore {
   private totalEstimatedCost = 0;
   private totalErrors = 0;
   private totalDurationMs = 0;
-  private readonly durations: number[] = [];
-  private static readonly MAX_DURATIONS = 1000;
+  /**
+   * Sorted ascending cache of the last `MAX_P95_SAMPLE` duration values
+   * drawn from `recent`. Invalidated on every `record()` /
+   * `removeEntry()` / `restore()` / `reset()` (IMPROV-C01: avoid
+   * re-sorting the entire ring on every `snapshot()` call). BUG-A01
+   * fixes the desync that the old `durations` ring + index-based
+   * splice used to cause after `removeEntry()`: the cache is rebuilt
+   * from `recent` (the source of truth), so it can never disagree
+   * with the underlying entries.
+   */
+  private p95Cache: number[] | undefined;
+  private static readonly MAX_P95_SAMPLE = 1000;
+  private readonly memoryCap: number;
   private listeners: TelemetryListener[] = [];
 
   /**
@@ -192,7 +213,15 @@ export class TelemetryStore {
    * legacy `saveState` callback (wired in `GatewayService.init()`) is
    * responsible for persistence.
    */
-  constructor(private readonly persister?: TelemetryPersisterLike) {}
+  constructor(private readonly persister?: TelemetryPersisterLike, options: TelemetryStoreOptions = {}) {
+    this.memoryCap = Math.max(1, options.memoryCap ?? TelemetryStore.DEFAULT_MEMORY_CAP);
+  }
+
+  static readonly DEFAULT_MEMORY_CAP = 10_000;
+
+  private invalidateP95Cache(): void {
+    this.p95Cache = undefined;
+  }
 
   record(entry: RequestTelemetry): void {
     // Update the in-memory counters synchronously so a subsequent
@@ -226,13 +255,13 @@ export class TelemetryStore {
     this.totalEstimatedCost += entry.estimatedCost;
     this.totalErrors += entry.status >= 400 ? 1 : 0;
     this.totalDurationMs += entry.durationMs;
-    this.durations.push(entry.durationMs);
-    if (this.durations.length > TelemetryStore.MAX_DURATIONS) {
-      this.durations.shift();
-    }
 
-    // No cap on `recent` - see `applyEntryToSnapshot` for the rationale.
+    // WARN-B01: cap the in-memory `recent` list. Drop oldest first.
     this.recent.push(entry);
+    if (this.recent.length > this.memoryCap) {
+      this.recent.shift();
+    }
+    this.invalidateP95Cache();
 
     const providerSnapshot = this.byProvider.get(entry.providerId) ?? emptyProviderSnapshot();
     updateProviderSnapshot(providerSnapshot, entry);
@@ -252,7 +281,7 @@ export class TelemetryStore {
       estimatedCost: this.totalEstimatedCost,
       errors: this.totalErrors,
       averageDurationMs: this.totalRequests === 0 ? 0 : this.totalDurationMs / this.totalRequests,
-      p95DurationMs: percentile(this.durations, 0.95),
+      p95DurationMs: this.computeP95(),
       recent: [...this.recent].reverse(),
       byProvider: Object.fromEntries(this.byProvider.entries()),
       byModel: Object.fromEntries(this.byModel.entries()),
@@ -260,17 +289,35 @@ export class TelemetryStore {
   }
 
   /**
+   * Compute the 95th-percentile duration from the last
+   * `MAX_P95_SAMPLE` entries of `recent`. The result is cached and
+   * invalidated by every mutation (`record`, `removeEntry`, `restore`,
+   * `reset`). BUG-A01: this no longer relies on a separate `durations`
+   * ring kept in parallel with `recent`, which used to desync after a
+   * `removeEntry()` / `restore()` cycle and silently skew the p95.
+   */
+  private computeP95(): number {
+    if (this.recent.length === 0) {
+      return 0;
+    }
+    if (!this.p95Cache) {
+      const sample = this.recent.length > TelemetryStore.MAX_P95_SAMPLE
+        ? this.recent.slice(-TelemetryStore.MAX_P95_SAMPLE)
+        : this.recent;
+      this.p95Cache = sample.map((entry) => entry.durationMs).sort((left, right) => left - right);
+    }
+    const sorted = this.p95Cache;
+    const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1));
+    return sorted[index];
+  }
+
+  /**
    * Restore cumulative state from a previously persisted snapshot.
-   * Restores the totals, per-provider / per-model maps, and the last 20
-   * recent entries. The durations array is reconstructed from the recent
-   * entries (so p95 is approximate, based on at most the last 20 requests
-   * rather than the full history).
-   *
-   * If `state` is `undefined` and a `persister` is configured, the
-   * on-disk snapshot is loaded instead. This is what makes the
-   * cross-window shared metrics (FEAT1) work: every window picks up
-   * the latest snapshot the first time `restore()` is called, instead
-   * of starting from zero.
+   * Restores the totals, per-provider / per-model maps, and the
+   * `recent` list. The p95 cache is rebuilt lazily from `recent` on
+   * the next `snapshot()` call (BUG-A01: no parallel ring to keep in
+   * sync). If `state` is `undefined` and a `persister` is configured,
+   * the on-disk snapshot is loaded instead.
    */
   restore(state: TelemetrySnapshot | undefined): void {
     this.clearInMemory();
@@ -305,11 +352,17 @@ export class TelemetryStore {
     }
 
     // The snapshot stores `recent` in reverse-chronological order. Reverse
-    // it back to insertion order before pushing.
+    // it back to insertion order before pushing. The `memoryCap` drops
+    // the oldest entries if the persisted list exceeds the in-memory
+    // bound - the on-disk file still has the full history for the next
+    // reload.
     for (const entry of [...state.recent].reverse()) {
       this.recent.push(entry);
-      this.durations.push(entry.durationMs);
+      if (this.recent.length > this.memoryCap) {
+        this.recent.shift();
+      }
     }
+    this.invalidateP95Cache();
   }
 
   /**
@@ -381,7 +434,7 @@ export class TelemetryStore {
     this.recent.length = 0;
     this.byProvider.clear();
     this.byModel.clear();
-    this.durations.length = 0;
+    this.p95Cache = undefined;
     this.totalRequests = 0;
     this.totalPromptTokens = 0;
     this.totalCompletionTokens = 0;
@@ -409,14 +462,10 @@ export class TelemetryStore {
     }
     const entry = this.recent[idx];
     this.recent.splice(idx, 1);
-    // `durations` and `recent` are in the same insertion order, so the
-    // index of the entry maps to the same index in `durations`. The
-    // cap-1000 ring on `durations` may have already dropped the
-    // matching slot, in which case the splice is a no-op (length check
-    // is the guard).
-    if (idx < this.durations.length) {
-      this.durations.splice(idx, 1);
-    }
+    // BUG-A01: p95 is now derived from `recent` lazily. Invalidate the
+    // cached sorted sample so the next `snapshot()` recomputes it
+    // against the (now smaller) source of truth.
+    this.invalidateP95Cache();
 
     this.totalRequests = Math.max(0, this.totalRequests - 1);
     this.totalPromptTokens = Math.max(0, this.totalPromptTokens - entry.promptTokens);
@@ -475,14 +524,4 @@ export class TelemetryStore {
     }
     return true;
   }
-}
-
-function percentile(values: number[], ratio: number): number {
-  if (values.length === 0) {
-    return 0;
-  }
-
-  const sorted = [...values].sort((left, right) => left - right);
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
-  return sorted[index];
 }

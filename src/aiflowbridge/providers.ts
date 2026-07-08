@@ -154,8 +154,8 @@ export function selectProvider(
   requestedModel?: string,
   defaultModel?: string,
 ): ProviderProfile | undefined {
-  const normalizedRequestedModel = requestedModel?.trim().toLowerCase();
-  const normalizedDefaultModel = defaultModel?.trim().toLowerCase();
+  const normalizedRequestedModel = requestedModel?.trim();
+  const normalizedDefaultModel = defaultModel?.trim();
   const enabledProviders = providers.filter((profile) => profile.enabled);
 
   // Try the requested model first, then the configured default. If neither
@@ -163,12 +163,16 @@ export function selectProvider(
   // gateway should surface a 503 rather than silently route to the first
   // enabled provider (which would lead to calling the wrong upstream API
   // while reporting the wrong model name in the dashboard).
+  // WARN-B03: use `localeCompare` with `sensitivity: 'base'` so the match
+  // is case-insensitive AND accent-insensitive (covers Unicode aliases
+  // like "MiniMax-M2.7" vs "minimax-m2.7" AND any future accented
+  // identifiers without breaking the ASCII fast path).
   const candidates = [normalizedRequestedModel, normalizedDefaultModel]
     .filter((value): value is string => Boolean(value));
   for (const candidate of candidates) {
     const match = enabledProviders.find((profile) => {
-      const aliases = [profile.id, profile.model, profile.label].map((entry) => entry.toLowerCase());
-      return aliases.includes(candidate);
+      const aliases = [profile.id, profile.model, profile.label];
+      return aliases.some((alias) => alias.localeCompare(candidate, undefined, { sensitivity: "base" }) === 0);
     });
     if (match) {
       return match;
@@ -185,7 +189,15 @@ export function buildModelCatalog(providers: ProviderProfile[]): Array<{
   owned_by: string;
   name: string;
 }> {
-  const created = Math.floor(Date.now() / 1000);
+  // IMPROV-C03: use a stable constant rather than `Date.now()`. The
+  // OpenAI `/v1/models` `created` field is meant to be a release
+  // timestamp; making it advance on every gateway restart would defeat
+  // client-side caching. `0` keeps the field present without
+  // misrepresenting creation time. The bundle ships a real
+  // per-model `created` via the registry; this is the fallback when
+  // synthesizing catalog entries from a `ProviderProfile` that does
+  // not have its own `created` field.
+  const created = 0;
 
   return providers
     .filter((profile) => profile.enabled)
