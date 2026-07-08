@@ -42,11 +42,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		logger.warn(`[AIFlowBridge] Gateway restart lock is not acquirable (${result.error ?? 'unknown reason'}); skipping gateway start.`);
 	}
 
+	// B-02: wrap the vscode.ExtensionContext into the runtime-agnostic
+	// IGatewayContext adapter BEFORE loading the model registry. The
+	// registry loader reads the workspace-tier override (e.g.
+	// `.vscode/aiflowbridge.models.json`) via `ctx.workspaceFolder`, and
+	// `createVSCodeContext` is the one that resolves
+	// `vscode.workspace.workspaceFolders?.[0]`. If the registry loader
+	// is called with the raw `vscode.ExtensionContext` first, the
+	// workspace tier is silently skipped on the VS Code side and the
+	// override is ignored.
+	const gatewayContext = createVSCodeContext(context);
+
 	// Load the 3-tier model registry before any code that reads MODELS,
 	// DEFAULT_PROVIDER_URLS or EXTERNAL_URLS (now sourced from the registry).
 	// This must happen before registerCommands / registerAllProviders /
 	// activateAIFlowBridge, all of which depend on the cache.
-	await loadModelRegistry(context);
+	await loadModelRegistry(gatewayContext);
 	registerCommands(context);
 	registerActionUrls(context);
 
@@ -64,10 +75,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// we would race with the holding activation and both could decide
 		// to restart the peer at the same time.
 		if (ownsGatewayLock) {
-			// FEAT6: wrap the vscode.ExtensionContext into the runtime-agnostic
-			// IGatewayContext adapter so the runtime has no direct `vscode`
-			// dependency.
-			const gatewayContext = createVSCodeContext(context);
 			aiflowbridgeRuntime = new AIFlowBridgeRuntime(gatewayContext);
 			await aiflowbridgeRuntime.activate();
 		} else {

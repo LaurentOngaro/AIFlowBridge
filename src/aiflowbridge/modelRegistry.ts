@@ -94,11 +94,7 @@ function resolveExtensionUri(host: RegistryHost): UriLike {
 	if (host.extensionUri) {
 		return host.extensionUri;
 	}
-	const legacy = (host as { extensionUri?: { fsPath: string } }).extensionUri;
-	if (legacy) {
-		return legacy as UriLike;
-	}
-	return { fsPath: '' };
+	return { fsPath: '', toString: () => '' };
 }
 
 function resolveWorkspaceFolder(host: RegistryHost): UriLike | { uri: vscode.Uri } | undefined {
@@ -184,9 +180,9 @@ export async function loadModelRegistry(
 	const merged = mergeTiers(bundled.tier, globalStorage.tier, workspace.tier);
 
 	const sources: RegistrySources = {
-		bundled: { exists: true, path: bundledUri.fsPath },
-		globalStorage: { exists: globalStorage.exists, path: globalStorageUri.fsPath },
-		workspace: { exists: workspace.exists, path: workspaceUri?.fsPath ?? '' },
+		bundled: { exists: true, path: bundledUri.toString() },
+		globalStorage: { exists: globalStorage.exists, path: globalStorageUri.toString() },
+		workspace: { exists: workspace.exists, path: workspaceUri?.toString() ?? '' },
 	};
 
 	const result: ModelRegistry = { ...merged, sources };

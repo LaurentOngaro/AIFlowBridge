@@ -28,15 +28,67 @@ class AIFlowBridgeRuntime implements Disposable {
 
   private loadPersistedTelemetry(): TelemetrySnapshot | undefined {
     // File is the source of truth (FEAT1). If the file does not exist
-    // yet (e.g. first ever activation), no legacy migration is needed in
-    // standalone mode (no `globalState` slot exists).
+    // yet (e.g. first ever activation), still attempt the one-shot
+    // legacy migration from `globalState` (B-01) so that 1.6.x -> 1.7.0
+    // users keep their cumulative counters.
     if (this.persister) {
       const fromDisk = this.persister.loadSync();
       if (fromDisk) {
         return fromDisk;
       }
+      const migrated = this.migrateLegacyGlobalState();
+      if (migrated) {
+        return migrated;
+      }
     }
     return undefined;
+  }
+
+  /**
+   * One-shot migration from the legacy 1.6.x `globalState` slot to the
+   * 1.7.0 file-based telemetry store. B-01: the migration was removed
+   * in the FEAT7 refactor, which silently reset every user's
+   * cumulative counters on upgrade.
+   *
+   * Guarded by a `migrated` flag in `globalState` so it runs at most
+   * once per user. After a successful migration the legacy key is
+   * cleared so the next activation skips the read. The standalone
+   * adapter does not expose `globalState`, so the migration is a
+   * no-op in CLI mode (the standalone binary never ran in 1.6.x).
+   */
+  private migrateLegacyGlobalState(): TelemetrySnapshot | undefined {
+    const state = this.ctx.globalState;
+    if (!state) {
+      return undefined;
+    }
+    if (state.get<boolean>("telemetry.legacyMigrated") === true) {
+      return undefined;
+    }
+    const legacy = state.get<TelemetrySnapshot>("telemetry.snapshot");
+    if (!legacy) {
+      // No legacy data + no flag yet: mark the migration as done so we
+      // don't keep re-trying the read on every reload.
+      void state.update("telemetry.legacyMigrated", true);
+      return undefined;
+    }
+    logger.info("[AIFlowBridge] Migrating legacy 1.6.x globalState telemetry to the new file-based store...");
+    // Seed the in-memory store from the legacy snapshot so the first
+    // dashboard render after activation shows the migrated counts
+    // (otherwise the in-memory store starts empty and only the
+    // on-disk file is correct, which the dashboard does not read
+    // until the in-memory snapshot has a request).
+    this.telemetryFallback?.restore(legacy);
+    // Persist the legacy snapshot through the file persister (synchronous
+    // atomic write under the file lock), then drop both the legacy key
+    // and the sentinel so this never runs again.
+    this.persister?.saveFull(legacy).catch((error) => {
+      logger.warn(
+        `[AIFlowBridge] Legacy telemetry migration write failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    void state.update("telemetry.snapshot", undefined);
+    void state.update("telemetry.legacyMigrated", true);
+    return legacy;
   }
 
   private savePersistedTelemetry(_snapshot: TelemetrySnapshot): void {
@@ -62,7 +114,7 @@ class AIFlowBridgeRuntime implements Disposable {
     this.gateway = new GatewayService(
       this.config,
       (status, snapshot) => this.refreshUi(status, snapshot),
-      (vendor) => resolveVendorApiKey(vendor, this.ctx.secrets as unknown as Parameters<typeof resolveVendorApiKey>[1]),
+      (vendor) => resolveVendorApiKey(vendor, this.ctx.secrets),
       () => this.loadPersistedTelemetry(),
       (snapshot) => this.savePersistedTelemetry(snapshot),
       this.ctx.extensionVersion,
@@ -78,8 +130,8 @@ class AIFlowBridgeRuntime implements Disposable {
       this.registerCommands();
     }
     if (this.ctx.onConfigChange) {
-      this.ctx.subscriptions.push(this.ctx.onConfigChange(() => {
-        void this.reloadConfiguration();
+      this.ctx.subscriptions.push(this.ctx.onConfigChange((event) => {
+        void this.reloadConfiguration(event);
       }));
     }
 
@@ -157,6 +209,19 @@ class AIFlowBridgeRuntime implements Disposable {
     }));
 
     this.ctx.subscriptions.push(register("aiflowbridge.resetMetrics", async () => {
+      // R-01: a single click on the command would otherwise wipe every
+      // request log with no guard. Reintroduce the modal confirmation
+      // (removed in the FEAT7 refactor). When the host has no modal
+      // (standalone CLI), fall back to a non-modal warning; data is
+      // preserved on cancel.
+      const confirmed = await this.ctx.confirm?.(
+        "Reset all AIFlowBridge metrics? This cannot be undone.",
+        "Reset",
+        "Cancel",
+      );
+      if (confirmed !== "Reset") {
+        return;
+      }
       // `gateway.resetMetrics()` delegates to `TelemetryStore.reset()`,
       // which clears the in-memory counters and schedules a
       // fire-and-forget `persister.clear()` to wipe the on-disk file
@@ -204,12 +269,38 @@ class AIFlowBridgeRuntime implements Disposable {
     }));
 
     this.ctx.subscriptions.push(register("aiflowbridge.copyGatewayUrl", async () => {
-      this.ctx.showInformation?.(`AIFlowBridge gateway URL: ${this.config.gateway.baseUrl}`);
+      // R-02: the package.json title says "Copy gateway URL", so the
+      // command must actually copy. The VS Code adapter delegates to
+      // `vscode.env.clipboard.writeText`; the standalone adapter (no
+      // clipboard) writes the URL to stdout so a CLI user running the
+      // command can still capture it.
+      const url = this.config.gateway.baseUrl;
+      if (this.ctx.clipboardWrite) {
+        this.ctx.clipboardWrite(url);
+        this.ctx.showInformation?.(`AIFlowBridge gateway URL copied: ${url}`);
+      } else {
+        process.stdout.write(url + "\n");
+        this.ctx.showInformation?.(`AIFlowBridge gateway URL printed to stdout: ${url}`);
+      }
     }));
 
     this.ctx.subscriptions.push(register("aiflowbridge.openSettings", async () => {
-      // Standalone: settings live at ~/.aiflowbridge/config.json.
-      this.ctx.showInformation?.(`AIFlowBridge config file: ${this.ctx.globalStorageDir}/config.json`);
+      // R-03: open the VS Code settings page scoped to `aiflowbridge`.
+      // Standalone: settings live at ~/.aiflowbridge/config.json, surface
+      // the path so the user can open it in their editor.
+      if (this.ctx.openSettings) {
+        this.ctx.openSettings("aiflowbridge");
+      } else {
+        this.ctx.showInformation?.(`AIFlowBridge config file: ${this.ctx.globalStorageDir}/config.json`);
+      }
+    }));
+
+    // R-04: the `aiflowbridge.setVisionModel` command is declared in
+    // package.json (line 113) but the handler was removed in the FEAT7
+    // refactor, so VS Code displayed "command not found". Re-register
+    // it as a thin alias that delegates to the per-provider command.
+    this.ctx.subscriptions.push(register("aiflowbridge.setVisionModel", async () => {
+      await this.ctx.executeCommand?.("aiflowbridge.providers.deepseek.setVisionModel");
     }));
 
     // FEAT7: manually force the "joined" mode. Useful
@@ -231,7 +322,25 @@ class AIFlowBridgeRuntime implements Disposable {
     }));
   }
 
-  private async reloadConfiguration(): Promise<void> {
+  private async reloadConfiguration(event?: { affectsGateway: boolean }): Promise<void> {
+    // IMPROV-C06: a full stop/start cycle is expensive (port rebind,
+    // peer probe, dashboard reset). For non-gateway config edits
+    // (providers, vision, telemetry, ...) a hot `updateConfig()` is
+    // enough. Only restart the gateway when the change actually
+    // affects it. The VS Code adapter sets `event.affectsGateway` from
+    // `affectsConfiguration("aiflowbridge.gateway")`; the standalone
+    // adapter leaves it `undefined`, which we treat as a gateway change
+    // (the standalone config is a single file with no per-section
+    // granularity).
+    const restartGateway = event?.affectsGateway ?? true;
+    if (!restartGateway) {
+      logger.info("[AIFlowBridge] Config change does not affect the gateway; applying hot update only.");
+      this.config = await loadConfigFromContext(this.ctx);
+      this.gateway.updateConfig(this.config);
+      this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
+      return;
+    }
+
     // `running` is true whenever the service owns a local socket OR
     // has joined an existing peer. In the joined case, `stop()` just
     // clears the join flag (the peer stays alive) and the subsequent

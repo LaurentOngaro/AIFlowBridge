@@ -51,6 +51,19 @@ export interface FileSystemLike {
 
 export interface UriLike {
   fsPath: string;
+  toString(): string;
+}
+
+/**
+ * Minimal subset of VS Code's `Memento` (specifically `globalState`) used
+ * to back the one-shot legacy migration from in-VS-Code state to the
+ * file-based telemetry store (B-01, see `src/aiflowbridge/index.ts`
+ * `loadPersistedTelemetry`). The standalone adapter returns `undefined`
+ * for `get` and no-ops on `set`, so the migration is a no-op in CLI mode.
+ */
+export interface GlobalStateLike {
+  get<T>(key: string): T | undefined;
+  update(key: string, value: unknown): Promise<void>;
 }
 
 /**
@@ -81,9 +94,14 @@ export interface IGatewayContext {
    *  so the host can clean them up on deactivation. */
   subscriptions: Disposable[];
   /** Subscribe to configuration changes. The callback fires when the `aiflowbridge` section
-   *  changes. Optional in standalone mode (where hot-reload is handled by an `fs.watch`
-   *  on the JSON config file). */
-  onConfigChange?(cb: () => void): Disposable;
+   *  changes. The optional `event.affectsGateway` flag lets the runtime decide whether
+   *  the change requires a full gateway restart or just a hot config update
+   *  (IMPROV-C06). The VS Code adapter derives it from
+   *  `e.affectsConfiguration("aiflowbridge.gateway")`; the standalone adapter
+   *  passes `undefined` (the standalone config is a single file, every change
+   *  is treated as a gateway-relevant change). Optional in standalone mode
+   *  (where hot-reload is handled by an `fs.watch` on the JSON config file). */
+  onConfigChange?(cb: (event?: { affectsGateway: boolean }) => void): Disposable;
   /** Read the raw configuration. Called from `loadConfig()` and on every config reload. */
   getConfiguration(): ConfigReader;
   /** Register a command. Optional - only the VS Code adapter implements it. The standalone
@@ -102,6 +120,28 @@ export interface IGatewayContext {
   /** First workspace folder for the workspace-tier override. `undefined` when the host
    *  has no open workspace (or the standalone has no project context). */
   workspaceFolder?: UriLike | undefined;
+  /** Cross-window persistent state slot, VS Code only. Used by the one-shot
+   *  legacy migration in `loadPersistedTelemetry` (B-01). Standalone adapter
+   *  returns `undefined` from `get` and no-ops on `set`. */
+  globalState?: GlobalStateLike;
+  /** Show a modal confirmation dialog. Resolves to the chosen button label,
+   *  or `undefined` if the dialog was dismissed. Optional - the VS Code
+   *  adapter implements it with `vscode.window.showWarningMessage` +
+   *  `{ modal: true }`; standalone returns `undefined` (no UI). */
+  confirm?(message: string, ...buttons: string[]): Promise<string | undefined>;
+  /** Write text to the host clipboard. Optional - the VS Code adapter
+   *  delegates to `vscode.env.clipboard.writeText`; standalone falls
+   *  back to writing the text to `process.stdout`. */
+  clipboardWrite?(text: string): void;
+  /** Open the host settings UI scoped to the supplied query (e.g.
+   *  `"aiflowbridge"`). Optional - the VS Code adapter delegates to
+   *  `workbench.action.openSettings`; standalone has no settings UI and
+   *  leaves this undefined. */
+  openSettings?(query?: string): void;
+  /** Run an arbitrary host command. Optional - the VS Code adapter
+   *  delegates to `vscode.commands.executeCommand`; standalone has no
+   *  command palette and leaves this undefined. */
+  executeCommand?(command: string, ...args: unknown[]): Promise<unknown>;
 }
 
 export interface ProviderProfile {
