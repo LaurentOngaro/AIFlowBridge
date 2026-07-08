@@ -61,9 +61,25 @@ class VscodeConfigReader implements ConfigReader {
 class VscodeFileSystemAdapter implements FileSystemLike {
   constructor(private readonly inner: vscode.FileSystem) {}
   readFile(uri: UriLike): Promise<Uint8Array> {
+    // The `UriLike` reaching this adapter is one of two shapes:
+    //   1. A `VscodeUriAdapter` wrapping a real `vscode.Uri` (when the
+    //      caller passed `host.extensionUri` straight through).
+    //   2. A plain `{ fsPath, toString }` object produced by
+    //      `joinPath()` in `modelRegistry.ts` (path-string concatenation,
+    //      no `scheme` / `authority`).
+    // `vscode.workspace.fs.readFile` requires a real `vscode.Uri` - the
+    // internal `FileSystemProvider` looks up `scheme` + `authority` to
+    // resolve the right provider, and a plain object triggers
+    // "Unable to resolve filesystem provider with relative file path ''"
+    // at activation. Convert via `vscode.Uri.file()` (all our paths are
+    // filesystem paths, never `vscode://` / `git://` / etc.).
+    const vscodeUri =
+      uri instanceof vscode.Uri
+        ? uri
+        : vscode.Uri.file((uri as { fsPath: string }).fsPath);
     // `vscode.FileSystem.readFile` returns a Thenable; we cast to Promise
     // (Thenable is structurally a Promise for the await / then use cases).
-    return this.inner.readFile(uri as vscode.Uri) as unknown as Promise<Uint8Array>;
+    return this.inner.readFile(vscodeUri) as unknown as Promise<Uint8Array>;
   }
 }
 
