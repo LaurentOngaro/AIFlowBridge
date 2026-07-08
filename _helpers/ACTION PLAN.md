@@ -135,9 +135,8 @@ Toutes les cases ci-dessous sont cochées dans la version 1.7.0 (591 tests, 29 f
   - Source 1 (prioritaire) : variables d'environnement `AIFLOWBRIDGE_<VENDOR>_API_KEY`
     (ex. `AIFLOWBRIDGE_DEEPSEEK_API_KEY`, `AIFLOWBRIDGE_MINIMAX_API_KEY`, `AIFLOWBRIDGE_XIAOMI_API_KEY`).
   - Source 2 (fallback) : fichier `~/.aiflowbridge/secrets.json` - format :
-  -
 
-    ```json
+  - ```json
     {
       "deepseek.apiKey": "sk-...",
       "minimax.apiKey": "...",
@@ -146,6 +145,7 @@ Toutes les cases ci-dessous sont cochées dans la version 1.7.0 (591 tests, 29 f
     ```
 
     Permissions recommandées : `chmod 600` (documenter dans README/docs).
+
   - `store()` et `delete()` écrivent dans le fichier JSON (pas de support env vars en écriture).
 
   **globalStorageDir :** `~/.aiflowbridge/` (créé récursivement si absent via `fs.mkdirSync(..., { recursive: true })`).
@@ -413,40 +413,47 @@ Toutes les cases ci-dessous sont cochées dans la version 1.7.0 (591 tests, 29 f
 - [x] **S-03** `resolveVendorApiKey` accepte `ResolveSecretSource = SecretStorageLike | SecretsLike` (`src/aiflowbridge/api-key-resolver.ts:23-50`).
 - [x] **D-02** Section "Known issues / breaking changes in 2.0.0" dans `TODO.md:81-90` listant les 6 items.
 
+### PostFix après merge
+
+- [x] **BUG-PM01** `vscode-context-adapter.ts` `VscodeFileSystemAdapter.readFile` (commit `d4f898d`) : **`joinPath()` dans `modelRegistry.ts` retourne un objet plain `{ fsPath, toString }` (introduit par FEAT7 `adb793b`) sans `scheme` / `authority`. L'adapter le castait en `vscode.Uri` et le passait à `vscode.workspace.fs.readFile()`, qui ne pouvait pas résoudre de filesystem provider et retournait "Unable to resolve filesystem provider with relative file path ''" à l'activation.** Symptôme : se manifestait après un reap de lock stale (debug session restart). NON détecté par les 4 audits LLM ni par les tests (le mock `options.fs` court-circuite l'adapter). **Fix** : `vscode.Uri.file(fsPath)` dans l'adapter + test de régression `tests/vscode-context-adapter.test.ts` (2 tests). À noter pour les futurs refactors : tout `UriLike` qui traverse la frontière VS Code doit être converti via `vscode.Uri.file()`.
+- [x] `package.json` : `"version": "1.7.0"` -> `"2.0.0"`.
+- [x] `CHANGELOG.md` : nouvelle entrée 2.0.0 (64 lignes ajoutées) couvrant FEAT7 + 8 régressions + 12 security + 9 refactors + 5 nouveaux tests + 6 known issues vs 2.0.0-rc.
+- [x] `README.md` : tag line + callout "NEW 2.0.0 - Standalone gateway (no VS Code required)" + section "Quick start" scindée VS Code vs Standalone + `docs/standalone.md` ajouté en tête du tableau de doc.
+- [x] Squash les 3 commits `a1492ef` + `dd59629` + `846f468` en un seul. **OBSOLETE** : fait par le fast-forward merge dans `main` (les 3 commits sont sur `main` tels quels, ce qui préserve l'historique granulaire pour `git bisect`).
+
 ### Tests
 
 - [x] 3 nouveaux tests dans `tests/telemetry-store.test.ts` (BUG-A01 : `computes p95 from the recent list` + `rebuilds the p95 cache after restore()` ; WARN-B01 : `drops the oldest entries from recent once memoryCap is reached`).
 - [x] Total : 594/594 passants (vs 591 baseline).
+- [x] `tests/vscode-context-adapter.test.ts` : couvre le fix `d4f898d` (UriLike -> vscode.Uri). **FAIT** dans le post-merge (2 tests : plain `UriLike` + `VscodeUriAdapter` case). Total : 596/596 passants.
 
-### Reste à faire (cf. `_helpers/docs/audits/action Plan_synthese_by M3.md` section 7)
+### Reste à faire
+
+> **État au 2026-07-08** : la branche `fix/feat7-audit-followup` a été mergée en fast-forward dans `main` (3 commits `a1492ef` + `dd59629` + `846f468`). Le squash prévu en 7.5 est donc obsolète (déjà fait par le merge FF). Un bug post-merge non détecté par les audits a été corrigé (commit `d4f898d`, voir section "Post-merge findings" ci-dessous).
 
 #### Mineurs (sécurité + audit) - ~5h30
 
-- [ ] **BUG-A03** `gateway/server.ts` `readBody()` : retirer le handler `'error'` post-settle pour éviter un `UnhandledPromiseRejection` tardif.
-- [ ] **WARN-B05** `gateway/server.ts` `translatePayloadForUpstream()` : logger la traduction `reasoning_effort` → `reasoning_split` au niveau debug.
-- [ ] **WARN-B06** `config.ts` : introduire un type `SensitiveString` ou un `toJSON()` redacted sur `ProviderProfile.apiKey`.
-- [ ] **IMPROV-C04** `gateway/server.ts` : ajouter un `inFlightRequests` concurrency limit configurable via `aiflowbridge.gateway.maxConcurrentRequests` ; retourner `429` au-delà.
+- [ ] **BUG-A03** `gateway/server.ts` `readBody()` : retirer le handler `'error'` post-settle pour éviter un `UnhandledPromiseRejection` tardif. Risque : faible (nécessite une erreur socket après un settle réussi).
+- [ ] **WARN-B05** `gateway/server.ts` `translatePayloadForUpstream()` : logger la traduction `reasoning_effort` -> `reasoning_split` au niveau debug. Bénéfice : diagnostique quand un modèle MiniMax ne raisonne pas comme attendu.
+- [ ] **WARN-B06** `config.ts` : introduire un type `SensitiveString` ou un `toJSON()` redacted sur `ProviderProfile.apiKey`. Risque : faible tant qu'aucun dump verbeux n'est ajouté, mais protection en profondeur.
+- [ ] **IMPROV-C04** `gateway/server.ts` : ajouter un `inFlightRequests` concurrency limit configurable via `aiflowbridge.gateway.maxConcurrentRequests` ; retourner `429` au-delà. Bénéfice : protége l'upstream contre un script local mal configuré.
 
 #### Convention (1 item partiel) - 30min
 
-- [ ] **C-05** `modelRegistry.ts` : `RegistrySources.{bundled,globalStorage,workspace}.path` doit utiliser `uri.toString()` (et non `fsPath`) pour le dashboard et les logs ; vérifier la compatibilité avec `tests/modelRegistry.test.ts`.
+- [ ] **C-05** `modelRegistry.ts` : `RegistrySources.{bundled,globalStorage,workspace}.path` doit utiliser `uri.toString()` (et non `fsPath`) pour le dashboard et les logs ; vérifier la compatibilité avec `tests/modelRegistry.test.ts` (les asserts existants utilisent `fsPath` et devront être ajustés).
 
-#### Tests dédiés (Phase 8 du plan initial) - ~2h
+#### Tests dédiés (Phase 8 du plan initial) - ~1h30
 
-- [ ] `tests/commands-ux.test.ts` : couvre R-01..R-04 avec un `IGatewayContext` mock.
-- [ ] `tests/telemetry-drain.test.ts` : couvre BUG-A05 avec un client HTTP en streaming.
-- [ ] `tests/migration-legacy.test.ts` : couvre B-01 (migration `globalState` → fichier) avec un `IGatewayContext` mock pré-rempli.
-- [ ] `tests/subscriptions-bag.test.ts` : couvre B-04 (Proxy `subscriptionsBag`).
-- [ ] Compléter `tests/telemetry-store.test.ts` pour `removeEntry` direct (au-delà de `restore()`).
+- [ ] `tests/commands-ux.test.ts` : couvre R-01..R-04 avec un `IGatewayContext` mock (vérifie que `ctx.confirm` est appelé pour `resetMetrics`, `ctx.clipboardWrite` pour `copyGatewayUrl`, `ctx.openSettings` pour `openSettings`, `ctx.executeCommand` pour `setVisionModel`).
+- [ ] `tests/telemetry-drain.test.ts` : couvre BUG-A05 avec un client HTTP en streaming. Vérifie que `gateway.stop()` ferme les sockets keep-alive avant que `start()` puisse re-binder le port.
+- [ ] `tests/migration-legacy.test.ts` : couvre B-01 (migration `globalState` -> fichier) avec un `IGatewayContext` mock qui pré-remplit `globalState` avec un snapshot de l'époque 1.6.x.
+- [ ] `tests/subscriptions-bag.test.ts` : couvre B-04 (Proxy `subscriptionsBag`). Vérifie `length` / `push` / `forEach` / `filter` / `map` / index access, et que `context.subscriptions` reçoit les éléments.
+- [ ] Compléter `tests/telemetry-store.test.ts` pour `removeEntry` direct (au-delà de `restore()` testé en BUG-A01).
 
 #### Hardening optionnel - ~1h
 
 - [ ] Ajouter `aiflowbridge.gateway.probeTimeoutMs` à `package.json#contributes.configuration` (actuellement hardcodé à 500 ms dans `probeServerVersionWithRetry`).
 - [ ] Ajouter `aiflowbridge.gateway.maxConcurrentRequests` à `package.json#contributes.configuration` (cf. IMPROV-C04 ci-dessus).
-
-#### Squash optionnel - 5min
-
-- [ ] Squash les 3 commits `a1492ef` + `dd59629` + `846f468` en un seul commit `fix(feat7): audit follow-up - UX commands, security, behavior bugs` avant merge.
 
 ---
 

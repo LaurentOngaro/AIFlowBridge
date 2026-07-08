@@ -20,9 +20,19 @@
 </p>
 <!-- markdownlint-enable MD033 -->
 
-**Use DeepSeek V4, MiniMax M3, and Xiaomi MiMo in GitHub Copilot Chat - at $0.27/M input tokens, with a free local OpenAI-compatible gateway for Kilo Code and Continue.**
+**Use DeepSeek V4, MiniMax M3, and Xiaomi MiMo in GitHub Copilot Chat - at $0.27/M input tokens, with a free local OpenAI-compatible gateway for Kilo Code, Continue, and JetBrains AI Assistant.**
 
-AIFlowBridge turns Copilot Chat into a multi-model switcher: pick the cheapest model for boilerplate, the smartest for the hard stuff, all from the same chat window - with a per-request cost breakdown in a live dashboard.
+AIFlowBridge turns Copilot Chat into a multi-model switcher: pick the cheapest model for boilerplate, the smartest for the hard stuff, all from the same chat window - with a per-request cost breakdown in a live dashboard. The OpenAI-compatible gateway can run as a VS Code extension **or** as a standalone Node.js binary, so JetBrains users, Kilo Code on Cursor / Windsurf / VSCodium, Open WebUI, and `curl` can all consume the same models from a single local endpoint.
+
+> ## NEW in 2.0.0 - Standalone gateway (no VS Code required)
+>
+> The `aiflowbridge-server` CLI runs the gateway as a pure Node.js process: no VS Code, no extension host, ~30 MB RAM. Start it at boot with systemd / launchd / Task Scheduler, point Kilo Code, Continue, or the JetBrains AI Assistant custom endpoint at `http://127.0.0.1:8787/v1`, and the metrics stay consolidated across VS Code and the CLI. If both are running, the second one joins the first instead of starting a duplicate.
+>
+> ```bash
+> npm run build:standalone && node dist/standalone/main.js
+> ```
+>
+> Full setup, autostart templates, and client configs: **[docs/standalone.md](docs/standalone.md)**.
 
 ## Migrating from Copilot alone?
 
@@ -32,7 +42,7 @@ Microsoft's single-vendor pricing is no longer the cheapest path:
 | ----------------------------------------------- | ------------------------ |
 | GitHub Copilot Pro                              | $19 / month              |
 | Cursor Pro                                      | $20 / month              |
-| Kilo Code + OpenAI direct                       | ~$15–30 / month          |
+| Kilo Code + OpenAI direct                       | ~$15-30 / month          |
 | **Kilo Code + AIFlowBridge + Xiaomi MiMo V2.5** | **~$11 / month**         |
 | **Kilo Code + AIFlowBridge + Ollama local**     | **$0 / month**           |
 
@@ -43,7 +53,8 @@ AIFlowBridge itself is **free, open-source, ad-free, tracker-free, no data colle
 ## Why AIFlowBridge?
 
 - **One place to switch models** in Copilot Chat - no copy-pasting code between vendor sites
-- **Local OpenAI-compatible gateway** on port 8787 - Kilo Code, Continue, Open WebUI, curl
+- **Local OpenAI-compatible gateway** on port 8787 - Kilo Code, Continue, Open WebUI, curl, the JetBrains AI Assistant custom endpoint
+- **Two ways to run it**: as a VS Code extension or as a standalone Node.js binary (new in 2.0.0) - see [docs/standalone.md](docs/standalone.md)
 - **Per-request metrics**: token counts, latency, estimated cost - see [docs/dashboard.md](docs/dashboard.md)
 - **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](docs/vision-proxy.md)
 - **Reasoning picker** for MiniMax M3 (None/High/Max) - see [docs/reasoning.md](docs/reasoning.md)
@@ -51,35 +62,57 @@ AIFlowBridge itself is **free, open-source, ad-free, tracker-free, no data colle
 
 ## Features
 
-- **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2 → M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See [docs/providers.md](docs/providers.md).
+- **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2 -> M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See [docs/providers.md](docs/providers.md).
 - **Transparent vision proxy** - text-only models handle images via another installed Copilot model. Zero configuration.
-- **Built-in OpenAI-compatible gateway** - port 8787, singleton across VS Code windows. See [docs/gateway.md](docs/gateway.md).
+- **Built-in OpenAI-compatible gateway** - port 8787, runs as a VS Code extension or a standalone CLI, singleton across processes. See [docs/gateway.md](docs/gateway.md) and [docs/standalone.md](docs/standalone.md).
 - **Copilot Chat integration** - agent mode, tool calling, instructions, MCP, skills. 1M token context on supporting models.
-- **Secure by default** - API keys in VS Code's `SecretStorage`, never in `settings.json`. Telemetry is local.
+- **Secure by default** - API keys in VS Code's `SecretStorage` (or env vars / `secrets.json` in standalone), never in `settings.json`. Telemetry is local.
 
 ## Quick start
 
 ### 1. Install
 
+**VS Code extension (Copilot Chat, Kilo Code inside VS Code):**
+
 - VS Code Marketplace: [AIFlowBridge](https://marketplace.visualstudio.com/items?itemName=LaurentOngaro.aiflowbridge)
 - Open VSX (Cursor, Windsurf, VSCodium): [AIFlowBridge on open-vsx.org](https://open-vsx.org/extension/LaurentOngaro/aiflowbridge)
-- From VS Code: Extensions → search "AIFlowBridge" → Install
+- From VS Code: Extensions -> search "AIFlowBridge" -> Install
+
+**Standalone gateway (JetBrains, Kilo Code outside VS Code, Open WebUI, curl, autostart at boot):**
+
+```bash
+git clone https://github.com/LaurentOngaro/aiflowbridge
+cd aiflowbridge
+npm ci
+npm run build:standalone
+node dist/standalone/main.js   # gateway is live on http://127.0.0.1:8787/v1
+```
+
+Full setup including autostart systemd / launchd / Task Scheduler templates: **[docs/standalone.md](docs/standalone.md)**.
 
 ### 2. Set your API keys
 
+**VS Code extension** (keys go to your OS keychain):
+
 ```
-Ctrl+Shift+P  →  DeepSeek: Set API Key
-Ctrl+Shift+P  →  MiniMax: Set API Key
-Ctrl+Shift+P  →  Xiaomi MiMo: Set API Key
+Ctrl+Shift+P  ->  DeepSeek: Set API Key
+Ctrl+Shift+P  ->  MiniMax: Set API Key
+Ctrl+Shift+P  ->  Xiaomi MiMo: Set API Key
 ```
 
-Keys are stored in your OS keychain via VS Code's `SecretStorage`.
+**Standalone** (env vars first, then `~/.aiflowbridge/secrets.json` chmod 600):
+
+```bash
+export AIFLOWBRIDGE_DEEPSEEK_API_KEY=sk-...
+export AIFLOWBRIDGE_MINIMAX_API_KEY=...
+export AIFLOWBRIDGE_XIAOMI_API_KEY=...
+```
 
 ### 3. Use it
 
-- Open Copilot Chat (`Ctrl+Shift+I`)
-- Pick a model in the chat header (DeepSeek, MiniMax, Xiaomi MiMo)
-- Or use the local gateway from any OpenAI-compatible client:
+**Copilot Chat (VS Code):** open Copilot Chat (`Ctrl+Shift+I`), pick a model in the chat header (DeepSeek, MiniMax, Xiaomi MiMo).
+
+**Any OpenAI-compatible client:**
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
@@ -87,10 +120,13 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model": "MiniMax-M3", "messages": [{"role": "user", "content": "ping"}]}'
 ```
 
+Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK at `http://127.0.0.1:8787/v1` with any non-empty `apiKey` (the gateway validates credentials upstream, not in the local header). See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste client configs.
+
 ## Documentation
 
 | Page                                               | Topic                                                 |
 | -------------------------------------------------- | ----------------------------------------------------- |
+| [docs/standalone.md](docs/standalone.md)           | NEW 2.0.0: install, configure, autostart, client setup for the standalone CLI |
 | [docs/cost.md](docs/cost.md)                       | Real cost breakdown, indicative rates, vision savings |
 | [docs/providers.md](docs/providers.md)             | Provider table, capabilities, adding a custom model   |
 | [docs/vision-proxy.md](docs/vision-proxy.md)       | How the transparent image proxy works                 |

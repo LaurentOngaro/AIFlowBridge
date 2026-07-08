@@ -1,5 +1,69 @@
 # Changelog
 
+## 2.0.0
+
+Standalone gateway + audit-driven hardening. The gateway can now run as a pure Node.js CLI (`aiflowbridge-server`) without VS Code, while the VS Code extension itself was hardened against a batch of regressions and pre-existing security findings.
+
+### Added
+
+- **Standalone gateway (`aiflowbridge-server` CLI).** `GatewayService` and `AIFlowBridgeRuntime` are decoupled from `vscode.ExtensionContext` via a new `IGatewayContext` interface. The CLI binary reads its config from `~/.aiflowbridge/config.json` (with hot-reload via `fs.watch` + 5s polling fallback on Windows), resolves API keys from `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars first then `secrets.json` (`chmod 600`), and shares the same `gateway.lock` as the VS Code side so only one process owns the gateway. The VS Code extension switches to a "joined" mode (status bar `AIFlowBridge ↗ external`) when it detects a peer already running. New `tsconfig.standalone.json` + `vscode-shim.ts` keep the standalone build type-safe without `@types/vscode`. Docs: `docs/standalone.md`, autostart templates (systemd / launchd / Task Scheduler), and Continue / JetBrains AI Assistant setup guides. 28 new tests in `tests/standalone/` (591 -> 619 baseline).
+
+### Fixed (follow-up audit - 4 LLM consensus)
+
+- **`resetMetrics` lost its modal confirmation.** The `showWarningMessage({ modal: true })` guard against accidental wipes was dropped in the FEAT7 refactor. Reintroduced via a new `ctx.confirm` hook on `IGatewayContext` (modal on VS Code, no-op in standalone CLI).
+- **`copyGatewayUrl` stopped copying.** The command name promised clipboard but the implementation only showed an info message. Fixed via `ctx.clipboardWrite` (`vscode.env.clipboard.writeText` on VS Code, `process.stdout.write` in standalone).
+- **`openSettings` stopped opening settings.** Same shape: renamed to show the config file path only. Fixed via `ctx.openSettings` (`workbench.action.openSettings` on VS Code, fallback in standalone).
+- **`aiflowbridge.setVisionModel` command was orphaned.** Declared in `package.json:113` but the handler was removed in FEAT7 (VS Code showed "command not found"). Re-registered as a thin alias to `aiflowbridge.providers.deepseek.setVisionModel`.
+- **Workspace-tier override `.vscode/aiflowbridge.models.json` was silently ignored.** `loadModelRegistry` was called with the raw `ExtensionContext` (no `workspaceFolder` field) before the adapter ran. Fixed by calling `createVSCodeContext(context)` first in `lifecycle.activate()`. The 3-tier merge now reads the workspace tier on the VS Code side again.
+- **Legacy `globalState` -> `telemetry.json` migration was dropped.** Users upgrading from 1.6.x lost their cumulative counters (`requests`, `totalTokens`, cost). Reintroduced for the VS Code path via a new `globalState` slot on `IGatewayContext`; standalone is a no-op as before.
+- **`StandaloneConfigReader` (internal) and `StandaloneConfigFile` (exported, tested) diverged.** The internal reader skipped the `DEFAULT_STANDALONE_CONFIG` fallback that the documented `StandaloneConfigFile` applies. Removed the internal reader; the runtime now uses the exported one.
+- **`subscriptionsBag` was a hand-rolled `length: 0` object cast to `Disposable[]`.** `forEach` / `filter` / `map` / index access would have crashed any caller iterating the bag. Replaced with a real `Array` wrapped in a `Proxy` that mirrors `push` into `context.subscriptions`.
+
+### Security (pre-Action-Plan audit)
+
+- **`stop()` did not drain keep-alive sockets** (`server.ts`). A subsequent `start()` after a window reload hit `EADDRINUSE` because an idle keep-alive socket held the port. Fixed with `server.closeAllConnections?.()` (Node >= 18.2) plus a manual `Set<Socket>` + `socket.destroy()` fallback for older Node.
+- **`removeEntry` desynced `durations` from `recent` after `restore()`** (`telemetry.ts`). The p95 percentile was computed from the wrong slice. Fixed by recomputing the p95 from `recent.map(e => e.durationMs).sort(...)` on demand, with a `p95Cache` invalidated on every mutation.
+- **Streaming `durationMs` was time-to-first-byte, not last byte** (`server.ts`). Telemetry was recorded right after `pipe()` instead of after the last SSE chunk reached the client. Moved `recordTelemetry` into `response.once('finish', ...)` with a `telemetryRecorded` guard.
+- **`recent` was unbounded in memory** (`telemetry.ts`). A high-throughput session could allocate a multi-MB array on every `snapshot()` call. Added a configurable `memoryCap` (default 10000) on `TelemetryStore`; the on-disk persister still receives every entry.
+- **API key could leak into 502 response body** (`server.ts`). Some `fetch` error messages embed the full URL; if a `baseUrl` had a credential in the query string, it would surface in the body and logs. New `sanitizeUpstreamErrorMessage()` strips the query string and redacts `api_key` / `Authorization` / `Bearer` references.
+- **`probeServerVersion` had no body size limit** (`probe.ts`). A hostile or malfunctioning peer could push a multi-MB body. Added a 4 KiB `content-length` pre-check + `text().length` guard + `try/catch` around `JSON.parse`.
+- **`isPortInUse` could leak a timer** (`probe.ts`). `socket.setTimeout(500)` was not cancelled on the `connect` / `error` paths. Added a `setTimeout(0)` so the timer is released immediately.
+- **`selectProvider` case-insensitive comparison was `toLowerCase()` only** (`providers.ts`). Switched to `localeCompare(..., { sensitivity: 'base' })` for proper Unicode folding.
+- **Probe timeout 200 ms was too short on loaded machines** (`server.ts`). Raised to 500 ms with 1 retry / 100 ms back-off via `probeServerVersionWithRetry()`.
+- **`dispose()` is fire-and-forget but `stop()` is async** (`server.ts`). Idempotency is enforced by the `!this.server && !this.joined` guard so the double-stop from `deactivate()` + VS Code's `Disposable` is a no-op.
+- **`require(package.json)` in the CLI binary was a RCE vector** (`standalone/main.ts`). Replaced with `readFileSync` + `JSON.parse` so a maliciously-written `package.json` cannot execute arbitrary code via the CommonJS loader.
+- **`secrets.json` Windows ACL limitation** is now documented in `docs/standalone.md` (Security section). `chmod 0o600` is a no-op on Windows; the doc notes the limitation rather than silently ignoring it.
+- **`resolveVendorApiKey` accepted only `SecretsLike` (get-only) but the runtime cast the full `SecretStorageLike`** (`api-key-resolver.ts`). Widened to `ResolveSecretSource = SecretStorageLike | SecretsLike` so the cast is no longer needed.
+
+### Changed / Refactored
+
+- **`reloadConfiguration` restarted the gateway on every config change** (`index.ts`). Now checks `event.affectsGateway` (derived from `e.affectsConfiguration("aiflowbridge.gateway")` in the VS Code adapter). Non-gateway edits (providers, vision, telemetry) hot-update via `updateConfig()` without a port rebind.
+- **Double `/v1` in provider `baseUrl`** (`config.ts`) now logs a warning - the silent path-rewriting foot-gun.
+- **`created` in `GET /v1/models` was `Date.now()/1000` per call** (`providers.ts`). Replaced with a constant so OpenAI-compatible clients with model-cache invalidation heuristics keep their cache.
+- **`percentile()` re-sorted the durations array on every `snapshot()`** (`telemetry.ts`). `p95Cache` is invalidated on mutation and rebuilt lazily.
+- **`clearTimeout` only ran in `finally`** (`token-counter.ts`). Now also runs in the `abort` event handler with a `cleared` flag.
+- **Dead `legacy` branch** in `resolveExtensionUri` (`modelRegistry.ts`) removed.
+- **Duplicate `getNestedValue`** (`standalone/context.ts` + `config-loader.ts`) extracted into `standalone/util.ts`.
+- **Dead `loadConfig(context)` wrapper** (`config.ts`) removed; `loadConfigFromContext(ctx)` is the single entry point.
+- **Misleading comment** about `getUserModels()` in standalone (`config.ts`) corrected - the `vscode` shim reads `userModels` from `config.json` (it does NOT return an empty array).
+- **`IMPROV-C07` cast** `as unknown as vscode.ExtensionContext` (`config.ts`) removed; `loadModelRegistry` now accepts `RegistryHost` (which `IGatewayContext` satisfies).
+
+### Tests
+
+- **596 tests across 30 files** (was 591 across 29 in 1.7.0, +5).
+- New: 28 standalone tests (`tests/standalone/context.test.ts` + `config-loader.test.ts`), 2 regression tests in `tests/telemetry-store.test.ts` (BUG-A01 p95 cache + WARN-B01 memoryCap), 1 regression test (IMPROV-C01 cache invalidation), 2 regression tests in `tests/vscode-context-adapter.test.ts` (FEAT7 `joinPath` -> `vscode.Uri.file()` conversion, was invisible to the previous `options.fs` mock path).
+- Quality gates: `npm run compile` (0 errors), `npm run compile:standalone` (0 errors), `npm test` (596/596).
+
+### Known issues / breaking changes (vs 2.0.0-rc)
+
+- `resetMetrics` now requires modal confirmation (was: silent reset).
+- `copyGatewayUrl` writes to the clipboard (was: info message only).
+- `openSettings` opens VS Code settings (was: shows config path only).
+- `aiflowbridge.setVisionModel` is re-registered (was: orphaned in `package.json`).
+- Legacy `globalState` -> `telemetry.json` migration re-introduced (was: dropped, lost 1.6.x counters).
+- Workspace override `.vscode/aiflowbridge.models.json` is picked up again (was: silently ignored).
+- 1.6.x -> 2.0.0 upgrade path: cumulative counters survive via the legacy migration.
+
 ## 1.7.0
 
 Hardening release: security, bug-fixes, and refactoring from external audit (STU02 - 8 items). Shutdown auth, SSRF protection for provider baseUrls, race-condition fixes, dead-code removal.
