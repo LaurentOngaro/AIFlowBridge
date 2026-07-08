@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { Readable } from "node:stream";
 import type { Socket } from "node:net";
+import { Readable } from "node:stream";
 import { URL } from "node:url";
 import { logger } from "../../logger";
 import { buildModelCatalog, selectProvider } from "../providers";
@@ -56,6 +56,15 @@ export class GatewayService {
    * activation (BUG-A05).
    */
   private readonly activeSockets = new Set<Socket>();
+  /**
+   * IMPROV-C04: counter of in-flight `/v1/chat/completions` requests.
+   * When the value reaches `config.gateway.maxConcurrentRequests`, the
+   * gateway returns 429 to any new request. Incremented at the start
+   * of `forwardChatCompletion` and decremented in a `finally` so the
+   * counter is exact even on error, abort, or upstream timeout. Cheap
+   * to read (single integer compare-and-increment) and non-blocking.
+   */
+  private inFlightRequestsField = 0;
   /**
    * Set to `true` when the service could not bind the configured port
    * because an existing peer gateway was detected (and accepted as a
@@ -170,6 +179,16 @@ export class GatewayService {
    */
   get isJoined(): boolean {
     return this.joined && !this.server;
+  }
+
+  /**
+   * IMPROV-C04: number of in-flight upstream `/v1/chat/completions`
+   * requests. Surfaced via the status payload (see `status()`) so the
+   * runtime can forward it to the dashboard and status bar without
+   * having to reach into the gateway internals.
+   */
+  get inFlightRequests(): number {
+    return this.inFlightRequestsField;
   }
 
   get baseUrl(): string {
@@ -366,6 +385,8 @@ export class GatewayService {
       port: this.config.gateway.port,
       baseUrl: this.config.gateway.baseUrl,
       providerCount: this.config.providers.filter((provider) => provider.enabled).length,
+      inFlightRequests: this.inFlightRequests,
+      maxConcurrentRequests: this.config.gateway.maxConcurrentRequests,
     };
   }
 
@@ -398,13 +419,14 @@ export class GatewayService {
     logger.info(`[Gateway] Port ${this.config.gateway.port} is in use, probing peer...`);
 
     const port = this.config.gateway.port;
-    // IMPROV-C05: 500 ms probe (was 200 ms) with one retry after 100 ms
-    // to absorb slow startup of the peer. 200 ms was too aggressive on
-    // Windows / cold-start; the new total budget is 1.1 s which still
-    // keeps activation responsive. The timeout is not yet a user
-    // setting (the schema entry would need to be added to package.json
-    // by the follow-up agent).
-    const peer = await probeServerVersionWithRetry(port);
+    // IMPROV-C05: configurable probe timeout (default 500 ms) with one
+    // retry after 100 ms. The 200 ms default used in 1.7.0 was too
+    // aggressive on Windows / cold-start; the new total budget is
+    // 1.1 s + probeTimeoutMs which still keeps activation responsive.
+    // Users on unusually slow hosts (or with a peer that is being
+    // spun up by the same activation) can raise the cap via
+    // `aiflowbridge.gateway.probeTimeoutMs`.
+    const peer = await probeServerVersionWithRetry(port, this.config.gateway.probeTimeoutMs);
 
     if (peer && peer.name === GATEWAY_SERVICE_NAME) {
       if (compareSemver(peer.version, this.bundledVersion) < 0) {
@@ -541,8 +563,46 @@ export class GatewayService {
   private async forwardChatCompletion(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestId = randomUUID();
     const startedAt = Date.now();
-    const bodyText = await readBody(request);
-    const payload = parseJson(bodyText);
+    // IMPROV-C04: cheap pre-flight check. Reading the body is expensive
+    // (10 MB cap, stream piping); we want to bail out with 429 before
+    // burning a body-read on a request we are about to reject. The
+    // counter is incremented once we commit to processing and
+    // decremented in `finally` (below), so the value seen here is the
+    // exact in-flight count.
+    const cap = this.config.gateway.maxConcurrentRequests;
+    if (this.inFlightRequestsField >= cap) {
+      // 1 s is a reasonable default: at 20 concurrent requests and
+      // an average upstream latency of 5 s, the queue clears in ~5
+      // seconds; 1 s tells well-behaved clients to back off briefly
+      // without forcing them into a tight retry loop.
+      response.setHeader("Retry-After", "1");
+      this.writeJson(response, 429, {
+        error: "Too Many Requests",
+        requestId,
+        inFlight: this.inFlightRequestsField,
+        limit: cap,
+      });
+      return;
+    }
+    this.inFlightRequestsField++;
+
+    let bodyText: string;
+    let payload: Record<string, unknown> | undefined;
+    try {
+      bodyText = await readBody(request);
+      payload = parseJson(bodyText);
+    } catch (error) {
+      // Body read failed (abort, socket reset, oversize): release the
+      // slot before propagating.
+      this.inFlightRequestsField--;
+      const message = error instanceof Error ? error.message : String(error);
+      this.writeJson(response, 400, {
+        error: "Failed to read request body",
+        requestId,
+        details: message,
+      });
+      return;
+    }
 
     const modelName = typeof payload?.model === "string" ? payload.model : this.config.gateway.defaultModel;
     const enabledProviders = this.config.providers.filter((profile) => profile.enabled);
@@ -602,6 +662,25 @@ export class GatewayService {
     // `reasoning_split: true/false`). The translator strips any AIFB-specific
     // fields it consumed so the upstream never sees them.
     const translatedPayload = translatePayloadForUpstream(payload, provider);
+    // WARN-B05: when a translation actually rewrote a field, log the
+    // before/after at the debug level so the user can diagnose "I sent
+    // reasoning_effort=high but the model did not think" reports.
+    // `translatePayloadForUpstream` is intentionally pure (no side
+    // effects, exported for unit testing) - the diagnostic lives at the
+    // call site instead, where we already have `logger` and `requestId`.
+    if (payload) {
+      const hasReasoning = "reasoning" in payload;
+      const hasEffort = "reasoning_effort" in payload;
+      if (hasReasoning || hasEffort) {
+        const reasoningSplit = (translatedPayload as Record<string, unknown>).reasoning_split;
+        logger.debug(
+          `[Gateway] ${requestId} translated upstream payload: ` +
+            `reasoning=${hasReasoning ? String(payload.reasoning) : "<absent>"} ` +
+            `reasoning_effort=${hasEffort ? String(payload.reasoning_effort) : "<absent>"} ` +
+            `-> reasoning_split=${String(reasoningSplit)}`,
+        );
+      }
+    }
     // Override the model name in the forwarded request with the provider's
     // upstream model name, so Kilo Code and other clients can use any alias.
     // We always re-serialize (never pass `bodyText` through) so the
@@ -643,7 +722,7 @@ export class GatewayService {
       });
 
       statusCode = upstreamResponse.status;
-      const ttfbMs = Date.now() - startedAt;
+      ttfbMs = Date.now() - startedAt;
       const contentType = upstreamResponse.headers.get("content-type") ?? "";
       const isStream = Boolean(payload?.stream) || contentType.includes("text/event-stream");
 
@@ -742,6 +821,12 @@ export class GatewayService {
     } finally {
       request.off("aborted", abort);
       response.off("close", abort);
+      // IMPROV-C04: release the slot. The decrement is unconditional
+      // (we incremented at the start of the method on a non-rejected
+      // path) so the counter is exact regardless of upstream outcome
+      // (success, upstream error, abort, body read failure already
+      // decremented earlier).
+      this.inFlightRequestsField--;
       this.emitUpdate();
     }
   }
@@ -807,14 +892,22 @@ function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
  * timeout; on failure (timeout, refused, malformed payload) we wait 100
  * ms and try again. Two attempts cover the cold-start window of a peer
  * that was just launched by another activation.
+ *
+ * `timeoutMs` is a user-configurable knob (default 500 ms) exposed via
+ * `aiflowbridge.gateway.probeTimeoutMs`. The retry always uses the same
+ * value - the retry is there to absorb packet-level jitter, not to
+ * double the budget.
  */
-async function probeServerVersionWithRetry(port: number): Promise<Awaited<ReturnType<typeof probeServerVersion>>> {
-  const first = await probeServerVersion(port, { timeoutMs: 500 });
+async function probeServerVersionWithRetry(
+  port: number,
+  timeoutMs: number,
+): Promise<Awaited<ReturnType<typeof probeServerVersion>>> {
+  const first = await probeServerVersion(port, { timeoutMs });
   if (first) {
     return first;
   }
   await new Promise<void>((resolve) => setTimeout(resolve, 100));
-  return probeServerVersion(port, { timeoutMs: 500 });
+  return probeServerVersion(port, { timeoutMs });
 }
 
 /**
@@ -861,13 +954,27 @@ export function readBody(request: IncomingMessage): Promise<string> {
     // would race to settle the Promise, and the resolved-then-rejected
     // noise would warn (or worse, leak an event listener that keeps
     // the request IncomingMessage alive via its `request.socket`).
+    //
+    // BUG-A03: we use named handlers and `removeListener` inside
+    // `settle()` so that a late socket error (e.g. keep-alive connection
+    // reset AFTER `'end'` has already resolved) does not keep the
+    // handler closure - and its captured `error` reference - alive
+    // long enough to surface as a stray `UnhandledPromiseRejection` in
+    // the host. On Node >= 20 with HTTP/1.1 keep-alive the `'close'`
+    // event can legitimately fire after `'end'`, and the listener
+    // removal guarantees that the late event is a true no-op rather
+    // than a fired-and-ignored handler.
     const settle = (fn: () => void): void => {
       if (settled) return;
       settled = true;
+      request.removeListener("data", onData);
+      request.removeListener("end", onEnd);
+      request.removeListener("error", onError);
+      request.removeListener("close", onClose);
       fn();
     };
 
-    request.on("data", (chunk: Buffer) => {
+    const onData = (chunk: Buffer): void => {
       totalSize += chunk.length;
       if (totalSize > MAX_BODY_SIZE) {
         settle(() => reject(new Error("Request body too large")));
@@ -877,19 +984,24 @@ export function readBody(request: IncomingMessage): Promise<string> {
         return;
       }
       chunks.push(chunk);
-    });
+    };
 
-    request.on("end", () => {
+    const onEnd = (): void => {
       settle(() => resolve(Buffer.concat(chunks).toString("utf8")));
-    });
+    };
 
-    request.on("error", (error) => {
+    const onError = (error: Error): void => {
       settle(() => reject(error));
-    });
+    };
 
-    request.on("close", () => {
+    const onClose = (): void => {
       settle(() => reject(new Error("Client disconnected")));
-    });
+    };
+
+    request.on("data", onData);
+    request.on("end", onEnd);
+    request.on("error", onError);
+    request.on("close", onClose);
   });
 }
 

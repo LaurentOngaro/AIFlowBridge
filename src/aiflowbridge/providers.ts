@@ -92,6 +92,38 @@ export function isValidProviderBaseUrl(raw: string): boolean {
   return !BLOCKED_HOSTS.some((pattern) => pattern.test(host));
 }
 
+/**
+ * WARN-B06: return a deep copy of `provider` with the `apiKey` field
+ * replaced by a fixed redaction marker (`"***"`) and an explicit
+ * `apiKeyPresent` boolean so log readers can tell at a glance whether
+ * a key was configured. The original object is left untouched.
+ *
+ * Use this helper anywhere a `ProviderProfile` (or an array of them)
+ * is about to be sent to a logger, JSON-serialized for diagnostics,
+ * or attached to a webview message. The runtime currently only
+ * stringifies the gateway config, so there is no active leak - this
+ * is defense in depth for the inevitable "I added a verbose dump
+ * here" future commit.
+ *
+ * Exported for unit testing (see `tests/aiflowbridge-providers.test.ts`).
+ */
+export function redactProviderForLog<T extends { apiKey?: string }>(provider: T): T & { apiKeyPresent: boolean } {
+  const { apiKey: _apiKey, ...rest } = provider;
+  void _apiKey;
+  const out = { ...rest } as T & { apiKeyPresent: boolean };
+  out.apiKeyPresent = typeof provider.apiKey === "string" && provider.apiKey.length > 0;
+  return out;
+}
+
+/**
+ * WARN-B06: convenience wrapper over `redactProviderForLog` for the
+ * most common case - redacting a list of providers. Returns a new
+ * array; the input is left untouched.
+ */
+export function redactProvidersForLog<T extends { apiKey?: string }>(providers: readonly T[]): Array<T & { apiKeyPresent: boolean }> {
+  return providers.map((provider) => redactProviderForLog(provider));
+}
+
 export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile[] {
   if (!Array.isArray(rawProfiles)) {
     return [];

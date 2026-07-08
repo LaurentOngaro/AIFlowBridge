@@ -1,11 +1,9 @@
-import * as vscode from "vscode";
 import { getUserModels } from "../config";
 import { logger } from "../logger";
 import { loadModelRegistry } from "./modelRegistry";
 import type { ModelRegistry } from "./modelRegistry.schema";
-import { normalizeProviderProfiles } from "./providers";
-import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, ProviderProfile, VisionProxySettings } from "./types";
-import type { IGatewayContext } from "./types";
+import { normalizeProviderProfiles, redactProvidersForLog } from "./providers";
+import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, IGatewayContext, ProviderProfile, VisionProxySettings } from "./types";
 
 /**
  * Well-known upstream provider profiles used as defaults when the user has not
@@ -275,6 +273,16 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     port: configuration.get<number>("gateway.port", 8787),
     baseUrl: configuration.get<string>("gateway.baseUrl", "http://127.0.0.1:8787/v1"),
     defaultModel: configuration.get<string>("gateway.defaultModel", ""),
+    // IMPROV-C05: 500 ms default (was 200 ms in 1.7.0). The runtime
+    // applies one retry after 100 ms, so the total budget is 1.1 s.
+    // Higher values are useful for slow peer startups (cold start of
+    // the standalone binary on Windows).
+    probeTimeoutMs: configuration.get<number>("gateway.probeTimeoutMs", 500),
+    // IMPROV-C04: 20 concurrent upstream requests. The gateway returns
+    // 429 above this cap. Set to a high value (e.g. 1000) for local
+    // development where one process is the only client; the cap is
+    // mainly a protection against misbehaving test scripts.
+    maxConcurrentRequests: configuration.get<number>("gateway.maxConcurrentRequests", 20),
   };
 
   const visionProxy: VisionProxySettings = {
@@ -330,13 +338,19 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
   // out which step drops their override. Sources are tagged so a provider
   // coming from `aiflowbridge.providers` (raw user config) is clearly
   // distinguished from one synthesized from the registry.
+  //
+  // WARN-B06: `redactProvidersForLog` strips the `apiKey` field and adds
+  // an `apiKeyPresent` boolean so future verbose dumps (or anyone who
+  // copy-pastes this loop and changes `${provider}` to a
+  // `JSON.stringify(provider)`) never leak credentials.
   const hasRawProfiles = Array.isArray(rawProfiles) && rawProfiles.length > 0;
+  const redacted = redactProvidersForLog(providers);
   logger.info(`[AIFlowBridge] Gateway provider synthesis: ${providers.length} entries, source=${hasRawProfiles ? "aiflowbridge.providers (raw user config)" : "buildDefaultGatewayProfiles + synthesis"}`);
-  for (const provider of providers) {
+  for (const provider of redacted) {
     const pricingStr = provider.pricing
       ? `in=${provider.pricing.inputPerMillion}/M out=${provider.pricing.outputPerMillion}/M ${provider.pricing.currency}`
       : '<no pricing>';
-    logger.info(`[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} pricing=${pricingStr}`);
+    logger.info(`[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} apiKey=${provider.apiKeyPresent ? "***" : "<none>"} pricing=${pricingStr}`);
   }
 
   return {

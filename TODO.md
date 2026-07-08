@@ -24,6 +24,9 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
 
 - [ ] AFF05: metric dashboard:
   - add the possibility to sort the data by clicking on the column headers (ascending / descending)
+  - add the possibility to group the requests by sessions (using date/time check to group them in a session, e.g., 30 minutes of inactivity = new session)
+    - each session is displayed as a collapsible section, with the session start time and the number of requests in that session
+    - each session has a summary of the total tokens used, the total duration, and the total estimated cost
   - telemetry export (CSV/JSON)
 
 ### Features (last: FEAT7)
@@ -76,18 +79,6 @@ Backlog (value to confirm):
   - Provide a compilable CLI entrypoint `src/standalone/main.ts` without vscode dependency (npm script `build:standalone` / `start:standalone`).
   - VS Code extension: if a standalone gateway is already running (lock held + probe successful), VS Code switches to "joined" mode (status bar `AIFlowBridge ↗ external`) without starting its own gateway.
   - Documentation: OS autostart templates (systemd / launchd / Task Scheduler) + Continue/JetBrains guide.
-  - See `_helpers/ACTION PLAN.md` for the complete details of the 10 implementation steps (all checked except the out-of-process e2e test, separate follow-up).
-
-#### Known issues / breaking changes in 2.0.0 (vs 2.0.0-rc)
-
-The 2.0.0 release fixes a batch of regressions that slipped into the 2.0.0-rc candidate. Users upgrading from 1.6.x or 2.0.0-rc should review:
-
-- `resetMetrics` now requires confirmation. The accidental-click guard was reintroduced via `ctx.confirm` (modal `vscode.window.showWarningMessage` on VS Code, no-op in standalone where the CLI is the only entry point).
-- `copyGatewayUrl` writes the URL to the clipboard on VS Code (`ctx.clipboardWrite` -> `vscode.env.clipboard.writeText`). The misleading "Copy" command title is now accurate again.
-- `openSettings` opens VS Code settings on VS Code (`ctx.openSettings` -> `workbench.action.openSettings`). The standalone entry point still falls back to printing the config file path (no settings UI in CLI mode).
-- `aiflowbridge.setVisionModel` is re-registered (the handler had been dropped in 2.0.0-rc, leaving the command orphaned in `package.json` and surfacing "command not found" in the palette).
-- Legacy `globalState` -> `telemetry.json` migration re-introduced for the 1.6.x -> 2.0.0 upgrade path (B-01). 2.0.0-rc had silently dropped it under the mistaken assumption that "standalone has no `globalState`", which made every 1.6.x user lose their cumulative counters. VS Code only; the standalone path is a no-op as before.
-- Workspace override `.vscode/aiflowbridge.models.json` is now picked up again (B-02). 2.0.0-rc had silently ignored the workspace tier when the activation constructed the `IGatewayContext` from a raw `ExtensionContext`; the override is now wired through `createVSCodeContext()` -> `loadModelRegistry(ctx)`.
 
 ### 1.7.0 (Hardening) - STU02 audit items
 

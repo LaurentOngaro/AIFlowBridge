@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.1.0
+
+Post-2.0.0 hardening + small features from the FEAT7 audit follow-up
+section of `_helpers/ACTION PLAN.md`. No behavior change for users on
+2.0.0; only new optional settings, more defensive code paths, and
+additional test coverage (596 -> 614 tests).
+
+### Added
+
+- **`aiflowbridge.gateway.probeTimeoutMs` setting** (`package.json`). Configurable timeout (default 500 ms) for the peer gateway probe that runs when the configured port is already bound. Previously hardcoded.
+- **`aiflowbridge.gateway.maxConcurrentRequests` setting** (`package.json`). Hard cap (default 20) on the number of concurrent upstream `/v1/chat/completions` requests. Requests above the cap return HTTP 429 with a `Retry-After: 1` header. Protects the upstream from a runaway local client.
+- **`GatewayStatus.inFlightRequests` + `GatewayStatus.maxConcurrentRequests`** fields (`types.ts`). Surfaced alongside the existing `running` / `port` / `baseUrl` / `providerCount` so the dashboard and status bar can render `X / cap` without re-reading the full config.
+
+### Security / Hardening
+
+- **API key redaction in `loadConfig` diagnostic logs** (`providers.ts`, `config.ts`). New `redactProviderForLog()` / `redactProvidersForLog()` helpers strip the `apiKey` field and add an `apiKeyPresent: boolean` so any future verbose dump (or copy-paste of the existing diagnostic loop) never leaks credentials. The loop now logs `apiKey=***` or `apiKey=<none>` instead of nothing.
+- **`readBody()` no longer keeps `'error'` / `'close'` listeners alive after settling** (`server.ts`). BUG-A03 follow-up: the listeners are removed in the `settle()` closure so a late socket error (HTTP/1.1 keep-alive edge case on Node >= 20) cannot fire-and-leak the handler closure. Same behavior, lower memory footprint.
+- **Translation log for `reasoning_effort` -> `reasoning_split`** (`server.ts`). WARN-B05: when the gateway translates Kilo Code / Open WebUI's `reasoning_effort: "high"` into MiniMax's `reasoning_split: true`, a `logger.debug()` line records the before / after pair (with the `requestId` for correlation). Diagnoses "I sent reasoning_effort=high but the model did not think" reports. The `translatePayloadForUpstream` function itself stays pure (no side effects) for unit testing - the log lives at the call site.
+
+### Test coverage
+
+- `tests/commands-ux.test.ts` (5 tests) - regression for R-01..R-04. The runtime is exercised end-to-end against a mock `IGatewayContext` that captures every command registration and host hook invocation, then asserts that `resetMetrics` calls `ctx.confirm`, `copyGatewayUrl` calls `ctx.clipboardWrite`, `openSettings` calls `ctx.openSettings("aiflowbridge")`, and `setVisionModel` calls `ctx.executeCommand("aiflowbridge.providers.deepseek.setVisionModel")`.
+- `tests/telemetry-drain.test.ts` (3 tests) - regression for BUG-A05. Real HTTP/1.1 keep-alive client holds a request open in streaming mode, then `stop()` must close the client socket before a second `start()` can re-bind the same port. Idempotent `stop()` also covered.
+- `tests/migration-legacy.test.ts` (4 tests) - regression for B-01. The `AIFlowBridgeRuntime` is activated against a `globalState` pre-seeded with a 1.6.x-shaped snapshot, then asserted on the sentinel flag and the absence of a `globalState.update` write when the sentinel is already set. Standalone-mode no-op also covered.
+- `tests/subscriptions-bag.test.ts` (6 tests) - regression for B-04. The `Proxy` returned by `createVSCodeContext().subscriptions` is asserted to support `length`, indexed access, `forEach`, `filter`, `map`, `indexOf`, and `includes`, plus the `push` forward into the host's `context.subscriptions`. Pre-existing subscriptions in the host are preserved.
+
+### Build
+
+- `tsconfig.standalone.json`: `src/aiflowbridge/vscode-context-adapter.ts` is now excluded from the standalone build (it depends on `vscode.Uri` which the shim does not implement as a class with `Symbol.hasInstance`). The standalone binary was already not using this file - the exclusion formalizes the boundary.
+
 ## 2.0.0
 
 Standalone gateway + audit-driven hardening. The gateway can now run as a pure Node.js CLI (`aiflowbridge-server`) without VS Code, while the VS Code extension itself was hardened against a batch of regressions and pre-existing security findings.

@@ -3,10 +3,14 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -17,7 +21,9 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "vscode": ["./src/standalone/vscode-shim.ts"]
+      "vscode": [
+        "./src/standalone/vscode-shim.ts"
+      ]
     }
   },
   "include": [
@@ -36,6 +42,7 @@
     "src/client/**/*",
     "src/provider/**/*",
     "src/extension.ts",
-    "src/auth.ts"
+    "src/auth.ts",
+    "src/aiflowbridge/vscode-context-adapter.ts"
   ]
 }

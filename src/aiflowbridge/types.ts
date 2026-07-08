@@ -165,6 +165,24 @@ export interface GatewaySettings {
   port: number;
   baseUrl: string;
   defaultModel: string;
+  /**
+   * IMPROV-C05: per-call timeout (ms) for probing a peer gateway's
+   * `/version` endpoint when the configured port is already bound.
+   * Higher values tolerate slower peer startups; lower values fail fast
+   * on a foreign service. Defaults to 500 ms. Mirrors the
+   * `aiflowbridge.gateway.probeTimeoutMs` package.json setting.
+   */
+  probeTimeoutMs: number;
+  /**
+   * IMPROV-C04: hard cap on the number of concurrent upstream
+   * `/v1/chat/completions` requests the gateway will relay. New
+   * requests above the cap return HTTP 429 with a `Retry-After`
+   * header. Protects the upstream from a runaway local client (e.g.
+   * a test script firing thousands of requests per second). Defaults
+   * to 20 concurrent requests. Mirrors the
+   * `aiflowbridge.gateway.maxConcurrentRequests` package.json setting.
+   */
+  maxConcurrentRequests: number;
 }
 
 export interface AiFlowBridgeConfig {
@@ -180,6 +198,19 @@ export interface GatewayStatus {
   port: number;
   baseUrl: string;
   providerCount: number;
+  /**
+   * IMPROV-C04: current number of in-flight upstream
+   * `/v1/chat/completions` requests being relayed by the gateway.
+   * Surfaced in the status payload so the dashboard can show
+   * "X / cap" when the cap is being hit.
+   */
+  inFlightRequests: number;
+  /**
+   * IMPROV-C04: hard cap mirrored from `GatewaySettings.maxConcurrentRequests`.
+   * Surfaced alongside `inFlightRequests` so the dashboard can render
+   * `X / max` without re-reading the full config.
+   */
+  maxConcurrentRequests: number;
 }
 
 export interface RequestTelemetry {

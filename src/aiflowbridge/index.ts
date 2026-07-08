@@ -390,6 +390,8 @@ class AIFlowBridgeRuntime implements Disposable {
       port: this.config.gateway.port,
       baseUrl: this.config.gateway.baseUrl,
       providerCount: this.config.providers.filter((provider) => provider.enabled).length,
+      inFlightRequests: this.gateway.inFlightRequests,
+      maxConcurrentRequests: this.config.gateway.maxConcurrentRequests,
     };
   }
 

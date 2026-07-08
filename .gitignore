@@ -9,9 +9,7 @@ node_modules/
 !.env.example
 .kilo/
 
-# working docs, no published
-_helpers/PLAN_ACTIONS.md
-_helpers/ACTION PLAN.md
+# private folder submodule
+_private/
 _helpers/docs
 _helpers/archives
-
