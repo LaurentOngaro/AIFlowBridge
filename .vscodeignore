@@ -30,3 +30,4 @@ package-lock.json
 .env*
 !.env.example
 _helpers/**
+_Private/**

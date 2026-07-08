@@ -9,7 +9,7 @@ node_modules/
 !.env.example
 .kilo/
 
-# private folder submodule
-_private/
+# Personal private notes (local-only, see _helpers/setup-private.ps1)
+_Private/
 _helpers/docs
 _helpers/archives
