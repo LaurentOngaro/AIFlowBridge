@@ -1,0 +1,24 @@
+[Unit]
+Description=AIFlowBridge Standalone Gateway
+After=network.target
+
+[Service]
+Type=simple
+# Replace with the absolute path to your compiled main.js.
+ExecStart=/usr/bin/node /path/to/AIFlowBridge/dist/standalone/main.js
+Restart=on-failure
+RestartSec=5
+
+# API keys. Replace with your real values. Prefer a secret manager
+# (e.g. systemd-creds, HashiCorp Vault, or a .env file loaded by a
+# EnvironmentFile= directive) over inlining secrets here.
+Environment=AIFLOWBRIDGE_DEEPSEEK_API_KEY=sk-replace-me
+Environment=AIFLOWBRIDGE_MINIMAX_API_KEY=replace-me
+Environment=AIFLOWBRIDGE_XIAOMI_API_KEY=replace-me
+
+# Where the standalone gateway stores telemetry + secrets.json.
+# Defaults to ~/.aiflowbridge/ when omitted.
+# Environment=AIFLOWBRIDGE_DATA_DIR=/home/youruser/.aiflowbridge
+
+[Install]
+WantedBy=default.target

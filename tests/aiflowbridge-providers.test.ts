@@ -3,13 +3,13 @@
  * Tests normalizeProviderProfiles, selectProvider, buildModelCatalog.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-	normalizeProviderProfiles,
-	selectProvider,
-	buildModelCatalog,
-	isValidProviderBaseUrl,
-	normalizeHost,
+    buildModelCatalog,
+    isValidProviderBaseUrl,
+    normalizeHost,
+    normalizeProviderProfiles,
+    selectProvider,
 } from '../src/aiflowbridge/providers';
 
 describe('normalizeProviderProfiles', () => {
@@ -332,7 +332,7 @@ describe('isValidProviderBaseUrl (SSRF protection)', () => {
 	it('accepts http on loopback (Ollama use case)', () => {
 		expect(isValidProviderBaseUrl('http://127.0.0.1:11434/v1')).toBe(true);
 		expect(isValidProviderBaseUrl('http://localhost:11434/v1')).toBe(true);
-		// IPv6 loopback — Ollama and other local tools bind ::1 too.
+		// IPv6 loopback - Ollama and other local tools bind ::1 too.
 		expect(isValidProviderBaseUrl('http://[::1]:11434/v1')).toBe(true);
 	});
 

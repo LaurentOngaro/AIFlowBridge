@@ -1,8 +1,8 @@
-import vscode from 'vscode';
+import vscode, { type LogOutputChannel } from 'vscode';
 
-let channel: vscode.LogOutputChannel | undefined;
+let channel: LogOutputChannel | undefined;
 
-function getChannel(): vscode.LogOutputChannel {
+function getChannel(): LogOutputChannel {
 	if (!channel) {
 		channel = vscode.window.createOutputChannel('AIFlowBridge', { log: true });
 	}

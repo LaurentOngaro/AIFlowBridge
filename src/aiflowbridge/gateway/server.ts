@@ -4,17 +4,17 @@ import { Readable } from "node:stream";
 import { URL } from "node:url";
 import { logger } from "../../logger";
 import { buildModelCatalog, selectProvider } from "../providers";
-import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
 import type { TelemetryPersisterLike } from "../telemetry";
+import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from "../telemetry";
 import { fetchMinimaxPromptTokens } from "../token-counter";
 import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from "../types";
 import {
-    compareSemver,
-    GATEWAY_SERVICE_NAME,
-    isPortInUse,
-    probeServerVersion,
-    requestPeerShutdown,
-    waitUntilPortFree,
+  compareSemver,
+  GATEWAY_SERVICE_NAME,
+  isPortInUse,
+  probeServerVersion,
+  requestPeerShutdown,
+  waitUntilPortFree,
 } from "./probe";
 
 interface GatewaySnapshotListener {
@@ -148,6 +148,18 @@ export class GatewayService {
 
   get running(): boolean {
     return Boolean(this.server) || this.joined;
+  }
+
+  /**
+   * FEAT7: returns `true` when this `GatewayService`
+   * did not bind a local socket but instead joined an existing peer
+   * (the standalone gateway, or another VS Code window that owns the
+   * gateway lock). The status bar uses this to surface the
+   * `AIFlowBridge ↗ external` indicator (action 7 of the standalone
+   * plan).
+   */
+  get isJoined(): boolean {
+    return this.joined && !this.server;
   }
 
   get baseUrl(): string {

@@ -42,7 +42,7 @@ const BLOCKED_HOSTS: RegExp[] = [
  * `::ffff:a9fe:a9fe`, which the decimal-only regex misses.
  *
  * Loopback (`::1`) and native IPv6 (`fd00:ec2::254`) are left
- * untouched — they are matched directly by the BLOCKED_HOSTS patterns.
+ * untouched - they are matched directly by the BLOCKED_HOSTS patterns.
  */
 export function normalizeHost(host: string): string {
   // WHATWG URL.hostname includes brackets for IPv6 addresses

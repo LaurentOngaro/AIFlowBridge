@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aiflowbridge.server</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/path/to/AIFlowBridge/dist/standalone/main.js</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- API keys. Replace with your real values. Prefer the macOS Keychain (e.g. `security find-generic-password -s AIFLOWBRIDGE_DEEPSEEK_API_KEY -w`) over inlining secrets here. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>AIFLOWBRIDGE_DEEPSEEK_API_KEY</key>
+    <string>sk-replace-me</string>
+    <key>AIFLOWBRIDGE_MINIMAX_API_KEY</key>
+    <string>replace-me</string>
+    <key>AIFLOWBRIDGE_XIAOMI_API_KEY</key>
+    <string>replace-me</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/com.aiflowbridge.server.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/com.aiflowbridge.server.err.log</string>
+</dict>
+</plist>

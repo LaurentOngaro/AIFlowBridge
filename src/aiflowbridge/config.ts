@@ -4,7 +4,8 @@ import { logger } from "../logger";
 import { loadModelRegistry } from "./modelRegistry";
 import type { ModelRegistry } from "./modelRegistry.schema";
 import { normalizeProviderProfiles } from "./providers";
-import type { AiFlowBridgeConfig, GatewaySettings, ProviderProfile, VisionProxySettings } from "./types";
+import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, ProviderProfile, VisionProxySettings } from "./types";
+import type { IGatewayContext } from "./types";
 
 /**
  * Well-known upstream provider profiles used as defaults when the user has not
@@ -57,7 +58,7 @@ const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
 ];
 
 function buildDefaultGatewayProfiles(
-	configuration: vscode.WorkspaceConfiguration,
+	configuration: ConfigReader,
 	registry: ModelRegistry,
 ): ProviderProfile[] {
 	const profiles: ProviderProfile[] = [];
@@ -157,7 +158,7 @@ function synthesizeProviderForModel(
   },
   taken: Set<string>,
   familyPricing: Map<string, ProviderProfile["pricing"]>,
-  configuration: vscode.WorkspaceConfiguration,
+  configuration: ConfigReader,
   registry: ModelRegistry,
 ): ProviderProfile | undefined {
   if (taken.has(model.id)) {
@@ -195,7 +196,7 @@ function synthesizeProviderForModel(
  */
 function synthesizeProvidersFromModels(
 	existing: ProviderProfile[],
-	configuration: vscode.WorkspaceConfiguration,
+	configuration: ConfigReader,
 	registry: ModelRegistry,
 	models: Parameters<typeof synthesizeProviderForModel>[0][],
 ): ProviderProfile[] {
@@ -219,7 +220,7 @@ function synthesizeProvidersFromModels(
 
 export function synthesizeProvidersFromUserModels(
 	existing: ProviderProfile[],
-	configuration: vscode.WorkspaceConfiguration,
+	configuration: ConfigReader,
 	registry: ModelRegistry,
 ): ProviderProfile[] {
 	const userModels = getUserModels();
@@ -242,20 +243,26 @@ export function synthesizeProvidersFromUserModels(
  */
 export function synthesizeProvidersFromBuiltInModels(
 	existing: ProviderProfile[],
-	configuration: vscode.WorkspaceConfiguration,
+	configuration: ConfigReader,
 	registry: ModelRegistry,
 ): ProviderProfile[] {
 	return synthesizeProvidersFromModels(existing, configuration, registry, registry.models);
 }
 
-export async function loadConfig(context: vscode.ExtensionContext): Promise<AiFlowBridgeConfig> {
-  // Load the 3-tier model registry (bundled < globalStorage < workspace).
-  // Idempotent: if it was already loaded during activation we get the same
-  // cached object back. The async signature lets us add remote tiers later
-  // (e.g. an enterprise remote registry) without breaking call sites.
-  const registry = await loadModelRegistry(context);
+/**
+ * Internal: build the gateway config from a generic `IGatewayContext`.
+ * The VS Code adapter's `loadConfig()` is now a thin wrapper around this
+ * function that builds the `ConfigReader` from `vscode.workspace.getConfiguration`.
+ * The standalone entrypoint (`src/standalone/main.ts`) calls this directly
+ * with the standalone context.
+ */
+export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlowBridgeConfig> {
+  // `loadModelRegistry` still takes a vscode.ExtensionContext today; the
+  // VS Code adapter extends `IGatewayContext` with the additional fields
+  // it needs (`fs`, `extensionUri`, `workspaceFolder`) and is shape-compatible.
+  const registry = await loadModelRegistry(ctx as unknown as vscode.ExtensionContext);
 
-  const configuration = vscode.workspace.getConfiguration("aiflowbridge");
+  const configuration = ctx.getConfiguration();
 
   const gateway: GatewaySettings = {
     enabled: configuration.get<boolean>("gateway.enabled", true),
@@ -276,7 +283,11 @@ export async function loadConfig(context: vscode.ExtensionContext): Promise<AiFl
 
   // Merge user-declared models from `aiflowbridge.userModels` into the
   // gateway catalog so external clients (Kilo Code, Continue, ...) see
-  // them via `GET /v1/models` and can route requests to them.
+  // them via `GET /v1/models` and can route requests to them. The user-model
+  // setting is still VS Code-only today (`getUserModels()` reads from
+  // `vscode.workspace.getConfiguration`); in standalone mode it returns
+  // an empty array, which is the expected behaviour (the standalone catalog
+  // mirrors the bundled registry).
   const withUserModels = synthesizeProvidersFromUserModels(baseProfiles, configuration, registry);
 
   // Synthesize gateway providers for every model in the registry that is
@@ -307,4 +318,37 @@ export async function loadConfig(context: vscode.ExtensionContext): Promise<AiFl
     logRequests: configuration.get<boolean>("telemetry.logRequests", true),
     visionProxy,
   };
+}
+
+/**
+ * VS Code entry point - builds the `ConfigReader` from the workspace
+ * configuration and delegates to `loadConfigFromContext`. Kept as a
+ * thin wrapper so existing call sites (`src/runtime/lifecycle.ts`) and
+ * tests that mock `vscode.workspace.getConfiguration` keep working.
+ */
+export async function loadConfig(context: vscode.ExtensionContext): Promise<AiFlowBridgeConfig> {
+  // Load the 3-tier model registry (bundled < globalStorage < workspace).
+  // Idempotent: if it was already loaded during activation we get the same
+  // cached object back. The async signature lets us add remote tiers later
+  // (e.g. an enterprise remote registry) without breaking call sites.
+  void context; // registry is loaded in the lifecycle; cache hit below
+
+  const configuration = vscode.workspace.getConfiguration("aiflowbridge");
+  const reader: ConfigReader = {
+    get: <T>(key: string, fallback?: T): T => {
+      if (fallback === undefined) {
+        return configuration.get<T>(key) as T;
+      }
+      const value = configuration.get<T>(key, fallback);
+      return value === undefined ? fallback : value;
+    },
+  };
+
+  return loadConfigFromContext({
+    secrets: context.secrets as unknown as IGatewayContext["secrets"],
+    globalStorageDir: context.globalStorageUri.fsPath,
+    extensionVersion: context.extension.packageJSON.version ?? "0.0.0",
+    subscriptions: context.subscriptions as unknown as IGatewayContext["subscriptions"],
+    getConfiguration: () => reader,
+  });
 }

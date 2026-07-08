@@ -8,6 +8,12 @@ dist/**
 src/**
 node_modules/**
 
+# FEAT7: standalone gateway - shipped separately as an npm binary,
+# never bundled in the VSIX.
+dist/standalone/**
+src/standalone/**
+tsconfig.standalone.json
+
 out/**/*.map
 out/**/*.d.ts
 out/**/*.d.ts.map

@@ -26,15 +26,7 @@ See `_helpers/ACTION PLAN.md` for implementation details, if required for some i
   - add the possibility to sort the data by clicking on the column headers (ascending / descending)
   - telemetry export (CSV/JSON)
 
-### Features (last: FEAT6)
-
-- [ ] FEAT6: Standalone Gateway — utiliser le endpoint indépendamment de VS Code.
-  - Découpler `GatewayService` / `AIFlowBridgeRuntime` de `vscode.ExtensionContext` via une interface `IGatewayContext` (voir `_helpers/ACTION PLAN.md` section FEAT-STANDALONE).
-  - Implémenter un adapter standalone (`src/standalone/`) qui lit les clés API depuis les variables d'environnement ou `~/.aiflowbridge/secrets.json`.
-  - Fournir un entrypoint CLI `src/standalone/main.ts` compilable sans dépendance vscode (script npm `build:standalone` / `start:standalone`).
-  - Extension VS Code : si un gateway standalone tourne déjà (lock tenu + probe réussi), VS Code passe en mode "joined" (status bar `AIFlowBridge ↗ external`) sans démarrer son propre gateway.
-  - Documentation : templates d'autostart OS (systemd / launchd / Task Scheduler) + guide Continue/JetBrains.
-  - Voir `_helpers/ACTION PLAN.md` pour le détail complet des 10 étapes d'implémentation.
+### Features (last: FEAT7)
 
 ### Publish (last: PUB02)
 
@@ -76,7 +68,17 @@ Backlog (value to confirm):
 
 ## Completed
 
-### 1.7.0 (Hardening) — STU02 audit items
+### 2.0.0 (Standalone Gateway)
+
+- FEAT7: Standalone Gateway - use the endpoint independently of VS Code (1.7.0).
+  - Decouple `GatewayService` / `AIFlowBridgeRuntime` from `vscode.ExtensionContext` via an `IGatewayContext` interface (see `_helpers/ACTION PLAN.md` section FEAT7).
+  - Implement a standalone adapter (`src/standalone/`) that reads API keys from environment variables or `~/.aiflowbridge/secrets.json`.
+  - Provide a compilable CLI entrypoint `src/standalone/main.ts` without vscode dependency (npm script `build:standalone` / `start:standalone`).
+  - VS Code extension: if a standalone gateway is already running (lock held + probe successful), VS Code switches to "joined" mode (status bar `AIFlowBridge ↗ external`) without starting its own gateway.
+  - Documentation: OS autostart templates (systemd / launchd / Task Scheduler) + Continue/JetBrains guide.
+  - See `_helpers/ACTION PLAN.md` for the complete details of the 10 implementation steps (all checked except the out-of-process e2e test, separate follow-up).
+
+### 1.7.0 (Hardening) - STU02 audit items
 
 - STU02: external audit: optimisation (see internal doc `_helpers\Docs\01 Modifications à Apporter_2026_06_05`) - **les 8 items livrés en 1.7.0 "Hardening"** (security + bugs + refactoring)
 - **SEC01 (audit 1.1)**: `POST /shutdown` now requires a per-instance random token returned by `GET /version` and echoed in the `X-AIFlowBridge-Shutdown-Token` header. The token is a `randomUUID()` generated at `GatewayService` construction. Requests without the header or with a wrong token get a 403. `PeerVersion.shutdownToken` is optional in `probe.ts` for backward compat with pre-hardening peers; `requestPeerShutdown(port, { shutdownToken })` adds the header. Backward-compat note: a process that does not have a peer's token (e.g. an older pre-hardening peer) will see a 403, the same behavior as any unauthorised local process.

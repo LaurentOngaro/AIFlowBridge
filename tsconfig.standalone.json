@@ -1,0 +1,41 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "declaration": false,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "vscode": ["./src/standalone/vscode-shim.ts"]
+    }
+  },
+  "include": [
+    "src/standalone/**/*",
+    "src/aiflowbridge/**/*",
+    "src/logger.ts",
+    "src/config.ts",
+    "src/consts.ts",
+    "src/types.ts",
+    "src/json.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "out",
+    "src/runtime/**/*",
+    "src/client/**/*",
+    "src/provider/**/*",
+    "src/extension.ts",
+    "src/auth.ts"
+  ]
+}

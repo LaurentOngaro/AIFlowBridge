@@ -42,11 +42,9 @@ vi.mock('vscode', () => {
 });
 
 // Import after mocking
-import { createServer } from 'node:http';
-import { GatewayService, readBody, MAX_BODY_SIZE } from '../src/aiflowbridge/gateway/server';
+import { createServer, IncomingMessage } from 'node:http';
 import { PassThrough } from 'node:stream';
-import { IncomingMessage } from 'node:http';
-import { Socket } from 'node:net';
+import { GatewayService, MAX_BODY_SIZE, readBody } from '../src/aiflowbridge/gateway/server';
 import type { AiFlowBridgeConfig, ProviderProfile } from '../src/aiflowbridge/types';
 
 function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile {
@@ -754,7 +752,7 @@ describe('readBody (buffer + settled-flag guard)', () => {
 		const stream = new PassThrough();
 		const promise = readBody(stream as unknown as IncomingMessage);
 		stream.write(Buffer.from('partial'));
-		// destroy() emits 'close' before 'end' — simulates client hang-up.
+		// destroy() emits 'close' before 'end' - simulates client hang-up.
 		stream.destroy();
 		await expect(promise).rejects.toThrow('Client disconnected');
 	});
@@ -775,7 +773,7 @@ describe('readBody (buffer + settled-flag guard)', () => {
 		stream.write(Buffer.from('done'));
 		stream.end();
 		await expect(promise).resolves.toBe('done');
-		// Emit close manually — must not throw or produce an unhandled
+		// Emit close manually - must not throw or produce an unhandled
 		// rejection warning (the settled flag absorbs it).
 		stream.emit('close');
 	});

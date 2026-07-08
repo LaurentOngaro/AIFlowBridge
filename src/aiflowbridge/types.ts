@@ -8,6 +8,102 @@ export interface ProviderPricing {
   currency?: string;
 }
 
+/**
+ * Minimal disposable contract. Mirrors VS Code's `Disposable` shape so the
+ * runtime can stay agnostic of the host (VS Code extension, standalone
+ * CLI, ...). Returned by `IGatewayContext.registerCommand` and by
+ * `IGatewayContext.onConfigChange` so the caller can unsubscribe.
+ */
+export interface Disposable {
+  dispose(): void;
+}
+
+/**
+ * Minimal subset of the VS Code SecretStorage API used by the gateway to
+ * resolve per-vendor API keys. The standalone adapter implements this
+ * via env vars + a JSON file (see `src/standalone/context.ts`).
+ */
+export interface SecretStorageLike {
+  get(key: string): Promise<string | undefined>;
+  store(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+/**
+ * Minimal subset of `vscode.WorkspaceConfiguration` used by the gateway
+ * config synthesis. `get` returns the value or the fallback. Used by both
+ * the VS Code adapter (`vscode.workspace.getConfiguration("aiflowbridge")`)
+ * and the standalone config loader (parsed JSON file at
+ * `~/.aiflowbridge/config.json`).
+ */
+export interface ConfigReader {
+  get<T>(key: string, fallback?: T): T;
+}
+
+/**
+ * File abstraction used by the model registry loader. Defaults to
+ * `vscode.workspace.fs` in the extension; the standalone adapter wraps
+ * `node:fs/promises`.
+ */
+export interface FileSystemLike {
+  readFile(uri: UriLike): Promise<Uint8Array>;
+}
+
+export interface UriLike {
+  fsPath: string;
+}
+
+/**
+ * Runtime-agnostic gateway context (FEAT7).
+ *
+ * Implemented by:
+ *   - `createVSCodeContext()` in `src/aiflowbridge/vscode-context-adapter.ts`
+ *     (wraps `vscode.ExtensionContext`)
+ *   - `createStandaloneContext()` in `src/standalone/context.ts`
+ *     (env vars + `~/.aiflowbridge/` + `fs.watch` for hot config reload)
+ *
+ * The optional UI hooks (`registerCommand`, `showInformation`,
+ * `showWarning`) are only populated by the VS Code adapter; the
+ * standalone CLI ignores them. The optional filesystem hooks (`fs`,
+ * `extensionUri`, `workspaceFolder`) are needed by the model registry
+ * loader to read the bundled / workspace tiers.
+ */
+export interface IGatewayContext {
+  /** Resolution of API keys by vendor id (matches VS Code's SecretStorage shape). */
+  secrets: SecretStorageLike;
+  /** Absolute path to the persistent storage directory (VS Code `globalStorageUri.fsPath`,
+   *  or `~/.aiflowbridge/` in standalone mode). */
+  globalStorageDir: string;
+  /** Version of the extension / binary. */
+  extensionVersion: string;
+  /** Disposable bag the host keeps alive for the lifetime of the process. The runtime
+   *  pushes every disposable it creates (status bar, gateway, listeners) into this array
+   *  so the host can clean them up on deactivation. */
+  subscriptions: Disposable[];
+  /** Subscribe to configuration changes. The callback fires when the `aiflowbridge` section
+   *  changes. Optional in standalone mode (where hot-reload is handled by an `fs.watch`
+   *  on the JSON config file). */
+  onConfigChange?(cb: () => void): Disposable;
+  /** Read the raw configuration. Called from `loadConfig()` and on every config reload. */
+  getConfiguration(): ConfigReader;
+  /** Register a command. Optional - only the VS Code adapter implements it. The standalone
+   *  CLI has no command palette. */
+  registerCommand?(command: string, callback: (...args: unknown[]) => unknown): Disposable;
+  /** Show an information message in the host UI. Optional. */
+  showInformation?(message: string): void;
+  /** Show a warning message in the host UI. Optional. */
+  showWarning?(message: string): void;
+  /** Filesystem used by the model registry loader (3-tier read). Optional in standalone
+   *  mode if the bundled tier is the only one desired. */
+  fs?: FileSystemLike;
+  /** Extension / binary root URI used to resolve `resources/models.json`. Optional in
+   *  standalone mode (the standalone binary bundles the registry next to the executable). */
+  extensionUri?: UriLike;
+  /** First workspace folder for the workspace-tier override. `undefined` when the host
+   *  has no open workspace (or the standalone has no project context). */
+  workspaceFolder?: UriLike | undefined;
+}
+
 export interface ProviderProfile {
   id: string;
   label: string;

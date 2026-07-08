@@ -10,12 +10,14 @@ import { registerActionUrls } from './actions';
 import { registerCommands } from './commands';
 import { initializeDiagnostics } from './diagnostics';
 import { showWelcomeIfNeeded } from './welcome';
-import { activate as activateAIFlowBridge, deactivate as deactivateAIFlowBridge } from '../aiflowbridge';
+import { createVSCodeContext } from '../aiflowbridge/vscode-context-adapter';
+import { AIFlowBridgeRuntime } from '../aiflowbridge';
 
 let activeProviders: RegisteredProvider[] = [];
 let deepseekProvider: DeepSeekChatProvider | undefined;
 let gatewayLock: GatewayLockHandle | null = null;
 let ownsGatewayLock = false;
+let aiflowbridgeRuntime: AIFlowBridgeRuntime | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	await initializeDiagnostics(context);
@@ -62,7 +64,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// we would race with the holding activation and both could decide
 		// to restart the peer at the same time.
 		if (ownsGatewayLock) {
-			await activateAIFlowBridge(context);
+			// FEAT6: wrap the vscode.ExtensionContext into the runtime-agnostic
+			// IGatewayContext adapter so the runtime has no direct `vscode`
+			// dependency.
+			const gatewayContext = createVSCodeContext(context);
+			aiflowbridgeRuntime = new AIFlowBridgeRuntime(gatewayContext);
+			await aiflowbridgeRuntime.activate();
 		} else {
 			logger.info('[AIFlowBridge] Skipping gateway start (lock not owned). The holding activation will own the gateway for this session.');
 		}
@@ -77,7 +84,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 export async function deactivate(): Promise<void> {
 	try {
-		await deactivateAIFlowBridge();
+		await aiflowbridgeRuntime?.deactivate();
+		aiflowbridgeRuntime = undefined;
 		for (const { provider } of activeProviders) {
 			await provider.prepareForDeactivate();
 		}

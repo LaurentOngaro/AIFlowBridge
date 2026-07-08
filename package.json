@@ -58,6 +58,9 @@
     "onLanguageModelChatProvider:aiflowbridge"
   ],
   "main": "./out/extension.js",
+  "bin": {
+    "aiflowbridge-server": "./dist/standalone/main.js"
+  },
   "contributes": {
     "languageModelChatProviders": [
       {
@@ -100,6 +103,11 @@
         "command": "aiflowbridge.openSettings",
         "category": "AIFlowBridge",
         "title": "AIFlowBridge: Open settings"
+      },
+      {
+        "command": "aiflowbridge.joinExternalGateway",
+        "category": "AIFlowBridge",
+        "title": "AIFlowBridge: Join external (standalone) gateway"
       },
       {
         "command": "aiflowbridge.setVisionModel",
@@ -454,8 +462,12 @@
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
+    "clean:standalone": "node -e \"require('node:fs').rmSync('dist/standalone', { recursive: true, force: true })\" && node -e \"require('node:fs').rmSync('dist/aiflowbridge', { recursive: true, force: true })\" && node -e \"require('node:fs').rmSync('dist/logger.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/config.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/consts.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/types.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/json.js', { force: true })\"",
     "compile": "npm run clean && tsc -p ./",
+    "compile:standalone": "npm run clean:standalone && tsc -p tsconfig.standalone.json && tsc-alias -p tsconfig.standalone.json && node -e \"require('node:fs').chmodSync('dist/standalone/main.js', 0o755)\"",
     "watch": "npm run clean && tsc -watch -p ./",
+    "build:standalone": "npm run compile:standalone",
+    "start:standalone": "node dist/standalone/main.js",
     "package": "npm run compile && npm test && vsce package -o dist/",
     "publish:vscode": "npm run compile && npm test && vsce publish",
     "publish:openvsx": "npm run compile && npm test && ovsx publish",
@@ -467,6 +479,7 @@
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.0.0",
     "ovsx": "^1.0.1",
+    "tsc-alias": "^1.9.0",
     "typescript": "^6.0.3",
     "vitest": "^2.0.5"
   }

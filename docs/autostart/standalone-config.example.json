@@ -1,0 +1,32 @@
+{
+  "_comment": "Standalone AIFlowBridge gateway config. All keys are optional - missing keys fall back to the bundled defaults shown in `src/standalone/config-loader.ts`. Format is identical to the VS Code settings.json (`aiflowbridge` section).",
+  "gateway.enabled": true,
+  "gateway.port": 8787,
+  "gateway.baseUrl": "http://127.0.0.1:8787/v1",
+  "gateway.defaultModel": "",
+
+  "telemetry.enabled": true,
+  "telemetry.logRequests": true,
+
+  "vision.excludedVendors": ["aiflowbridge"],
+  "vision.copilotVisionModel": "oswe-vscode-prime",
+
+  "providers": [],
+
+  "providers.deepseek.baseUrl": "https://api.deepseek.com",
+  "providers.minimax.baseUrl": "https://api.minimax.io/v1",
+  "providers.xiaomi.baseUrl": "https://api.xiaomimimo.com/v1",
+
+  "providers.deepseek.maxTokens": 0,
+  "providers.minimax.maxTokens": 0,
+  "providers.xiaomi.maxTokens": 0,
+
+  "providers.deepseek.temperature": 1,
+  "providers.minimax.temperature": 1,
+
+  "providers.deepseek.topP": 1,
+  "providers.minimax.topP": 1,
+
+  "providers.minimax.reasoningSplit": true,
+  "providers.xiaomi.reasoningRequiredForToolCalls": true
+}

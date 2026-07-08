@@ -11,13 +11,14 @@
  */
 
 import { API_KEY_SECRETS } from "../consts";
+import type { SecretStorageLike } from "./types";
 
 export type KnownVendor = keyof typeof API_KEY_SECRETS;
 
 /**
- * Minimal shape of the VS Code SecretStorage API used by this resolver.
- * `get()` returns a thenable (not necessarily a Promise), which is why
- * the return type is `string | undefined | { then(...): ... }`.
+ * Alias kept for backward compatibility with the existing test suite
+ * (`tests/api-key-resolver.test.ts`) - the minimal contract the resolver
+ * needs is just `get()`, which is a subset of `SecretStorageLike`.
  */
 export type SecretsLike = {
 	get(key: string): unknown;

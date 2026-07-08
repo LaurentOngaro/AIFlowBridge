@@ -4,26 +4,24 @@
 
 AIFlowBridge is a VS Code extension that provides multi-provider AI coding assistance through Copilot Chat and an OpenAI-compatible local gateway. It supports DeepSeek, MiniMax, and Xiaomi MiMo with usage metrics, vision proxy, and singleton gateway routing.
 
-## DOs
+## Style rules (project-wide)
+
+### DO's
 
 ALWAYS follows the following rules:
 
--✅ DO USE FRENCH for All the Agent IA interractions in the Chat (thinking, reflection, question, answers...)
-
-## DONTs
-
-ALWAYS follows the following rules:
-
-- **Never use the em-dash (Em dash) character (U+2014).** Use a plain ASCII hyphen-minus (`-`, U+002D) instead.
-- **Never use the en-dash (En dash) character (U+2013).** Use a plain ASCII hyphen-minus (`-`, U+002D) instead.
-
-## Code Standards
-
-### Language
-
-- ❌ No Chinese localization files (package.nls.zh-cn.json, README.zh-cn.md, etc.)
+- ✅ DO USE FRENCH for All the Agent IA interractions in the Chat (thinking, reflection, question, answers...)
+- ✅ Markdown prose : **One paragraph = one physical line.** No line break inside a sentence, no matter the line length. Tables, code blocks, and frontmatter are exempt.
 - ✅ All code, comments, and documentation must be in **English only**
 - ✅ Use English for all user-facing strings
+
+### DONT's
+
+- ❌ No Chinese localization files (package.nls.zh-cn.json, README.zh-cn.md, etc.)
+- ❌ **Never use em-dash (U+2014) or en-dash (U+2013).** Use plain ASCII hyphen-minus (`-`, U+002D). Reason: these characters are almost exclusively used by AI assistants in French/English prose, not by humans in their daily writing. Their presence in a tracked file is a strong signal of AI-generated content.
+- ❌ Same rule for smart quotes / ellipsis: ASCII `'` `"` `...` instead of curly variants. Mostly enforced automatically by `MD026` in `markdownlint`.
+  - **Accented letters are NOT in scope** of this rule: French typography (e, e, e, a, a, c, o, u, u, i, i, e, y) and other European diacritics are normal human text. Keep them as-is.
+  - Box-drawing characters and arrow symbols (-> , =>, <-) are OK for diagrams and table separators.
 
 ### Style Guidelines
 
@@ -33,7 +31,7 @@ ALWAYS follows the following rules:
 - Prefer const over let
 - Use interface for object shapes
 
-### File Structure
+## File Structure
 
 ```
 src/
@@ -45,13 +43,20 @@ src/
 │   ├── telemetry/                      # Cross-window telemetry persistence (FEAT1)
 │   │   └── persistence.ts              # TelemetryPersister + acquireTelemetryLock / releaseTelemetryLock
 │   ├── modelRegistry.schema.ts         # Registry types + hand-rolled validators + merge
-│   ├── modelRegistry.ts                # 3-tier loader (bundled < globalStorage < workspace)
+│   ├── modelRegistry.ts                # 3-tier loader (bundled < globalStorage < workspace) - accepts IGatewayContext
 │   ├── telemetry.ts                    # Usage metrics
 │   ├── providers.ts                    # Gateway upstream provider normalization
-│   ├── config.ts                       # async loadConfig(context) - reads registry + settings
-│   ├── types.ts                        # Type definitions
-│   ├── index.ts                        # Extension entry point
-│   └── ui/                             # Dashboard & status bar
+│   ├── config.ts                       # loadConfigFromContext(ctx) + VS Code wrapper loadConfig(context)
+│   ├── types.ts                        # IGatewayContext + Disposable + SecretStorageLike + ConfigReader + FileSystemLike
+│   ├── index.ts                        # AIFlowBridgeRuntime(ctx: IGatewayContext) - host-agnostic entry point
+│   ├── vscode-context-adapter.ts       # createVSCodeContext(context) - wraps vscode.ExtensionContext (FEAT6)
+│   ├── api-key-resolver.ts             # resolveVendorApiKey(vendor, secrets) - SecretStorageLike agnostic
+│   └── ui/                             # Dashboard & status bar (joined state when peer owns the gateway)
+├── standalone/                         # Pure-Node.js CLI binary (FEAT7)
+│   ├── main.ts                         # CLI entry point (aiflowbridge-server npm bin)
+│   ├── context.ts                      # createStandaloneContext() - env vars + ~/.aiflowbridge/ + fs.watch hot-reload
+│   ├── config-loader.ts                # StandaloneConfigFile - JSON reader for ~/.aiflowbridge/config.json
+│   └── vscode-shim.ts                  # vscode module shim so the gateway code typechecks without @types/vscode
 ├── provider/                           # Language model providers (Copilot Chat)
 │   ├── base.ts                         # Abstract base (reads registry cache)
 │   ├── index.ts                        # DeepSeek provider (vendor: aiflowbridge)
@@ -89,11 +94,8 @@ resources/
 
 ### Model Registry (3-tier)
 
-The canonical list of models, vendors, capabilities, and per-model pricing is an
-external JSON file (`resources/models.json`), not a TypeScript constant. It
-flows through a 3-tier merge with `workspace > globalStorage > bundled` priority
-(see [README "Model registry"](../../resources/../README.md#model-registry) for
-the user-facing version):
+The canonical list of models, vendors, capabilities, and per-model pricing is an external JSON file (`resources/models.json`), not a TypeScript constant.
+It flows through a 3-tier merge with `workspace > globalStorage > bundled` priority (see [README "Model registry"](../../resources/../README.md#model-registry) for the user-facing version):
 
 ```
 .vscode/aiflowbridge.models.json  (per-project override)
@@ -103,51 +105,30 @@ the user-facing version):
 resources/models.json             (shipped with the extension)
 ```
 
-- **Bundled** (`resources/models.json`) - shipped with the extension, lists the
-  14 supported models and the 3 vendor defaults (baseUrl, apiKeySecret,
-  external URLs, indicative token-plan rates).
-- **globalStorage override** - `AIFlowBridge: Edit model registry` opens (or
-  initializes from the bundled) `<globalStorageUri>/models.json` in the
-  editor. Affects the current OS user.
-- **workspace override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`.
-  Affects only the current project. Committed to Git, lets teams pin the
-  catalog per repo.
+- **Bundled** (`resources/models.json`) - shipped with the extension, lists the 14 supported models and the 3 vendor defaults (baseUrl, apiKeySecret, external URLs, indicative token-plan rates).
+- **globalStorage override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user.
+- **workspace override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
 
 Merge rules:
 
-- Per `model.id`: `deepMergeModel(base, override)` - top-level fields +
-  `capabilities` + `pricing` are deep-merged, so an override that only sets
-  `pricing` keeps every other field from the bundled entry.
-- Per `vendor` key: `deepMergeVendor(base, override)` - `externalUrls` is
-  shallow-merged per key.
-- A `model.id` or `vendor` key present only in a higher tier is preserved
-  (lets you add a new model without touching the bundled file).
-- Tier existence is fail-safe: a missing tier is fine. A structure error in
-  the bundled tier is **fatal** (the bundled file is shipped with the
-  extension, a broken shipped file is a programming error). A structure
-  error in an override tier is **logged and skipped** (the user can fix
-  their override without bricking the extension). A per-entry content error
-  is **logged and dropped** (the rest of the tier is still used).
+- Per `model.id`: `deepMergeModel(base, override)` - top-level fields + `capabilities` + `pricing` are deep-merged, so an override that only sets `pricing` keeps every other field from the bundled entry.
+- Per `vendor` key: `deepMergeVendor(base, override)` - `externalUrls` is shallow-merged per key.
+- A `model.id` or `vendor` key present only in a higher tier is preserved (lets you add a new model without touching the bundled file).
+- Tier existence is fail-safe: a missing tier is fine.
+- A structure error in the bundled tier is **fatal** (the bundled file is shipped with the extension, a broken shipped file is a programming error).
+- A structure error in an override tier is **logged and skipped** (the user can fix their override without bricking the extension).
+- A per-entry content error is **logged and dropped** (the rest of the tier is still used).
 
-Validation is hand-rolled, no `ajv` dependency. The schema module
-(`src/aiflowbridge/modelRegistry.schema.ts`) is intentionally VS Code-free
-(imports nothing from `vscode`) so it can be unit-tested directly with
-vitest. Validators accumulate skip reasons in a `ValidationLog` object that
-the loader turns into `logger.warn()` calls - validators themselves never
-log, which keeps them pure and easy to test.
+Validation is hand-rolled, no `ajv` dependency.
+The schema module (`src/aiflowbridge/modelRegistry.schema.ts`) is intentionally VS Code-free (imports nothing from `vscode`) so it can be unit-tested directly with vitest.
+Validators accumulate skip reasons in a `ValidationLog` object that the loader turns into `logger.warn()` calls - validators themselves never log, which keeps them pure and easy to test.
 
-The loader caches the merged result in a module-level variable. Consumer
-modules read it via `getLoadedRegistry()` (throws if not loaded) or
-`tryGetLoadedRegistry()` (returns `undefined`). `loadModelRegistry()` is
-idempotent: a second call returns the same cached object instead of
-re-reading the bundled file. The cache is invalidated by a window reload
-(per `ACTION PLAN.md` "Pièges à éviter" - v1 requires a reload to pick up
-hot-edits of the globalStorage file).
+The loader caches the merged result in a module-level variable.
+Consumer modules read it via `getLoadedRegistry()` (throws if not loaded) or `tryGetLoadedRegistry()` (returns `undefined`). `loadModelRegistry()` is idempotent: a second call returns the same cached object instead of re-reading the bundled file.
+The cache is invalidated by a window reload (per `ACTION PLAN.md` "Pièges à éviter" - v1 requires a reload to pick up hot-edits of the globalStorage file).
 
-For tests, `setLoadedRegistry(registry)` seeds the cache. The unit tests
-in `tests/modelRegistry.test.ts` instead inject a fake `vscode.workspace.fs`
-through the loader's `options.fs` parameter, which keeps the test isolated
-from any real file system.
+For tests, `setLoadedRegistry(registry)` seeds the cache.
+The unit tests in `tests/modelRegistry.test.ts` instead inject a fake `vscode.workspace.fs` through the loader's `options.fs` parameter, which keeps the test isolated from any real file system.
 
 ### Provider Pattern
 
@@ -159,30 +140,22 @@ Each AI provider is registered via VS Code's `languageModelChatProviders` contri
 
 ### Model Id Convention
 
-**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5`, `deepseek-v4-flash`), NOT a kebab-case alias. The human-readable name shows in the Copilot Chat picker. This removes the need for any id translation map between VS Code and upstream.
+**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5`, `deepseek-v4-flash`), NOT a kebab-case alias.
+The human-readable name shows in the Copilot Chat picker. This removes the need for any id translation map between VS Code and upstream.
 
 ### User-defined models
 
-Users can extend the registry without an extension update via two complementary
-mechanisms:
+Users can extend the registry without an extension update via two complementary mechanisms:
 
-- **Model registry override** (`resources/models.json` + globalStorage +
-  workspace): the source of truth for the **bundled** model list. See the
-  "Model Registry (3-tier)" section above. Use this to add models that
-  should be available to all users of a project (workspace override) or to
-  all projects for the current OS user (globalStorage override).
-- **`aiflowbridge.userModels` setting**: array of `ModelDefinition`-shaped
-  objects in `settings.json`. Lightweight per-user/per-workspace model
-  additions that don't need a registry file. Same merge semantics as the
-  registry overrides.
-- **`AIFlowBridge: Add a custom model` command**: walks through the
-  Command Palette to fetch a vendor's `/v1/models`, pick a model, declare
-  capabilities, and save to the `aiflowbridge.userModels` setting.
+- **Model registry override** (`resources/models.json` + globalStorage + workspace): the source of truth for the **bundled** model list. See the "Model Registry (3-tier)" section above.
+  - Use this to add models that should be available to all users of a project (workspace override) or to all projects for the current OS user (globalStorage override).
+- **`aiflowbridge.userModels` setting**: array of `ModelDefinition`-shaped objects in `settings.json`.
+  - Lightweight per-user/per-workspace model additions that don't need a registry file.
+  - Same merge semantics as the registry overrides.
+- **`AIFlowBridge: Add a custom model` command**: walks through the Command Palette to fetch a vendor's `/v1/models`, pick a model, declare capabilities, and save to the `aiflowbridge.userModels` setting.
 
-`BaseChatProvider.getModelsForVendor()` reads from the registry cache
-(`getLoadedRegistry().models`) and merges with `getUserModels()` on every
-read. The Copilot Chat picker refreshes automatically when either source
-changes.
+`BaseChatProvider.getModelsForVendor()` reads from the registry cache (`getLoadedRegistry().models`) and merges with `getUserModels()` on every read.
+The Copilot Chat picker refreshes automatically when either source changes.
 
 ### Provider Implementation
 
@@ -222,53 +195,54 @@ Located in `src/aiflowbridge/gateway/`:
 - Prefixed log levels: `[AIFlowBridge]`, `[Gateway]`, `[Vision]`, `[MiniMax]`, `[Xiaomi]`
 - Accessible via "AIFlowBridge: Show Logs" command
 
+### Standalone Gateway (FEAT7)
+
+The gateway can run as a pure-Node.js CLI (`aiflowbridge-server` npm bin, `dist/standalone/main.js`) without a VS Code host. The decoupling uses an `IGatewayContext` interface (`src/aiflowbridge/types.ts`):
+
+- VS Code side: `createVSCodeContext()` in `src/aiflowbridge/vscode-context-adapter.ts` wraps `vscode.ExtensionContext`. The lifecycle entry point (`src/runtime/lifecycle.ts`) calls `createVSCodeContext(context)` before `activateAIFlowBridge()`.
+- Standalone side: `createStandaloneContext()` in `src/standalone/context.ts` reads API keys from env vars (`AIFLOWBRIDGE_<VENDOR>_API_KEY`, priority 1) or `~/.aiflowbridge/secrets.json` (priority 2, `chmod 600`). Config hot-reload via `fs.watch` on `~/.aiflowbridge/config.json` with a 5s `fs.watchFile` polling fallback (Windows).
+- Shared `gateway.lock` path means only one process owns the gateway - VS Code and standalone cooperate via the existing `lock.ts` + `probe.ts` flow.
+- Status bar `AIFlowBridge ↗ external` (new `GatewayService.isJoined` getter) signals that the extension joined an external peer instead of starting its own. Manual override via the `aiflowbridge: Join external (standalone) gateway` command.
+- Standalone build is driven by `tsconfig.standalone.json` (path-maps `vscode` to `src/standalone/vscode-shim.ts`). Run `npm run build:standalone` and `npm run start:standalone`. The VSIX excludes `dist/standalone/`, `src/standalone/`, and `tsconfig.standalone.json` (see `.vscodeignore`).
+
+### Logging
+
+- `src/logger.ts` wraps `vscode.LogOutputChannel`
+- Prefixed log levels: `[AIFlowBridge]`, `[Gateway]`, `[Vision]`, `[MiniMax]`, `[Xiaomi]`
+- Accessible via "AIFlowBridge: Show Logs" command
+
 ## Common Tasks
 
 ### Building
 
 ```bash
-npm run compile    # Compile TypeScript
-npm run watch      # Watch mode
-npm run package    # Build .vsix package
-npm test           # Run vitest unit tests
+npm run compile              # Compile TypeScript (VS Code extension)
+npm run watch                # Watch mode
+npm run package              # Build .vsix package
+npm run build:standalone     # Build the standalone gateway CLI (dist/standalone/main.js)
+npm run start:standalone     # Run the standalone gateway CLI
+npm test                     # Run vitest unit tests (591 tests / 29 files)
 ```
 
 ### Adding a New Provider
 
-1. Add a new entry under `vendors` in `resources/models.json` (baseUrl,
-   apiKeySecret, externalUrls). Use the **upstream API id** as the key.
-2. Add model definition(s) under `models` in `resources/models.json` with
-   `family: <new-vendor>` and the upstream `id`.
-3. Add provider registration to `package.json`
-   (`contributes.languageModelChatProviders`)
+1. Add a new entry under `vendors` in `resources/models.json` (baseUrl, apiKeySecret, externalUrls). Use the **upstream API id** as the key.
+2. Add model definition(s) under `models` in `resources/models.json` with `family: <new-vendor>` and the upstream `id`.
+3. Add provider registration to `package.json` (`contributes.languageModelChatProviders`)
 4. Create provider-specific API client in `src/provider/<vendor>.ts`
-5. Update gateway provider profiles in `src/aiflowbridge/providers.ts`
-   (validation/normalization) - the default `aiflowbridge.providers` array
-   still uses the hand-curated shape, but every registry model with the
-   new `family` is auto-synthesized on top.
-6. Add an entry to `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/config.ts`
-   if the new vendor should appear in the gateway catalog with a friendly
-   label and family-level indicative pricing.
-7. Add provider-specific settings to `package.json`
-   (`aiflowbridge.providers.{vendor}.*`)
+5. Update gateway provider profiles in `src/aiflowbridge/providers.ts` (validation/normalization) - the default `aiflowbridge.providers` array still uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top.
+6. Add an entry to `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
+7. Add provider-specific settings to `package.json` (`aiflowbridge.providers.{vendor}.*`)
 
 ### Adding a New Model
 
-1. Add to the `models` array in `resources/models.json` with the **exact
-   upstream API id** (use `AIFlowBridge: Add a custom model` or
-   `curl /v1/models` to confirm)
-2. Follow `RegistryModelDefinition` interface
-   (`src/aiflowbridge/modelRegistry.schema.ts`) with capabilities flags
-   and, optionally, a `pricing` block
-3. Add to `package.nls.json` and `src/i18n.ts` with `model.{id}.detail`
-   translation (key is the upstream id, not a kebab-case alias)
+1. Add to the `models` array in `resources/models.json` with the **exact upstream API id** (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm)
+2. Follow `RegistryModelDefinition` interface (`src/aiflowbridge/modelRegistry.schema.ts`) with capabilities flags and, optionally, a `pricing` block
+3. Add to `package.nls.json` and `src/i18n.ts` with `model.{id}.detail` translation (key is the upstream id, not a kebab-case alias)
 4. Update README.md provider table
 
-> If you want to add a model without editing `resources/models.json` (and
-> waiting for a release), use `AIFlowBridge: Add a custom model` to add it
-> to `aiflowbridge.userModels`, or place a workspace override at
-> `.vscode/aiflowbridge.models.json`. Both go through the same merge path
-> as the bundled registry.
+> If you want to add a model without editing `resources/models.json` (and waiting for a release), use `AIFlowBridge: Add a custom model` to add it to `aiflowbridge.userModels`, or place a workspace override at `.vscode/aiflowbridge.models.json`.
+> Both go through the same merge path > as the bundled registry.
 
 ## Important Files
 
@@ -308,12 +282,12 @@ All settings use the `aiflowbridge.` prefix. Provider-specific settings use `aif
 
 ## Testing
 
-Run `npm test` for unit tests. The extension uses vitest for testing (515 tests across 27 files).
+Run `npm test` for unit tests. The extension uses vitest for testing (591 tests across 29 files as of 1.7.0, FEAT7 standalone).
 
 Quality gates:
 
 - `npm run compile` - 0 TypeScript errors
-- `npm test` - 515/515 passing
+- `npm test` - 591/591 passing
 
 Test files of note:
 
@@ -331,6 +305,8 @@ Test files of note:
 - `tests/dashboard.test.ts` - metrics dashboard HTML builder (43 tests): gateway version in the badge, "Current version" subtitle, collapsible headers with `localStorage` persistence, `<input type="date">` × 2, `<input type="search">`, the client-side filter pipeline (`filterByRange` / `filterByCustomDate` / `entrySearchHaystack` / `matchesSearch`), per-row delete button when `onRemoveEntry` is wired, AFF03 plan-compliance: preset click clears the custom date inputs, entering a custom date deactivates the active preset button, by-model search matches the model name directly (entry-level OR model-name match).
 - `tests/telemetry-store.test.ts` - TelemetryStore record / snapshot / restore / reset / persister hook (14 tests)
 - `tests/telemetry-persistence.test.ts` - file-based persister + file lock + atomic write + concurrent writers + migration safety + removeEntry (33 tests)
+- `tests/standalone/context.test.ts` - `createStandaloneContext()` (FEAT7): env-var / secrets.json resolution, store / delete round-trip, fs.watch + polling hot-reload (14 tests)
+- `tests/standalone/config-loader.test.ts` - `StandaloneConfigFile` reader (FEAT7): file override vs bundled default vs caller fallback, cache + invalidate, corrupt JSON handling (14 tests)
 
 ## Notes
 

@@ -35,14 +35,15 @@
 import * as vscode from 'vscode';
 import { logger } from '../logger';
 import {
-	type ModelRegistry,
-	type RegistryModelDefinition,
-	type RegistrySources,
-	type ValidatedContent,
-	validateRegistryStructure,
-	validateRegistryContent,
-	mergeTiers,
+  mergeTiers,
+  type ModelRegistry,
+  type RegistryModelDefinition,
+  type RegistrySources,
+  type ValidatedContent,
+  validateRegistryContent,
+  validateRegistryStructure,
 } from './modelRegistry.schema';
+import type { FileSystemLike, IGatewayContext, UriLike } from './types';
 
 /** Path of the bundled registry, relative to the extension root. */
 export const BUNDLED_REGISTRY_RELATIVE_PATH = ['resources', 'models.json'] as const;
@@ -58,17 +59,79 @@ export interface LoadModelRegistryOptions {
 	 * Filesystem used to read the three tiers. Defaults to `vscode.workspace.fs`.
 	 * Exposed for unit tests; only `readFile` is required.
 	 */
-	fs?: Pick<vscode.FileSystem, 'readFile'>;
+	fs?: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike;
 	/**
 	 * Workspace folder to use for the workspace tier. Defaults to
 	 * `vscode.workspace.workspaceFolders?.[0]`. Exposed for unit tests.
 	 */
-	workspaceFolder?: vscode.WorkspaceFolder | undefined;
+	workspaceFolder?: vscode.WorkspaceFolder | UriLike | undefined;
 }
 
 interface TierLoadResult {
   tier: ValidatedContent<RegistryModelDefinition> | ValidatedContent<Partial<RegistryModelDefinition>> | undefined;
   exists: boolean;
+}
+
+/**
+ * Generic shape accepted by `loadModelRegistry`. Both `vscode.ExtensionContext`
+ * and `IGatewayContext` (FEAT7) satisfy this shape - the
+ * loader only needs `extensionUri`, `globalStorageUri` (or
+ * `globalStorageDir`), and the optional `workspaceFolder`.
+ */
+type RegistryHost = Pick<IGatewayContext, 'extensionUri' | 'globalStorageDir' | 'workspaceFolder' | 'fs'> & {
+	globalStorageUri?: { fsPath: string };
+};
+
+function resolveGlobalStorageDir(host: RegistryHost): string {
+	if (host.globalStorageDir) {
+		return host.globalStorageDir;
+	}
+	const uri = (host as { globalStorageUri?: { fsPath: string } }).globalStorageUri;
+	return uri?.fsPath ?? '';
+}
+
+function resolveExtensionUri(host: RegistryHost): UriLike {
+	if (host.extensionUri) {
+		return host.extensionUri;
+	}
+	const legacy = (host as { extensionUri?: { fsPath: string } }).extensionUri;
+	if (legacy) {
+		return legacy as UriLike;
+	}
+	return { fsPath: '' };
+}
+
+function resolveWorkspaceFolder(host: RegistryHost): UriLike | { uri: vscode.Uri } | undefined {
+	if (host.workspaceFolder) {
+		return host.workspaceFolder as UriLike | { uri: vscode.Uri };
+	}
+	return undefined;
+}
+
+function workspaceFsPath(folder: UriLike | { uri: vscode.Uri }): string {
+	if ('fsPath' in folder) {
+		return (folder as UriLike).fsPath;
+	}
+	return (folder as { uri: vscode.Uri }).uri.fsPath;
+}
+
+function resolveFs(host: RegistryHost, options: LoadModelRegistryOptions): Pick<vscode.FileSystem, 'readFile'> | FileSystemLike {
+	if (options.fs) {
+		return options.fs;
+	}
+	if (host.fs) {
+		return host.fs;
+	}
+	return vscode.workspace.fs;
+}
+
+function joinPath(base: UriLike, ...segments: string[]): UriLike {
+	const cleaned = base.fsPath.replace(/\/+$/, '');
+	const fsPath = [cleaned, ...segments].join('/');
+	return {
+		fsPath,
+		toString: () => fsPath,
+	} as UriLike;
 }
 
 /**
@@ -78,9 +141,14 @@ interface TierLoadResult {
  * Throws on a structural error in the bundled tier or a JSON parse error in
  * any tier (i.e. the bundled registry is shipped with the extension, so a
  * broken shipped file is a programming error, not a recoverable condition).
+ *
+ * Accepts either a `vscode.ExtensionContext` (legacy VS Code entry point)
+ * or an `IGatewayContext` (FEAT7 standalone entry point). Both expose
+ * `extensionUri`, `globalStorageUri` / `globalStorageDir`, and the optional
+ * `workspaceFolder` / `fs` fields the loader needs.
  */
 export async function loadModelRegistry(
-	context: vscode.ExtensionContext,
+	context: RegistryHost | vscode.ExtensionContext,
 	options: LoadModelRegistryOptions = {},
 ): Promise<ModelRegistry> {
 	// Idempotent: if the registry has already been loaded during this
@@ -93,13 +161,18 @@ export async function loadModelRegistry(
 		return cachedRegistry;
 	}
 
-	const fs = options.fs ?? vscode.workspace.fs;
-	const workspaceFolder = options.workspaceFolder ?? vscode.workspace.workspaceFolders?.[0];
+	const fs = resolveFs(context as RegistryHost, options);
+	const rawWorkspaceFolder = options.workspaceFolder ?? resolveWorkspaceFolder(context as RegistryHost);
+	const workspaceFolder: UriLike | undefined = rawWorkspaceFolder
+		? { fsPath: workspaceFsPath(rawWorkspaceFolder) }
+		: undefined;
+	const extensionUri = resolveExtensionUri(context as RegistryHost);
+	const globalStorageDir = resolveGlobalStorageDir(context as RegistryHost);
 
-	const bundledUri = vscode.Uri.joinPath(context.extensionUri, ...BUNDLED_REGISTRY_RELATIVE_PATH);
-	const globalStorageUri = vscode.Uri.joinPath(context.globalStorageUri, ...GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH);
+	const bundledUri = joinPath(extensionUri, ...BUNDLED_REGISTRY_RELATIVE_PATH);
+	const globalStorageUri = joinPath({ fsPath: globalStorageDir }, ...GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH);
 	const workspaceUri = workspaceFolder
-		? vscode.Uri.joinPath(workspaceFolder.uri, ...WORKSPACE_REGISTRY_RELATIVE_PATH)
+		? joinPath(workspaceFolder, ...WORKSPACE_REGISTRY_RELATIVE_PATH)
 		: undefined;
 
 	const bundled = await loadTier(fs, bundledUri, 'bundled', { fatal: true, mode: 'strict' });
@@ -111,9 +184,9 @@ export async function loadModelRegistry(
 	const merged = mergeTiers(bundled.tier, globalStorage.tier, workspace.tier);
 
 	const sources: RegistrySources = {
-		bundled: { exists: true, path: bundledUri.toString() },
-		globalStorage: { exists: globalStorage.exists, path: globalStorageUri.toString() },
-		workspace: { exists: workspace.exists, path: workspaceUri?.toString() ?? '' },
+		bundled: { exists: true, path: bundledUri.fsPath },
+		globalStorage: { exists: globalStorage.exists, path: globalStorageUri.fsPath },
+		workspace: { exists: workspace.exists, path: workspaceUri?.fsPath ?? '' },
 	};
 
 	const result: ModelRegistry = { ...merged, sources };
@@ -185,8 +258,8 @@ export function setLoadedRegistry(registry: ModelRegistry | undefined): void {
 }
 
 async function loadTier(
-  fs: Pick<vscode.FileSystem, 'readFile'>,
-  uri: vscode.Uri,
+  fs: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike,
+  uri: UriLike | vscode.Uri,
   label: 'bundled' | 'globalStorage' | 'workspace',
   options: { fatal: boolean; mode: 'strict' | 'partial' },
 ): Promise<TierLoadResult> {
@@ -195,6 +268,8 @@ async function loadTier(
     return { tier: undefined, exists: false };
   }
 
+  const fsPath = (uri as { fsPath?: string }).fsPath ?? uri.toString();
+
   try {
     validateRegistryStructure(raw);
   } catch (err) {
@@ -202,7 +277,7 @@ async function loadTier(
       throw err;
     }
     logger.warn(
-      `[AIFlowBridge] Ignoring ${label} model registry at ${uri.toString()}: ${err instanceof Error ? err.message : String(err)}`,
+      `[AIFlowBridge] Ignoring ${label} model registry at ${fsPath}: ${err instanceof Error ? err.message : String(err)}`,
     );
     return { tier: undefined, exists: false };
   }
@@ -223,14 +298,23 @@ async function loadTier(
  *   - the parsed JSON value otherwise
  *
  * Throws on JSON parse errors (the caller decides whether that's fatal).
+ *
+ * The `fs` argument may be either VS Code's `FileSystem` (whose `readFile`
+ * accepts a `vscode.Uri`) or the standalone `FileSystemLike` (whose
+ * `readFile` accepts a `UriLike`). Both shapes expose `readFile` and we
+ * pass the supplied URI straight through - the caller picks which URI
+ * shape to build.
  */
 async function readJsonFile(
-	fs: Pick<vscode.FileSystem, 'readFile'>,
-	uri: vscode.Uri,
+	fs: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike,
+	uri: UriLike | vscode.Uri,
 ): Promise<unknown | undefined> {
 	let bytes: Uint8Array;
 	try {
-		bytes = await fs.readFile(uri);
+		// `fs.readFile` accepts `vscode.Uri` (VS Code adapter) or `UriLike`
+		// (standalone adapter). The two shapes share `fsPath` so we cast
+		// through `unknown` to bridge the union.
+		bytes = await (fs.readFile as (u: UriLike | vscode.Uri) => Promise<Uint8Array>)(uri);
 	} catch (err) {
 		if (isFileNotFoundError(err)) {
 			return undefined;
@@ -246,7 +330,7 @@ function isFileNotFoundError(err: unknown): boolean {
 		return false;
 	}
 	const code = (err as { code?: unknown }).code;
-	if (code === 'FileNotFound') {
+	if (code === 'FileNotFound' || code === 'ENOENT') {
 		return true;
 	}
 	const name = (err as { name?: unknown }).name;
