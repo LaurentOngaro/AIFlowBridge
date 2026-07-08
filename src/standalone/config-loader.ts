@@ -18,6 +18,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ConfigReader } from "../aiflowbridge/types";
 import { logger } from "../logger";
+import { getNestedValue } from "./util";
 
 /**
  * Default configuration values, applied when the file is absent or
@@ -91,25 +92,6 @@ function loadFromDisk(path: string): Record<string, unknown> {
     logger.warn(`[Standalone] Failed to parse config at ${path}: ${error instanceof Error ? error.message : String(error)}`);
     return {};
   }
-}
-
-/**
- * Look up a dotted config key in a nested JSON object.
- * Returns `undefined` if any segment of the path is missing.
- */
-function getNestedValue(root: Record<string, unknown>, key: string): unknown {
-  const segments = key.split(".");
-  let current: unknown = root;
-  for (const segment of segments) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[segment];
-    if (current === undefined) {
-      return undefined;
-    }
-  }
-  return current;
 }
 
 /**

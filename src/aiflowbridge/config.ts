@@ -250,17 +250,23 @@ export function synthesizeProvidersFromBuiltInModels(
 }
 
 /**
- * Internal: build the gateway config from a generic `IGatewayContext`.
- * The VS Code adapter's `loadConfig()` is now a thin wrapper around this
- * function that builds the `ConfigReader` from `vscode.workspace.getConfiguration`.
- * The standalone entrypoint (`src/standalone/main.ts`) calls this directly
- * with the standalone context.
+ * Build the gateway config from a generic `IGatewayContext`.
+ *
+ * The runtime (`AIFlowBridgeRuntime`) and the standalone entry point
+ * (`src/standalone/main.ts`) call this function directly - there is no
+ * longer a VS Code-specific wrapper, the VS Code adapter hands a
+ * `createVSCodeContext(context)` `IGatewayContext` straight to this
+ * function. The 3-tier model registry must already have been loaded
+ * once via `loadModelRegistry(ctx)` during activation; this function
+ * returns the cached registry on the implicit cache hit.
  */
 export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlowBridgeConfig> {
-  // `loadModelRegistry` still takes a vscode.ExtensionContext today; the
-  // VS Code adapter extends `IGatewayContext` with the additional fields
-  // it needs (`fs`, `extensionUri`, `workspaceFolder`) and is shape-compatible.
-  const registry = await loadModelRegistry(ctx as unknown as vscode.ExtensionContext);
+  // `loadModelRegistry` accepts the same shape as `IGatewayContext`
+  // (the `RegistryHost` type in `modelRegistry.ts`): it only needs
+  // `extensionUri`, `globalStorageDir`, and the optional `workspaceFolder`
+  // / `fs`. The standalone entry point (`src/standalone/main.ts`) calls
+  // this function directly with its own `IGatewayContext`.
+  const registry = await loadModelRegistry(ctx);
 
   const configuration = ctx.getConfiguration();
 
@@ -281,13 +287,35 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     ? normalizeProviderProfiles(rawProfiles)
     : buildDefaultGatewayProfiles(configuration, registry);
 
+  // IMPROV-C07: surface the common "double /v1" foot-gun. `resolveUpstreamUrl`
+  // in the gateway appends a relative path to `baseUrl` via `new URL(path,
+  // baseUrl)`. A `baseUrl` that already ends with `/v1` works (the path
+  // is appended after the slash), but a `baseUrl` ending with `/v1/v1`
+  // (or `/v1/`) routes requests to `<base>/v1/v1/chat/completions` which
+  // most upstreams reject with 404. Warn instead of failing silently
+  // so the misconfiguration is obvious from the logs.
+  for (const provider of baseProfiles) {
+    try {
+      const parsed = new URL(provider.baseUrl);
+      if (parsed.pathname.endsWith("/v1/v1") || parsed.pathname.endsWith("/v1/")) {
+        logger.warn(
+          `[AIFlowBridge] Provider "${provider.id}" baseUrl ends with a duplicated /v1 (${provider.baseUrl}); ` +
+            `requests will be routed to <base>/v1/v1/chat/completions. Drop the trailing /v1 from baseUrl.`,
+        );
+      }
+    } catch {
+      // Already validated upstream.
+    }
+  }
+
   // Merge user-declared models from `aiflowbridge.userModels` into the
   // gateway catalog so external clients (Kilo Code, Continue, ...) see
-  // them via `GET /v1/models` and can route requests to them. The user-model
-  // setting is still VS Code-only today (`getUserModels()` reads from
-  // `vscode.workspace.getConfiguration`); in standalone mode it returns
-  // an empty array, which is the expected behaviour (the standalone catalog
-  // mirrors the bundled registry).
+  // them via `GET /v1/models` and can route requests to them. `getUserModels()`
+  // reads from `vscode.workspace.getConfiguration` on VS Code; in standalone
+  // mode the same `getUserModels()` is wired through the `vscode` shim
+  // (`src/standalone/vscode-shim.ts:64-87`) which reads `userModels`
+  // from `~/.aiflowbridge/config.json`, so user-declared models are
+  // honoured in both hosts.
   const withUserModels = synthesizeProvidersFromUserModels(baseProfiles, configuration, registry);
 
   // Synthesize gateway providers for every model in the registry that is
@@ -318,37 +346,4 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     logRequests: configuration.get<boolean>("telemetry.logRequests", true),
     visionProxy,
   };
-}
-
-/**
- * VS Code entry point - builds the `ConfigReader` from the workspace
- * configuration and delegates to `loadConfigFromContext`. Kept as a
- * thin wrapper so existing call sites (`src/runtime/lifecycle.ts`) and
- * tests that mock `vscode.workspace.getConfiguration` keep working.
- */
-export async function loadConfig(context: vscode.ExtensionContext): Promise<AiFlowBridgeConfig> {
-  // Load the 3-tier model registry (bundled < globalStorage < workspace).
-  // Idempotent: if it was already loaded during activation we get the same
-  // cached object back. The async signature lets us add remote tiers later
-  // (e.g. an enterprise remote registry) without breaking call sites.
-  void context; // registry is loaded in the lifecycle; cache hit below
-
-  const configuration = vscode.workspace.getConfiguration("aiflowbridge");
-  const reader: ConfigReader = {
-    get: <T>(key: string, fallback?: T): T => {
-      if (fallback === undefined) {
-        return configuration.get<T>(key) as T;
-      }
-      const value = configuration.get<T>(key, fallback);
-      return value === undefined ? fallback : value;
-    },
-  };
-
-  return loadConfigFromContext({
-    secrets: context.secrets as unknown as IGatewayContext["secrets"],
-    globalStorageDir: context.globalStorageUri.fsPath,
-    extensionVersion: context.extension.packageJSON.version ?? "0.0.0",
-    subscriptions: context.subscriptions as unknown as IGatewayContext["subscriptions"],
-    getConfiguration: () => reader,
-  });
 }

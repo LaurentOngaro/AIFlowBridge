@@ -82,3 +82,24 @@ The standalone process and the VS Code extension share the same `gateway.lock` f
 
 The standalone process logs to **stderr** (and the bundled log file at `~/.aiflowbridge/gateway.log` once we add it).
 All request telemetry goes to `~/.aiflowbridge/telemetry.json`, shared with the VS Code extension so the two stay in sync (use `AIFlowBridge: Refresh metrics` in VS Code to pull the latest snapshot).
+
+## Security
+
+### API key resolution
+
+API keys live in **one** of two places, in priority order (env wins over file):
+
+1. Environment variables `AIFLOWBRIDGE_<VENDOR>_API_KEY`.
+2. `~/.aiflowbridge/secrets.json` (mode `0600` on POSIX).
+
+The gateway reads both lazily via `src/standalone/context.ts` and never logs the values.
+
+### `secrets.json` file permissions
+
+The file is written with mode `0600` (`chmodSync(path, 0o600)`) so only the owning user can read it on POSIX systems (Linux, macOS, WSL).
+
+**Windows limitation.** Windows does not honor POSIX mode bits, so the `chmodSync(0o600)` call is a no-op there. NTFS ACLs apply, and by default `secrets.json` inherits the user's profile ACL (other local users on the same machine could read it). This is an accepted limitation of the current implementation: a future hardening pass could shell out to `icacls` on first write to lock the file down to the current user only. For now, the recommendation on Windows is to prefer the env-var resolution path (1) for any multi-user host.
+
+### `package.json` loading
+
+The standalone entry point reads the bundled `resources/../package.json` with `readFileSync` + `JSON.parse`. The previous implementation used `require()`, which would execute the file as JavaScript if it were ever replaced by a malicious package; the read+parse path closes that RCE vector (S-01).

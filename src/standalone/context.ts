@@ -48,6 +48,7 @@ import type {
   UriLike,
 } from "../aiflowbridge/types";
 import { logger } from "../logger";
+import { StandaloneConfigFile } from "./config-loader";
 
 const POLLING_INTERVAL_MS = 5_000;
 
@@ -144,71 +145,6 @@ class NodeFileSystem implements FileSystemLike {
 }
 
 /**
- * Standalone configuration reader. Wraps the JSON file at
- * `<globalStorageDir>/config.json` (format identical to the VS Code
- * settings, section `aiflowbridge`). The cache is invalidated by the
- * file watcher wired in `onConfigChange`.
- */
-class StandaloneConfigReader implements ConfigReader {
-  private cached: Record<string, unknown> | undefined;
-
-  constructor(private readonly configPath: string) {}
-
-  get<T>(key: string, fallback?: T): T {
-    if (this.cached === undefined) {
-      this.cached = readConfigFile(this.configPath);
-    }
-    const value = getNestedValue(this.cached, key);
-    if (value === undefined) {
-      return fallback as T;
-    }
-    return value as T;
-  }
-
-  invalidate(): void {
-    this.cached = undefined;
-  }
-}
-
-function readConfigFile(path: string): Record<string, unknown> {
-  if (!existsSync(path)) {
-    logger.info(`[Standalone] No config file at ${path}, using defaults.`);
-    return {};
-  }
-  try {
-    const raw = readFileSync(path, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-    logger.warn(`[Standalone] Config file at ${path} is not a JSON object, using defaults.`);
-    return {};
-  } catch (error) {
-    logger.warn(`[Standalone] Failed to read config at ${path}: ${error instanceof Error ? error.message : String(error)}`);
-    return {};
-  }
-}
-
-/**
- * Look up a dotted config key in a nested JSON object.
- * Returns `undefined` if any segment of the path is missing.
- */
-function getNestedValue(root: Record<string, unknown>, key: string): unknown {
-  const segments = key.split(".");
-  let current: unknown = root;
-  for (const segment of segments) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[segment];
-    if (current === undefined) {
-      return undefined;
-    }
-  }
-  return current;
-}
-
-/**
  * Watch a file for changes. On platforms where `fs.watch` is unreliable
  * (Windows), fall back to `fs.watchFile` polling at `POLLING_INTERVAL_MS`.
  * Returns a Disposable that tears down both watchers on dispose.
@@ -281,7 +217,10 @@ export async function createStandaloneContext(options: StandaloneContextOptions)
 
   // Shared ConfigReader instance; the watcher calls `invalidate()` on
   // every config file change so the next `get()` re-reads the file.
-  const configReader = new StandaloneConfigReader(configPath);
+  // Reuses the exported/tested `StandaloneConfigFile` (B-03) so the
+  // bundled defaults from `DEFAULT_STANDALONE_CONFIG` apply in
+  // standalone mode too.
+  const configReader = new StandaloneConfigFile(configPath);
   const getConfiguration = (): ConfigReader => configReader;
 
   return {

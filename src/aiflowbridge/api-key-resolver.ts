@@ -16,13 +16,24 @@ import type { SecretStorageLike } from "./types";
 export type KnownVendor = keyof typeof API_KEY_SECRETS;
 
 /**
- * Alias kept for backward compatibility with the existing test suite
- * (`tests/api-key-resolver.test.ts`) - the minimal contract the resolver
- * needs is just `get()`, which is a subset of `SecretStorageLike`.
+ * Minimal `get`-only contract kept for backward compatibility with the
+ * existing test suite (`tests/api-key-resolver.test.ts`), which passes
+ * synchronous mocks that throw or return raw values. Production callers
+ * pass the wider `SecretStorageLike` (VS Code `SecretStorage` or the
+ * standalone adapter) and the resolver awaits the Promise transparently.
  */
 export type SecretsLike = {
 	get(key: string): unknown;
 };
+
+/**
+ * Source of secrets for `resolveVendorApiKey`. Accepts either the full
+ * `SecretStorageLike` (VS Code `SecretStorage` and the standalone adapter
+ * both implement it) or the get-only `SecretsLike` used by the unit
+ * tests. The resolver only ever calls `.get()`, so the wider shape
+ * carries no extra risk (S-03).
+ */
+export type ResolveSecretSource = SecretStorageLike | SecretsLike;
 
 /**
  * Known id aliases (lowercased) for each vendor. The first entry is the
@@ -47,7 +58,7 @@ const VENDOR_ALIASES: Record<KnownVendor, readonly string[]> = {
  */
 export async function resolveVendorApiKey(
 	vendor: string,
-	secrets: SecretsLike,
+	secrets: ResolveSecretSource,
 ): Promise<string | undefined> {
 	if (!vendor) {
 		return undefined;

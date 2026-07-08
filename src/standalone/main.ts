@@ -25,7 +25,7 @@
  *   runtime joins the existing gateway instead of starting a new one.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { AIFlowBridgeRuntime } from "../aiflowbridge";
@@ -74,8 +74,8 @@ function resolveExtensionVersion(extensionRoot: string): string {
   // `package.json` next to the binary. Falls back to `"0.0.0"` if the
   // package is not readable.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pkg = require(resolve(extensionRoot, "package.json")) as { version?: string };
+    const raw = readFileSync(resolve(extensionRoot, "package.json"), "utf8");
+    const pkg = JSON.parse(raw) as { version?: string };
     return pkg.version ?? "0.0.0";
   } catch {
     return "0.0.0";
