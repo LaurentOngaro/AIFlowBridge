@@ -131,11 +131,9 @@ if ($hasDocs -and $hasArchives -and $hasReadme) {
         $readme = @"
 # _Private/ - Personal working notes (local-only)
 
-This folder is **gitignored** from the main AIFlowBridge repo. It exists only on
-this machine and is **never** published to GitHub or bundled in the VSIX.
+This folder is **gitignored** from the main AIFlowBridge repo. It exists only on this machine and is **never** published to GitHub or bundled in the VSIX.
 
-It is backed by a bare git repo at ``$BareRepoPath`` (the source of truth for the
-history; back it up off-site if you want redundancy).
+It is backed by a bare git repo at ``$BareRepoPath`` (the source of truth for the history; back it up off-site if you want redundancy).
 
 ## What goes here
 
@@ -173,9 +171,7 @@ git -C $BareRepoPath remote add backup git@github.com:<you>/AIFlowBridge-Private
 git -C _Private push backup master
 ```
 
-Use a **private** GitHub repo or an external drive. The _Private/ folder is
-local-only by design, but the history in the bare repo can travel to a private
-remote.
+Use a **private** GitHub repo or an external drive. The `_Private/` folder is local-only by design, but the history in the bare repo can travel to a private remote.
 "@
         $readmePath = Join-Path $workingPath "README.md"
         Set-Content -LiteralPath $readmePath -Value $readme -Encoding UTF8 -NoNewline
