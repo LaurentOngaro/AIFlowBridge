@@ -3,13 +3,13 @@
     One-shot setup script for the local-only _Private/ folder (personal working notes).
 
 .DESCRIPTION
-    Creates a bare git repo at $HOME\aiflowbridge-private.git and clones it into
+    Creates a bare git repo at D:\Projets_Perso\03_Code\_Extensions\vsCode\AIFlowBridge-Private and clones it into
     _Private/ at the project root. The folder is gitignored from the main AIFlowBridge
     repo (so it never lands on GitHub or in the VSIX) but has its own full git
     history via the local bare repo.
 
     Architecture:
-        $HOME\aiflowbridge-private.git   bare repo (history, can be backed up off-site)
+        D:\Projets_Perso\03_Code\_Extensions\vsCode\AIFlowBridge-Private   bare repo (history, can be backed up off-site)
         <project>\_Private\              working tree (gitignored from main repo)
 
     The script is idempotent: running it twice does not destroy existing data.
@@ -18,7 +18,7 @@
     Skip the interactive confirmation prompt.
 
 .PARAMETER BareRepoPath
-    Path to the bare git repo. Default: $HOME\aiflowbridge-private.git
+    Path to the bare git repo. Default: D:\Projets_Perso\03_Code\_Extensions\vsCode\AIFlowBridge-Private
 
 .PARAMETER WorkingDir
     Name of the working tree directory at the project root. Default: _Private
@@ -38,7 +38,7 @@
 [CmdletBinding()]
 param(
     [switch]$Force,
-    [string]$BareRepoPath = (Join-Path $HOME "aiflowbridge-private.git"),
+    [string]$BareRepoPath = "D:\Projets_Perso\03_Code\_Extensions\vsCode\AIFlowBridge-Private",
     [string]$WorkingDir = "_Private"
 )
 
@@ -169,7 +169,7 @@ When a draft is ready:
 The bare repo at ``$BareRepoPath`` is the source of truth. To add a remote backup:
 
 ```
-git -C $BareRepoPath remote add backup git@github.com:<you>/aiflowbridge-private.git
+git -C $BareRepoPath remote add backup git@github.com:<you>/AIFlowBridge-Private.git
 git -C _Private push backup master
 ```
 
