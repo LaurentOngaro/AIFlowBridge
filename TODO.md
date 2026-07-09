@@ -71,6 +71,13 @@ Backlog (value to confirm):
 
 ## Completed
 
+### 2.4.2 (Standalone release artifact completeness guard)
+
+- **Standalone release artifact completeness guard.** The v2.3.0 release was shipped with only `dist/standalone/` inside the archive, while `dist/standalone/main.js` does `require('../aiflowbridge')`, `require('../aiflowbridge/modelRegistry')`, `require('../logger')`, `require('./context')`. End users hit `Error: Cannot find module '../aiflowbridge'` on every start. Two safeguards now block any future broken release: (1) the `Assemble release tree` step in `.github/workflows/release.yml` fails fast with a `::error::` annotation if any expected sibling module is missing - no more silent skip; (2) a new `Smoke test standalone bundle` step runs `scripts/check-standalone-bundle.js` against the staged tree, parsing `main.js` for every relative `require()` and verifying each one resolves on disk. The workflow cannot upload the archive to the GitHub Release unless both checks pass.
+- **`scripts/check-standalone-bundle.js`** - reusable Node script (no dependencies) that asserts a given CommonJS entry point can resolve every relative `require()`. Used by both the release workflow and the unit test suite.
+- **`tests/standalone-bundle.test.ts`** - 4 unit tests: script presence, end-to-end resolution against `dist/standalone/main.js`, regression guard for the v2.3.0 broken state, and extension-less specifier handling.
+- Quality gates: `npm run compile` (0 errors), `npm test` (646/646 across 36 files, was 642/35 in 2.4.1, +4).
+
 ### 2.4.1 (Hotfix: broken commands + dashboard sorting)
 
 - **AFF05**: column sorting on the metrics dashboard. Click any column header on the Recent requests, By model, or Provider summary tables to sort ascending; click again for descending; click a third time to clear the sort. The sort state is per-panel (independent). Numeric columns compare numerically (tokens, cost, duration), text columns use locale-aware string comparison. Sort arrows (▲ / ▼) appear on the active column. 13 new dashboard tests in `tests/dashboard.test.ts`.

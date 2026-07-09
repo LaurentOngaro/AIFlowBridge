@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.4.2
+
+Hardens the standalone distribution pipeline so the v2.3.0 regression cannot recur.
+
+### Fixed
+
+- **Standalone release artifact completeness guard.** The v2.3.0 release was shipped with only `dist/standalone/` inside the archive, while `dist/standalone/main.js` does `require('../aiflowbridge')`, `require('../aiflowbridge/modelRegistry')`, `require('../logger')`, `require('./context')`. End users hit `Error: Cannot find module '../aiflowbridge'` on every start. Two safeguards now block any future broken release: (1) the `Assemble release tree` step in `.github/workflows/release.yml` fails fast with a `::error::` annotation if any expected sibling module (`dist/aiflowbridge/`, `dist/logger.js`, `dist/config.js`, `dist/consts.js`, `dist/types.js`, `dist/json.js`) is missing - no more silent skip via `[ -e "dist/$module" ]`; (2) a new `Smoke test standalone bundle` step runs `scripts/check-standalone-bundle.js` against the staged tree right after the assemble, parsing `main.js` for every relative `require()` and verifying each one resolves on disk (extension-less + `.js` + `.json` + `/index.js`). The workflow cannot upload the archive to the GitHub Release unless both checks pass.
+
+### Added
+
+- **`scripts/check-standalone-bundle.js`** - reusable Node script (no dependencies) that asserts a given CommonJS entry point can resolve every relative `require()`. Used by both the release workflow and the unit test suite. Exit 0 on success, exit 1 with the list of missing references on failure. Documentation in the script header.
+- **`tests/standalone-bundle.test.ts`** - 4 unit tests: script presence, end-to-end resolution against `dist/standalone/main.js`, regression guard for the v2.3.0 broken state (stub entry point with no siblings, asserts exit 1 + correct messages), and extension-less specifier handling (`./lib/helper` resolves to `./lib/helper.js`).
+
+### Tests
+
+- **646 tests across 36 files** (was 642 / 35 in 2.4.1, +4 new standalone bundle tests).
+- Quality gates: `npm run compile` (0 errors), `npm test` (646/646).
+
 ## 2.4.1
 
 Hotfix for the 2.4.0 command-palette regression + AFF05 column sorting on the metrics dashboard.
