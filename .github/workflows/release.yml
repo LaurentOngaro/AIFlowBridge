@@ -56,12 +56,37 @@ jobs:
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Extract the section for this version: from "## VERSION" to
+          # the next "## " heading (or EOF).
+          BODY="$(awk -v ver="$VERSION" '
+            $0 ~ /^## / && found { exit }
+            $0 ~ /^## / && $2 == ver { found=1; next }
+            found { print }
+          ' CHANGELOG.md)"
+          # Append standalone artifacts bullet list.
+          STANDALONE=""
+          STANDALONE+=$'\n'"---"$'\n'
+          STANDALONE+=$'\n'"## Standalone CLI artifacts"$'\n'
+          STANDALONE+=$'\n'"Prebuilt binaries for all platforms (Node.js 20+ required on the target machine):"$'\n'
+          STANDALONE+=$'\n'"- **Linux x64**: \`aiflowbridge-server-linux-x64.tar.gz\`"$'\n'
+          STANDALONE+=$'\n'"- **macOS (Apple Silicon) arm64**: \`aiflowbridge-server-darwin-arm64.tar.gz\`"$'\n'
+          STANDALONE+=$'\n'"- **macOS (Intel) x64**: \`aiflowbridge-server-darwin-x64.tar.gz\`"$'\n'
+          STANDALONE+=$'\n'"- **Windows x64**: \`aiflowbridge-server-win-x64.zip\`"$'\n'
+          STANDALONE+=$'\n'"See [docs/standalone.md](https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/standalone.md) for setup (autostart, API keys, client config)."$'\n'
+          printf 'body<<RELEASE_EOF\n%s%s\nRELEASE_EOF\n' "$BODY" "$STANDALONE" >> "$GITHUB_OUTPUT"
+
       - name: Attach VSIX to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           files: ${{ steps.vsix.outputs.path }}
           fail_on_unmatched_files: true
+          body: ${{ steps.changelog.outputs.body }}
 
       - name: Show release info
         run: |
@@ -207,12 +232,3 @@ jobs:
           files: |
             release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}.${{ steps.meta.outputs.ext }}
           fail_on_unmatched_files: true
-          body: |
-            ## Standalone CLI artifacts
-            | Platform | Architecture | Download |
-            | --- | --- | --- |
-            ${{ steps.meta.outputs.arch == 'win-x64' && '| Windows | x64 | `aiflowbridge-server-win-x64.zip` |' || '' }}
-            ${{ steps.meta.outputs.arch == 'darwin-x64' && '| macOS (Intel) | x64 | `aiflowbridge-server-darwin-x64.tar.gz` |' || '' }}
-            ${{ steps.meta.outputs.arch == 'darwin-arm64' && '| macOS (Apple Silicon) | arm64 | `aiflowbridge-server-darwin-arm64.tar.gz` |' || '' }}
-            ${{ steps.meta.outputs.arch == 'linux-x64' && '| Linux | x64 | `aiflowbridge-server-linux-x64.tar.gz` |' || '' }}
-            See `docs/standalone.md` for setup (autostart, API keys, client config).
