@@ -152,11 +152,17 @@ jobs:
           cp -r dist/standalone "$DEST/dist/standalone"
           # main.js does `require('../aiflowbridge')` etc. - copy the sibling
           # modules produced by `tsconfig.standalone.json` so the runtime can
-          # resolve them from inside dist/standalone/.
+          # resolve them from inside dist/standalone/. FAIL FAST if any
+          # expected module is missing so we never ship a broken artifact
+          # (v2.3.0 was shipped with only dist/standalone/ and broke end
+          # users with `Cannot find module '../aiflowbridge'`).
           for module in aiflowbridge logger.js config.js consts.js types.js json.js; do
-            if [ -e "dist/$module" ]; then
-              cp -r "dist/$module" "$DEST/dist/$module"
+            if [ ! -e "dist/$module" ]; then
+              echo "::error::Standalone build is missing expected sibling module: dist/$module" >&2
+              echo "::error::Check tsconfig.standalone.json 'include' and rerun 'npm run build:standalone'." >&2
+              exit 1
             fi
+            cp -r "dist/$module" "$DEST/dist/$module"
           done
           # Copy only production node_modules (after `npm prune --omit=dev`).
           # `.bin` links are not portable across runners; drop them.
@@ -173,6 +179,18 @@ jobs:
           Entry point: ${{ steps.meta.outputs.entry }}
           Documentation: https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/standalone.md
           EOF
+
+      # Smoke test the staged tree: parse main.js, resolve every relative
+      # require, and fail the workflow if any module is missing. This is
+      # the regression guard for the v2.3.0 release, which shipped with
+      # only `dist/standalone/` and broke every end user with
+      # `Cannot find module '../aiflowbridge'`.
+      - name: Smoke test standalone bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}"
+          node scripts/check-standalone-bundle.js "$DEST/dist/standalone/main.js"
 
       - name: Write launcher script (POSIX)
         if: matrix.os != 'windows-latest'
