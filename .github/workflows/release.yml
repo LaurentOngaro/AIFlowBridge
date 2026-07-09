@@ -2,44 +2,25 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*.*.*'
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - uses: googleapis/release-please-action@v4
-        id: release
-        with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          config-file: .github/release-please-config.json
-          manifest-file: .github/release-please-manifest.json
-
   publish:
-    needs: release
-    if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
-    environment: production
     concurrency:
-      group: publish-${{ needs.release.outputs.tag_name }}
+      group: publish-${{ github.ref_name }}
       cancel-in-progress: false
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.tag_name }}
+          ref: ${{ github.ref_name }}
 
       - uses: actions/setup-node@v4
         with:
@@ -70,7 +51,7 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: Publish to Open VSX
-        if: vars.PUBLISH_OPEN_VSX != 'false'
+        if: vars.PUBLISH_OPEN_VSCODE != 'false'
         run: npm exec -- ovsx publish --skip-duplicate "${{ steps.vsix.outputs.path }}"
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -78,10 +59,152 @@ jobs:
       - name: Attach VSIX to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.release.outputs.tag_name }}
+          tag_name: ${{ github.ref_name }}
           files: ${{ steps.vsix.outputs.path }}
           fail_on_unmatched_files: true
 
       - name: Show release info
         run: |
-          echo "Released ${{ needs.release.outputs.tag_name }}"
+          echo "Released ${{ github.ref_name }}"
+
+  standalone:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, macos-13, windows-latest]
+    runs-on: ${{ matrix.os }}
+    concurrency:
+      group: standalone-${{ github.ref_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build standalone CLI
+        run: npm ci && npm run build:standalone
+
+      # FEAT7 + Option 2 of standalone distribution: package the
+      # `dist/standalone/` directory plus production-only deps into a
+      # platform-specific archive attached to the GitHub Release.
+      # End users extract the archive and run `./aiflowbridge-server`
+      # (or `.\aiflowbridge-server.cmd` on Windows). Requires Node.js
+      # 20+ on the target machine; Node.js is intentionally NOT bundled
+      # to keep the artifact size small (~5 MB compiled JS + node_modules
+      # vs 80+ MB for a packaged Node runtime).
+      - name: Prune dev dependencies
+        run: npm prune --omit=dev
+
+      - name: Detect archive extension + asset name
+        id: meta
+        shell: bash
+        run: |
+          case "${{ matrix.os }}" in
+            windows-latest) ext=zip; arch=win-x64; entry='bin\aiflowbridge-server.cmd' ;;
+            macos-latest)    ext=tar.gz; arch=darwin-arm64; entry=bin/aiflowbridge-server ;;
+            macos-13)        ext=tar.gz; arch=darwin-x64; entry=bin/aiflowbridge-server ;;
+            ubuntu-latest)   ext=tar.gz; arch=linux-x64; entry=bin/aiflowbridge-server ;;
+            *)               ext=tar.gz; arch=unknown; entry=bin/aiflowbridge-server ;;
+          esac
+          echo "ext=$ext" >> "$GITHUB_OUTPUT"
+          echo "arch=$arch" >> "$GITHUB_OUTPUT"
+          echo "entry=$entry" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble release tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}"
+          mkdir -p "$DEST/bin" "$DEST/dist/standalone"
+          # Copy the compiled standalone output (entry + helper modules).
+          cp -r dist/standalone/. "$DEST/dist/standalone/"
+          # Copy only production node_modules (after `npm prune --omit=dev`).
+          # `.bin` links are not portable across runners; drop them.
+          cp -r node_modules "$DEST/node_modules"
+          find "$DEST/node_modules/.bin" -maxdepth 1 -mindepth 1 -delete 2>/dev/null || true
+          find "$DEST/node_modules" -name '*.cmd' -delete 2>/dev/null || true
+          find "$DEST/node_modules" -name '*.ps1' -delete 2>/dev/null || true
+          # Ship a minimal README so the unzipper knows what to do next.
+          cat > "$DEST/README.txt" <<EOF
+          AIFlowBridge standalone gateway
+          =================================
+          Version: ${{ github.ref_name }}
+          Platform: ${{ steps.meta.outputs.arch }}
+          Entry point: ${{ steps.meta.outputs.entry }}
+          Documentation: https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/standalone.md
+          EOF
+
+      - name: Write launcher script (POSIX)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          DEST="release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}"
+          cat > "$DEST/bin/aiflowbridge-server" <<'EOF'
+          #!/usr/bin/env bash
+          # AIFlowBridge standalone gateway launcher.
+          # Resolves the script directory regardless of where it is invoked from
+          # (npm install -g, curl | sh, manual copy, ...).
+          set -euo pipefail
+          HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          ROOT="$(cd "$HERE/.." && pwd)"
+          exec node "$ROOT/dist/standalone/main.js" "$@"
+          EOF
+          chmod +x "$DEST/bin/aiflowbridge-server"
+
+      - name: Write launcher script (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $dest = "release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}"
+          New-Item -ItemType Directory -Path "$dest/bin" -Force | Out-Null
+          @'
+          @echo off
+          rem AIFlowBridge standalone gateway launcher.
+          setlocal
+          set "HERE=%~dp0"
+          set "ROOT=%HERE%..\"
+          node "%ROOT%dist\standalone\main.js" %*
+          endlocal
+          '@ | Set-Content -LiteralPath "$dest/bin/aiflowbridge-server.cmd" -Encoding ASCII
+
+      - name: Archive (POSIX - tar.gz)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          cd release-staging
+          tar czf "aiflowbridge-server-${{ steps.meta.outputs.arch }}.tar.gz" "aiflowbridge-server-${{ steps.meta.outputs.arch }}/"
+          ls -lh "aiflowbridge-server-${{ steps.meta.outputs.arch }}.tar.gz"
+
+      - name: Archive (Windows - zip)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $stage = "release-staging"
+          $dir = Get-Item "$stage\aiflowbridge-server-${{ steps.meta.outputs.arch }}"
+          $zip = "$stage\aiflowbridge-server-${{ steps.meta.outputs.arch }}.zip"
+          Compress-Archive -Path $dir.FullName -DestinationPath $zip -Force
+          Get-ChildItem $zip | Select-Object Name, Length
+
+      - name: Upload standalone binary to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}.${{ steps.meta.outputs.ext }}
+          fail_on_unmatched_files: true
+          body: |
+            ## Standalone CLI artifacts
+            | Platform | Architecture | Download |
+            | --- | --- | --- |
+            ${{ steps.meta.outputs.arch == 'win-x64' && '| Windows | x64 | `aiflowbridge-server-win-x64.zip` |' || '' }}
+            ${{ steps.meta.outputs.arch == 'darwin-x64' && '| macOS (Intel) | x64 | `aiflowbridge-server-darwin-x64.tar.gz` |' || '' }}
+            ${{ steps.meta.outputs.arch == 'darwin-arm64' && '| macOS (Apple Silicon) | arm64 | `aiflowbridge-server-darwin-arm64.tar.gz` |' || '' }}
+            ${{ steps.meta.outputs.arch == 'linux-x64' && '| Linux | x64 | `aiflowbridge-server-linux-x64.tar.gz` |' || '' }}
+            See `docs/standalone.md` for setup (autostart, API keys, client config).

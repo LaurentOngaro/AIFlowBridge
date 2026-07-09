@@ -55,8 +55,7 @@ function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile
 		baseUrl: 'https://api.example.com/v1',
 		model: 'model-1',
 		apiKey: 'sk-test',
-		enabled: true,
-		...overrides,
+		enabled: true,...overrides,
 	};
 }
 
@@ -71,8 +70,7 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
 		providers: [makeProvider()],
 		telemetryEnabled: false,
 		logRequests: false,
-		visionProxy: { excludedVendors: [], copilotVisionModel: '' },
-		...overrides,
+		visionProxy: { excludedVendors: [], copilotVisionModel: '' },...overrides,
 	};
 }
 
@@ -231,7 +229,7 @@ describe('GatewayService - HTTP endpoints', () => {
 	});
 
 	it('POST /v1/chat/completions with unmatched model returns 404 (no silent fallback to first provider)', async () => {
-		// Regression test for BUG05: a request for "mimo-v2.5" was previously
+		// Regression test for a request for "mimo-v2.5" was previously
 		// silently routed to the first enabled provider (DeepSeek V4 Flash)
 		// and the dashboard then showed "DeepSeek V4 Flash" with model
 		// "mimo-v2.5" - the user thought they were talking to MiMo but were
@@ -385,7 +383,7 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 		);
 		// Constructing the service must NOT touch the load/save callbacks:
 		// that would crash if the callbacks close over a field that the
-		// host class only sets in its own constructor body (BUG06).
+		// host class only sets in its own constructor body.
 		expect(loadState).not.toHaveBeenCalled();
 		service.init();
 		expect(loadState).toHaveBeenCalledOnce();
@@ -515,13 +513,13 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 });
 
 /**
- * BUG11: requests that failed (status >= 400) must not contribute to the
+ * requests that failed (status >= 400) must not contribute to the
  * "Estimated cost" total. They are still recorded (error count, model usage,
  * duration averages, per-row delete) but with `estimatedCost: 0`. Cost is a
  * fait historique - we never bill the user for a request that never produced
  * a billable completion.
  */
-describe('GatewayService - BUG11: errored requests have zero cost', () => {
+describe('GatewayService - errored requests have zero cost', () => {
 	// Pricing block large enough to produce a clearly non-zero cost on the
 	// success path: (100 * 1 + 200 * 2) / 1_000_000 = 0.0005 USD.
 	const testPricing = { inputPerMillion: 1, outputPerMillion: 2, currency: 'USD' };
@@ -574,7 +572,7 @@ describe('GatewayService - BUG11: errored requests have zero cost', () => {
 		}
 	});
 
-	it('records estimatedCost=0 for a 5xx upstream response (BUG11)', async () => {
+	it('records estimatedCost=0 for a 5xx upstream response ', async () => {
 		const upstream = await startFakeUpstream((_req, res) => {
 			res.statusCode = 500;
 			res.setHeader('Content-Type', 'application/json');
@@ -597,7 +595,7 @@ describe('GatewayService - BUG11: errored requests have zero cost', () => {
 			const snap = service.snapshot();
 			expect(snap.requests).toBe(1);
 			expect(snap.errors).toBe(1);
-			// BUG11: an errored request must NOT contribute to estimated cost.
+			// an errored request must NOT contribute to estimated cost.
 			expect(snap.estimatedCost).toBe(0);
 			// The request is still recorded (model usage, prompt tokens seen).
 			// The model key in `byModel` comes from the request body's `model`
@@ -610,7 +608,7 @@ describe('GatewayService - BUG11: errored requests have zero cost', () => {
 		}
 	});
 
-	it('records estimatedCost=0 for a 4xx upstream response (BUG11)', async () => {
+	it('records estimatedCost=0 for a 4xx upstream response ', async () => {
 		const upstream = await startFakeUpstream((_req, res) => {
 			res.statusCode = 401;
 			res.setHeader('Content-Type', 'application/json');
@@ -662,7 +660,7 @@ describe('GatewayService - BUG11: errored requests have zero cost', () => {
 			const snap = service.snapshot();
 			expect(snap.requests).toBe(1);
 			expect(snap.errors).toBe(1);
-			// BUG11: catch-block (status=502) must also have cost=0.
+			// catch-block (status=502) must also have cost=0.
 			expect(snap.estimatedCost).toBe(0);
 		} finally {
 			await service.stop();
@@ -710,7 +708,7 @@ describe('GatewayService - BUG11: errored requests have zero cost', () => {
 			const snap = service.snapshot();
 			expect(snap.requests).toBe(4);
 			expect(snap.errors).toBe(2);
-			// BUG11: 2 successful * 0.0005 = 0.001, 2 errored * 0 = 0
+			// 2 successful * 0.0005 = 0.001, 2 errored * 0 = 0
 			expect(snap.estimatedCost).toBeCloseTo(0.001, 6);
 		} finally {
 			await service.stop();

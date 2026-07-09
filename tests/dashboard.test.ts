@@ -33,7 +33,11 @@ function emptySnapshot(): TelemetrySnapshot {
 
 function baseConfig(): AiFlowBridgeConfig {
   return {
-    gateway: { enabled: true, port: 8787, baseUrl: 'http://127.0.0.1:8787/v1', defaultModel: '' },
+    gateway: {
+      enabled: true, port: 8787, baseUrl: 'http://127.0.0.1:8787/v1', defaultModel: '',
+      probeTimeoutMs: 0,
+      maxConcurrentRequests: 0
+    },
     providers: [
       {
         id: 'minimax',
@@ -187,7 +191,7 @@ describe('buildDashboardHtml', () => {
   it('refresh button click handler has a safety net to remove the spin class', () => {
     // Regression test: the user reported the refresh button staying in
     // a "loading" state indefinitely. The fix is a setTimeout that removes
-    // the .spinning class even if the page is not reloaded by the
+    // the.spinning class even if the page is not reloaded by the
     // extension.
     const html = buildDashboardHtml(baseConfig(), emptySnapshot(), true);
     expect(html).toContain('refreshButton.classList.add("spinning")');
@@ -305,8 +309,20 @@ describe('buildDashboardHtml', () => {
           estimated: false,
         },
       ],
-      byProvider: { unpriced: { requests: 1, promptTokens: 10, completionTokens: 5, totalTokens: 15, estimatedCost: 0, errors: 0, averageDurationMs: 100 } },
-      byModel: { 'unpriced-model': { requests: 1, promptTokens: 10, completionTokens: 5, totalTokens: 15, estimatedCost: 0, errors: 0, averageDurationMs: 100 } },
+      byProvider: {
+        unpriced: { requests: 1, promptTokens: 10, completionTokens: 5, totalTokens: 15, estimatedCost: 0, errors: 0, averageDurationMs: 100 },
+      },
+      byModel: {
+        'unpriced-model': {
+          requests: 1,
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+          estimatedCost: 0,
+          errors: 0,
+          averageDurationMs: 100,
+        },
+      },
     };
     const html = buildDashboardHtml(config, snapshot, true);
     // The dash placeholder must appear in all three table bodies.
@@ -321,7 +337,7 @@ describe('buildDashboardHtml', () => {
     // to 8. The script block builds the value dynamically through
     // `recentColspan` so it can switch to 9 when the trash column is
     // present (see the next test).
-    expect(html).toContain("recentColspan = canRemove ? 9 : 8");
+    expect(html).toContain('recentColspan = canRemove ? 9 : 8');
     expect(html).toContain("'<tr><td colspan=\"' + recentColspan + '\"");
   });
 
@@ -333,15 +349,9 @@ describe('buildDashboardHtml', () => {
     // because the table itself is not rendered when `recent` is empty
     // (the panel shows a muted "No request recorded yet." paragraph
     // instead).
-    const html = buildDashboardHtml(
-      baseConfig(),
-      snapshotWithData(),
-      true,
-      {},
-      () => true,
-    );
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {}, () => true);
     expect(html).toContain('<th class="row-actions-col"');
-    expect(html).toContain("canRemove ? 9 : 8");
+    expect(html).toContain('canRemove ? 9 : 8');
   });
 
   it('serializes estimatedCost into the recent array used by the client-side filter', () => {
@@ -352,29 +362,29 @@ describe('buildDashboardHtml', () => {
     expect(html).toMatch(/"estimatedCost":0?\.0002/);
   });
 
-  // AFF03: gateway version + extension version in the dashboard header.
+  // gateway version + extension version in the dashboard header.
   it('includes the gateway version in the badge when a version is provided', () => {
-    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, { gateway: "1.5.0" });
-    expect(html).toContain("Gateway v1.5.0 running");
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, { gateway: '1.5.0' });
+    expect(html).toContain('Gateway v1.5.0 running');
   });
 
   it('omits the gateway version from the badge when none is provided (backward compat)', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).toContain("Gateway running");
-    expect(html).not.toContain("Gateway v");
+    expect(html).toContain('Gateway running');
+    expect(html).not.toContain('Gateway v');
   });
 
   it('renders the "Current version: vX.Y.Z" subtitle when an extension version is provided', () => {
-    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, { extension: "1.5.0" });
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, { extension: '1.5.0' });
     expect(html).toContain('Current version: v1.5.0');
   });
 
   it('omits the version subtitle when no extension version is provided (backward compat)', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).not.toContain("Current version:");
+    expect(html).not.toContain('Current version:');
   });
 
-  // AFF03: collapsible sections.
+  // collapsible sections.
   it('renders a collapsible header for every panel section', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const expectedTargets = [
@@ -391,7 +401,7 @@ describe('buildDashboardHtml', () => {
     expect(html).toContain('class="chevron"');
   });
 
-  it('wraps each panel body in a .panel-body div so the collapse rule can hide it', () => {
+  it('wraps each panel body in a.panel-body div so the collapse rule can hide it', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const bodies = html.match(/<div class="panel-body">/g) ?? [];
     expect(bodies.length).toBe(4);
@@ -399,44 +409,38 @@ describe('buildDashboardHtml', () => {
 
   it('contains the collapse toggle JS handler that reads / writes localStorage', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).toContain("aiflowbridge.dashboard.collapsed.");
-    expect(html).toContain("panel.classList.toggle(\"collapsed\")");
-    expect(html).toContain("window.localStorage.getItem(storageKey)");
-    expect(html).toContain("window.localStorage.setItem(storageKey");
+    expect(html).toContain('aiflowbridge.dashboard.collapsed.');
+    expect(html).toContain('panel.classList.toggle("collapsed")');
+    expect(html).toContain('window.localStorage.getItem(storageKey)');
+    expect(html).toContain('window.localStorage.setItem(storageKey');
   });
 
-  // AFF03: custom date range + text search.
+  // custom date range + text search.
   it('renders two <input type="date"> controls and one <input type="search"> in the recent filter area', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const dates = html.match(/<input type="date" class="date-input"/g) ?? [];
     expect(dates.length).toBe(2);
     expect(html).toContain('<input type="search" class="search-input" id="recent-search"');
-    expect(html).toContain("Filter requests");
+    expect(html).toContain('Filter requests');
   });
 
   it('contains the client-side filter logic for date range and text search', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     // Custom date filter is wired up.
-    expect(html).toContain("function filterByCustomDate");
+    expect(html).toContain('function filterByCustomDate');
     // Search haystack covers model / provider / status / timestamp / tokens / cost.
-    expect(html).toContain("function entrySearchHaystack");
-    expect(html).toContain("function matchesSearch");
+    expect(html).toContain('function entrySearchHaystack');
+    expect(html).toContain('function matchesSearch');
     // The inputs are wired to applyFilters (via an inline arrow that
     // also deactivates the preset when a custom date is set).
-    expect(html).toContain("searchEl.addEventListener(\"input\", applyFilters)");
-    expect(html).toContain("fromEl.addEventListener(\"change\"");
-    expect(html).toContain("toEl.addEventListener(\"change\"");
+    expect(html).toContain('searchEl.addEventListener("input", applyFilters)');
+    expect(html).toContain('fromEl.addEventListener("change"');
+    expect(html).toContain('toEl.addEventListener("change"');
   });
 
   // Per-row delete button.
   it('renders a per-row trash button when an onRemoveEntry hook is supplied', () => {
-    const html = buildDashboardHtml(
-      baseConfig(),
-      snapshotWithData(),
-      true,
-      {},
-      () => true,
-    );
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {}, () => true);
     // One action button per recent row (snapshotWithData has 2 entries).
     // Count by the data-remove-id attribute (unique to action buttons)
     // rather than the class name (which also appears in the CSS).
@@ -453,21 +457,15 @@ describe('buildDashboardHtml', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     // No data-remove-id attribute (the CSS for the button class is
     // still present, so we cannot check for the class name).
-    expect(html).not.toContain("data-remove-id=");
+    expect(html).not.toContain('data-remove-id=');
     // The action-column header is also not rendered.
     expect(html).not.toContain('row-actions-col');
   });
 
   it('client-side click handler posts a removeRequest message with the entry id', () => {
-    const html = buildDashboardHtml(
-      baseConfig(),
-      snapshotWithData(),
-      true,
-      {},
-      () => true,
-    );
-    expect(html).toContain("recentTbody.addEventListener(\"click\"");
-    expect(html).toContain("vscodeApi.postMessage({ type: \"removeRequest\", id: id })");
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {}, () => true);
+    expect(html).toContain('recentTbody.addEventListener("click"');
+    expect(html).toContain('vscodeApi.postMessage({ type: "removeRequest", id: id })');
     // The handler reads the id from the button's data attribute. The
     // class name and attribute key are obfuscated in the script source
     // via concatenation so the no-hook tests stay free of false
@@ -476,7 +474,7 @@ describe('buildDashboardHtml', () => {
     expect(html).toContain('"data-remov" + "e-id"');
   });
 
-  // BUG12: date filter second-change bug + estimated cost recompute.
+  // date filter second-change bug + estimated cost recompute.
   it('renders an id on each top metric card so the client can recompute filtered totals', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('id="totals-requests"');
@@ -488,14 +486,14 @@ describe('buildDashboardHtml', () => {
 
   it('contains the client-side updateTotals function that recomputes the top cards from the filtered entries', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).toContain("function updateTotals");
-    expect(html).toContain("function setCard");
-    expect(html).toContain("function updateScopeNote");
+    expect(html).toContain('function updateTotals');
+    expect(html).toContain('function setCard');
+    expect(html).toContain('function updateScopeNote');
     // The estimated-cost card recomputes from the sum of
-    // entry.estimatedCost across the filtered set (BUG12 issue #2).
+    // entry.estimatedCost across the filtered set ( issue #2).
     expect(html).toMatch(/estimatedCost\s*\+=\s*entry\.estimatedCost/);
     // The applyFilters pipeline ends with updateTotals + updateScopeNote.
-    // BUG12 regression fix: updateTotals now accepts the filter object
+    // regression fix: updateTotals now accepts the filter object
     // (not the filtered array) and uses cumulativeTotals when no filter
     // is active.
     expect(html).toMatch(/updateTotals\(f\)[\s\S]{0,200}updateScopeNote/);
@@ -503,10 +501,10 @@ describe('buildDashboardHtml', () => {
 
   it('default scope note says "no filter active" and matches the initial render', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).toContain("Showing all recorded requests (no filter active).");
+    expect(html).toContain('Showing all recorded requests (no filter active).');
   });
 
-  it('date inputs are wired to both the "input" and "change" events (BUG12 second-change fix)', () => {
+  it('date inputs are wired to both the "input" and "change" events ( second-change fix)', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     // Both events are bound so consecutive picker changes are honored
     // even when the user picks the same date twice in a row (the
@@ -517,7 +515,7 @@ describe('buildDashboardHtml', () => {
     expect(html).toMatch(/toEl\.addEventListener\("change"[\s\S]{0,80}onDateChange\(toEl\)/);
   });
 
-  // AFF04: pagination.
+  // pagination.
   it('renders a pagination placeholder under each paginated table', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('id="recent-pagination"');
@@ -533,12 +531,12 @@ describe('buildDashboardHtml', () => {
 
   it('contains the paginate, paginateObject, renderPagination helpers and a rerender entry point', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).toContain("function paginate");
-    expect(html).toContain("function paginateObject");
-    expect(html).toContain("function renderPagination");
-    expect(html).toContain("function rerender");
+    expect(html).toContain('function paginate');
+    expect(html).toContain('function paginateObject');
+    expect(html).toContain('function renderPagination');
+    expect(html).toContain('function rerender');
     // Localstorage keys for the per-panel page size persistence.
-    expect(html).toContain("aiflowbridge.dashboard.pageSize.");
+    expect(html).toContain('aiflowbridge.dashboard.pageSize.');
   });
 
   it('pagination controls expose first/prev/next/last + page jump + per-page', () => {
@@ -554,7 +552,7 @@ describe('buildDashboardHtml', () => {
     expect(html).toMatch(/Per page/);
     // The provider summary has a client-side renderer now (server-side
     // render is still emitted for the no-JS path).
-    expect(html).toContain("function renderProviderRows");
+    expect(html).toContain('function renderProviderRows');
   });
 
   it('initial pass calls rerender so the JS-enabled first paint is paginated', () => {
@@ -584,8 +582,8 @@ describe('buildDashboardHtml', () => {
   it('declares paginationState before the loadPageSize calls that reference it (TDZ fix)', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const script = extractScript(html);
-    const declIdx = script.indexOf("const paginationState = {");
-    const refIdx = script.indexOf("paginationState.recent.pageSize = loadPageSize");
+    const declIdx = script.indexOf('const paginationState = {');
+    const refIdx = script.indexOf('paginationState.recent.pageSize = loadPageSize');
     expect(declIdx).toBeGreaterThan(-1);
     expect(refIdx).toBeGreaterThan(-1);
     expect(declIdx).toBeLessThan(refIdx);
@@ -602,12 +600,12 @@ describe('buildDashboardHtml', () => {
     // The function takes a filter argument (not the filtered array).
     expect(script).toMatch(/function updateTotals\(f\)/);
     // The cumulative snapshot totals are serialized into the script.
-    expect(script).toContain("const cumulativeTotals =");
+    expect(script).toContain('const cumulativeTotals =');
     // The no-filter branch reads from cumulativeTotals.
     expect(script).toMatch(/cumulativeTotals\.estimatedCost/);
     expect(script).toMatch(/cumulativeTotals\.requests/);
     // The hasActiveFilter flag controls which source is used.
-    expect(script).toContain("hasActiveFilter");
+    expect(script).toContain('hasActiveFilter');
   });
 
   it('serializes the cumulative snapshot totals so updateTotals can restore the all-time view', () => {
@@ -624,7 +622,7 @@ describe('buildDashboardHtml', () => {
   // renderProviderRows - drift risk mitigation.
   it('server-side renderProviderSummary delegates row HTML to providerRowHtml', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).toContain("function providerRowHtml");
+    expect(html).toContain('function providerRowHtml');
   });
 
   // CRITICAL regression test: the dashboard webview script must be
@@ -660,7 +658,7 @@ describe('buildDashboardHtml', () => {
     const script = extractScript(html);
     // Strip whitespace (script template adds indentation) so the
     // regex doesn't have to match arbitrary whitespace.
-    const stripped = script.replace(/\s+/g, "");
+    const stripped = script.replace(/\s+/g, '');
     // Correct: parts.push("search: \"" + f.search + "\""); - after
     // stripping whitespace, the sequence is `parts.push("search:\""+f.search`
     // (the `\"` escape survives; the closing `\"")` is preserved too).
@@ -679,9 +677,7 @@ describe('buildPricingMaps', () => {
   });
 
   it('skips profiles without pricing', () => {
-    const maps = buildPricingMaps([
-      { id: 'no-price', label: 'NP', kind: 'openai-compat', baseUrl: 'https://x', model: 'np', enabled: true },
-    ]);
+    const maps = buildPricingMaps([{ id: 'no-price', label: 'NP', kind: 'openai-compat', baseUrl: 'https://x', model: 'np', enabled: true }]);
     expect(maps.byProviderId).toEqual({});
     expect(maps.byModel).toEqual({});
   });
@@ -697,11 +693,11 @@ describe('buildPricingMaps', () => {
 // matches on the model name.
 
 // Module-level helpers: extract the dashboard's <script> block as a
-// string. Hoisted out of the AFF03 describe block so the new BUG12 /
-// AFF04 tests can also use them.
+// string. Hoisted out of the  describe block so the new  /
+// tests can also use them.
 function extractScript(html: string): string {
   const match = html.match(/<script>([\s\S]*?)<\/script>/);
-  if (!match) throw new Error("script block not found");
+  if (!match) throw new Error('script block not found');
   return match[1] as string;
 }
 
@@ -709,9 +705,8 @@ function script_lastLines(html: string, n: number): string {
   return extractScript(html).slice(-n);
 }
 
-describe('AFF03 plan-compliance: filter pipeline', () => {
-
-  // Re-derive the AFF03 behaviors by re-implementing the same client-
+describe(' plan-compliance: filter pipeline', () => {
+  // Re-derive the  behaviors by re-implementing the same client-
   // side rules in TypeScript and asserting they match the plan. The
   // script block is the ground truth - we re-execute it against a
   // stub DOM and verify the observable behaviors. This is a white-box
@@ -719,21 +714,69 @@ describe('AFF03 plan-compliance: filter pipeline', () => {
   // plan is honored by the script.
   function buildHarness() {
     const state: {
-      recent: { model: string; providerId: string; status: number; totalTokens: number; durationMs: number; timestamp: string; providerLabel: string; estimatedCost: number; promptTokens: number; completionTokens: number; estimated: boolean }[];
+      recent: {
+        model: string;
+        providerId: string;
+        status: number;
+        totalTokens: number;
+        durationMs: number;
+        timestamp: string;
+        providerLabel: string;
+        estimatedCost: number;
+        promptTokens: number;
+        completionTokens: number;
+        estimated: boolean;
+      }[];
       activePreset: string | null;
       from: string;
       to: string;
       search: string;
     } = {
       recent: [
-        { model: "gpt-4", providerId: "openai", status: 200, totalTokens: 100, durationMs: 50, timestamp: "2026-06-06T12:00:00Z", providerLabel: "OpenAI", estimatedCost: 0.001, promptTokens: 60, completionTokens: 40, estimated: false },
-        { model: "gpt-3.5", providerId: "openai", status: 200, totalTokens: 200, durationMs: 30, timestamp: "2026-06-06T12:00:00Z", providerLabel: "OpenAI", estimatedCost: 0.0005, promptTokens: 100, completionTokens: 100, estimated: false },
-        { model: "claude-3-opus", providerId: "anthropic", status: 200, totalTokens: 300, durationMs: 70, timestamp: "2026-06-06T12:00:00Z", providerLabel: "Anthropic", estimatedCost: 0.01, promptTokens: 200, completionTokens: 100, estimated: false },
+        {
+          model: 'gpt-4',
+          providerId: 'openai',
+          status: 200,
+          totalTokens: 100,
+          durationMs: 50,
+          timestamp: '2026-06-06T12:00:00Z',
+          providerLabel: 'OpenAI',
+          estimatedCost: 0.001,
+          promptTokens: 60,
+          completionTokens: 40,
+          estimated: false,
+        },
+        {
+          model: 'gpt-3.5',
+          providerId: 'openai',
+          status: 200,
+          totalTokens: 200,
+          durationMs: 30,
+          timestamp: '2026-06-06T12:00:00Z',
+          providerLabel: 'OpenAI',
+          estimatedCost: 0.0005,
+          promptTokens: 100,
+          completionTokens: 100,
+          estimated: false,
+        },
+        {
+          model: 'claude-3-opus',
+          providerId: 'anthropic',
+          status: 200,
+          totalTokens: 300,
+          durationMs: 70,
+          timestamp: '2026-06-06T12:00:00Z',
+          providerLabel: 'Anthropic',
+          estimatedCost: 0.01,
+          promptTokens: 200,
+          completionTokens: 100,
+          estimated: false,
+        },
       ],
-      activePreset: "all",
-      from: "",
-      to: "",
-      search: "",
+      activePreset: 'all',
+      from: '',
+      to: '',
+      search: '',
     };
     return state;
   }
@@ -751,12 +794,12 @@ describe('AFF03 plan-compliance: filter pipeline', () => {
   it('entering a custom date calls deactivateAllPresetButtons (per the plan)', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const script = extractScript(html);
-    expect(script).toContain("deactivateAllPresetButtons");
-    // The handler (BUG12 refactor: extracted to onDateChange) checks
+    expect(script).toContain('deactivateAllPresetButtons');
+    // The handler ( refactor: extracted to onDateChange) checks
     // the element value before calling deactivate.
     expect(script).toMatch(/el\.value[\s\S]{0,80}deactivateAllPresetButtons/);
     // Both date inputs are wired (input + change events so consecutive
-    // picker changes are honored - see the BUG12 fix in dashboard.ts).
+    // picker changes are honored - see the  fix in dashboard.ts).
     expect(script).toMatch(/fromEl\.addEventListener\("input"/);
     expect(script).toMatch(/fromEl\.addEventListener\("change"/);
     expect(script).toMatch(/toEl\.addEventListener\("input"/);
@@ -781,7 +824,22 @@ describe('AFF03 plan-compliance: filter pipeline', () => {
   // because the model field is in the haystack).
   it('simulated: search "gpt" includes both gpt-4 and gpt-3.5 in the by-model table', () => {
     // Pure-TS re-implementation of the by-model filter for assertion.
-    function matchesSearch(entry: { model: string; providerId: string; providerLabel: string; status: number; timestamp: string; durationMs: number; totalTokens: number; promptTokens: number; completionTokens: number; estimatedCost: number; estimated: boolean }, needle: string): boolean {
+    function matchesSearch(
+      entry: {
+        model: string;
+        providerId: string;
+        providerLabel: string;
+        status: number;
+        timestamp: string;
+        durationMs: number;
+        totalTokens: number;
+        promptTokens: number;
+        completionTokens: number;
+        estimatedCost: number;
+        estimated: boolean;
+      },
+      needle: string
+    ): boolean {
       if (!needle) return true;
       const ts = new Date(entry.timestamp);
       return [
@@ -790,48 +848,59 @@ describe('AFF03 plan-compliance: filter pipeline', () => {
         entry.providerLabel,
         String(entry.status),
         entry.timestamp,
-        isNaN(ts.getTime()) ? "" : ts.toLocaleString(),
+        isNaN(ts.getTime()) ? '' : ts.toLocaleString(),
         String(entry.durationMs),
         String(entry.totalTokens),
         String(entry.promptTokens),
         String(entry.completionTokens),
         String(entry.estimatedCost || 0),
-        entry.estimated ? "estimated usage" : "exact usage",
-      ].join(" ").toLowerCase().includes(needle);
+        entry.estimated ? 'estimated usage' : 'exact usage',
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(needle);
     }
     const state = buildHarness();
-    state.search = "gpt";
-    const recentFiltered = state.recent.filter((e) => matchesSearch(e, "gpt"));
-    const modelFiltered = state.recent.filter((e) =>
-      matchesSearch(e, "gpt") || e.model.toLowerCase().includes("gpt"),
-    );
+    state.search = 'gpt';
+    const recentFiltered = state.recent.filter((e) => matchesSearch(e, 'gpt'));
+    const modelFiltered = state.recent.filter((e) => matchesSearch(e, 'gpt') || e.model.toLowerCase().includes('gpt'));
     // Both filters include the two GPT entries.
-    expect(recentFiltered.map((e) => e.model).sort()).toEqual(["gpt-3.5", "gpt-4"]);
-    expect(modelFiltered.map((e) => e.model).sort()).toEqual(["gpt-3.5", "gpt-4"]);
+    expect(recentFiltered.map((e) => e.model).sort()).toEqual(['gpt-3.5', 'gpt-4']);
+    expect(modelFiltered.map((e) => e.model).sort()).toEqual(['gpt-3.5', 'gpt-4']);
   });
 
   it('simulated: by-model name match wins for entries that do not contain the needle in their haystack', () => {
     // Construct an entry whose haystack does NOT contain the needle
     // but whose model name does. The by-model filter should keep it.
     const state = buildHarness();
-    state.search = "claude";
-    const claudeEntry = state.recent.find((e) => e.model === "claude-3-opus")!;
+    state.search = 'claude';
+    const claudeEntry = state.recent.find((e) => e.model === 'claude-3-opus')!;
     function matchesSearch(entry: typeof claudeEntry, needle: string): boolean {
       const ts = new Date(entry.timestamp);
       return [
-        entry.model, entry.providerId, entry.providerLabel, String(entry.status),
-        entry.timestamp, ts.toLocaleString(),
-        String(entry.durationMs), String(entry.totalTokens),
-        String(entry.promptTokens), String(entry.completionTokens),
-        String(entry.estimatedCost), entry.estimated ? "estimated usage" : "exact usage",
-      ].join(" ").toLowerCase().includes(needle);
+        entry.model,
+        entry.providerId,
+        entry.providerLabel,
+        String(entry.status),
+        entry.timestamp,
+        ts.toLocaleString(),
+        String(entry.durationMs),
+        String(entry.totalTokens),
+        String(entry.promptTokens),
+        String(entry.completionTokens),
+        String(entry.estimatedCost),
+        entry.estimated ? 'estimated usage' : 'exact usage',
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(needle);
     }
     // Sanity: "claude" IS in the haystack via the model field, so the
     // entry matches at the entry level too. To really stress the
     // model-name branch, search for a string that is in the model
     // name but NOT in the haystack's other fields. Use a substring
     // that is unique to the model name.
-    const modelOnlyNeedle = "opus";
+    const modelOnlyNeedle = 'opus';
     const entryMatches = matchesSearch(claudeEntry, modelOnlyNeedle);
     const modelMatches = claudeEntry.model.toLowerCase().includes(modelOnlyNeedle);
     // The model name contains "opus" but the entry-level haystack
@@ -846,9 +915,7 @@ describe('AFF03 plan-compliance: filter pipeline', () => {
     // (e.g. the entry was for a different model id before the user
     // renamed it). Simulate: build a fake haystack that excludes
     // the model field for the by-model branch only.
-    const modelOnlyBranchMatches = state.recent.some((e) =>
-      e.model.toLowerCase().includes(modelOnlyNeedle),
-    );
+    const modelOnlyBranchMatches = state.recent.some((e) => e.model.toLowerCase().includes(modelOnlyNeedle));
     expect(modelOnlyBranchMatches).toBe(true);
   });
 
@@ -949,9 +1016,48 @@ describe('buildDashboardHtml - telemetry truncation detection', () => {
       ...emptySnapshot(),
       requests: 3,
       recent: [
-        { id: 'r1', timestamp: '2026-07-02T10:00:00.000Z', providerId: 'p1', providerLabel: 'P', model: 'm', status: 200, durationMs: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, estimated: false },
-        { id: 'r2', timestamp: '2026-07-02T10:01:00.000Z', providerId: 'p1', providerLabel: 'P', model: 'm', status: 200, durationMs: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, estimated: false },
-        { id: 'r3', timestamp: '2026-07-02T10:02:00.000Z', providerId: 'p1', providerLabel: 'P', model: 'm', status: 200, durationMs: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, estimated: false },
+        {
+          id: 'r1',
+          timestamp: '2026-07-02T10:00:00.000Z',
+          providerId: 'p1',
+          providerLabel: 'P',
+          model: 'm',
+          status: 200,
+          durationMs: 1,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          estimatedCost: 0,
+          estimated: false,
+        },
+        {
+          id: 'r2',
+          timestamp: '2026-07-02T10:01:00.000Z',
+          providerId: 'p1',
+          providerLabel: 'P',
+          model: 'm',
+          status: 200,
+          durationMs: 1,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          estimatedCost: 0,
+          estimated: false,
+        },
+        {
+          id: 'r3',
+          timestamp: '2026-07-02T10:02:00.000Z',
+          providerId: 'p1',
+          providerLabel: 'P',
+          model: 'm',
+          status: 200,
+          durationMs: 1,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          estimatedCost: 0,
+          estimated: false,
+        },
       ],
       byProvider: {},
       byModel: {},

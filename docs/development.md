@@ -21,6 +21,12 @@ npm run compile
 
 # Watch mode - recompiles on file changes
 npm run watch
+
+# Compile the standalone gateway CLI (dist/standalone/main.js)
+npm run build:standalone
+
+# Run the standalone gateway CLI from a build
+npm run start:standalone
 ```
 
 ## Run in Development Host
@@ -36,11 +42,11 @@ npm run watch
 # Full vitest suite (unit tests)
 npm test
 
-# Watch mode
-npm run test:watch
+# Watch mode (vitest native --watch)
+npx vitest --watch
 ```
 
-The extension ships with 530 unit tests across 27 files covering the registry loader, gateway HTTP routes, telemetry store, dashboard generation, provider ID resolution, and the file-locking telemetry persister.
+The extension ships with **616 unit tests across 34 files** (vitest) covering the registry loader, gateway HTTP routes, telemetry store and persister, dashboard generation, provider ID resolution, the file-locking telemetry persister, the standalone CLI context, and end-to-end cooperative restart flows.
 
 ## Package & install locally
 
@@ -71,8 +77,8 @@ If you run the helper without `-Profiles` or `-AllProfiles`, the script will det
 ## Publish
 
 ```bash
-# Requires a Personal Access Token for the VS Code Marketplace
-npm run publish
+# Publish to VS Code Marketplace (requires a Personal Access Token)
+npm run publish:vscode
 
 # Publish only to Open VSX (Cursor, Windsurf, VSCodium, code-server)
 npm run publish:openvsx
@@ -81,17 +87,20 @@ npm run publish:openvsx
 npm run publish:all
 ```
 
-The release workflow (`.github/workflows/release-please.yml`) drives marketplace publication from version tags. `release-please` opens/updates the release PR; merging it creates a `vx.y.z` tag and triggers the publishing workflow. The Open VSX counterpart (.github/workflows/publish.yml) requires an `OPENVSX_TOKEN` repository secret.
+The release workflow (`.github/workflows/release-please.yml`) drives marketplace publication from version tags. `release-please` opens/updates the release PR; merging it creates a `vx.y.z` tag and triggers the publishing workflow. The Open VSX counterpart (`.github/workflows/publish.yml`) requires an `OPENVSX_TOKEN` repository secret.
 
 ## Privacy & Security
 
 AIFlowBridge is **local-first** by design:
 
-- **API keys** are stored exclusively in VS Code `SecretStorage` (your OS keychain). They never appear in `settings.json`, in Git history, or in any file you commit.
+- **API keys** are stored exclusively in VS Code `SecretStorage` (your OS keychain) on the VS Code side, and in `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars or `~/.aiflowbridge/secrets.json` (`chmod 600` on POSIX) on the standalone side. They never appear in `settings.json`, in Git history, or in any file you commit.
 - **The gateway binds to `127.0.0.1` only** - it is not reachable from other machines on your network.
-- **Telemetry is local**: request counts, token usage, and cost estimates stay on your machine. There is no remote analytics endpoint.
+- **Telemetry is local**: request counts, token usage, and cost estimates stay on your machine at `<globalStorageUri>/telemetry.json` (VS Code) or `~/.aiflowbridge/telemetry.json` (standalone). The two files are shared so the dashboard stays in sync across both hosts. There is no remote analytics endpoint.
 - **No third-party tracking**: the extension does not phone home, load remote scripts, or embed analytics SDKs.
 - **Outbound requests** only go to the API endpoints you configure: `api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, or your custom upstream URLs.
+- **Provider `baseUrl` SSRF validation (1.7.0+)**: non-http(s) schemes and cloud metadata endpoints (`169.254.x.x`, `100.100.100.200`, `fd00:ec2::254`) are rejected.
+- **Cooperative shutdown auth (1.7.0+)**: `POST /shutdown` requires a per-instance token returned by `GET /version`.
+- **API key redaction in logs** (2.1.0): every diagnostic line that would surface a `ProviderProfile` strips the `apiKey` field.
 
 You can audit the network traffic from the `AIFlowBridge: Show Logs` output channel.
 

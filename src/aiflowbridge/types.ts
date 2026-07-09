@@ -1,6 +1,6 @@
-export type BridgeMode = "proxy" | "vision" | "proxy+vision";
-export type ProviderKind = "openai-compat" | "ollama";
-export type OutputMode = "clipboard" | "insert" | "copilot";
+export type BridgeMode = 'proxy' | 'vision' | 'proxy+vision';
+export type ProviderKind = 'openai-compat' | 'ollama';
+export type OutputMode = 'clipboard' | 'insert' | 'copilot';
 
 export interface ProviderPricing {
   inputPerMillion?: number;
@@ -11,7 +11,7 @@ export interface ProviderPricing {
 /**
  * Minimal disposable contract. Mirrors VS Code's `Disposable` shape so the
  * runtime can stay agnostic of the host (VS Code extension, standalone
- * CLI, ...). Returned by `IGatewayContext.registerCommand` and by
+ * CLI,...). Returned by `IGatewayContext.registerCommand` and by
  * `IGatewayContext.onConfigChange` so the caller can unsubscribe.
  */
 export interface Disposable {
@@ -67,7 +67,7 @@ export interface GlobalStateLike {
 }
 
 /**
- * Runtime-agnostic gateway context (FEAT7).
+ * Runtime-agnostic gateway context.
  *
  * Implemented by:
  *   - `createVSCodeContext()` in `src/aiflowbridge/vscode-context-adapter.ts`
@@ -96,7 +96,7 @@ export interface IGatewayContext {
   /** Subscribe to configuration changes. The callback fires when the `aiflowbridge` section
    *  changes. The optional `event.affectsGateway` flag lets the runtime decide whether
    *  the change requires a full gateway restart or just a hot config update
-   *  (IMPROV-C06). The VS Code adapter derives it from
+   *. The VS Code adapter derives it from
    *  `e.affectsConfiguration("aiflowbridge.gateway")`; the standalone adapter
    *  passes `undefined` (the standalone config is a single file, every change
    *  is treated as a gateway-relevant change). Optional in standalone mode
@@ -166,7 +166,7 @@ export interface GatewaySettings {
   baseUrl: string;
   defaultModel: string;
   /**
-   * IMPROV-C05: per-call timeout (ms) for probing a peer gateway's
+   * per-call timeout (ms) for probing a peer gateway's
    * `/version` endpoint when the configured port is already bound.
    * Higher values tolerate slower peer startups; lower values fail fast
    * on a foreign service. Defaults to 500 ms. Mirrors the
@@ -174,7 +174,7 @@ export interface GatewaySettings {
    */
   probeTimeoutMs: number;
   /**
-   * IMPROV-C04: hard cap on the number of concurrent upstream
+   * hard cap on the number of concurrent upstream
    * `/v1/chat/completions` requests the gateway will relay. New
    * requests above the cap return HTTP 429 with a `Retry-After`
    * header. Protects the upstream from a runaway local client (e.g.
@@ -199,14 +199,14 @@ export interface GatewayStatus {
   baseUrl: string;
   providerCount: number;
   /**
-   * IMPROV-C04: current number of in-flight upstream
+   * current number of in-flight upstream
    * `/v1/chat/completions` requests being relayed by the gateway.
    * Surfaced in the status payload so the dashboard can show
    * "X / cap" when the cap is being hit.
    */
   inFlightRequests: number;
   /**
-   * IMPROV-C04: hard cap mirrored from `GatewaySettings.maxConcurrentRequests`.
+   * hard cap mirrored from `GatewaySettings.maxConcurrentRequests`.
    * Surfaced alongside `inFlightRequests` so the dashboard can render
    * `X / max` without re-reading the full config.
    */

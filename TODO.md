@@ -62,6 +62,7 @@ Next up:
 - [ ] Auto-routing with failover - ordered provider fallback list (e.g. DeepSeek -> MiniMax -> Ollama local) for resilience
 - [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway
 - [ ] Token-by-token streaming diff in the dashboard - first/last token of each response, not just the total
+- [ ] **AIFlowBridge: Install standalone gateway** (Option 3 of the V2 distribution plan, see `_Private/ACTION PLAN.md`) - one-click command in the VS Code extension that downloads the platform-matched standalone CLI binary from the latest GitHub Release, places it in the user's PATH (or `~/.local/bin/`), and offers to add an autostart unit (systemd / launchd / Task Scheduler). Removes the "clone the repo, run npm ci, run npm run build:standalone" friction for the majority of users who do not have the dev toolchain installed.
 
 Backlog (value to confirm):
 

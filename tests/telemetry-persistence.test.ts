@@ -76,8 +76,7 @@ function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry 
 		completionTokens: 20,
 		totalTokens: 30,
 		estimatedCost: 0.0001,
-		estimated: false,
-		...overrides,
+		estimated: false,...overrides,
 	};
 }
 

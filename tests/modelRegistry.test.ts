@@ -37,9 +37,9 @@ const { mockVscode } = vi.hoisted(() => {
 	return {
 		mockVscode: {
 			Uri: {
-				joinPath: (base: HoistedMockUri, ...segments: string[]) =>
+				joinPath: (base: HoistedMockUri,...segments: string[]) =>
 					new HoistedMockUri(
-						[base.fsPath.replace(/\/+$/, ''), ...segments].join('/'),
+						[base.fsPath.replace(/\/+$/, ''),...segments].join('/'),
 					),
 			},
 			workspace: {

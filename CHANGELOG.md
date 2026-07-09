@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.3.0
+
+Standalone CLI binary distribution via GitHub Release (Option 2 of the V2 distribution plan) and documentation overhaul for the 2.x API surface.
+
+### Added
+
+- **Standalone CLI binary distribution.** A new `standalone` job in `.github/workflows/release.yml` builds the CLI on a 4-OS matrix (`ubuntu-latest` / `macos-latest` / `macos-13` / `windows-latest`), prunes dev dependencies, packages a per-platform archive (`tar.gz` on POSIX, `zip` on Windows), and attaches it to the GitHub Release alongside the VSIX. Each archive contains a launcher (`bin/aiflowbridge-server` or `bin\aiflowbridge-server.cmd`), the compiled `dist/standalone/`, pruned `node_modules/`, and a `README.txt` pointing at `docs/standalone.md`. No Node.js bundled (~5 MB vs 80+ MB for a packaged Node runtime) - the target machine must have Node.js 20+ installed. The release body now includes a per-platform download table. End users can now consume the gateway without cloning the repo or running `npm ci`.
+
+### Fixed
+
+- **Release workflow warning.** Removed `environment: production` from the `publish` job in `.github/workflows/release.yml`. The environment was referenced but never defined in the repo Settings, causing the GitHub Actions extension to flag it as invalid at lint time. The job runs normally on `ubuntu-latest` with the existing concurrency group.
+
+### Changed
+
+- **Documentation overhaul for the 2.x API surface.**
+  - `CONTRIBUTING.md`: replaced the obsolete "edit `src/consts.ts` MODELS array" workflow with the bundled-registry workflow (`resources/models.json` + `RegistryModelDefinition` in `src/aiflowbridge/modelRegistry.schema.ts`); test count updated to **616/34**; added a dedicated section for the standalone build (`npm run compile:standalone`).
+  - `SECURITY.md`: bumped "Supported Versions" to **2.x** (1.7.x best-effort), added a "Hardening Highlights" section cataloging the per-version security additions (shutdown auth, SSRF validation, telemetry file persistence, standalone hardening, API key redaction, upstream error sanitization, probe hardening).
+  - `README.md`: replaced the misleading "NEW in 2.0.0" banner with a since-2.0.0 tagline that also names the 2.1.x hardening; added the 3 client-setup pages (`kilo-code`, `jetbrains-continue`, `jetbrains-ai-assistant`) to the Documentation table; added 4 missing commands to the Commands table.
+  - `docs/architecture.md` and `docs/development.md`: updated for v2.1.1 - full source tree including `src/standalone/`, `src/client/`, `src/provider/unified.ts`; corrected the test count and npm scripts (`publish:vscode` / `publish:openvsx` / `publish:all`).
+- **AGENTS.md progressive disclosure.** The agent instruction file went from a 335-line monolith to a 44-line root index pointing at 10 focused pages under `docs/agent-instructions/` (style, architecture, registry, providers, gateway, vision, telemetry, testing, tasks, working-notes). The new structure separates agent-specific guidance (audience: AI coding assistants) from the user-facing `docs/` (audience: end users) so the two can evolve at different cadences. The `docs/agent` path was renamed to `docs/agent-instructions` to avoid ambiguity with the OpenAI Agents SDK / generic "agent" usage.
+
+### Notes
+
+- The repo still ships with a stale `.github/release-please-manifest.json` (`"1.2.2"`) - release-please has been manually overridden since 2.0.0. Version bumps continue to be managed by hand. If you want to re-enable release-please, bump the manifest first.
+- Source-code comments and JSDoc across `src/` and `tests/` were cleaned of internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG-?\d+`, `SEC\d+`, `AFF\d+`, `WARN-\d+`, `IMPROV-\d+`, `R-\d+`, etc.). No behavior change. The labels remain in the internal-only surfaces (`TODO.md`, `CHANGELOG.md`, `_helpers/`, `_Private/`) for the team that needs them.
+
 ## 2.1.1
 
 Standalone gateway hotfix + UX feedback.

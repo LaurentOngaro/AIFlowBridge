@@ -1,5 +1,5 @@
 /**
- * VS Code adapter for `IGatewayContext` (FEAT7).
+ * VS Code adapter for `IGatewayContext`.
  *
  * Wraps a `vscode.ExtensionContext` into the runtime-agnostic
  * `IGatewayContext` interface consumed by `AIFlowBridgeRuntime`. The
@@ -32,8 +32,8 @@
  * `length: 0` and no iteration methods).
  */
 
-import * as vscode from "vscode";
-import type { ConfigReader, Disposable, FileSystemLike, GlobalStateLike, IGatewayContext, UriLike } from "./types";
+import * as vscode from 'vscode';
+import type { ConfigReader, Disposable, FileSystemLike, GlobalStateLike, IGatewayContext, UriLike } from './types';
 
 class VscodeDisposableAdapter implements Disposable {
   constructor(private readonly inner: vscode.Disposable) {}
@@ -62,21 +62,18 @@ class VscodeFileSystemAdapter implements FileSystemLike {
   constructor(private readonly inner: vscode.FileSystem) {}
   readFile(uri: UriLike): Promise<Uint8Array> {
     // The `UriLike` reaching this adapter is one of two shapes:
-    //   1. A `VscodeUriAdapter` wrapping a real `vscode.Uri` (when the
-    //      caller passed `host.extensionUri` straight through).
-    //   2. A plain `{ fsPath, toString }` object produced by
-    //      `joinPath()` in `modelRegistry.ts` (path-string concatenation,
-    //      no `scheme` / `authority`).
+    // 1. A `VscodeUriAdapter` wrapping a real `vscode.Uri` (when the
+    // caller passed `host.extensionUri` straight through).
+    // 2. A plain `{ fsPath, toString }` object produced by
+    // `joinPath()` in `modelRegistry.ts` (path-string concatenation,
+    // no `scheme` / `authority`).
     // `vscode.workspace.fs.readFile` requires a real `vscode.Uri` - the
     // internal `FileSystemProvider` looks up `scheme` + `authority` to
     // resolve the right provider, and a plain object triggers
     // "Unable to resolve filesystem provider with relative file path ''"
     // at activation. Convert via `vscode.Uri.file()` (all our paths are
     // filesystem paths, never `vscode://` / `git://` / etc.).
-    const vscodeUri =
-      uri instanceof vscode.Uri
-        ? uri
-        : vscode.Uri.file((uri as { fsPath: string }).fsPath);
+    const vscodeUri = uri instanceof vscode.Uri ? uri : vscode.Uri.file((uri as { fsPath: string }).fsPath);
     // `vscode.FileSystem.readFile` returns a Thenable; we cast to Promise
     // (Thenable is structurally a Promise for the await / then use cases).
     return this.inner.readFile(vscodeUri) as unknown as Promise<Uint8Array>;
@@ -116,7 +113,7 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
   // and had no iteration methods).
   const subscriptionsBag: Disposable[] = new Proxy([] as Disposable[], {
     get(target, prop, receiver) {
-      if (prop === "push") {
+      if (prop === 'push') {
         return (...items: Disposable[]): number => {
           for (const item of items) {
             (target as Disposable[]).push(item);
@@ -136,18 +133,18 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
       delete: (key) => context.secrets.delete(key) as unknown as Promise<void>,
     },
     globalStorageDir: context.globalStorageUri.fsPath,
-    extensionVersion: context.extension.packageJSON.version ?? "0.0.0",
+    extensionVersion: context.extension.packageJSON.version ?? '0.0.0',
     subscriptions: subscriptionsBag,
     onConfigChange: (cb: (event?: { affectsGateway: boolean }) => void): Disposable => {
       const disposable = vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("aiflowbridge")) {
-          cb({ affectsGateway: e.affectsConfiguration("aiflowbridge.gateway") });
+        if (e.affectsConfiguration('aiflowbridge')) {
+          cb({ affectsGateway: e.affectsConfiguration('aiflowbridge.gateway') });
         }
       });
       return new VscodeDisposableAdapter(disposable);
     },
     getConfiguration: (): ConfigReader => {
-      return new VscodeConfigReader(vscode.workspace.getConfiguration("aiflowbridge"));
+      return new VscodeConfigReader(vscode.workspace.getConfiguration('aiflowbridge'));
     },
     registerCommand: (command: string, callback: (...args: unknown[]) => unknown): Disposable => {
       const disposable = vscode.commands.registerCommand(command, callback);
@@ -164,16 +161,12 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
     },
     confirm: async (message: string, ...buttons: string[]): Promise<string | undefined> => {
       // The standalone `vscode-shim` types `showWarningMessage` with the
-      // legacy `(message, ...items)` signature; the real VS Code API
+      // legacy `(message,...items)` signature; the real VS Code API
       // accepts the modal options object as the second argument. Cast
       // through `unknown` to bridge the two without losing the option
       // at runtime.
       const result = await (
-        vscode.window.showWarningMessage as unknown as (
-          m: string,
-          o: { modal: boolean },
-          ...b: string[]
-        ) => Promise<string | undefined>
+        vscode.window.showWarningMessage as unknown as (m: string, o: { modal: boolean }, ...b: string[]) => Promise<string | undefined>
       )(message, { modal: true }, ...buttons);
       return result;
     },
@@ -181,21 +174,19 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
       void vscode.env.clipboard.writeText(text);
     },
     openSettings: (query?: string): void => {
-      void vscode.commands.executeCommand("workbench.action.openSettings", query);
+      void vscode.commands.executeCommand('workbench.action.openSettings', query);
     },
     executeCommand: async (command: string, ...args: unknown[]): Promise<unknown> => {
       return await vscode.commands.executeCommand(command, ...args);
     },
     fs: new VscodeFileSystemAdapter(vscode.workspace.fs),
     extensionUri: new VscodeUriAdapter(context.extensionUri),
-    workspaceFolder: vscode.workspace.workspaceFolders?.[0]
-      ? new VscodeUriAdapter(vscode.workspace.workspaceFolders[0].uri)
-      : undefined,
+    workspaceFolder: vscode.workspace.workspaceFolders?.[0] ? new VscodeUriAdapter(vscode.workspace.workspaceFolders[0].uri) : undefined,
     globalState: new VscodeGlobalStateAdapter(
       // The standalone shim does not declare `globalState` on
       // `ExtensionContext`; cast through `unknown` to reach the real
       // VS Code Memento at runtime.
-      (context as unknown as { globalState: { get<T>(key: string): T | undefined; update(key: string, value: unknown): unknown } }).globalState,
+      (context as unknown as { globalState: { get<T>(key: string): T | undefined; update(key: string, value: unknown): unknown } }).globalState
     ),
   };
 }

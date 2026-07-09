@@ -1,9 +1,9 @@
-import { getUserModels } from "../config";
-import { logger } from "../logger";
-import { loadModelRegistry } from "./modelRegistry";
-import type { ModelRegistry } from "./modelRegistry.schema";
-import { normalizeProviderProfiles, redactProvidersForLog } from "./providers";
-import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, IGatewayContext, ProviderProfile, VisionProxySettings } from "./types";
+import { getUserModels } from '../config';
+import { logger } from '../logger';
+import { loadModelRegistry } from './modelRegistry';
+import type { ModelRegistry } from './modelRegistry.schema';
+import { normalizeProviderProfiles, redactProvidersForLog } from './providers';
+import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, IGatewayContext, ProviderProfile, VisionProxySettings } from './types';
 
 /**
  * Well-known upstream provider profiles used as defaults when the user has not
@@ -23,69 +23,64 @@ import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, IGatewayContext
  * the synthesized provider entries (see `synthesizeProvidersFromBuiltInModels`).
  */
 interface DefaultGatewayProfileEntry {
-	id: string;
-	label: string;
-	vendorConfigKey: string;
-	model: string;
-	pricing?: { inputPerMillion: number; outputPerMillion: number; currency: string };
+  id: string;
+  label: string;
+  vendorConfigKey: string;
+  model: string;
+  pricing?: { inputPerMillion: number; outputPerMillion: number; currency: string };
 }
 
 const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
-	{ id: "deepseek-flash", label: "DeepSeek V4 Flash", vendorConfigKey: "deepseek", model: "deepseek-v4-flash" },
-	{ id: "deepseek-pro", label: "DeepSeek V4 Pro", vendorConfigKey: "deepseek", model: "deepseek-v4-pro" },
-	// Indicative token-plan rates (USD per 1M tokens). Override via
-	// `aiflowbridge.providers[].pricing` if your tier differs. See
-	// https://platform.minimax.io/user-center/payment/token-plan
-	{
-		id: "minimax",
-		label: "MiniMax V2.7",
-		vendorConfigKey: "minimax",
-		model: "MiniMax-M2.7",
-		pricing: { inputPerMillion: 0.3, outputPerMillion: 1.2, currency: "USD" },
-	},
-	// Indicative token-plan rates (USD per 1M tokens). Override via
-	// `aiflowbridge.providers[].pricing` if your tier or region differs.
-	// See https://token-plan-ams.xiaomimimo.com (or -sgp / -cn).
-	{
-		id: "xiaomi",
-		label: "Xiaomi MiMo V2.5 Pro",
-		vendorConfigKey: "xiaomi",
-		model: "mimo-v2.5-pro",
-		pricing: { inputPerMillion: 0.1, outputPerMillion: 0.3, currency: "USD" },
-	},
+  { id: 'deepseek-flash', label: 'DeepSeek V4 Flash', vendorConfigKey: 'deepseek', model: 'deepseek-v4-flash' },
+  { id: 'deepseek-pro', label: 'DeepSeek V4 Pro', vendorConfigKey: 'deepseek', model: 'deepseek-v4-pro' },
+  // Indicative token-plan rates (USD per 1M tokens). Override via
+  // `aiflowbridge.providers[].pricing` if your tier differs. See
+  // https://platform.minimax.io/user-center/payment/token-plan
+  {
+    id: 'minimax',
+    label: 'MiniMax V2.7',
+    vendorConfigKey: 'minimax',
+    model: 'MiniMax-M2.7',
+    pricing: { inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' },
+  },
+  // Indicative token-plan rates (USD per 1M tokens). Override via
+  // `aiflowbridge.providers[].pricing` if your tier or region differs.
+  // See https://token-plan-ams.xiaomimimo.com (or -sgp / -cn).
+  {
+    id: 'xiaomi',
+    label: 'Xiaomi MiMo V2.5 Pro',
+    vendorConfigKey: 'xiaomi',
+    model: 'mimo-v2.5-pro',
+    pricing: { inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' },
+  },
 ];
 
-function buildDefaultGatewayProfiles(
-	configuration: ConfigReader,
-	registry: ModelRegistry,
-): ProviderProfile[] {
-	const profiles: ProviderProfile[] = [];
+function buildDefaultGatewayProfiles(configuration: ConfigReader, registry: ModelRegistry): ProviderProfile[] {
+  const profiles: ProviderProfile[] = [];
 
-	for (const entry of DEFAULT_GATEWAY_PROFILES) {
-		const baseUrl = configuration.get<string>(`providers.${entry.vendorConfigKey}.baseUrl`)
-			|| registry.vendors[entry.vendorConfigKey]?.baseUrl
-			|| "";
-		if (!baseUrl) {
-			continue;
-		}
-		// Pricing precedence for the hand-curated gateway entries:
-		//   1. `entry.pricing` (the hand-curated indicative default)
-		//   2. The per-model pricing from the merged registry - work for hand-curated
-		//      entries too: editing a model's pricing in the globalStorage
-		//      override is picked up here on the next activation.
-		const registryEntry = registry.models.find((model) => model.id === entry.model);
-		profiles.push({
-			id: entry.id,
-			label: entry.label,
-			kind: "openai-compat",
-			baseUrl,
-			model: entry.model,
-			enabled: true,
-			pricing: entry.pricing ?? toProviderPricing(registryEntry?.pricing),
-		});
-	}
+  for (const entry of DEFAULT_GATEWAY_PROFILES) {
+    const baseUrl = configuration.get<string>(`providers.${entry.vendorConfigKey}.baseUrl`) || registry.vendors[entry.vendorConfigKey]?.baseUrl || '';
+    if (!baseUrl) {
+      continue;
+    }
+    // Pricing precedence for the hand-curated gateway entries:
+    //   1. `entry.pricing` (the hand-curated indicative default)
+    //   2. The per-model pricing from the merged registry - work for hand-curated
+    //      entries too: editing a model's pricing in the globalStorage
+    //      override is picked up here on the next activation.
+    const registryEntry = registry.models.find((model) => model.id === entry.model);
+    profiles.push({
+      id: entry.id,
+      label: entry.label,
+      kind: 'openai-compat',
+      baseUrl,
+      model: entry.model,
+      enabled: true,
+      pricing: entry.pricing ?? toProviderPricing(registryEntry?.pricing),
+    });
+  }
 
-	return profiles;
+  return profiles;
 }
 
 /**
@@ -94,14 +89,14 @@ function buildDefaultGatewayProfiles(
  * block to every DeepSeek / MiniMax / Xiaomi profile in the gateway catalog
  * (so the dashboard's "Est. cost" column is non-zero out of the box).
  */
-function getFamilyPricing(): Map<string, ProviderProfile["pricing"]> {
-	const map = new Map<string, ProviderProfile["pricing"]>();
-	for (const entry of DEFAULT_GATEWAY_PROFILES) {
-		if (entry.pricing) {
-			map.set(entry.vendorConfigKey, entry.pricing);
-		}
-	}
-	return map;
+function getFamilyPricing(): Map<string, ProviderProfile['pricing']> {
+  const map = new Map<string, ProviderProfile['pricing']>();
+  for (const entry of DEFAULT_GATEWAY_PROFILES) {
+    if (entry.pricing) {
+      map.set(entry.vendorConfigKey, entry.pricing);
+    }
+  }
+  return map;
 }
 
 /**
@@ -115,9 +110,7 @@ function getFamilyPricing(): Map<string, ProviderProfile["pricing"]> {
  * both enforce the same numeric / non-empty-currency constraints that the
  * provider profile ultimately needs.
  */
-function toProviderPricing(
-  pricing: { inputPerMillion: number; outputPerMillion: number; currency: string } | undefined,
-): ProviderProfile["pricing"] {
+function toProviderPricing(pricing: { inputPerMillion: number; outputPerMillion: number; currency: string } | undefined): ProviderProfile['pricing'] {
   if (!pricing) {
     return undefined;
   }
@@ -153,9 +146,9 @@ function synthesizeProviderForModel(
     pricing?: { inputPerMillion: number; outputPerMillion: number; currency: string };
   },
   taken: Set<string>,
-  familyPricing: Map<string, ProviderProfile["pricing"]>,
+  familyPricing: Map<string, ProviderProfile['pricing']>,
   configuration: ConfigReader,
-  registry: ModelRegistry,
+  registry: ModelRegistry
 ): ProviderProfile | undefined {
   if (taken.has(model.id)) {
     return undefined;
@@ -167,14 +160,13 @@ function synthesizeProviderForModel(
     return undefined;
   }
 
-  const baseUrl = configuration.get<string>(`providers.${family}.baseUrl`)
-    || defaultUrl;
+  const baseUrl = configuration.get<string>(`providers.${family}.baseUrl`) || defaultUrl;
 
   taken.add(model.id);
   return {
     id: model.id,
     label: model.name,
-    kind: "openai-compat",
+    kind: 'openai-compat',
     baseUrl,
     model: model.id,
     enabled: true,
@@ -191,39 +183,39 @@ function synthesizeProviderForModel(
  * is a single edit instead of two near-identical blocks.
  */
 function synthesizeProvidersFromModels(
-	existing: ProviderProfile[],
-	configuration: ConfigReader,
-	registry: ModelRegistry,
-	models: Parameters<typeof synthesizeProviderForModel>[0][],
+  existing: ProviderProfile[],
+  configuration: ConfigReader,
+  registry: ModelRegistry,
+  models: Parameters<typeof synthesizeProviderForModel>[0][]
 ): ProviderProfile[] {
-	const taken = new Set<string>();
-	for (const profile of existing) {
-		taken.add(profile.id);
-		taken.add(profile.model);
-	}
+  const taken = new Set<string>();
+  for (const profile of existing) {
+    taken.add(profile.id);
+    taken.add(profile.model);
+  }
 
-	const familyPricing = getFamilyPricing();
-	const synthesized: ProviderProfile[] = [];
-	for (const model of models) {
-		const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry);
-		if (synthesizedProfile) {
-			synthesized.push(synthesizedProfile);
-		}
-	}
+  const familyPricing = getFamilyPricing();
+  const synthesized: ProviderProfile[] = [];
+  for (const model of models) {
+    const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry);
+    if (synthesizedProfile) {
+      synthesized.push(synthesizedProfile);
+    }
+  }
 
-	return [...existing, ...synthesized];
+  return [...existing, ...synthesized];
 }
 
 export function synthesizeProvidersFromUserModels(
-	existing: ProviderProfile[],
-	configuration: ConfigReader,
-	registry: ModelRegistry,
+  existing: ProviderProfile[],
+  configuration: ConfigReader,
+  registry: ModelRegistry
 ): ProviderProfile[] {
-	const userModels = getUserModels();
-	if (userModels.length === 0) {
-		return existing;
-	}
-	return synthesizeProvidersFromModels(existing, configuration, registry, userModels);
+  const userModels = getUserModels();
+  if (userModels.length === 0) {
+    return existing;
+  }
+  return synthesizeProvidersFromModels(existing, configuration, registry, userModels);
 }
 
 /**
@@ -238,11 +230,11 @@ export function synthesizeProvidersFromUserModels(
  * models that are not already in `existing`.
  */
 export function synthesizeProvidersFromBuiltInModels(
-	existing: ProviderProfile[],
-	configuration: ConfigReader,
-	registry: ModelRegistry,
+  existing: ProviderProfile[],
+  configuration: ConfigReader,
+  registry: ModelRegistry
 ): ProviderProfile[] {
-	return synthesizeProvidersFromModels(existing, configuration, registry, registry.models);
+  return synthesizeProvidersFromModels(existing, configuration, registry, registry.models);
 }
 
 /**
@@ -267,33 +259,34 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
   const configuration = ctx.getConfiguration();
 
   const gateway: GatewaySettings = {
-    enabled: configuration.get<boolean>("gateway.enabled", true),
-    port: configuration.get<number>("gateway.port", 8787),
-    baseUrl: configuration.get<string>("gateway.baseUrl", "http://127.0.0.1:8787/v1"),
-    defaultModel: configuration.get<string>("gateway.defaultModel", ""),
-    // IMPROV-C05: 500 ms default (was 200 ms in 1.7.0). The runtime
+    enabled: configuration.get<boolean>('gateway.enabled', true),
+    port: configuration.get<number>('gateway.port', 8787),
+    baseUrl: configuration.get<string>('gateway.baseUrl', 'http://127.0.0.1:8787/v1'),
+    defaultModel: configuration.get<string>('gateway.defaultModel', ''),
+    // 500 ms default (was 200 ms in 1.7.0). The runtime
     // applies one retry after 100 ms, so the total budget is 1.1 s.
     // Higher values are useful for slow peer startups (cold start of
     // the standalone binary on Windows).
-    probeTimeoutMs: configuration.get<number>("gateway.probeTimeoutMs", 500),
-    // IMPROV-C04: 20 concurrent upstream requests. The gateway returns
+    probeTimeoutMs: configuration.get<number>('gateway.probeTimeoutMs', 500),
+    // 20 concurrent upstream requests. The gateway returns
     // 429 above this cap. Set to a high value (e.g. 1000) for local
     // development where one process is the only client; the cap is
     // mainly a protection against misbehaving test scripts.
-    maxConcurrentRequests: configuration.get<number>("gateway.maxConcurrentRequests", 20),
+    maxConcurrentRequests: configuration.get<number>('gateway.maxConcurrentRequests', 20),
   };
 
   const visionProxy: VisionProxySettings = {
-    excludedVendors: configuration.get<string[]>("vision.excludedVendors", ["aiflowbridge"]),
-    copilotVisionModel: configuration.get<string>("vision.copilotVisionModel", "oswe-vscode-prime"),
+    excludedVendors: configuration.get<string[]>('vision.excludedVendors', ['aiflowbridge']),
+    copilotVisionModel: configuration.get<string>('vision.copilotVisionModel', 'oswe-vscode-prime'),
   };
 
-  const rawProfiles = configuration.get<unknown>("providers", []);
-  const baseProfiles = Array.isArray(rawProfiles) && rawProfiles.length > 0
-    ? normalizeProviderProfiles(rawProfiles)
-    : buildDefaultGatewayProfiles(configuration, registry);
+  const rawProfiles = configuration.get<unknown>('providers', []);
+  const baseProfiles =
+    Array.isArray(rawProfiles) && rawProfiles.length > 0
+      ? normalizeProviderProfiles(rawProfiles)
+      : buildDefaultGatewayProfiles(configuration, registry);
 
-  // IMPROV-C07: surface the common "double /v1" foot-gun. `resolveUpstreamUrl`
+  // surface the common "double /v1" foot-gun. `resolveUpstreamUrl`
   // in the gateway appends a relative path to `baseUrl` via `new URL(path,
   // baseUrl)`. A `baseUrl` that already ends with `/v1` works (the path
   // is appended after the slash), but a `baseUrl` ending with `/v1/v1`
@@ -303,10 +296,10 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
   for (const provider of baseProfiles) {
     try {
       const parsed = new URL(provider.baseUrl);
-      if (parsed.pathname.endsWith("/v1/v1") || parsed.pathname.endsWith("/v1/")) {
+      if (parsed.pathname.endsWith('/v1/v1') || parsed.pathname.endsWith('/v1/')) {
         logger.warn(
           `[AIFlowBridge] Provider "${provider.id}" baseUrl ends with a duplicated /v1 (${provider.baseUrl}); ` +
-            `requests will be routed to <base>/v1/v1/chat/completions. Drop the trailing /v1 from baseUrl.`,
+            `requests will be routed to <base>/v1/v1/chat/completions. Drop the trailing /v1 from baseUrl.`
         );
       }
     } catch {
@@ -337,25 +330,29 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
   // coming from `aiflowbridge.providers` (raw user config) is clearly
   // distinguished from one synthesized from the registry.
   //
-  // WARN-B06: `redactProvidersForLog` strips the `apiKey` field and adds
+  // `redactProvidersForLog` strips the `apiKey` field and adds
   // an `apiKeyPresent` boolean so future verbose dumps (or anyone who
   // copy-pastes this loop and changes `${provider}` to a
   // `JSON.stringify(provider)`) never leak credentials.
   const hasRawProfiles = Array.isArray(rawProfiles) && rawProfiles.length > 0;
   const redacted = redactProvidersForLog(providers);
-  logger.info(`[AIFlowBridge] Gateway provider synthesis: ${providers.length} entries, source=${hasRawProfiles ? "aiflowbridge.providers (raw user config)" : "buildDefaultGatewayProfiles + synthesis"}`);
+  logger.info(
+    `[AIFlowBridge] Gateway provider synthesis: ${providers.length} entries, source=${hasRawProfiles ? 'aiflowbridge.providers (raw user config)' : 'buildDefaultGatewayProfiles + synthesis'}`
+  );
   for (const provider of redacted) {
     const pricingStr = provider.pricing
       ? `in=${provider.pricing.inputPerMillion}/M out=${provider.pricing.outputPerMillion}/M ${provider.pricing.currency}`
       : '<no pricing>';
-    logger.info(`[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} apiKey=${provider.apiKeyPresent ? "***" : "<none>"} pricing=${pricingStr}`);
+    logger.info(
+      `[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} apiKey=${provider.apiKeyPresent ? '***' : '<none>'} pricing=${pricingStr}`
+    );
   }
 
   return {
     gateway,
     providers,
-    telemetryEnabled: configuration.get<boolean>("telemetry.enabled", true),
-    logRequests: configuration.get<boolean>("telemetry.logRequests", true),
+    telemetryEnabled: configuration.get<boolean>('telemetry.enabled', true),
+    logRequests: configuration.get<boolean>('telemetry.logRequests', true),
     visionProxy,
   };
 }

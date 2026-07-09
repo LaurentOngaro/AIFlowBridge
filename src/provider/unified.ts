@@ -133,8 +133,7 @@ export class UnifiedChatProvider implements vscode.LanguageModelChatProvider {
 		}
 		// BaseChatProvider subclasses have getAuthManager()
 		if (
-			typeof (provider as { getAuthManager?: () => { hasApiKey(): Promise<boolean> } })
-				.getAuthManager === 'function'
+			typeof (provider as { getAuthManager?: () => { hasApiKey(): Promise<boolean> } }).getAuthManager === 'function'
 		) {
 			return (
 				provider as { getAuthManager: () => { hasApiKey(): Promise<boolean> } }

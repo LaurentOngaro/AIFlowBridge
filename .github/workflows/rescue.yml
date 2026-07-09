@@ -26,7 +26,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: production
     concurrency:
       group: publish-${{ inputs.tag_name }}
       cancel-in-progress: false

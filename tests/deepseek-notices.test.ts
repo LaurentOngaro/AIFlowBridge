@@ -22,7 +22,7 @@ vi.mock('vscode', () => {
 
 // Mock i18n
 vi.mock('../src/i18n', () => ({
-  t: (_key: string, ...args: unknown[]) => args.length > 0 ? args.join(' ') : _key,
+  t: (_key: string,...args: unknown[]) => args.length > 0 ? args.join(' ') : _key,
 }));
 
 // Mock consts

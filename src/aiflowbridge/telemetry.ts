@@ -1,5 +1,5 @@
-import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from "./types";
-import { logger } from "../logger";
+import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from './types';
+import { logger } from '../logger';
 
 /**
  * Minimal interface required by `TelemetryStore` to schedule a delta
@@ -51,7 +51,7 @@ function updateProviderSnapshot(snapshot: ProviderSnapshot, entry: RequestTeleme
   snapshot.totalTokens += entry.totalTokens;
   snapshot.estimatedCost += entry.estimatedCost;
   snapshot.errors += entry.status >= 400 ? 1 : 0;
-  snapshot.averageDurationMs = ((snapshot.averageDurationMs * (snapshot.requests - 1)) + entry.durationMs) / snapshot.requests;
+  snapshot.averageDurationMs = (snapshot.averageDurationMs * (snapshot.requests - 1) + entry.durationMs) / snapshot.requests;
 }
 
 /**
@@ -68,9 +68,7 @@ export function applyEntryToSnapshot(snapshot: TelemetrySnapshot, entry: Request
   snapshot.estimatedCost += entry.estimatedCost;
   snapshot.errors += entry.status >= 400 ? 1 : 0;
   snapshot.averageDurationMs =
-    snapshot.requests === 1
-      ? entry.durationMs
-      : (snapshot.averageDurationMs * (snapshot.requests - 1) + entry.durationMs) / snapshot.requests;
+    snapshot.requests === 1 ? entry.durationMs : (snapshot.averageDurationMs * (snapshot.requests - 1) + entry.durationMs) / snapshot.requests;
 
   // No cap on `recent` in the snapshot returned to the dashboard: the
   // full history is paginated (page size up to 500). The in-memory
@@ -103,11 +101,7 @@ export function estimateTokensFromText(text: string): number {
   return Math.max(1, Math.ceil(trimmed.length / 4));
 }
 
-export function estimateCostFromProfile(
-  profile: ProviderProfile,
-  promptTokens: number,
-  completionTokens: number,
-): number {
+export function estimateCostFromProfile(profile: ProviderProfile, promptTokens: number, completionTokens: number): number {
   const pricing = profile.pricing;
   if (!pricing) {
     return 0;
@@ -115,11 +109,11 @@ export function estimateCostFromProfile(
 
   const inputPerMillion = pricing.inputPerMillion ?? 0;
   const outputPerMillion = pricing.outputPerMillion ?? 0;
-  return safeCost(((promptTokens * inputPerMillion) + (completionTokens * outputPerMillion)) / 1_000_000);
+  return safeCost((promptTokens * inputPerMillion + completionTokens * outputPerMillion) / 1_000_000);
 }
 
 export function collectTextFragments(value: unknown): string[] {
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     return [value];
   }
 
@@ -127,7 +121,7 @@ export function collectTextFragments(value: unknown): string[] {
     return value.flatMap((item) => collectTextFragments(item));
   }
 
-  if (value && typeof value === "object") {
+  if (value && typeof value === 'object') {
     return Object.values(value as Record<string, unknown>).flatMap((item) => collectTextFragments(item));
   }
 
@@ -135,20 +129,20 @@ export function collectTextFragments(value: unknown): string[] {
 }
 
 export function estimatePromptTokensFromPayload(payload: unknown): number {
-  if (!payload || typeof payload !== "object") {
+  if (!payload || typeof payload !== 'object') {
     return 0;
   }
 
   const body = payload as Record<string, unknown>;
   const fragments: string[] = [];
 
-  if (typeof body.prompt === "string") {
+  if (typeof body.prompt === 'string') {
     fragments.push(body.prompt);
   }
 
   if (Array.isArray(body.messages)) {
     for (const message of body.messages) {
-      if (!message || typeof message !== "object") {
+      if (!message || typeof message !== 'object') {
         continue;
       }
 
@@ -159,11 +153,11 @@ export function estimatePromptTokensFromPayload(payload: unknown): number {
     }
   }
 
-  if (typeof body.input === "string") {
+  if (typeof body.input === 'string') {
     fragments.push(body.input);
   }
 
-  return estimateTokensFromText(fragments.join(" "));
+  return estimateTokensFromText(fragments.join(' '));
 }
 
 export type TelemetryListener = (snapshot: TelemetrySnapshot) => void;
@@ -175,7 +169,7 @@ export interface TelemetryStoreOptions {
    * The on-disk persister still receives every entry, so no data is
    * lost across reloads - only the in-memory list is bounded to keep
    * long-running sessions from leaking memory at high request rates
-   * (WARN-B01). Defaults to 10 000.
+   *. Defaults to 10 000.
    */
   memoryCap?: number;
 }
@@ -194,8 +188,8 @@ export class TelemetryStore {
   /**
    * Sorted ascending cache of the last `MAX_P95_SAMPLE` duration values
    * drawn from `recent`. Invalidated on every `record()` /
-   * `removeEntry()` / `restore()` / `reset()` (IMPROV-C01: avoid
-   * re-sorting the entire ring on every `snapshot()` call). BUG-A01
+   * `removeEntry()` / `restore()` / `reset()` (avoid
+   * re-sorting the entire ring on every `snapshot()` call).
    * fixes the desync that the old `durations` ring + index-based
    * splice used to cause after `removeEntry()`: the cache is rebuilt
    * from `recent` (the source of truth), so it can never disagree
@@ -213,7 +207,10 @@ export class TelemetryStore {
    * legacy `saveState` callback (wired in `GatewayService.init()`) is
    * responsible for persistence.
    */
-  constructor(private readonly persister?: TelemetryPersisterLike, options: TelemetryStoreOptions = {}) {
+  constructor(
+    private readonly persister?: TelemetryPersisterLike,
+    options: TelemetryStoreOptions = {}
+  ) {
     this.memoryCap = Math.max(1, options.memoryCap ?? TelemetryStore.DEFAULT_MEMORY_CAP);
   }
 
@@ -232,9 +229,7 @@ export class TelemetryStore {
     if (this.persister) {
       const baseline = this.snapshot();
       void this.persister.appendDelta(entry, baseline).catch((error: unknown) => {
-        logger.warn(
-          `[Telemetry] Failed to persist entry ${entry.id}: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        logger.warn(`[Telemetry] Failed to persist entry ${entry.id}: ${error instanceof Error ? error.message : String(error)}`);
       });
     }
 
@@ -256,7 +251,7 @@ export class TelemetryStore {
     this.totalErrors += entry.status >= 400 ? 1 : 0;
     this.totalDurationMs += entry.durationMs;
 
-    // WARN-B01: cap the in-memory `recent` list. Drop oldest first.
+    // cap the in-memory `recent` list. Drop oldest first.
     this.recent.push(entry);
     if (this.recent.length > this.memoryCap) {
       this.recent.shift();
@@ -292,7 +287,7 @@ export class TelemetryStore {
    * Compute the 95th-percentile duration from the last
    * `MAX_P95_SAMPLE` entries of `recent`. The result is cached and
    * invalidated by every mutation (`record`, `removeEntry`, `restore`,
-   * `reset`). BUG-A01: this no longer relies on a separate `durations`
+   * `reset`). this no longer relies on a separate `durations`
    * ring kept in parallel with `recent`, which used to desync after a
    * `removeEntry()` / `restore()` cycle and silently skew the p95.
    */
@@ -301,9 +296,7 @@ export class TelemetryStore {
       return 0;
     }
     if (!this.p95Cache) {
-      const sample = this.recent.length > TelemetryStore.MAX_P95_SAMPLE
-        ? this.recent.slice(-TelemetryStore.MAX_P95_SAMPLE)
-        : this.recent;
+      const sample = this.recent.length > TelemetryStore.MAX_P95_SAMPLE ? this.recent.slice(-TelemetryStore.MAX_P95_SAMPLE) : this.recent;
       this.p95Cache = sample.map((entry) => entry.durationMs).sort((left, right) => left - right);
     }
     const sorted = this.p95Cache;
@@ -315,7 +308,7 @@ export class TelemetryStore {
    * Restore cumulative state from a previously persisted snapshot.
    * Restores the totals, per-provider / per-model maps, and the
    * `recent` list. The p95 cache is rebuilt lazily from `recent` on
-   * the next `snapshot()` call (BUG-A01: no parallel ring to keep in
+   * the next `snapshot()` call (no parallel ring to keep in
    * sync). If `state` is `undefined` and a `persister` is configured,
    * the on-disk snapshot is loaded instead.
    */
@@ -326,9 +319,7 @@ export class TelemetryStore {
       try {
         state = this.persister.loadSync();
       } catch (error) {
-        logger.warn(
-          `[Telemetry] Failed to read persisted snapshot during restore: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        logger.warn(`[Telemetry] Failed to read persisted snapshot during restore: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -409,9 +400,7 @@ export class TelemetryStore {
 
     if (this.persister) {
       void this.persister.clear().catch((error: unknown) => {
-        logger.warn(
-          `[Telemetry] Failed to clear telemetry file: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        logger.warn(`[Telemetry] Failed to clear telemetry file: ${error instanceof Error ? error.message : String(error)}`);
       });
     }
 
@@ -462,7 +451,7 @@ export class TelemetryStore {
     }
     const entry = this.recent[idx];
     this.recent.splice(idx, 1);
-    // BUG-A01: p95 is now derived from `recent` lazily. Invalidate the
+    // p95 is now derived from `recent` lazily. Invalidate the
     // cached sorted sample so the next `snapshot()` recomputes it
     // against the (now smaller) source of truth.
     this.invalidateP95Cache();
@@ -509,9 +498,7 @@ export class TelemetryStore {
 
     if (this.persister) {
       void this.persister.removeEntry(entryId).catch((error: unknown) => {
-        logger.warn(
-          `[Telemetry] Failed to remove entry ${entryId} from disk: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        logger.warn(`[Telemetry] Failed to remove entry ${entryId} from disk: ${error instanceof Error ? error.message : String(error)}`);
       });
     }
 

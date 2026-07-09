@@ -62,9 +62,9 @@ const { mockVscode } = vi.hoisted(() => {
 			Uri: Object.assign(HoistedMockUri, {
 				file: (path: string) => Object.assign(new HoistedMockUri(path), { _viaFile: true }),
 				parse: (s: string) => new HoistedMockUri(s),
-				joinPath: (base: HoistedMockUri, ...segments: string[]) =>
+				joinPath: (base: HoistedMockUri,...segments: string[]) =>
 					new HoistedMockUri(
-						[base.fsPath.replace(/\/+$/, ''), ...segments].join('/'),
+						[base.fsPath.replace(/\/+$/, ''),...segments].join('/'),
 					),
 			}),
 			workspace: {

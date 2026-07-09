@@ -100,8 +100,7 @@ describe('validateModelEntry (fail-soft)', () => {
 			maxInputTokens: 1024,
 			maxOutputTokens: 512,
 			capabilities: { toolCalling: true, imageInput: false, thinking: false },
-			requiresThinkingParam: false,
-			...overrides,
+			requiresThinkingParam: false,...overrides,
 		};
 	}
 
@@ -119,8 +118,8 @@ describe('validateModelEntry (fail-soft)', () => {
 
 	it('rejects missing id / name / family / version / detail', () => {
 		const log: ValidationLog = { skipped: [] };
-		expect(validateModelEntry({ ...validEntry(), id: '' }, 0, log)).toBeNull();
-		expect(validateModelEntry({ ...validEntry(), id: '   ' }, 0, log)).toBeNull();
+		expect(validateModelEntry({...validEntry(), id: '' }, 0, log)).toBeNull();
+		expect(validateModelEntry({...validEntry(), id: '   ' }, 0, log)).toBeNull();
 		expect(log.skipped.length).toBeGreaterThan(0);
 	});
 
@@ -441,9 +440,8 @@ describe('Deep merge', () => {
 
 	it('deepMergeModel: override can add pricing on a model without one', () => {
 		const base = baseModel();
-		const withoutPricing: RegistryModelDefinition = { ...base, pricing: undefined };
-		const merged = deepMergeModel(withoutPricing, {
-			...base, pricing: { inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' },
+		const withoutPricing: RegistryModelDefinition = {...base, pricing: undefined };
+		const merged = deepMergeModel(withoutPricing, {...base, pricing: { inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' },
 		});
 		expect(merged.pricing).toEqual({ inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' });
 	});
@@ -475,8 +473,7 @@ describe('Deep merge', () => {
 		const t2: ReturnType<typeof validateRegistryContent> = {
 			vendors: { deepseek: { baseUrl: 'https://override', apiKeySecret: 'k' } },
 			models: [
-				{
-					...baseModel(),
+				{...baseModel(),
 					detail: 'override',
 				},
 			],
@@ -493,7 +490,7 @@ describe('Deep merge', () => {
 	it('mergeTiers: workspace-only model is preserved', () => {
 		const merged = mergeTiers(undefined, undefined, {
 			vendors: {},
-			models: [{ ...baseModel(), id: 'workspace-only' }],
+			models: [{...baseModel(), id: 'workspace-only' }],
 			log: { skipped: [] },
 		});
 		expect(merged.models.find((m) => m.id === 'workspace-only')).toBeDefined();

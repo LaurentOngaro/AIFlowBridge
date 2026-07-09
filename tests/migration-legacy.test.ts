@@ -3,7 +3,7 @@
  * telemetry snapshot from `globalState` to the 1.7.0 file-based
  * store.
  *
- * The migration was removed in the FEAT7 refactor, which silently
+ * The migration was removed in the  refactor, which silently
  * reset every user's cumulative counters on upgrade. The fix
  * re-introduces `migrateLegacyGlobalState()` in
  * `src/aiflowbridge/index.ts`:
@@ -236,7 +236,7 @@ describe('AIFlowBridgeRuntime - B-01 legacy telemetry migration', () => {
 		host = makeMigrationHost(makeLegacySnapshot());
 		// Remove globalState to simulate the standalone context (no
 		// Memento backing).
-		const ctxWithoutState: IGatewayContext = { ...host.ctx, globalState: undefined };
+		const ctxWithoutState: IGatewayContext = {...host.ctx, globalState: undefined };
 		runtime = new AIFlowBridgeRuntime(ctxWithoutState);
 
 		// Should not throw.

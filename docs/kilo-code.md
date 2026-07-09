@@ -7,12 +7,12 @@ It has a built-in OpenAI-compatible provider, so the AIFlowBridge standalone gat
 
 In the Kilo Code side panel: `Settings -> Providers -> API Provider -> OpenAI Compatible`
 
-| Field            | Value                                  |
-| ---------------- | -------------------------------------- |
-| Base URL         | `http://127.0.0.1:8787/v1`             |
-| API Key          | `standalone` (any non-empty string)    |
-| Model            | `deepseek-v4-pro`                      |
-| Streaming        | Enabled                                |
+| Field     | Value                      |
+| --------- | -------------------------- |
+| Base URL  | `http://127.0.0.1:8787/v1` |
+| API Key   | (any non-empty string)     |
+| Model     | `deepseek-v4-pro`          |
+| Streaming | Enabled                    |
 
 Save. The picker now lists the model. Repeat for any other model from `GET /v1/models` if you want them all in the picker.
 

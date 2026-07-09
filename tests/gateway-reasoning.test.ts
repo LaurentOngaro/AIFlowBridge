@@ -33,8 +33,7 @@ function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile
 		baseUrl: 'https://api.minimax.io/v1',
 		model: 'MiniMax-M3',
 		apiKey: 'sk-test',
-		enabled: true,
-		...overrides,
+		enabled: true,...overrides,
 	};
 }
 

@@ -32,9 +32,9 @@ export type CurrencyCode = 'USD';
 
 /** Token-plan tariff, USD per million tokens. */
 export interface ModelPricing {
-	inputPerMillion: number;
-	outputPerMillion: number;
-	currency: CurrencyCode;
+  inputPerMillion: number;
+  outputPerMillion: number;
+  currency: CurrencyCode;
 }
 
 /**
@@ -42,9 +42,9 @@ export interface ModelPricing {
  * Keyed by vendor config key (`deepseek`, `minimax`, `xiaomi`).
  */
 export interface VendorDefinition {
-	baseUrl: string;
-	apiKeySecret: string;
-	externalUrls?: Record<string, string>;
+  baseUrl: string;
+  apiKeySecret: string;
+  externalUrls?: Record<string, string>;
 }
 
 /**
@@ -56,46 +56,46 @@ export interface VendorDefinition {
  * without any conversion.
  */
 export interface RegistryModelDefinition extends ModelDefinition {
-	pricing?: ModelPricing;
+  pricing?: ModelPricing;
 }
 
 /** Raw registry file as parsed from disk. */
 export interface RegistryFile {
-	version: number;
-	vendors?: Record<string, VendorDefinition>;
-	models: RegistryModelDefinition[];
+  version: number;
+  vendors?: Record<string, VendorDefinition>;
+  models: RegistryModelDefinition[];
 }
 
 /** Final merged registry consumed by the rest of the extension. */
 export interface ModelRegistry {
-	version: number;
-	vendors: Record<string, VendorDefinition>;
-	models: RegistryModelDefinition[];
-	sources: RegistrySources;
+  version: number;
+  vendors: Record<string, VendorDefinition>;
+  models: RegistryModelDefinition[];
+  sources: RegistrySources;
 }
 
 /** Diagnostics about where each tier was loaded from, for the dashboard. */
 export interface RegistrySources {
-	bundled: { exists: boolean; path: string };
-	globalStorage: { exists: boolean; path: string };
-	workspace: { exists: boolean; path: string };
+  bundled: { exists: boolean; path: string };
+  globalStorage: { exists: boolean; path: string };
+  workspace: { exists: boolean; path: string };
 }
 
 // ---- Validation log ----
 
 /** One structured skip reason. The loader turns these into logger.warn() calls. */
 export interface ValidationSkip {
-	kind: 'model' | 'vendor' | 'capability' | 'pricing';
-	key: string;
-	reason: string;
+  kind: 'model' | 'vendor' | 'capability' | 'pricing';
+  key: string;
+  reason: string;
 }
 
 export interface ValidationLog {
-	skipped: ValidationSkip[];
+  skipped: ValidationSkip[];
 }
 
 export function emptyValidationLog(): ValidationLog {
-	return { skipped: [] };
+  return { skipped: [] };
 }
 
 // ---- Fail-hard structure validator ----
@@ -105,10 +105,10 @@ const KNOWN_FAMILIES = new Set<string>(['deepseek', 'minimax', 'xiaomi']);
 const KNOWN_CURRENCIES = new Set<string>(['USD']);
 
 export class RegistryStructureError extends Error {
-	constructor(message: string) {
-		super(`Invalid model registry: ${message}`);
-		this.name = 'RegistryStructureError';
-	}
+  constructor(message: string) {
+    super(`Invalid model registry: ${message}`);
+    this.name = 'RegistryStructureError';
+  }
 }
 
 /**
@@ -119,30 +119,25 @@ export class RegistryStructureError extends Error {
  * `validateVendorEntry`.
  */
 export function validateRegistryStructure(raw: unknown): asserts raw is RegistryFile {
-	if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-		throw new RegistryStructureError('root must be a JSON object');
-	}
-	const obj = raw as Record<string, unknown>;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new RegistryStructureError('root must be a JSON object');
+  }
+  const obj = raw as Record<string, unknown>;
 
-	if (typeof obj.version !== 'number' || !Number.isInteger(obj.version)) {
-		throw new RegistryStructureError('"version" must be an integer');
-	}
-	if (!SUPPORTED_VERSIONS.has(obj.version)) {
-		throw new RegistryStructureError(
-			`unsupported version ${obj.version} (expected one of: ${[...SUPPORTED_VERSIONS].join(', ')})`,
-		);
-	}
+  if (typeof obj.version !== 'number' || !Number.isInteger(obj.version)) {
+    throw new RegistryStructureError('"version" must be an integer');
+  }
+  if (!SUPPORTED_VERSIONS.has(obj.version)) {
+    throw new RegistryStructureError(`unsupported version ${obj.version} (expected one of: ${[...SUPPORTED_VERSIONS].join(', ')})`);
+  }
 
-	if (obj.models === undefined || !Array.isArray(obj.models)) {
-		throw new RegistryStructureError('"models" must be an array');
-	}
+  if (obj.models === undefined || !Array.isArray(obj.models)) {
+    throw new RegistryStructureError('"models" must be an array');
+  }
 
-	if (
-		obj.vendors !== undefined &&
-		(obj.vendors === null || typeof obj.vendors !== 'object' || Array.isArray(obj.vendors))
-	) {
-		throw new RegistryStructureError('"vendors" must be an object when present');
-	}
+  if (obj.vendors !== undefined && (obj.vendors === null || typeof obj.vendors !== 'object' || Array.isArray(obj.vendors))) {
+    throw new RegistryStructureError('"vendors" must be an object when present');
+  }
 }
 
 // ---- Fail-soft content validators ----
@@ -182,11 +177,11 @@ export function validateRegistryContent(raw: RegistryFile, mode: 'strict'): Vali
 export function validateRegistryContent(raw: RegistryFile, mode: 'partial'): ValidatedContent<Partial<RegistryModelDefinition>>;
 export function validateRegistryContent(
   raw: RegistryFile,
-  mode: 'strict' | 'partial',
+  mode: 'strict' | 'partial'
 ): ValidatedContent<RegistryModelDefinition> | ValidatedContent<Partial<RegistryModelDefinition>>;
 export function validateRegistryContent(
   raw: RegistryFile,
-  mode: 'strict' | 'partial' = 'strict',
+  mode: 'strict' | 'partial' = 'strict'
 ): ValidatedContent<RegistryModelDefinition> | ValidatedContent<Partial<RegistryModelDefinition>> {
   const log = emptyValidationLog();
   const vendors: Record<string, VendorDefinition> = {};
@@ -238,7 +233,7 @@ export function validateModelEntry(
   entry: unknown,
   index: number,
   log?: ValidationLog,
-  mode: 'strict' | 'partial' = 'strict',
+  mode: 'strict' | 'partial' = 'strict'
 ): Partial<RegistryModelDefinition> | null {
   if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
     log?.skipped.push({ kind: 'model', key: `[${index}]`, reason: 'not an object' });
@@ -379,76 +374,72 @@ export function validateModelEntry(
   return result;
 }
 
-function validateCapabilities(
-	value: unknown,
-	modelId: string,
-	log?: ValidationLog,
-): RegistryModelDefinition['capabilities'] | null {
-	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-		log?.skipped.push({ kind: 'capability', key: modelId, reason: '"capabilities" must be an object' });
-		return null;
-	}
-	const c = value as Record<string, unknown>;
+function validateCapabilities(value: unknown, modelId: string, log?: ValidationLog): RegistryModelDefinition['capabilities'] | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    log?.skipped.push({ kind: 'capability', key: modelId, reason: '"capabilities" must be an object' });
+    return null;
+  }
+  const c = value as Record<string, unknown>;
 
-	const toolCalling = toolCallingField(c.toolCalling);
-	if (toolCalling === undefined) {
-		log?.skipped.push({
-			kind: 'capability',
-			key: modelId,
-			reason: '"capabilities.toolCalling" must be a boolean or a non-negative integer',
-		});
-		return null;
-	}
+  const toolCalling = toolCallingField(c.toolCalling);
+  if (toolCalling === undefined) {
+    log?.skipped.push({
+      kind: 'capability',
+      key: modelId,
+      reason: '"capabilities.toolCalling" must be a boolean or a non-negative integer',
+    });
+    return null;
+  }
 
-	const imageInput = booleanField(c.imageInput);
-	if (imageInput === undefined) {
-		log?.skipped.push({ kind: 'capability', key: modelId, reason: '"capabilities.imageInput" must be a boolean' });
-		return null;
-	}
+  const imageInput = booleanField(c.imageInput);
+  if (imageInput === undefined) {
+    log?.skipped.push({ kind: 'capability', key: modelId, reason: '"capabilities.imageInput" must be a boolean' });
+    return null;
+  }
 
-	const thinking = booleanField(c.thinking);
-	if (thinking === undefined) {
-		log?.skipped.push({ kind: 'capability', key: modelId, reason: '"capabilities.thinking" must be a boolean' });
-		return null;
-	}
+  const thinking = booleanField(c.thinking);
+  if (thinking === undefined) {
+    log?.skipped.push({ kind: 'capability', key: modelId, reason: '"capabilities.thinking" must be a boolean' });
+    return null;
+  }
 
-	return { toolCalling, imageInput, thinking };
+  return { toolCalling, imageInput, thinking };
 }
 
 function validatePricing(value: unknown, modelId: string, log?: ValidationLog): ModelPricing | null {
-	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-		log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing" must be an object' });
-		return null;
-	}
-	const p = value as Record<string, unknown>;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing" must be an object' });
+    return null;
+  }
+  const p = value as Record<string, unknown>;
 
-	const inputPerMillion = nonNegativeNumber(p.inputPerMillion);
-	if (inputPerMillion === undefined) {
-		log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing.inputPerMillion" must be a non-negative number' });
-		return null;
-	}
+  const inputPerMillion = nonNegativeNumber(p.inputPerMillion);
+  if (inputPerMillion === undefined) {
+    log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing.inputPerMillion" must be a non-negative number' });
+    return null;
+  }
 
-	const outputPerMillion = nonNegativeNumber(p.outputPerMillion);
-	if (outputPerMillion === undefined) {
-		log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing.outputPerMillion" must be a non-negative number' });
-		return null;
-	}
+  const outputPerMillion = nonNegativeNumber(p.outputPerMillion);
+  if (outputPerMillion === undefined) {
+    log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing.outputPerMillion" must be a non-negative number' });
+    return null;
+  }
 
-	const currency = nonEmptyString(p.currency);
-	if (!currency) {
-		log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing.currency" must be a non-empty string' });
-		return null;
-	}
-	if (!KNOWN_CURRENCIES.has(currency)) {
-		log?.skipped.push({
-			kind: 'pricing',
-			key: modelId,
-			reason: `unsupported "pricing.currency" "${currency}" (expected one of: ${[...KNOWN_CURRENCIES].join(', ')})`,
-		});
-		return null;
-	}
+  const currency = nonEmptyString(p.currency);
+  if (!currency) {
+    log?.skipped.push({ kind: 'pricing', key: modelId, reason: '"pricing.currency" must be a non-empty string' });
+    return null;
+  }
+  if (!KNOWN_CURRENCIES.has(currency)) {
+    log?.skipped.push({
+      kind: 'pricing',
+      key: modelId,
+      reason: `unsupported "pricing.currency" "${currency}" (expected one of: ${[...KNOWN_CURRENCIES].join(', ')})`,
+    });
+    return null;
+  }
 
-	return { inputPerMillion, outputPerMillion, currency: currency as CurrencyCode };
+  return { inputPerMillion, outputPerMillion, currency: currency as CurrencyCode };
 }
 
 /**
@@ -456,68 +447,68 @@ function validatePricing(value: unknown, modelId: string, log?: ValidationLog): 
  * whether to log; this keeps the validator pure.
  */
 export function validateVendorEntry(value: unknown): VendorDefinition | null {
-	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-		return null;
-	}
-	const v = value as Record<string, unknown>;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const v = value as Record<string, unknown>;
 
-	const baseUrl = nonEmptyString(v.baseUrl);
-	if (!baseUrl) {
-		return null;
-	}
-	const apiKeySecret = nonEmptyString(v.apiKeySecret);
-	if (!apiKeySecret) {
-		return null;
-	}
+  const baseUrl = nonEmptyString(v.baseUrl);
+  if (!baseUrl) {
+    return null;
+  }
+  const apiKeySecret = nonEmptyString(v.apiKeySecret);
+  if (!apiKeySecret) {
+    return null;
+  }
 
-	let externalUrls: Record<string, string> | undefined;
-	if (v.externalUrls !== undefined) {
-		if (v.externalUrls === null || typeof v.externalUrls !== 'object' || Array.isArray(v.externalUrls)) {
-			return null;
-		}
-		const filtered: Record<string, string> = {};
-		for (const [k, raw] of Object.entries(v.externalUrls)) {
-			const val = nonEmptyString(raw);
-			if (val) {
-				filtered[k] = val;
-			}
-		}
-		externalUrls = filtered;
-	}
+  let externalUrls: Record<string, string> | undefined;
+  if (v.externalUrls !== undefined) {
+    if (v.externalUrls === null || typeof v.externalUrls !== 'object' || Array.isArray(v.externalUrls)) {
+      return null;
+    }
+    const filtered: Record<string, string> = {};
+    for (const [k, raw] of Object.entries(v.externalUrls)) {
+      const val = nonEmptyString(raw);
+      if (val) {
+        filtered[k] = val;
+      }
+    }
+    externalUrls = filtered;
+  }
 
-	return { baseUrl, apiKeySecret, externalUrls };
+  return { baseUrl, apiKeySecret, externalUrls };
 }
 
 // ---- Field-level helpers (exported for tests) ----
 
 export function nonEmptyString(value: unknown): string | undefined {
-	if (typeof value !== 'string') {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 export function booleanField(value: unknown): boolean | undefined {
-	return typeof value === 'boolean' ? value : undefined;
+  return typeof value === 'boolean' ? value : undefined;
 }
 
 export function positiveInt(value: unknown): number | undefined {
-	return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 export function nonNegativeNumber(value: unknown): number | undefined {
-	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 export function toolCallingField(value: unknown): boolean | number | undefined {
-	if (typeof value === 'boolean') {
-		return value;
-	}
-	if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
-		return value;
-	}
-	return undefined;
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+    return value;
+  }
+  return undefined;
 }
 
 // ---- Deep merge ----
@@ -532,43 +523,37 @@ export function toolCallingField(value: unknown): boolean | number | undefined {
  * way (JSON parsing can't produce explicit `undefined`, but the type allows
  * callers to pass partial models).
  */
-export function deepMergeModel(
-	base: RegistryModelDefinition,
-	override: Partial<RegistryModelDefinition>,
-): RegistryModelDefinition {
-	return {
-		id: override.id ?? base.id,
-		name: override.name ?? base.name,
-		family: override.family ?? base.family,
-		version: override.version ?? base.version,
-		detail: override.detail ?? base.detail,
-		maxInputTokens: override.maxInputTokens ?? base.maxInputTokens,
-		maxOutputTokens: override.maxOutputTokens ?? base.maxOutputTokens,
-		capabilities: { ...base.capabilities, ...(override.capabilities ?? {}) },
-		requiresThinkingParam: override.requiresThinkingParam ?? base.requiresThinkingParam,
-		pricing: mergePricing(base.pricing, override.pricing),
-	};
+export function deepMergeModel(base: RegistryModelDefinition, override: Partial<RegistryModelDefinition>): RegistryModelDefinition {
+  return {
+    id: override.id ?? base.id,
+    name: override.name ?? base.name,
+    family: override.family ?? base.family,
+    version: override.version ?? base.version,
+    detail: override.detail ?? base.detail,
+    maxInputTokens: override.maxInputTokens ?? base.maxInputTokens,
+    maxOutputTokens: override.maxOutputTokens ?? base.maxOutputTokens,
+    capabilities: { ...base.capabilities, ...(override.capabilities ?? {}) },
+    requiresThinkingParam: override.requiresThinkingParam ?? base.requiresThinkingParam,
+    pricing: mergePricing(base.pricing, override.pricing),
+  };
 }
 
-function mergePricing(
-	base: ModelPricing | undefined,
-	override: Partial<ModelPricing> | undefined,
-): ModelPricing | undefined {
-	if (!base && !override) {
-		return undefined;
-	}
-	if (!override) {
-		return base;
-	}
-	if (!base) {
-		// Override must be complete (already validated upstream).
-		return override as ModelPricing;
-	}
-	return {
-		inputPerMillion: override.inputPerMillion ?? base.inputPerMillion,
-		outputPerMillion: override.outputPerMillion ?? base.outputPerMillion,
-		currency: override.currency ?? base.currency,
-	};
+function mergePricing(base: ModelPricing | undefined, override: Partial<ModelPricing> | undefined): ModelPricing | undefined {
+  if (!base && !override) {
+    return undefined;
+  }
+  if (!override) {
+    return base;
+  }
+  if (!base) {
+    // Override must be complete (already validated upstream).
+    return override as ModelPricing;
+  }
+  return {
+    inputPerMillion: override.inputPerMillion ?? base.inputPerMillion,
+    outputPerMillion: override.outputPerMillion ?? base.outputPerMillion,
+    currency: override.currency ?? base.currency,
+  };
 }
 
 /**
@@ -576,11 +561,11 @@ function mergePricing(
  * and `externalUrls` being deep-merged per key.
  */
 export function deepMergeVendor(base: VendorDefinition, override: Partial<VendorDefinition>): VendorDefinition {
-	return {
-		baseUrl: override.baseUrl ?? base.baseUrl,
-		apiKeySecret: override.apiKeySecret ?? base.apiKeySecret,
-		externalUrls: { ...(base.externalUrls ?? {}), ...(override.externalUrls ?? {}) },
-	};
+  return {
+    baseUrl: override.baseUrl ?? base.baseUrl,
+    apiKeySecret: override.apiKeySecret ?? base.apiKeySecret,
+    externalUrls: { ...(base.externalUrls ?? {}), ...(override.externalUrls ?? {}) },
+  };
 }
 
 /**
@@ -598,38 +583,38 @@ export function deepMergeVendor(base: VendorDefinition, override: Partial<Vendor
  * adding it.
  */
 export function mergeTiers(
-	...tiers: Array<ValidatedContent<RegistryModelDefinition | Partial<RegistryModelDefinition>> | undefined>
+  ...tiers: Array<ValidatedContent<RegistryModelDefinition | Partial<RegistryModelDefinition>> | undefined>
 ): Pick<ModelRegistry, 'version' | 'vendors' | 'models'> {
-	const vendors: Record<string, VendorDefinition> = {};
-	const models = new Map<string, RegistryModelDefinition>();
+  const vendors: Record<string, VendorDefinition> = {};
+  const models = new Map<string, RegistryModelDefinition>();
 
-	for (const tier of tiers) {
-		if (!tier) {
-			continue;
-		}
-		for (const [key, vendor] of Object.entries(tier.vendors)) {
-			const existing = vendors[key];
-			vendors[key] = existing ? deepMergeVendor(existing, vendor) : { ...vendor };
-		}
-		for (const model of tier.models) {
-			// `id` is always populated by `validateModelEntry` (it rejects
-			// entries without a non-empty id in both `'strict'` and
-			// `'partial'` modes). The non-null assertion is safe.
-			const id = model.id as string;
-			const existing = models.get(id);
-			if (existing) {
-				models.set(id, deepMergeModel(existing, model));
-			} else {
-				// First tier containing this id is the bundled (strict) tier,
-				// so the entry is guaranteed to be complete.
-				models.set(id, model as RegistryModelDefinition);
-			}
-		}
-	}
+  for (const tier of tiers) {
+    if (!tier) {
+      continue;
+    }
+    for (const [key, vendor] of Object.entries(tier.vendors)) {
+      const existing = vendors[key];
+      vendors[key] = existing ? deepMergeVendor(existing, vendor) : { ...vendor };
+    }
+    for (const model of tier.models) {
+      // `id` is always populated by `validateModelEntry` (it rejects
+      // entries without a non-empty id in both `'strict'` and
+      // `'partial'` modes). The non-null assertion is safe.
+      const id = model.id as string;
+      const existing = models.get(id);
+      if (existing) {
+        models.set(id, deepMergeModel(existing, model));
+      } else {
+        // First tier containing this id is the bundled (strict) tier,
+        // so the entry is guaranteed to be complete.
+        models.set(id, model as RegistryModelDefinition);
+      }
+    }
+  }
 
-	return {
-		version: 1,
-		vendors,
-		models: Array.from(models.values()),
-	};
+  return {
+    version: 1,
+    vendors,
+    models: Array.from(models.values()),
+  };
 }

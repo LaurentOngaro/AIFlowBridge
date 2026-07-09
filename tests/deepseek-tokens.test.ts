@@ -100,7 +100,7 @@ describe('tokens.ts - estimateTokenCount (message)', () => {
 
   it('should handle empty content array', () => {
     const message = { content: [] } as unknown as vscode.LanguageModelChatRequestMessage;
-    expect(estimateTokenCount(message, 4)).toBe(1); // Math.max(1, ...)
+    expect(estimateTokenCount(message, 4)).toBe(1); // Math.max(1,...)
   });
 
   it('should handle message with no content', () => {

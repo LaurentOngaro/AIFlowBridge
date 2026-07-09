@@ -2,16 +2,16 @@
  * Vendor-prefixed API key resolution for gateway upstream profiles.
  *
  * The runtime registers auto-generated profiles for DeepSeek, MiniMax, and
- * Xiaomi under lowercase vendor ids ("deepseek-flash", "minimax", ...).
+ * Xiaomi under lowercase vendor ids ("deepseek-flash", "minimax",...).
  * User-declared models synthesized from `aiflowbridge.userModels` keep
- * their upstream id verbatim ("MiniMax-M3", "mimo-v2.5-pro", ...), which
+ * their upstream id verbatim ("MiniMax-M3", "mimo-v2.5-pro",...), which
  * can include capitals and a different separator ("mimo-" for Xiaomi
  * MiMo). The resolver must therefore be case-insensitive and accept the
  * upstream-style alias for each vendor.
  */
 
-import { API_KEY_SECRETS } from "../consts";
-import type { SecretStorageLike } from "./types";
+import { API_KEY_SECRETS } from '../consts';
+import type { SecretStorageLike } from './types';
 
 export type KnownVendor = keyof typeof API_KEY_SECRETS;
 
@@ -23,7 +23,7 @@ export type KnownVendor = keyof typeof API_KEY_SECRETS;
  * standalone adapter) and the resolver awaits the Promise transparently.
  */
 export type SecretsLike = {
-	get(key: string): unknown;
+  get(key: string): unknown;
 };
 
 /**
@@ -31,7 +31,7 @@ export type SecretsLike = {
  * `SecretStorageLike` (VS Code `SecretStorage` and the standalone adapter
  * both implement it) or the get-only `SecretsLike` used by the unit
  * tests. The resolver only ever calls `.get()`, so the wider shape
- * carries no extra risk (S-03).
+ * carries no extra risk.
  */
 export type ResolveSecretSource = SecretStorageLike | SecretsLike;
 
@@ -42,9 +42,9 @@ export type ResolveSecretSource = SecretStorageLike | SecretsLike;
  * on requests for user-added models.
  */
 const VENDOR_ALIASES: Record<KnownVendor, readonly string[]> = {
-	deepseek: ["deepseek"],
-	minimax: ["minimax"],
-	xiaomi: ["xiaomi", "mimo"],
+  deepseek: ['deepseek'],
+  minimax: ['minimax'],
+  xiaomi: ['xiaomi', 'mimo'],
 };
 
 /**
@@ -56,32 +56,29 @@ const VENDOR_ALIASES: Record<KnownVendor, readonly string[]> = {
  * Xiaomi MiMo. Returns the matching secret's value, or `undefined` if
  * no vendor matches or the secret is not set.
  */
-export async function resolveVendorApiKey(
-	vendor: string,
-	secrets: ResolveSecretSource,
-): Promise<string | undefined> {
-	if (!vendor) {
-		return undefined;
-	}
-	const lowered = vendor.toLowerCase();
-	const knownVendors = Object.keys(API_KEY_SECRETS) as KnownVendor[];
+export async function resolveVendorApiKey(vendor: string, secrets: ResolveSecretSource): Promise<string | undefined> {
+  if (!vendor) {
+    return undefined;
+  }
+  const lowered = vendor.toLowerCase();
+  const knownVendors = Object.keys(API_KEY_SECRETS) as KnownVendor[];
 
-	const matched = knownVendors.find((kv) => {
-		for (const alias of VENDOR_ALIASES[kv]) {
-			if (lowered === alias || lowered.startsWith(`${alias}-`)) {
-				return true;
-			}
-		}
-		return false;
-	});
+  const matched = knownVendors.find((kv) => {
+    for (const alias of VENDOR_ALIASES[kv]) {
+      if (lowered === alias || lowered.startsWith(`${alias}-`)) {
+        return true;
+      }
+    }
+    return false;
+  });
 
-	if (!matched) {
-		return undefined;
-	}
-	try {
-		const value = await secrets.get(API_KEY_SECRETS[matched]);
-		return typeof value === "string" ? value : undefined;
-	} catch {
-		return undefined;
-	}
+  if (!matched) {
+    return undefined;
+  }
+  try {
+    const value = await secrets.get(API_KEY_SECRETS[matched]);
+    return typeof value === 'string' ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }

@@ -24,14 +24,10 @@ vi.mock('vscode', () => ({
 
 // Mock i18n
 vi.mock('../src/i18n', () => ({
-  t: (_key: string, ...args: unknown[]) => args.length > 0 ? args.join(' ') : _key,
+  t: (_key: string, ...args: unknown[]) => (args.length > 0 ? args.join(' ') : _key),
 }));
 
-import {
-  DeepSeekRequestError,
-  normalizeRequestError,
-  setErrorActionUrl,
-} from '../src/client/error';
+import { DeepSeekRequestError, normalizeRequestError, setErrorActionUrl } from '../src/client/error';
 
 describe('error.ts - DeepSeekRequestError', () => {
   it('should create error with all fields', () => {

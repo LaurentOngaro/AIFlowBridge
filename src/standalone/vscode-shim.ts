@@ -1,5 +1,5 @@
 /**
- * `vscode` module shim for the standalone build (FEAT7).
+ * `vscode` module shim for the standalone build.
  *
  * The standalone entry point (`src/standalone/main.ts`) imports the same
  * gateway code as the VS Code extension. That code still references
@@ -18,10 +18,10 @@
  * `vscode` module from `@types/vscode`.
  */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
-const FALLBACK_CONFIG_PATH = join(homedir(), ".aiflowbridge", "config.json");
+const FALLBACK_CONFIG_PATH = join(homedir(), '.aiflowbridge', 'config.json');
 
 function getConfigurationFromEnv(): Record<string, unknown> {
   // The standalone config is loaded by `src/standalone/context.ts` and
@@ -31,11 +31,11 @@ function getConfigurationFromEnv(): Record<string, unknown> {
   // by `main.ts` before any module imports the logger).
   const configPath = process.env.AIFLOWBRIDGE_CONFIG_PATH || FALLBACK_CONFIG_PATH;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fs = require("node:fs") as typeof import("node:fs");
+  const fs = require('node:fs') as typeof import('node:fs');
   try {
-    const raw = fs.readFileSync(configPath, "utf8");
+    const raw = fs.readFileSync(configPath, 'utf8');
     const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object") {
+    if (parsed && typeof parsed === 'object') {
       return parsed as Record<string, unknown>;
     }
   } catch {
@@ -45,10 +45,10 @@ function getConfigurationFromEnv(): Record<string, unknown> {
 }
 
 function getNestedValue(root: Record<string, unknown>, key: string): unknown {
-  const segments = key.split(".");
+  const segments = key.split('.');
   let current: unknown = root;
   for (const segment of segments) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[segment];
@@ -87,12 +87,15 @@ class WorkspaceConfigurationShim {
 }
 
 class LogOutputChannelShim {
-  constructor(public readonly name: string, private readonly options?: { log?: boolean }) {}
+  constructor(
+    public readonly name: string,
+    private readonly options?: { log?: boolean }
+  ) {}
   append(text: string): void {
-    process.stdout.write(text + "\n");
+    process.stdout.write(text + '\n');
   }
   appendLine(text: string): void {
-    process.stdout.write(text + "\n");
+    process.stdout.write(text + '\n');
   }
   info(text: string): void {
     process.stdout.write(`[INFO]  ${text}\n`);
@@ -132,18 +135,24 @@ class LogOutputChannelShim {
 // throws when called (the dashboard is VS Code-only).
 
 const NOOP_STATUS_BAR_ITEM = {
-  text: "",
+  text: '',
   tooltip: undefined as string | undefined,
   command: undefined as string | undefined,
-  show() { /* no-op */ },
-  hide() { /* no-op */ },
-  dispose() { /* no-op */ },
+  show() {
+    /* no-op */
+  },
+  hide() {
+    /* no-op */
+  },
+  dispose() {
+    /* no-op */
+  },
 };
 
 const NOOP_WEBVIEW = {
-  html: "",
+  html: '',
   options: { enableScripts: true },
-  cspSource: "",
+  cspSource: '',
   onDidReceiveMessage(_listener: (msg: unknown) => void): { dispose: () => void } {
     return { dispose: () => undefined };
   },
@@ -151,17 +160,21 @@ const NOOP_WEBVIEW = {
     return Promise.resolve(true);
   },
   asWebviewUri(_uri: { fsPath: string }): { fsPath: string; toString(): string } {
-    return { fsPath: "", toString: () => "" };
+    return { fsPath: '', toString: () => '' };
   },
 };
 
 const NOOP_WEBVIEW_PANEL = {
-  viewType: "",
-  title: "",
+  viewType: '',
+  title: '',
   webview: NOOP_WEBVIEW,
   visible: false,
-  reveal(_column?: unknown): void { /* no-op */ },
-  dispose(): void { /* no-op */ },
+  reveal(_column?: unknown): void {
+    /* no-op */
+  },
+  dispose(): void {
+    /* no-op */
+  },
   onDidDispose(_listener: () => void): { dispose: () => void } {
     return { dispose: () => undefined };
   },
@@ -181,12 +194,12 @@ export const workspace = {
   fs: {
     async readFile(uri: { fsPath: string }): Promise<Uint8Array> {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const fs = require("node:fs/promises") as typeof import("node:fs/promises");
+      const fs = require('node:fs/promises') as typeof import('node:fs/promises');
       const buffer = await fs.readFile(uri.fsPath);
       return new Uint8Array(buffer);
     },
     async writeFile(): Promise<void> {
-      throw new Error("[vscode-shim] vscode.workspace.fs.writeFile is not supported in standalone mode");
+      throw new Error('[vscode-shim] vscode.workspace.fs.writeFile is not supported in standalone mode');
     },
   },
 };
@@ -250,7 +263,7 @@ export const env = {
 
 export const Uri = {
   joinPath(base: { fsPath: string }, ...segments: string[]): { fsPath: string; toString(): string } {
-    const fsPath = [base.fsPath.replace(/\/+$/, ""), ...segments].join("/");
+    const fsPath = [base.fsPath.replace(/\/+$/, ''), ...segments].join('/');
     return { fsPath, toString: () => fsPath };
   },
   file(path: string): { fsPath: string; toString(): string } {

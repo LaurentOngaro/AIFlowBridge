@@ -6,42 +6,81 @@
 
 ```
 src/
-├── aiflowbridge/                       # Gateway, telemetry, dashboard
-│   ├── gateway/                        # OpenAI-compatible proxy server
-│   ├── ui/                             # Dashboard webview, status bar
+├── aiflowbridge/                       # Host-agnostic gateway + telemetry + UI module
+│   ├── gateway/                        # OpenAI-compatible HTTP proxy
+│   │   ├── server.ts                   # HTTP server + /version + /shutdown + cooperative restart
+│   │   ├── probe.ts                    # probeServerVersion / requestPeerShutdown / waitUntilPortFree / compareSemver
+│   │   └── lock.ts                     # acquireGatewayLock / releaseGatewayLock (fs.openSync 'wx')
 │   ├── telemetry/                      # Cross-window telemetry persistence
-│   │   └── persistence.ts              # TelemetryPersister + file lock
+│   │   └── persistence.ts              # TelemetryPersister + acquireTelemetryLock / releaseTelemetryLock
+│   ├── ui/                             # Dashboard webview + status bar
+│   │   ├── dashboard.ts                # buildDashboardHtml + showMetricsDashboard
+│   │   └── statusbar.ts                # Status bar entry, "joined" state when peer owns the gateway
 │   ├── token-counter.ts                # MiniMax /v1/responses/input_tokens wrapper
+│   ├── modelRegistry.schema.ts         # Hand-rolled registry types + validators + deep merge
+│   ├── modelRegistry.ts                # 3-tier loader (bundled < globalStorage < workspace)
 │   ├── telemetry.ts                    # TelemetryStore + cost estimation
-│   ├── config.ts                       # Gateway settings + userModel synthesis
-│   ├── providers.ts                    # Gateway upstream provider normalization
-│   ├── modelRegistry.ts                # 3-tier loader
-│   ├── modelRegistry.schema.ts         # Hand-rolled validators + deep merge
-│   └── types.ts
+│   ├── providers.ts                    # Gateway upstream provider normalization + SSRF validation
+│   ├── config.ts                       # loadConfigFromContext(ctx) - host-agnostic
+│   ├── types.ts                        # IGatewayContext + Disposable + SecretStorageLike + ConfigReader + FileSystemLike
+│   ├── index.ts                        # AIFlowBridgeRuntime(ctx: IGatewayContext) - host-agnostic entry point
+│   ├── vscode-context-adapter.ts       # createVSCodeContext(context) - wraps vscode.ExtensionContext
+│   └── api-key-resolver.ts             # resolveVendorApiKey(vendor, secrets) - SecretStorageLike agnostic
+├── standalone/                         # Pure-Node.js CLI binary
+│   ├── main.ts                         # CLI entry point (aiflowbridge-server npm bin)
+│   ├── context.ts                      # createStandaloneContext() - env vars + ~/.aiflowbridge/ + fs.watch hot-reload
+│   ├── config-loader.ts                # StandaloneConfigFile - JSON reader for ~/.aiflowbridge/config.json
+│   ├── util.ts                         # Shared getNestedValue / setNestedValue helpers
+│   └── vscode-shim.ts                  # vscode module shim so the gateway code typechecks without @types/vscode
 ├── provider/                           # Language model providers (Copilot Chat)
-│   ├── base.ts                         # Abstract base (reads registry cache + userModels)
-│   ├── index.ts                        # DeepSeek
-│   ├── minimax.ts                      # MiniMax (HTTP streaming)
-│   ├── xiaomi.ts                       # Xiaomi MiMo
+│   ├── base.ts                         # Abstract base (reads registry cache)
+│   ├── index.ts                        # DeepSeek provider
+│   ├── minimax.ts                      # MiniMax provider
+│   ├── xiaomi.ts                       # Xiaomi MiMo provider
+│   ├── unified.ts                      # Shared provider helpers (reasoning, token counting)
+│   ├── models.ts                       # Model id resolution helpers
+│   ├── convert.ts                      # vscode.LM <-> upstream message conversion
+│   ├── stream.ts                       # SSE stream parsing
+│   ├── segment.ts                      # Stream segmentation
+│   ├── errors.ts                       # Upstream error normalization
+│   ├── tokens.ts                       # Token counting heuristics
+│   ├── request.ts                      # Outgoing HTTP request builder
 │   ├── tools/                          # Tool-calling adapters
 │   ├── replay/                         # Reasoning replay (Xiaomi)
 │   ├── debug/                          # Request dumps
-│   ├── segment/                        # Stream segmentation
 │   └── vision/                         # Transparent vision proxy
-├── runtime/                            # Extension lifecycle, commands, diagnostics
-│   ├── lifecycle.ts
-│   ├── commands.ts
-│   ├── addCustomModel.ts
-│   ├── editModelRegistry.ts
-│   ├── resetModelRegistry.ts
-│   ├── provider.ts
-│   └── actions.ts
-└── consts.ts                           # Static constants (CONFIG_SECTION, API_KEY_SECRETS, ...)
+├── client/                             # Internal HTTP client (no vscode dependency)
+│   ├── core.ts                         # fetch wrapper with timeout + retry
+│   ├── consts.ts                       # Default headers, user-agent
+│   ├── error.ts                        # NetworkError / TimeoutError
+│   ├── types.ts                        # Request/response shapes
+│   └── index.ts
+├── runtime/                            # VS Code-specific lifecycle, commands, diagnostics
+│   ├── lifecycle.ts                    # activate(): createVSCodeContext() then activateAIFlowBridge()
+│   ├── commands.ts                     # Command registrations
+│   ├── provider.ts                     # languageModelChatProviders registration
+│   ├── actions.ts                      # URI action handlers (vscode://aiflowbridge/...)
+│   ├── addCustomModel.ts               # "Add a custom model" interactive command
+│   ├── editModelRegistry.ts            # "Edit model registry" command
+│   ├── resetModelRegistry.ts           # "Reset model registry" command
+│   ├── diagnostics.ts                  # Extension diagnostics + debug mode
+│   ├── welcome.ts                      # First-activation welcome flow
+│   └── index.ts                        # Public re-exports for extension.ts
+├── consts.ts                           # Static constants (CONFIG_SECTION, API_KEY_SECRETS, ...)
+├── auth.ts                             # SecretStorage wrapper
+├── config.ts                           # VS Code configuration access (incl. getUserModels)
+├── i18n.ts                             # Translation helper (English only)
+├── logger.ts                           # LogOutputChannel wrapper
+├── json.ts                             # JSON.parse / stringify with safe defaults
+├── types.ts                            # Shared types
+└── extension.ts                        # activate()/deactivate()
 
 resources/
 ├── models.json                         # Bundled model registry (14 models, 3 vendors)
 └── models.schema.json                  # JSON Schema for editor autocompletion
 ```
+
+The `aiflowbridge/` core is **host-agnostic**: it has no `vscode` imports. The VS Code side wraps it via `createVSCodeContext()` (`vscode-context-adapter.ts`), the standalone side wraps it via `createStandaloneContext()` (`standalone/context.ts`). Both hosts share the same `gateway.lock` and `telemetry.json` files.
 
 ## Model registry (3-tier)
 
@@ -117,12 +156,16 @@ Validation is hand-rolled (no `ajv` runtime dependency). See [`src/aiflowbridge/
 
 Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point:
 
-- `aiflowbridge` (DeepSeek V4 Pro/Flash) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors
-- `minimax` (MiniMax M2 → M3, HTTP streaming client)
-- `xiaomi` (Xiaomi MiMo V2 Omni/Pro/V2.5/V2.5 Pro, HTTP streaming client)
+- `aiflowbridge` (DeepSeek V4 Pro / V4 Flash) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors.
+- `minimax` (MiniMax M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3) - HTTP streaming client.
+- `xiaomi` (Xiaomi MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro) - HTTP streaming client.
 
-The model id field in the registry is the **upstream API id** (`MiniMax-M2.7`, `mimo-v2.5-pro`), not a kebab-case alias. The picker shows the human-readable `name` field.
+Shared logic lives in `src/provider/unified.ts` (reasoning pass-through, token counting), `src/provider/convert.ts` (vscode.LM message conversion), `src/provider/stream.ts` (SSE parsing), `src/provider/segment.ts` (stream segmentation), `src/provider/errors.ts` (upstream error normalization), `src/provider/tokens.ts` (token counting heuristics), `src/provider/request.ts` (outgoing HTTP request builder).
+
+The model id field in the registry is the **upstream API id** (`MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`), not a kebab-case alias. The picker shows the human-readable `name` field.
 
 ## Gateway singleton + version-aware restart
 
-The local gateway enforces a singleton across all VS Code windows. When a second window activates, it probes `GET /version` on the configured port; see [gateway.md](gateway.md#version-aware-restart) for the full restart flow (`/shutdown`, `/version`, `<globalStorageUri>/gateway.lock`).
+The local gateway enforces a singleton across all VS Code windows AND the standalone CLI. When a second window / process activates, it probes `GET /version` on the configured port; see [gateway.md](gateway.md#version-aware-restart) for the full restart flow (`/shutdown`, `/version`, `<globalStorageUri>/gateway.lock`).
+
+The `/shutdown` endpoint (1.7.0+) requires a per-instance random token returned by `GET /version` and echoed in the `X-AIFlowBridge-Shutdown-Token` header. Foreign services on the port are never touched (no `POST /shutdown` is sent).

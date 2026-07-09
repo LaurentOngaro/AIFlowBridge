@@ -1,12 +1,5 @@
-import * as vscode from "vscode";
-import type {
-  AiFlowBridgeConfig,
-  ProviderPricing,
-  ProviderProfile,
-  ProviderSnapshot,
-  RequestTelemetry,
-  TelemetrySnapshot,
-} from "../types";
+import * as vscode from 'vscode';
+import type { AiFlowBridgeConfig, ProviderPricing, ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from '../types';
 
 let currentPanel: vscode.WebviewPanel | undefined;
 let currentMessageDisposable: vscode.Disposable | undefined;
@@ -57,7 +50,7 @@ export function showMetricsDashboard(
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
   getVersions?: VersionsGetter,
-  onRemoveEntry?: RemoveEntryFn,
+  onRemoveEntry?: RemoveEntryFn
 ): void {
   const versionsGetter: VersionsGetter = getVersions ?? (() => ({}));
   if (currentPanel) {
@@ -67,15 +60,10 @@ export function showMetricsDashboard(
     return;
   }
 
-  currentPanel = vscode.window.createWebviewPanel(
-    "aiflowbridgeMetrics",
-    "AIFlowBridge Metrics",
-    vscode.ViewColumn.One,
-    {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-    },
-  );
+  currentPanel = vscode.window.createWebviewPanel('aiflowbridgeMetrics', 'AIFlowBridge Metrics', vscode.ViewColumn.One, {
+    enableScripts: true,
+    retainContextWhenHidden: true,
+  });
 
   currentPanel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), versionsGetter(), onRemoveEntry);
   attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning, versionsGetter, onRemoveEntry);
@@ -92,7 +80,7 @@ function attachMessageHandler(
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
   getVersions: VersionsGetter,
-  onRemoveEntry: RemoveEntryFn | undefined,
+  onRemoveEntry: RemoveEntryFn | undefined
 ): void {
   // Dispose the previous handler (if any) before attaching a new one.
   // Without this, every call to `showMetricsDashboard` on an already-
@@ -100,18 +88,18 @@ function attachMessageHandler(
   // single user click would trigger N rebuilds of the HTML.
   currentMessageDisposable?.dispose();
   currentMessageDisposable = panel.webview.onDidReceiveMessage((message: unknown) => {
-    if (!message || typeof message !== "object") {
+    if (!message || typeof message !== 'object') {
       return;
     }
     const typed = message as { type?: unknown; id?: unknown };
-    if (typed.type === "refresh") {
+    if (typed.type === 'refresh') {
       // Read the config at refresh time, not at panel-creation time, so a
       // pricing override picked up by a window reload is reflected without
       // having to close and reopen the panel.
       panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry);
       return;
     }
-    if (typed.type === "resetMetrics") {
+    if (typed.type === 'resetMetrics') {
       // The on-disk telemetry file may have been written under an older
       // release with a hard cap on the `recent` tail (e.g. 20 or 100
       // entries). Even after the cap was removed, those older entries
@@ -120,12 +108,12 @@ function attachMessageHandler(
       // the truncation banner and we delegate to the existing
       // `aiflowbridge.resetMetrics` command (which shows its own
       // confirmation dialog and wipes the on-disk file).
-      void vscode.commands.executeCommand("aiflowbridge.resetMetrics").then(() => {
+      void vscode.commands.executeCommand('aiflowbridge.resetMetrics').then(() => {
         panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry);
       });
       return;
     }
-    if (typed.type === "removeRequest" && typeof typed.id === "string" && onRemoveEntry) {
+    if (typed.type === 'removeRequest' && typeof typed.id === 'string' && onRemoveEntry) {
       // in-memory store + on-disk file is synchronous-ish (the
       // on-disk write is fire-and-forget through the persister); the
       // re-render below uses the freshly-updated snapshot.
@@ -169,15 +157,15 @@ export function formatCostCell(cost: number, pricing: ProviderPricing | undefine
   if (!Number.isFinite(cost) || cost <= 0) {
     return '<span class="muted">-</span>';
   }
-  const currency = pricing?.currency || "USD";
-  const symbol = currency === "USD" ? "$" : `${currency} `;
+  const currency = pricing?.currency || 'USD';
+  const symbol = currency === 'USD' ? '$' : `${currency} `;
   const title = pricing
     ? `in ${symbol}${(pricing.inputPerMillion ?? 0).toFixed(2)} / out ${symbol}${(pricing.outputPerMillion ?? 0).toFixed(2)} per 1M tokens (${escapeHtml(currency)})`
     : `Estimated cost (${escapeHtml(currency)})`;
   // 4 decimals covers sub-cent values (token-plan rates produce costs in
   // the $0.0001-$0.01 range for typical prompts). Trim trailing zeros so
   // $0.0010 reads as $0.001.
-  const formatted = cost.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  const formatted = cost.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
   return `<code title="${title}">${symbol}${formatted}</code>`;
 }
 
@@ -191,15 +179,13 @@ export function buildDashboardHtml(
   snapshot: TelemetrySnapshot,
   running: boolean,
   versions: DashboardVersions = {},
-  onRemoveEntry?: RemoveEntryFn,
+  onRemoveEntry?: RemoveEntryFn
 ): string {
   const providers = config.providers.filter((provider) => provider.enabled);
   const entries = Object.entries(snapshot.byModel);
   const pricingMaps = buildPricingMaps(providers);
-  const gatewayVersionLabel = versions.gateway ? ` v${escapeHtml(versions.gateway)}` : "";
-  const extensionVersionLine = versions.extension
-    ? `<p class="version-line">Current version: v${escapeHtml(versions.extension)}</p>`
-    : "";
+  const gatewayVersionLabel = versions.gateway ? ` v${escapeHtml(versions.gateway)}` : '';
+  const extensionVersionLine = versions.extension ? `<p class="version-line">Current version: v${escapeHtml(versions.extension)}</p>` : '';
   // Detect on-disk telemetry truncation: the aggregated `requests`
   // counter covers the full history, but `recent` only holds the last
   // N entries. When N < requests, the recent table is missing rows
@@ -222,15 +208,12 @@ export function buildDashboardHtml(
         </div>
         <button type="button" class="banner-btn" id="reset-metrics-btn" title="Reset all AIFlowBridge metrics">Reset history</button>
       </div>`
-    : "";
+    : '';
   // Per-row delete button CSS. Emitted only when the caller wired
   // the onRemoveEntry hook; the no-remove-hook callers must not see
   // the class names in the markup (the unit tests assert this).
   const actionCss = onRemoveEntry
-    ? `
-    .row-actions { width: 36px; padding-right: 0; }
-    .row-actions-col { width: 36px; }
-    .delete-btn {
+    ? `.row-actions { width: 36px; padding-right: 0; }.row-actions-col { width: 36px; }.delete-btn {
       background: transparent;
       border: 0;
       padding: 4px;
@@ -240,16 +223,14 @@ export function buildDashboardHtml(
       display: inline-flex;
       align-items: center;
       justify-content: center;
-    }
-    .delete-btn:hover {
+    }.delete-btn:hover {
       color: #f87171;
       background: rgba(248, 113, 113, 0.12);
-    }
-    .delete-btn:focus-visible {
+    }.delete-btn:focus-visible {
       outline: 1px solid var(--accent);
       outline-offset: 1px;
     }`
-    : "";
+    : '';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -274,19 +255,13 @@ export function buildDashboardHtml(
       background: radial-gradient(circle at top, #1e293b 0, #0f172a 42%, #020617 100%);
       color: var(--text);
       padding: 24px;
-    }
-    .shell { max-width: 1120px; margin: 0 auto; }
-    .hero {
+    }.shell { max-width: 1120px; margin: 0 auto; }.hero {
       display: flex;
       justify-content: space-between;
       gap: 24px;
       align-items: flex-start;
       margin-bottom: 24px;
-    }
-    .title { font-size: 30px; margin: 0 0 8px; }
-    .subtitle { color: var(--muted); margin: 0; line-height: 1.5; }
-    .version-line { color: var(--muted); margin: 4px 0 0; font-size: 12px; letter-spacing: 0.04em; }
-    .badge {
+    }.title { font-size: 30px; margin: 0 0 8px; }.subtitle { color: var(--muted); margin: 0; line-height: 1.5; }.version-line { color: var(--muted); margin: 4px 0 0; font-size: 12px; letter-spacing: 0.04em; }.badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -296,14 +271,12 @@ export function buildDashboardHtml(
       background: rgba(15, 23, 42, 0.8);
       color: var(--text);
       white-space: nowrap;
-    }
-    .title-row {
+    }.title-row {
       display: flex;
       align-items: center;
       gap: 16px;
       flex-wrap: wrap;
-    }
-    .refresh-btn {
+    }.refresh-btn {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -315,54 +288,42 @@ export function buildDashboardHtml(
       font-size: 13px;
       cursor: pointer;
       transition: all 0.15s ease;
-    }
-    .refresh-btn:hover {
+    }.refresh-btn:hover {
       background: rgba(56, 189, 248, 0.15);
       border-color: var(--accent);
       color: var(--accent);
-    }
-    .refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .grid {
+    }.refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }.grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 16px;
       margin-bottom: 24px;
-    }
-    .card {
+    }.card {
       background: rgba(17, 24, 39, 0.85);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 18px;
       box-shadow: 0 18px 45px rgba(2, 6, 23, 0.25);
-    }
-    .card h2 {
+    }.card h2 {
       margin: 0 0 8px;
       font-size: 14px;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       color: var(--muted);
-    }
-    .value { font-size: 34px; font-weight: 700; margin: 0; }
-    .small { color: var(--muted); font-size: 13px; margin-top: 8px; }
-    .panel {
+    }.value { font-size: 34px; font-weight: 700; margin: 0; }.small { color: var(--muted); font-size: 13px; margin-top: 8px; }.panel {
       background: rgba(17, 24, 39, 0.8);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 18px;
       margin-bottom: 24px;
-    }
-    .panel h2 { margin: 0 0 12px; font-size: 18px; }
-    .panel-header {
+    }.panel h2 { margin: 0 0 12px; font-size: 18px; }.panel-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 12px;
       margin-bottom: 12px;
-    }
-    .panel-header h2 { margin: 0; }
-    .collapse-btn {
+    }.panel-header h2 { margin: 0; }.collapse-btn {
       background: transparent;
       border: 0;
       color: var(--muted);
@@ -372,21 +333,15 @@ export function buildDashboardHtml(
       align-items: center;
       gap: 8px;
       font: inherit;
-    }
-    .collapse-btn:hover { color: var(--text); }
-    .collapse-btn .chevron {
+    }.collapse-btn:hover { color: var(--text); }.collapse-btn.chevron {
       display: inline-block;
       transition: transform 0.15s ease;
-    }
-    .panel.collapsed .chevron { transform: rotate(-90deg); }
-    .panel.collapsed .panel-body { display: none; }
-    .filters {
+    }.panel.collapsed.chevron { transform: rotate(-90deg); }.panel.collapsed.panel-body { display: none; }.filters {
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
       align-items: center;
-    }
-    .filter-btn {
+    }.filter-btn {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
       border-radius: 999px;
@@ -395,14 +350,11 @@ export function buildDashboardHtml(
       font-size: 12px;
       cursor: pointer;
       transition: all 0.15s ease;
-    }
-    .filter-btn:hover { color: var(--text); }
-    .filter-btn.active {
+    }.filter-btn:hover { color: var(--text); }.filter-btn.active {
       background: rgba(56, 189, 248, 0.15);
       border-color: var(--accent);
       color: var(--accent);
-    }
-    .date-input {
+    }.date-input {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -410,8 +362,7 @@ export function buildDashboardHtml(
       color: var(--text);
       font-size: 12px;
       color-scheme: dark;
-    }
-    .search-input {
+    }.search-input {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -419,8 +370,7 @@ export function buildDashboardHtml(
       color: var(--text);
       font-size: 12px;
       min-width: 180px;
-    }
-    .filter-separator {
+    }.filter-separator {
       width: 1px;
       height: 20px;
       background: var(--border);
@@ -443,20 +393,14 @@ export function buildDashboardHtml(
       background: rgba(148, 163, 184, 0.12);
       border-radius: 6px;
       padding: 2px 6px;
-    }
-    .pill {
+    }.pill {
       display: inline-flex;
       border-radius: 999px;
       padding: 4px 10px;
       font-size: 12px;
       border: 1px solid var(--border);
-    }
-    .pill.ok { color: var(--accent-2); }
-    .pill.warn { color: #fbbf24; }
-    .muted { color: var(--muted); }
-    ${actionCss}
-    .totals-scope-note { font-size: 12px; margin: -12px 0 18px; }
-    .banner {
+    }.pill.ok { color: var(--accent-2); }.pill.warn { color: #fbbf24; }.muted { color: var(--muted); }
+    ${actionCss}.totals-scope-note { font-size: 12px; margin: -12px 0 18px; }.banner {
       display: flex;
       align-items: center;
       gap: 16px;
@@ -465,14 +409,11 @@ export function buildDashboardHtml(
       margin-bottom: 16px;
       font-size: 13px;
       line-height: 1.5;
-    }
-    .banner-warn {
+    }.banner-warn {
       background: rgba(251, 191, 36, 0.08);
       border: 1px solid rgba(251, 191, 36, 0.35);
       color: #fde68a;
-    }
-    .banner-text { flex: 1; }
-    .banner-btn {
+    }.banner-text { flex: 1; }.banner-btn {
       background: rgba(251, 191, 36, 0.15);
       border: 1px solid rgba(251, 191, 36, 0.5);
       border-radius: 8px;
@@ -483,17 +424,14 @@ export function buildDashboardHtml(
       cursor: pointer;
       transition: all 0.15s ease;
       white-space: nowrap;
-    }
-    .banner-btn:hover {
+    }.banner-btn:hover {
       background: rgba(251, 191, 36, 0.25);
       border-color: #fbbf24;
       color: #fef3c7;
-    }
-    .banner-btn:focus-visible {
+    }.banner-btn:focus-visible {
       outline: 2px solid #fbbf24;
       outline-offset: 2px;
-    }
-    .pagination {
+    }.pagination {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -501,8 +439,7 @@ export function buildDashboardHtml(
       margin-top: 10px;
       font-size: 12px;
       color: var(--muted);
-    }
-    .pagination .page-btn {
+    }.pagination.page-btn {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -512,16 +449,13 @@ export function buildDashboardHtml(
       cursor: pointer;
       transition: all 0.15s ease;
       font-family: inherit;
-    }
-    .pagination .page-btn:hover:not(:disabled) {
+    }.pagination.page-btn:hover:not(:disabled) {
       border-color: var(--accent);
       color: var(--accent);
-    }
-    .pagination .page-btn:disabled {
+    }.pagination.page-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
-    }
-    .pagination .page-jump {
+    }.pagination.page-jump {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -530,10 +464,7 @@ export function buildDashboardHtml(
       font-size: 12px;
       width: 56px;
       text-align: center;
-    }
-    .pagination .page-label { white-space: nowrap; }
-    .pagination .page-info { margin-left: auto; white-space: nowrap; }
-    .footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
+    }.pagination.page-label { white-space: nowrap; }.pagination.page-info { margin-left: auto; white-space: nowrap; }.footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
   </style>
 </head>
 <body>
@@ -550,14 +481,14 @@ export function buildDashboardHtml(
         <p class="subtitle">Multi-provider AI coding assistant with transparent vision proxy and usage metrics.</p>
         ${extensionVersionLine}
       </div>
-      <div class="badge" id="gateway-badge">Gateway${gatewayVersionLabel} ${running ? "running" : "stopped"} · ${escapeHtml(config.gateway.baseUrl)}</div>
+      <div class="badge" id="gateway-badge">Gateway${gatewayVersionLabel} ${running ? 'running' : 'stopped'} · ${escapeHtml(config.gateway.baseUrl)}</div>
     </div>
 
     <div class="grid" id="totals">
-      ${metricCard("Requests", formatNumber(snapshot.requests), `${providers.length} enabled provider${providers.length === 1 ? "" : "s"}`, "totals-requests")}
-      ${metricCard("Tokens", formatNumber(snapshot.totalTokens), `${formatNumber(snapshot.promptTokens)} prompt / ${formatNumber(snapshot.completionTokens)} completion`, "totals-tokens")}
-      ${metricCard("Duration", snapshot.averageDurationMs ? `${Math.round(snapshot.averageDurationMs)} ms` : "0 ms", `P95 ${Math.round(snapshot.p95DurationMs)} ms`, "totals-duration")}
-      ${metricCard("Estimated cost", formatCostValue(snapshot.estimatedCost), "Optional pricing only", "totals-cost")}
+      ${metricCard('Requests', formatNumber(snapshot.requests), `${providers.length} enabled provider${providers.length === 1 ? '' : 's'}`, 'totals-requests')}
+      ${metricCard('Tokens', formatNumber(snapshot.totalTokens), `${formatNumber(snapshot.promptTokens)} prompt / ${formatNumber(snapshot.completionTokens)} completion`, 'totals-tokens')}
+      ${metricCard('Duration', snapshot.averageDurationMs ? `${Math.round(snapshot.averageDurationMs)} ms` : '0 ms', `P95 ${Math.round(snapshot.p95DurationMs)} ms`, 'totals-duration')}
+      ${metricCard('Estimated cost', formatCostValue(snapshot.estimatedCost), 'Optional pricing only', 'totals-cost')}
     </div>
     ${truncationBanner}
     <p class="muted totals-scope-note" id="totals-scope-note">Showing all recorded requests (no filter active).</p>
@@ -570,7 +501,7 @@ export function buildDashboardHtml(
         </button>
       </div>
       <div class="panel-body">
-        <p class="muted">Port: <code>${config.gateway.port}</code> · Default model: <code>${escapeHtml(config.gateway.defaultModel || "none")}</code></p>
+        <p class="muted">Port: <code>${config.gateway.port}</code> · Default model: <code>${escapeHtml(config.gateway.defaultModel || 'none')}</code></p>
         <p class="muted">Upstream providers are configured as logical aliases for unified access.</p>
       </div>
     </div>
@@ -597,7 +528,7 @@ export function buildDashboardHtml(
         </div>
       </div>
       <div class="panel-body">
-        ${snapshot.recent.length === 0 ? "<p class=\"muted\">No request recorded yet.</p>" : renderRecentTable(snapshot, pricingMaps, Boolean(onRemoveEntry))}
+        ${snapshot.recent.length === 0 ? '<p class="muted">No request recorded yet.</p>' : renderRecentTable(snapshot, pricingMaps, Boolean(onRemoveEntry))}
         <div class="pagination" id="recent-pagination" hidden></div>
       </div>
     </div>
@@ -617,7 +548,7 @@ export function buildDashboardHtml(
         </div>
       </div>
       <div class="panel-body">
-        ${entries.length === 0 ? "<p class=\"muted\">No model telemetry yet.</p>" : renderModelSummary(snapshot, pricingMaps)}
+        ${entries.length === 0 ? '<p class="muted">No model telemetry yet.</p>' : renderModelSummary(snapshot, pricingMaps)}
         <div class="pagination" id="model-pagination" hidden></div>
       </div>
     </div>
@@ -667,7 +598,7 @@ export function buildDashboardHtml(
         });
       }
 
-      // AFF03: collapsible sections. Persist state in localStorage so the
+      // collapsible sections. Persist state in localStorage so the
       // user does not have to re-collapse every time the dashboard is
       // re-opened. The state is per-section (one localStorage key per id).
       const collapseButtons = document.querySelectorAll("[data-collapse-target]");
@@ -703,14 +634,14 @@ export function buildDashboardHtml(
       const byModel = ${serializeByModel(snapshot.byModel)};
       const byProvider = ${serializeByProvider(snapshot.byProvider)};
       const pricingMaps = ${serializePricingMaps(pricingMaps)};
-      // BUG12 regression fix: cumulative snapshot totals are needed by
+      // regression fix: cumulative snapshot totals are needed by
       // updateTotals() when no filter is active. The server-side render
       // uses these for the initial card values; the client re-applies
       // them when the user clears their filter so the cards do not
       // collapse to the in-memory recent window.
       const cumulativeTotals = ${serializeCumulativeTotals(snapshot)};
 
-      // AFF04: per-panel filtered data, populated by applyFilters()
+      // per-panel filtered data, populated by applyFilters()
       // (recent + by-model) and reset by the init pass (provider summary
       // has no filter - it always shows the cumulative per-provider
       // aggregates from the snapshot). Pagination helpers slice these
@@ -719,21 +650,21 @@ export function buildDashboardHtml(
       let currentModels = byModel;
       let currentProviders = byProvider;
 
-      // AFF04: pagination state. Declared early (before the loadPageSize
+      // pagination state. Declared early (before the loadPageSize
       // calls below) to avoid a TDZ ReferenceError when the IIFE runs.
       // The state object holds the current page + page size + total for
       // each of the three paginated panels. Defaults:
-      //   - recent: 25 entries / page. The 'recent' tail is uncapped
-      //     (all recorded requests are kept), so the user can page
-      //     through the entire history with "Per page" up to 500.
-      //   - model / provider: 10 entries (typically a handful of rows).
+      // - recent: 25 entries / page. The 'recent' tail is uncapped
+      // (all recorded requests are kept), so the user can page
+      // through the entire history with "Per page" up to 500.
+      // - model / provider: 10 entries (typically a handful of rows).
       const paginationState = {
         recent: { page: 1, pageSize: 25, total: 0 },
         model: { page: 1, pageSize: 10, total: 0 },
         provider: { page: 1, pageSize: 10, total: 0 },
       };
 
-      // AFF04: read persisted page sizes from localStorage so the user's
+      // read persisted page sizes from localStorage so the user's
       // "rows per page" choice survives a dashboard refresh. Defaults
       // match the plan: 20 for the recent table (most rows), 10 for
       // by-model and provider summary (typically a handful of rows).
@@ -753,7 +684,7 @@ export function buildDashboardHtml(
         return pricingMaps.byProviderId[providerId];
       }
 
-      // AFF03: search filter. Case-insensitive substring match across
+      // search filter. Case-insensitive substring match across
       // every textual / numeric field of the entry, so users can grep
       // for a model name, a provider id, a status code, a token count,
       // or a part of the ISO timestamp.
@@ -790,7 +721,7 @@ export function buildDashboardHtml(
         });
       }
 
-      // AFF03: custom date range. Both bounds are inclusive; missing or
+      // custom date range. Both bounds are inclusive; missing or
       // invalid bounds are open-ended. Returned array is filtered against
       // the supplied from / to (the same shape as the presets).
       function filterByCustomDate(entries, fromStr, toStr) {
@@ -864,7 +795,7 @@ export function buildDashboardHtml(
         tbody.innerHTML = rows.length > 0 ? rows.join("") : '<tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">No data in this range.</td></tr>';
       }
 
-      // AFF04: client-side provider summary renderer. The server-side
+      // client-side provider summary renderer. The server-side
       // render emits all rows so the dashboard still shows data when JS
       // is disabled; the init pass + rerender() below slice the rows
       // into the current page once the script runs. Rows are sorted by
@@ -884,7 +815,7 @@ export function buildDashboardHtml(
         tbody.innerHTML = sorted.map(([providerId, snap]) => providerRowHtml(providerId, snap, lookupPricingForProvider(providerId))).join("");
       }
 
-// AFF04: provider row template. Mirrors server-side
+// provider row template. Mirrors server-side
         // providerRowHtml in this same file (drift risk: any column
         // added or removed here must also be updated server-side).
         // Keeping both copies next to each other in the same module
@@ -900,7 +831,7 @@ export function buildDashboardHtml(
         '</tr>';
       }
 
-      // AFF04: rerender all three paginated panels from the current
+      // rerender all three paginated panels from the current
       // module-local data. Called by applyFilters (after a filter
       // change resets page numbers to 1) and by the pagination
       // controls themselves (after a page change). Each panel's
@@ -915,7 +846,7 @@ export function buildDashboardHtml(
         bindPanelPaginator("provider-pagination", currentProviders, true);
       }
 
-      // AFF04: per-panel paginator helper. Owns the (1) paginated
+      // per-panel paginator helper. Owns the (1) paginated
       // render of the current page slice and (2) the pagination strip
       // re-render in one place, so a future per-panel change
       // (scroll-to-top, error handling, persistence) is a single edit
@@ -939,7 +870,7 @@ export function buildDashboardHtml(
         refresh();
       }
 
-      // AFF04: dispatch for object-backed panels. The model table and
+      // dispatch for object-backed panels. The model table and
       // the provider summary both slice an object map; only the
       // renderer differs. Centralized here so the row template change
       // in PR review feedback stays a single edit.
@@ -983,12 +914,7 @@ export function buildDashboardHtml(
         return new Intl.NumberFormat("en-US").format(value);
       }
       function escapeHtml(value) {
-        return String(value)
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll('"', "&quot;")
-          .replaceAll("'", "&#39;");
+        return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
       }
       function formatCostCell(cost, pricing) {
         if (!isFinite(cost) || cost <= 0) {
@@ -1035,9 +961,9 @@ export function buildDashboardHtml(
           // Sync the active class across BOTH filter groups so the Recent
           // and By model panels visually agree on the active preset.
           syncPresetButtons(range);
-          // AFF03: clicking a preset clears the custom date range. The
+          // clicking a preset clears the custom date range. The
           // two filter modes are mutually exclusive in the UI: presets
-          // use a relative window (1h / 24h / ...), the date pickers
+          // use a relative window (1h / 24h /...), the date pickers
           // use an absolute window. Clearing the dates on a preset
           // click is what makes the deactivation visible to the user.
           const fromEl = document.getElementById("recent-from");
@@ -1048,7 +974,7 @@ export function buildDashboardHtml(
         });
       }
 
-      // AFF03: entering a custom date deactivates the active preset
+      // entering a custom date deactivates the active preset
       // button across BOTH filter groups (the date inputs live in the
       // Recent panel but the By model panel mirrors the same time
       // filter). Called from the date input change handlers below.
@@ -1090,12 +1016,12 @@ export function buildDashboardHtml(
         }
         // Split the time + custom-date filter from the search filter so
         // the two tables can apply the search differently (per the
-        // AFF03 plan):
-        //   - Recent table: entry-level search match
-        //     (filter out entries that do not match the needle).
-        //   - By-model table: entry-level OR model-name search match
-        //     (include a model if its name contains the needle, even
-        //     when none of its individual entries do).
+        // plan):
+        // - Recent table: entry-level search match
+        // (filter out entries that do not match the needle).
+        // - By-model table: entry-level OR model-name search match
+        // (include a model if its name contains the needle, even
+        // when none of its individual entries do).
         const timeFiltered = applyTimeAndDateFilters(f.range, f.from, f.to);
         currentRecent = f.search
           ? timeFiltered.filter((entry) => matchesSearch(entry, f.search))
@@ -1111,12 +1037,12 @@ export function buildDashboardHtml(
         // Provider summary is NOT filtered by time/search in the current
         // dashboard (no filter UI on that panel) - it always reflects
         // the cumulative by-provider aggregates from the snapshot.
-        // AFF04: pagination kicks the page back to 1 after a filter
+        // pagination kicks the page back to 1 after a filter
         // change so the user lands on a valid page.
         paginationState.recent.page = 1;
         paginationState.model.page = 1;
         rerender();
-        // BUG12: keep the top metric cards in sync with the filtered
+        // keep the top metric cards in sync with the filtered
         // entries. When no filter is active the cards reflect the
         // cumulative snapshot totals; when a filter IS active they
         // recompute from the filtered subset. See updateTotals for
@@ -1126,7 +1052,7 @@ export function buildDashboardHtml(
         updateScopeNote(f);
       }
 
-      // BUG12 (regression fix): recompute the four top cards from the
+      // (regression fix): recompute the four top cards from the
       // filtered entries, EXCEPT when no filter is active. With no
       // filter the cards reflect the cumulative snapshot totals
       // (requests / totalTokens / estimatedCost / averageDurationMs
@@ -1196,7 +1122,7 @@ export function buildDashboardHtml(
         if (detailEl && detail !== undefined) detailEl.textContent = detail;
       }
 
-      // BUG12: explain in one line what the metric cards reflect. When
+      // explain in one line what the metric cards reflect. When
       // a custom date range is active, the cards show "filtered" totals
       // (not the cumulative total). When a preset is active, the cards
       // match the preset's window. With no filter, "Showing all
@@ -1222,21 +1148,19 @@ export function buildDashboardHtml(
       bindFilterGroup("recent-filters", applyFilters);
       bindFilterGroup("model-filters", applyFilters);
 
-      // AFF04: pagination. Each paginated panel stores its current page
+      // pagination. Each paginated panel stores its current page
       // and page size in module-local state. Page size is persisted in
       // localStorage per-panel (key = "aiflowbridge.dashboard.pageSize.<panel>")
       // so the user's choice survives a refresh. Page number resets to
       // 1 when the filter changes (the entry list shrinks or grows and
       // the previous page may be out of range).
-      //
-      // Pagination is purely client-side: the filter pipeline produces
+      // // Pagination is purely client-side: the filter pipeline produces
       // a flat array (recent) or an object map (byModel / byProvider);
       // the paginator slices it and re-renders the tbody. The server-
       // side initial render emits ALL rows so the dashboard still shows
       // data if the script is disabled - the paginator simply rewrites
       // tbody.innerHTML on init.
-      //
-      // NOTE: the paginationState const itself is declared earlier
+      // // NOTE: the paginationState const itself is declared earlier
       // in the IIFE (just after the cumulativeTotals initialization)
       // to avoid a Temporal Dead Zone ReferenceError when the loadPageSize
       // calls below reference it.
@@ -1253,7 +1177,7 @@ export function buildDashboardHtml(
         try { window.localStorage.setItem("aiflowbridge.dashboard.pageSize." + panel, String(size)); } catch (e) { /* ignore */ }
       }
 
-      // AFF04: paginator. Slices a flat array or an object map.
+      // paginator. Slices a flat array or an object map.
       function paginate(items, page, pageSize) {
         const start = (page - 1) * pageSize;
         return items.slice(start, start + pageSize);
@@ -1266,8 +1190,8 @@ export function buildDashboardHtml(
         return out;
       }
 
-      // AFF04: render the pagination strip under a table.
-      // containerId: the id of the .pagination div.
+      // render the pagination strip under a table.
+      // containerId: the id of the.pagination div.
       // state: { page, pageSize, total } - mutated in place on page change.
       // onChange: callback invoked after the user changes page or page size.
       // isObject: true when the paginated items are an object map (the
@@ -1374,12 +1298,11 @@ export function buildDashboardHtml(
       const fromEl = document.getElementById("recent-from");
       const toEl = document.getElementById("recent-to");
       const searchEl = document.getElementById("recent-search");
-      // AFF03 + BUG12: entering a custom date deactivates the active
+      // + entering a custom date deactivates the active
       // preset (the two modes are mutually exclusive in the UI).
       // Clearing a date does NOT re-activate the preset - the user has
       // to pick a preset explicitly to go back to relative mode.
-      //
-      // BUG12: the date inputs are wired to the "input" event (not
+      // // the date inputs are wired to the "input" event (not
       // "change"). The browser only fires "change" when the committed
       // value differs from the previous one, which made the second
       // date change silently ignored when the user picked the same
@@ -1403,7 +1326,7 @@ export function buildDashboardHtml(
       }
       if (searchEl) searchEl.addEventListener("input", applyFilters);
 
-      // AFF04: initial paginated render. The server-side render
+      // initial paginated render. The server-side render
       // emitted ALL rows in every table (so the dashboard still shows
       // data with JS disabled); this first rerender slices the rows
       // into the persisted page size for each panel.
@@ -1415,7 +1338,7 @@ export function buildDashboardHtml(
 }
 
 function metricCard(title: string, value: string, detail: string, id?: string): string {
-  const idAttr = id ? ` id="${id}"` : "";
+  const idAttr = id ? ` id="${id}"` : '';
   return `
     <div class="card"${idAttr}>
       <h2>${escapeHtml(title)}</h2>
@@ -1424,14 +1347,8 @@ function metricCard(title: string, value: string, detail: string, id?: string): 
     </div>`;
 }
 
-function renderRecentTable(
-  snapshot: TelemetrySnapshot,
-  pricing: PricingMaps,
-  canRemove: boolean,
-): string {
-  const actionHeader = canRemove
-    ? '<th class="row-actions-col" aria-label="Row actions"></th>'
-    : "";
+function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps, canRemove: boolean): string {
+  const actionHeader = canRemove ? '<th class="row-actions-col" aria-label="Row actions"></th>' : '';
   return `
     <table>
       <thead>
@@ -1448,16 +1365,12 @@ function renderRecentTable(
         </tr>
       </thead>
       <tbody id="recent-tbody">
-        ${snapshot.recent.map((entry) => recentRow(entry, pricing, canRemove)).join("")}
+        ${snapshot.recent.map((entry) => recentRow(entry, pricing, canRemove)).join('')}
       </tbody>
     </table>`;
 }
 
-function recentRow(
-  entry: RequestTelemetry,
-  pricing: PricingMaps,
-  canRemove: boolean,
-): string {
+function recentRow(entry: RequestTelemetry, pricing: PricingMaps, canRemove: boolean): string {
   const rate = pricing.byProviderId[entry.providerId] ?? pricing.byModel[entry.model];
   // The leading column carries a per-row trash button. The entry id is
   // embedded in a data-attribute so the click handler can post the
@@ -1466,17 +1379,17 @@ function recentRow(
   // supplied an `onRemoveEntry` hook (backward-compatible render path).
   const actionCell = canRemove
     ? `<td class="row-actions"><button class="delete-btn" data-remove-id="${escapeHtml(entry.id)}" title="Delete this request" aria-label="Delete this request"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg></button></td>`
-    : "";
+    : '';
   return `<tr>
         ${actionCell}
-        <td><span class="pill ${entry.status >= 400 ? "warn" : "ok"}">${entry.status}</span></td>
+        <td><span class="pill ${entry.status >= 400 ? 'warn' : 'ok'}">${entry.status}</span></td>
         <td class="muted">${escapeHtml(formatClock(entry.timestamp))}</td>
         <td>${escapeHtml(entry.providerLabel)}</td>
         <td><code>${escapeHtml(entry.model)}</code></td>
         <td>${formatNumber(entry.durationMs)} ms</td>
         <td>${formatNumber(entry.totalTokens)}</td>
         <td>${formatCostCell(entry.estimatedCost, rate)}</td>
-        <td>${entry.estimated ? "estimated" : "usage"}</td>
+        <td>${entry.estimated ? 'estimated' : 'usage'}</td>
       </tr>`;
 }
 
@@ -1489,12 +1402,10 @@ function formatClock(iso: string): string {
 function renderProviderSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps): string {
   const entries = Object.entries(snapshot.byProvider);
   if (entries.length === 0) {
-    return "<p class=\"muted\">No provider telemetry yet.</p>";
+    return '<p class="muted">No provider telemetry yet.</p>';
   }
 
-  const rows = entries
-    .map(([providerId, entry]) => providerRowHtml(providerId, entry, pricing.byProviderId[providerId]))
-    .join("");
+  const rows = entries.map(([providerId, entry]) => providerRowHtml(providerId, entry, pricing.byProviderId[providerId])).join('');
 
   return `
     <table>
@@ -1514,15 +1425,11 @@ function renderProviderSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps
     </table>`;
 }
 
-// AFF04: shared provider row template. Used by both the server-side
+// shared provider row template. Used by both the server-side
 // `renderProviderSummary` and the client-side `renderProviderRows`.
 // Keep the column set in sync between the two call sites - this
 // comment is the tripwire.
-function providerRowHtml(
-  providerId: string,
-  entry: ProviderSnapshot,
-  rate: ProviderPricing | undefined,
-): string {
+function providerRowHtml(providerId: string, entry: ProviderSnapshot, rate: ProviderPricing | undefined): string {
   return `<tr>
         <td><code>${escapeHtml(providerId)}</code></td>
         <td>${formatNumber(entry.requests)}</td>
@@ -1536,7 +1443,7 @@ function providerRowHtml(
 function renderModelSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps): string {
   const entries = Object.entries(snapshot.byModel);
   if (entries.length === 0) {
-    return "<p class=\"muted\">No model telemetry yet.</p>";
+    return '<p class="muted">No model telemetry yet.</p>';
   }
   return `
     <table>
@@ -1551,7 +1458,7 @@ function renderModelSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps): 
         </tr>
       </thead>
       <tbody id="model-tbody">
-        ${entries.map(([model, entry]) => modelRow(model, entry, pricing)).join("")}
+        ${entries.map(([model, entry]) => modelRow(model, entry, pricing)).join('')}
       </tbody>
     </table>`;
 }
@@ -1568,20 +1475,22 @@ function modelRow(model: string, entry: ProviderSnapshot, pricing: PricingMaps):
 }
 
 function serializeRecent(recent: readonly RequestTelemetry[]): string {
-  return serializeForScript(recent.map((entry) => ({
-    id: entry.id,
-    timestamp: entry.timestamp,
-    providerId: entry.providerId,
-    providerLabel: entry.providerLabel,
-    model: entry.model,
-    status: entry.status,
-    durationMs: entry.durationMs,
-    promptTokens: entry.promptTokens,
-    completionTokens: entry.completionTokens,
-    totalTokens: entry.totalTokens,
-    estimatedCost: entry.estimatedCost,
-    estimated: entry.estimated,
-  })));
+  return serializeForScript(
+    recent.map((entry) => ({
+      id: entry.id,
+      timestamp: entry.timestamp,
+      providerId: entry.providerId,
+      providerLabel: entry.providerLabel,
+      model: entry.model,
+      status: entry.status,
+      durationMs: entry.durationMs,
+      promptTokens: entry.promptTokens,
+      completionTokens: entry.completionTokens,
+      totalTokens: entry.totalTokens,
+      estimatedCost: entry.estimatedCost,
+      estimated: entry.estimated,
+    }))
+  );
 }
 
 function serializeByModel(byModel: Record<string, ProviderSnapshot>): string {
@@ -1611,7 +1520,7 @@ function slimProviderSnapshots(source: Record<string, ProviderSnapshot>): Record
   return out;
 }
 
-// BUG12 regression fix: the top metric cards show the cumulative
+// regression fix: the top metric cards show the cumulative
 // snapshot totals when no filter is active. Serializing them into the
 // script block lets updateTotals() restore the cumulative view after
 // the user clears a filter.
@@ -1640,14 +1549,11 @@ function serializePricingMaps(maps: PricingMaps): string {
  * (matches React's `serialize-javascript` library).
  */
 function serializeForScript(value: unknown): string {
-  return JSON.stringify(value)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026");
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
 }
 
 function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
+  return new Intl.NumberFormat('en-US').format(value);
 }
 
 /**
@@ -1658,16 +1564,11 @@ function formatNumber(value: number): string {
  */
 function formatCostValue(cost: number): string {
   if (!Number.isFinite(cost) || cost <= 0) {
-    return "0.0000";
+    return '0.0000';
   }
-  return cost.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  return cost.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }

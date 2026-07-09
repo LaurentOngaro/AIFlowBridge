@@ -4,8 +4,7 @@ export const REPLAY_MARKER_MIME = 'stateful_marker';
 export const REPLAY_MARKER_WRITER_ID = 'deepseek-copilot';
 export const ENCODED_JSON_MARKER_PREFIX = 'json:';
 export const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
-export const LEGACY_SEGMENT_ID_PATTERN =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const LEGACY_SEGMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Allowed marker prefixes (`writer-id` plus every built-in model id).
@@ -16,9 +15,9 @@ export const LEGACY_SEGMENT_ID_PATTERN =
  */
 let cachedPrefixes: Set<string> | undefined;
 export function getReplayMarkerPrefixes(): Set<string> {
-	if (!cachedPrefixes) {
-		const models = tryGetLoadedRegistry()?.models ?? [];
-		cachedPrefixes = new Set([REPLAY_MARKER_WRITER_ID, ...models.map((m) => m.id)]);
-	}
-	return cachedPrefixes;
+  if (!cachedPrefixes) {
+    const models = tryGetLoadedRegistry()?.models ?? [];
+    cachedPrefixes = new Set([REPLAY_MARKER_WRITER_ID, ...models.map((m) => m.id)]);
+  }
+  return cachedPrefixes;
 }

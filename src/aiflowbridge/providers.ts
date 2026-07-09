@@ -1,15 +1,15 @@
-import type { ProviderProfile } from "./types";
+import type { ProviderProfile } from './types';
 
 function toBoolean(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
+  return typeof value === 'boolean' ? value : fallback;
 }
 
-function toString(value: unknown, fallback = ""): string {
-  return typeof value === "string" ? value.trim() : fallback;
+function toString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value.trim() : fallback;
 }
 
 function toNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 /**
@@ -24,9 +24,9 @@ function toNumber(value: unknown, fallback: number): number {
  * `https://[0xa9fe:a9fe]/` are both rejected.
  */
 const BLOCKED_HOSTS: RegExp[] = [
-  /^169\.254\./,             // AWS / GCP / Azure / OpenStack metadata
-  /^100\.100\.100\.200$/,    // Alibaba Cloud metadata
-  /^fd00:ec2::254$/i,       // AWS IMDS over IPv6
+  /^169\.254\./, // AWS / GCP / Azure / OpenStack metadata
+  /^100\.100\.100\.200$/, // Alibaba Cloud metadata
+  /^fd00:ec2::254$/i, // AWS IMDS over IPv6
 ];
 
 /**
@@ -49,7 +49,7 @@ export function normalizeHost(host: string): string {
   // (`[::ffff:a9fe:a9fe]`). Strip them unconditionally so the
   // IPv4-mapped patterns below operate on the bare address.
   let bare = host;
-  if (bare.startsWith("[") && bare.endsWith("]")) {
+  if (bare.startsWith('[') && bare.endsWith(']')) {
     bare = bare.slice(1, -1);
   }
 
@@ -70,7 +70,7 @@ export function normalizeHost(host: string): string {
 
 /**
  * Strict provider baseUrl validator. Rejects:
- * - non-HTTP(S) schemes (`file:`, `gopher:`, ...)
+ * - non-HTTP(S) schemes (`file:`, `gopher:`,...)
  * - unparseable URLs
  * - cloud metadata hostnames (`169.254.x.x`, `100.100.100.200`)
  *
@@ -85,7 +85,7 @@ export function isValidProviderBaseUrl(raw: string): boolean {
   } catch {
     return false;
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return false;
   }
   const host = normalizeHost(url.hostname.toLowerCase());
@@ -93,7 +93,7 @@ export function isValidProviderBaseUrl(raw: string): boolean {
 }
 
 /**
- * WARN-B06: return a deep copy of `provider` with the `apiKey` field
+ * return a deep copy of `provider` with the `apiKey` field
  * replaced by a fixed redaction marker (`"***"`) and an explicit
  * `apiKeyPresent` boolean so log readers can tell at a glance whether
  * a key was configured. The original object is left untouched.
@@ -111,12 +111,12 @@ export function redactProviderForLog<T extends { apiKey?: string }>(provider: T)
   const { apiKey: _apiKey, ...rest } = provider;
   void _apiKey;
   const out = { ...rest } as T & { apiKeyPresent: boolean };
-  out.apiKeyPresent = typeof provider.apiKey === "string" && provider.apiKey.length > 0;
+  out.apiKeyPresent = typeof provider.apiKey === 'string' && provider.apiKey.length > 0;
   return out;
 }
 
 /**
- * WARN-B06: convenience wrapper over `redactProviderForLog` for the
+ * convenience wrapper over `redactProviderForLog` for the
  * most common case - redacting a list of providers. Returns a new
  * array; the input is left untouched.
  */
@@ -131,14 +131,14 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
 
   return rawProfiles
     .map((entry): ProviderProfile | undefined => {
-      if (!entry || typeof entry !== "object") {
+      if (!entry || typeof entry !== 'object') {
         return undefined;
       }
 
       const candidate = entry as Record<string, unknown>;
       const id = toString(candidate.id);
       const label = toString(candidate.label, id);
-      const kind = candidate.kind === "ollama" ? "ollama" : "openai-compat";
+      const kind = candidate.kind === 'ollama' ? 'ollama' : 'openai-compat';
       const baseUrl = toString(candidate.baseUrl);
       const model = toString(candidate.model);
 
@@ -151,7 +151,7 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
         return undefined;
       }
 
-      const pricing = candidate.pricing && typeof candidate.pricing === "object" ? candidate.pricing as Record<string, unknown> : undefined;
+      const pricing = candidate.pricing && typeof candidate.pricing === 'object' ? (candidate.pricing as Record<string, unknown>) : undefined;
       const inputPerMillion = toNumber(pricing?.inputPerMillion, 0);
       const outputPerMillion = toNumber(pricing?.outputPerMillion, 0);
 
@@ -173,7 +173,7 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
           ? {
               inputPerMillion,
               outputPerMillion,
-              currency: toString(pricing.currency, "USD") || "USD",
+              currency: toString(pricing.currency, 'USD') || 'USD',
             }
           : undefined,
       };
@@ -181,11 +181,7 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
     .filter((profile): profile is ProviderProfile => Boolean(profile));
 }
 
-export function selectProvider(
-  providers: ProviderProfile[],
-  requestedModel?: string,
-  defaultModel?: string,
-): ProviderProfile | undefined {
+export function selectProvider(providers: ProviderProfile[], requestedModel?: string, defaultModel?: string): ProviderProfile | undefined {
   const normalizedRequestedModel = requestedModel?.trim();
   const normalizedDefaultModel = defaultModel?.trim();
   const enabledProviders = providers.filter((profile) => profile.enabled);
@@ -195,16 +191,15 @@ export function selectProvider(
   // gateway should surface a 503 rather than silently route to the first
   // enabled provider (which would lead to calling the wrong upstream API
   // while reporting the wrong model name in the dashboard).
-  // WARN-B03: use `localeCompare` with `sensitivity: 'base'` so the match
+  // use `localeCompare` with `sensitivity: 'base'` so the match
   // is case-insensitive AND accent-insensitive (covers Unicode aliases
   // like "MiniMax-M2.7" vs "minimax-m2.7" AND any future accented
   // identifiers without breaking the ASCII fast path).
-  const candidates = [normalizedRequestedModel, normalizedDefaultModel]
-    .filter((value): value is string => Boolean(value));
+  const candidates = [normalizedRequestedModel, normalizedDefaultModel].filter((value): value is string => Boolean(value));
   for (const candidate of candidates) {
     const match = enabledProviders.find((profile) => {
       const aliases = [profile.id, profile.model, profile.label];
-      return aliases.some((alias) => alias.localeCompare(candidate, undefined, { sensitivity: "base" }) === 0);
+      return aliases.some((alias) => alias.localeCompare(candidate, undefined, { sensitivity: 'base' }) === 0);
     });
     if (match) {
       return match;
@@ -216,12 +211,12 @@ export function selectProvider(
 
 export function buildModelCatalog(providers: ProviderProfile[]): Array<{
   id: string;
-  object: "model";
+  object: 'model';
   created: number;
   owned_by: string;
   name: string;
 }> {
-  // IMPROV-C03: use a stable constant rather than `Date.now()`. The
+  // use a stable constant rather than `Date.now()`. The
   // OpenAI `/v1/models` `created` field is meant to be a release
   // timestamp; making it advance on every gateway restart would defeat
   // client-side caching. `0` keeps the field present without
@@ -235,9 +230,9 @@ export function buildModelCatalog(providers: ProviderProfile[]): Array<{
     .filter((profile) => profile.enabled)
     .map((profile) => ({
       id: profile.id,
-      object: "model" as const,
+      object: 'model' as const,
       created,
-      owned_by: "aiflowbridge",
+      owned_by: 'aiflowbridge',
       name: `${profile.label} (${profile.model})`,
     }));
 }

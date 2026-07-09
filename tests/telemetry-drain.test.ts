@@ -1,5 +1,5 @@
 /**
- * Regression tests for BUG-A05: `GatewayService.stop()` did not drain
+ * Regression tests for `GatewayService.stop()` did not drain
  * keep-alive connections, so the listening port stayed bound until the
  * OS TIME_WAIT timer expired. On a fast window reload (or a debug
  * session restart that re-runs `activate()`), the new `start()` would
@@ -17,7 +17,7 @@
  * - `drains keep-alive sockets on stop` opens a real HTTP/1.1 client
  *   that holds a request open in streaming mode, then asserts that
  *   `stop()` resolves AND the client socket sees `'close'` before the
- *   process would otherwise sit in TIME_WAIT. Without BUG-A05 the
+ *   process would otherwise sit in TIME_WAIT. Without  the
  *   client would stay open for the default `keepAliveTimeout` of
  *   ~5 s and `start()` would not be re-runnable on the same port.
  *
@@ -81,8 +81,7 @@ function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile
 		baseUrl: 'https://api.example.com/v1',
 		model: 'model-1',
 		apiKey: 'sk-test',
-		enabled: true,
-		...overrides,
+		enabled: true,...overrides,
 	};
 }
 
@@ -99,8 +98,7 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
 		providers: [makeProvider()],
 		telemetryEnabled: false,
 		logRequests: false,
-		visionProxy: { excludedVendors: [], copilotVisionModel: '' },
-		...overrides,
+		visionProxy: { excludedVendors: [], copilotVisionModel: '' },...overrides,
 	};
 }
 
@@ -143,7 +141,7 @@ function openStreamingRequest(port: number): { req: http.ClientRequest; closed: 
 	return { req, closed };
 }
 
-describe('GatewayService - BUG-A05 keep-alive drain on stop', () => {
+describe('GatewayService -  keep-alive drain on stop', () => {
 	let service: GatewayService;
 	let actualPort: number;
 	let actualBaseUrl: string;
@@ -180,7 +178,7 @@ describe('GatewayService - BUG-A05 keep-alive drain on stop', () => {
 		// schedules the HTTP request on the next tick.
 		await new Promise((resolve) => setImmediate(resolve));
 
-		// Stop the gateway. BUG-A05 fix: the open keep-alive socket
+		// Stop the gateway.  fix: the open keep-alive socket
 		// must be destroyed, not left dangling until TIME_WAIT.
 		const stopStartedAt = Date.now();
 		await service.stop();
@@ -201,7 +199,7 @@ describe('GatewayService - BUG-A05 keep-alive drain on stop', () => {
 	});
 
 	it('closes idle keep-alive sockets before start() can re-bind the port', async () => {
-		// BUG-A05 reproducer: a first activation goes start() -> stop()
+		// reproducer: a first activation goes start() -> stop()
 		// while a keep-alive client is still open. A second start() on
 		// the same port used to fail with EADDRINUSE.
 		const { closed } = openStreamingRequest(actualPort);
@@ -229,7 +227,7 @@ describe('GatewayService - BUG-A05 keep-alive drain on stop', () => {
 
 	it('stop() is idempotent: a second call after a clean stop is a no-op', async () => {
 		await service.stop();
-		// Second call should not throw. BUG-A05 introduced the
+		// Second call should not throw.  introduced the
 		// `!this.server && !this.joined` guard precisely so that
 		// VS Code's synchronous `dispose()` followed by the
 		// runtime's `await deactivate()` does not double-stop.

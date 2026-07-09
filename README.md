@@ -24,7 +24,7 @@
 
 AIFlowBridge turns Copilot Chat into a multi-model switcher: pick the cheapest model for boilerplate, the smartest for the hard stuff, all from the same chat window - with a per-request cost breakdown in a live dashboard. The OpenAI-compatible gateway can run as a VS Code extension **or** as a standalone Node.js binary, so JetBrains users, Kilo Code on Cursor / Windsurf / VSCodium, Open WebUI, and `curl` can all consume the same models from a single local endpoint.
 
-> ## NEW in 2.0.0 - Standalone gateway (no VS Code required)
+> ## Standalone gateway (no VS Code required, since 2.0.0)
 >
 > The `aiflowbridge-server` CLI runs the gateway as a pure Node.js process: no VS Code, no extension host, ~30 MB RAM. Start it at boot with systemd / launchd / Task Scheduler, point Kilo Code, Continue, or the JetBrains AI Assistant custom endpoint at `http://127.0.0.1:8787/v1`, and the metrics stay consolidated across VS Code and the CLI. If both are running, the second one joins the first instead of starting a duplicate.
 >
@@ -33,6 +33,8 @@ AIFlowBridge turns Copilot Chat into a multi-model switcher: pick the cheapest m
 > ```
 >
 > Full setup, autostart templates, and client configs: **[docs/standalone.md](docs/standalone.md)**.
+>
+> **Recent (2.1.x) hardening:** cooperative shutdown now requires a per-instance auth token (1.7.0), provider `baseUrl` inputs are SSRF-validated (1.7.0), the API key in the docs example secrets.json short form (`deepseek.apiKey`) now resolves at runtime (2.1.1), and the standalone CLI prints a startup banner reporting which mode it is in (started / joined / disabled - 2.1.1).
 
 ## Migrating from Copilot alone?
 
@@ -124,37 +126,44 @@ Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK
 
 ## Documentation
 
-| Page                                               | Topic                                                 |
-| -------------------------------------------------- | ----------------------------------------------------- |
-| [docs/standalone.md](docs/standalone.md)           | NEW 2.0.0: install, configure, autostart, client setup for the standalone CLI |
-| [docs/cost.md](docs/cost.md)                       | Real cost breakdown, indicative rates, vision savings |
-| [docs/providers.md](docs/providers.md)             | Provider table, capabilities, adding a custom model   |
-| [docs/vision-proxy.md](docs/vision-proxy.md)       | How the transparent image proxy works                 |
-| [docs/reasoning.md](docs/reasoning.md)             | MiniMax M3 thinking effort selector                   |
-| [docs/gateway.md](docs/gateway.md)                 | Local OpenAI-compatible gateway, version handling     |
-| [docs/dashboard.md](docs/dashboard.md)             | Metrics dashboard features, filters, pagination       |
-| [docs/architecture.md](docs/architecture.md)       | Source layout, model registry 3-tier merge            |
-| [docs/development.md](docs/development.md)         | Build, test, package, privacy & security              |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Common errors and fixes                               |
+| Page                                                             | Topic                                                              |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [docs/standalone.md](docs/standalone.md)                         | Install, configure, autostart, client setup for the standalone CLI |
+| [docs/kilo-code.md](docs/kilo-code.md)                           | Kilo Code setup (Cursor / Windsurf / VSCodium / code-server)       |
+| [docs/jetbrains-continue.md](docs/jetbrains-continue.md)         | Continue on JetBrains (Free / Pro)                                 |
+| [docs/jetbrains-ai-assistant.md](docs/jetbrains-ai-assistant.md) | JetBrains AI Assistant custom OpenAI endpoint                      |
+| [docs/cost.md](docs/cost.md)                                     | Real cost breakdown, indicative rates, vision savings              |
+| [docs/providers.md](docs/providers.md)                           | Provider table, capabilities, adding a custom model                |
+| [docs/vision-proxy.md](docs/vision-proxy.md)                     | How the transparent image proxy works                              |
+| [docs/reasoning.md](docs/reasoning.md)                           | MiniMax M3 thinking effort selector                                |
+| [docs/gateway.md](docs/gateway.md)                               | Local OpenAI-compatible gateway, version handling                  |
+| [docs/dashboard.md](docs/dashboard.md)                           | Metrics dashboard features, filters, pagination                    |
+| [docs/architecture.md](docs/architecture.md)                     | Source layout, model registry 3-tier merge                         |
+| [docs/development.md](docs/development.md)                       | Build, test, package, privacy & security                           |
+| [docs/troubleshooting.md](docs/troubleshooting.md)               | Common errors and fixes                                            |
 
 ## Commands
 
-| Command                                                  | Description                                   |
-| -------------------------------------------------------- | --------------------------------------------- |
-| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)         |
-| `AIFlowBridge: Refresh metrics`                          | Reload status bar                             |
-| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk            |
-| `AIFlowBridge: Start local gateway`                      | Start proxy                                   |
-| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                    |
-| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                         |
-| `AIFlowBridge: Add a custom model`                       | Declare a new model from `/v1/models`         |
-| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor |
-| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                     |
-| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                           |
-| `AIFlowBridge: Show logs`                                | Open output log                               |
-| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials                   |
-| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials                    |
-| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials                |
+| Command                                                  | Description                                             |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                   |
+| `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                             |
+| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation) |
+| `AIFlowBridge: Start local gateway`                      | Start proxy                                             |
+| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                              |
+| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                   |
+| `AIFlowBridge: Join external (standalone) gateway`       | Switch to a running standalone gateway                  |
+| `AIFlowBridge: Add a custom model`                       | Declare a new model from `/v1/models`                   |
+| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor           |
+| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                               |
+| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                     |
+| `AIFlowBridge: Open settings`                            | Open the AIFlowBridge settings page                     |
+| `AIFlowBridge: Show logs`                                | Open output log                                         |
+| `AIFlowBridge: Open request dumps folder`                | Reveal the folder with request dumps for diagnosis      |
+| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials                             |
+| `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`        |
+| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials                              |
+| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials                          |
 
 ## Roadmap (extract)
 

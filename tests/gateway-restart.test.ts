@@ -55,8 +55,7 @@ function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile
 		baseUrl: 'https://api.example.com/v1',
 		model: 'model-1',
 		apiKey: 'sk-test',
-		enabled: true,
-		...overrides,
+		enabled: true,...overrides,
 	};
 }
 

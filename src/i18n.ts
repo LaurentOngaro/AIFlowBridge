@@ -1,4 +1,3 @@
-
 /**
  * Lightweight i18n module - English only
  * All user-facing strings are in English.
@@ -9,116 +8,116 @@
 type Translations = Record<string, string>;
 
 const en: Translations = {
-	// Model descriptions
-	'model.flash.detail': 'Fast, general-purpose model',
-	'model.pro.detail': 'Most capable reasoning model',
-	'model.MiniMax-M2.detail': 'MiniMax first-generation reasoning model',
-	'model.MiniMax-M2.1.detail': 'MiniMax second-generation reasoning model',
-	'model.MiniMax-M2.1-highspeed.detail': 'MiniMax M2.1 optimized for low latency',
-	'model.MiniMax-M2.5.detail': 'MiniMax third-generation model',
-	'model.MiniMax-M2.5-highspeed.detail': 'MiniMax M2.5 optimized for low latency',
-	'model.MiniMax-M2.7.detail': 'MiniMax fourth-generation model',
-	'model.MiniMax-M2.7-highspeed.detail': 'MiniMax M2.7 optimized for low latency',
-	'model.MiniMax-M3.detail': 'MiniMax latest generation model with extended context',
-	'model.mimo-v2-omni.detail': 'Xiaomi MiMo multimodal omni model',
-	'model.mimo-v2-pro.detail': 'Xiaomi MiMo V2 Pro reasoning model',
-	'model.mimo-v2.5.detail': 'Multimodal model with vision support',
-	'model.mimo-v2.5-pro.detail': 'Reasoning model without vision',
+  // Model descriptions
+  'model.flash.detail': 'Fast, general-purpose model',
+  'model.pro.detail': 'Most capable reasoning model',
+  'model.MiniMax-M2.detail': 'MiniMax first-generation reasoning model',
+  'model.MiniMax-M2.1.detail': 'MiniMax second-generation reasoning model',
+  'model.MiniMax-M2.1-highspeed.detail': 'MiniMax M2.1 optimized for low latency',
+  'model.MiniMax-M2.5.detail': 'MiniMax third-generation model',
+  'model.MiniMax-M2.5-highspeed.detail': 'MiniMax M2.5 optimized for low latency',
+  'model.MiniMax-M2.7.detail': 'MiniMax fourth-generation model',
+  'model.MiniMax-M2.7-highspeed.detail': 'MiniMax M2.7 optimized for low latency',
+  'model.MiniMax-M3.detail': 'MiniMax latest generation model with extended context',
+  'model.mimo-v2-omni.detail': 'Xiaomi MiMo multimodal omni model',
+  'model.mimo-v2-pro.detail': 'Xiaomi MiMo V2 Pro reasoning model',
+  'model.mimo-v2.5.detail': 'Multimodal model with vision support',
+  'model.mimo-v2.5-pro.detail': 'Reasoning model without vision',
 
-	// API Key
-	'auth.apiKeyRequiredDetail': 'Please run "Set API Key" to configure.',
-	'auth.notConfigured': '{0} API key not configured. Run "{1}: Set API Key" from the Command Palette.',
+  // API Key
+  'auth.apiKeyRequiredDetail': 'Please run "Set API Key" to configure.',
+  'auth.notConfigured': '{0} API key not configured. Run "{1}: Set API Key" from the Command Palette.',
 
-	// Thinking Effort
-	'status.thinking': 'Thinking Effort',
-	'thinking.none': 'None',
-	'thinking.none.desc': 'Disable thinking for faster responses',
-	'thinking.high': 'High',
-	'thinking.high.desc': 'Recommended for most tasks',
-	'thinking.max': 'Max',
-	'thinking.max.desc': 'Maximum reasoning depth for complex agent tasks',
+  // Thinking Effort
+  'status.thinking': 'Thinking Effort',
+  'thinking.none': 'None',
+  'thinking.none.desc': 'Disable thinking for faster responses',
+  'thinking.high': 'High',
+  'thinking.high.desc': 'Recommended for most tasks',
+  'thinking.max': 'Max',
+  'thinking.max.desc': 'Maximum reasoning depth for complex agent tasks',
 
-	// Vision
-	'vision.vendorLabel': 'vendor: {0}',
-	'vision.noModel': 'No non-vendor vision proxy models are available in the current environment',
-	'vision.pickPlaceholder': 'Select a model for image description (default: {0})',
-	'vision.current': 'Current',
-	'vision.unavailable': 'No vision models available, image(s) ignored',
-	'vision.proxyError': 'Vision proxy error:',
+  // Vision
+  'vision.vendorLabel': 'vendor: {0}',
+  'vision.noModel': 'No non-vendor vision proxy models are available in the current environment',
+  'vision.pickPlaceholder': 'Select a model for image description (default: {0})',
+  'vision.current': 'Current',
+  'vision.unavailable': 'No vision models available, image(s) ignored',
+  'vision.proxyError': 'Vision proxy error:',
 
-	// Request
-	'request.toolsLimitExceeded':
-		'This model supports at most {0} functions in a single request, but this request contains {1}. Use VS Code Configure Tools to disable tools you rarely use.',
-	'request.preflightRoundLimitExceeded':
-		'Experimental tool-list stabilization tried {0} rounds but still could not get a stable enabled-tools list. Turn this experimental setting off, or use VS Code Configure Tools to disable tools you rarely use first.',
-	'notice.toolDrift':
-		'Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/notices/tool-drift.en.md)',
+  // Request
+  'request.toolsLimitExceeded':
+    'This model supports at most {0} functions in a single request, but this request contains {1}. Use VS Code Configure Tools to disable tools you rarely use.',
+  'request.preflightRoundLimitExceeded':
+    'Experimental tool-list stabilization tried {0} rounds but still could not get a stable enabled-tools list. Turn this experimental setting off, or use VS Code Configure Tools to disable tools you rarely use first.',
+  'notice.toolDrift':
+    'Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/notices/tool-drift.en.md)',
 
-	// Errors
-	'error.http.400': '[{0}] Invalid request body format.',
-	'error.http.401': '[{0}] Authentication failed. Please check your API key.',
-	'error.http.401.withCreateApiKeyLink': '[{0}] Authentication failed. Please [create an API key]({1}) first.',
-	'error.http.402': '[{0}] You have run out of balance. Please check your account.',
-	'error.http.422': '[{0}] Your request contains invalid parameters.',
-	'error.http.429': '[{0}] You are sending requests too quickly.',
-	'error.http.500': '[{0}] Server error. Please retry later.',
-	'error.http.503': '[{0}] Server overloaded. Please retry later.',
-	'error.http.generic': '[{0}] Service returned an error.',
-	'error.action.setApiKey': 'Set API Key',
-	'error.action.createApiKey': 'Create API Key',
-	'error.action.viewUsage': 'Usage',
-	'error.action.checkStatus': 'Check provider status',
-	'error.action.viewDetails': 'Error Details',
-	'error.network.dns': '[{0}] DNS lookup failed. Check network connection.',
-	'error.network.unreachable': '[{0}] Target unreachable. Check network or proxy.',
-	'error.network.interrupted': '[{0}] Connection interrupted.',
-	'error.network.timeout': '[{0}] Connection timed out.',
-	'error.network.tls': '[{0}] TLS/certificate verification failed.',
-	'error.network.aborted': '[{0}] Request aborted.',
-	'error.network.protocol': '[{0}] HTTP connection or response parsing failed.',
-	'error.network.configuration': '[{0}] Invalid request configuration.',
-	'error.network.generic': '[{0}] Network request failed.',
-	'error.unknown': '{0} request failed: {1}',
+  // Errors
+  'error.http.400': '[{0}] Invalid request body format.',
+  'error.http.401': '[{0}] Authentication failed. Please check your API key.',
+  'error.http.401.withCreateApiKeyLink': '[{0}] Authentication failed. Please [create an API key]({1}) first.',
+  'error.http.402': '[{0}] You have run out of balance. Please check your account.',
+  'error.http.422': '[{0}] Your request contains invalid parameters.',
+  'error.http.429': '[{0}] You are sending requests too quickly.',
+  'error.http.500': '[{0}] Server error. Please retry later.',
+  'error.http.503': '[{0}] Server overloaded. Please retry later.',
+  'error.http.generic': '[{0}] Service returned an error.',
+  'error.action.setApiKey': 'Set API Key',
+  'error.action.createApiKey': 'Create API Key',
+  'error.action.viewUsage': 'Usage',
+  'error.action.checkStatus': 'Check provider status',
+  'error.action.viewDetails': 'Error Details',
+  'error.network.dns': '[{0}] DNS lookup failed. Check network connection.',
+  'error.network.unreachable': '[{0}] Target unreachable. Check network or proxy.',
+  'error.network.interrupted': '[{0}] Connection interrupted.',
+  'error.network.timeout': '[{0}] Connection timed out.',
+  'error.network.tls': '[{0}] TLS/certificate verification failed.',
+  'error.network.aborted': '[{0}] Request aborted.',
+  'error.network.protocol': '[{0}] HTTP connection or response parsing failed.',
+  'error.network.configuration': '[{0}] Invalid request configuration.',
+  'error.network.generic': '[{0}] Network request failed.',
+  'error.unknown': '{0} request failed: {1}',
 
-	// Extension
-	'extension.activateFailed': 'Extension failed to activate. Run "AIFlowBridge: Show Logs" for details.',
-	'extension.deactivateFailed': 'Failed to prepare extension for deactivate',
-	'extension.welcomeFailed': 'Failed to show welcome prompt',
-	'extension.openRequestDumpsFolderFailed': 'Failed to open request dumps folder. Run "AIFlowBridge: Show Logs" for details.',
+  // Extension
+  'extension.activateFailed': 'Extension failed to activate. Run "AIFlowBridge: Show Logs" for details.',
+  'extension.deactivateFailed': 'Failed to prepare extension for deactivate',
+  'extension.welcomeFailed': 'Failed to show welcome prompt',
+  'extension.openRequestDumpsFolderFailed': 'Failed to open request dumps folder. Run "AIFlowBridge: Show Logs" for details.',
 
-	// Provider-specific
-	'provider.deepseek.name': 'DeepSeek',
-	'provider.minimax.name': 'MiniMax',
-	'provider.xiaomi.name': 'Xiaomi MiMo',
+  // Provider-specific
+  'provider.deepseek.name': 'DeepSeek',
+  'provider.minimax.name': 'MiniMax',
+  'provider.xiaomi.name': 'Xiaomi MiMo',
 
-	// Commands
-	'command.setApiKey': '{0}: Set API Key',
-	'command.clearApiKey': '{0}: Clear API Key',
-	'command.apiKeySaved': '{0} API key saved.',
-	'command.apiKeyRemoved': '{0} API key removed.',
-	'command.apiKeyPrompt': 'Enter your {0} API key',
-	'command.apiKeyPlaceholder': '{0} API key',
-	'command.apiKeyEmptyValidation': 'API key cannot be empty',
-	'command.editModelRegistryFailed': 'Failed to open model registry: {0}',
-	'command.resetModelRegistryNone': 'No model registry override to reset - the bundled defaults are already in effect.',
-	'command.resetModelRegistryConfirm': 'Reset the model registry override to bundled defaults? Your customizations will be lost.',
-	'command.resetModelRegistryDone': 'Model registry override removed. Reload the window to apply the bundled defaults?',
-	'command.resetModelRegistryReload': 'Reload Window',
-	'command.resetModelRegistryFailed': 'Failed to reset model registry: {0}',
+  // Commands
+  'command.setApiKey': '{0}: Set API Key',
+  'command.clearApiKey': '{0}: Clear API Key',
+  'command.apiKeySaved': '{0} API key saved.',
+  'command.apiKeyRemoved': '{0} API key removed.',
+  'command.apiKeyPrompt': 'Enter your {0} API key',
+  'command.apiKeyPlaceholder': '{0} API key',
+  'command.apiKeyEmptyValidation': 'API key cannot be empty',
+  'command.editModelRegistryFailed': 'Failed to open model registry: {0}',
+  'command.resetModelRegistryNone': 'No model registry override to reset - the bundled defaults are already in effect.',
+  'command.resetModelRegistryConfirm': 'Reset the model registry override to bundled defaults? Your customizations will be lost.',
+  'command.resetModelRegistryDone': 'Model registry override removed. Reload the window to apply the bundled defaults?',
+  'command.resetModelRegistryReload': 'Reload Window',
+  'command.resetModelRegistryFailed': 'Failed to reset model registry: {0}',
 };
 
 /**
  * Resolve a translation key for the current display language.
- * Supports positional placeholders {0}, {1}, ...
+ * Supports positional placeholders {0}, {1},...
  */
 export function t(key: string, ...args: (string | number)[]): string {
-	const text = en[key];
-	if (text === undefined) {
-		return key;
-	}
-	let result = text;
-	for (let i = 0; i < args.length; i++) {
-		result = result.replaceAll(`{${i}}`, String(args[i]));
-	}
-	return result;
+  const text = en[key];
+  if (text === undefined) {
+    return key;
+  }
+  let result = text;
+  for (let i = 0; i < args.length; i++) {
+    result = result.replaceAll(`{${i}}`, String(args[i]));
+  }
+  return result;
 }

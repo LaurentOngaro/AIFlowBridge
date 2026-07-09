@@ -12,13 +12,13 @@ The AIFlowBridge standalone gateway exposes exactly the shape it expects.
 
 `Settings -> Tools -> AI Assistant -> Models -> Add model -> Custom OpenAI-compatible endpoint`
 
-| Field             | Value                                  |
-| ----------------- | -------------------------------------- |
-| Provider name     | `AIFlowBridge` (or anything you want)  |
-| URL               | `http://127.0.0.1:8787/v1`             |
-| API key           | `standalone` (any non-empty string)    |
-| Model             | `deepseek-v4-pro`                      |
-| Enable            | Yes                                    |
+| Field         | Value                                 |
+| ------------- | ------------------------------------- |
+| Provider name | `AIFlowBridge` (or anything you want) |
+| URL           | `http://127.0.0.1:8787/v1`            |
+| API key       | (any non-empty string)                |
+| Model         | `deepseek-v4-pro`                     |
+| Enable        | Yes                                   |
 
 > The exact menu path varies across 2024.3 / 2025.x point releases.
 > In 2025.1 it's `Settings -> Tools -> AI Assistant -> Providers -> Add provider -> OpenAI Compatible`.

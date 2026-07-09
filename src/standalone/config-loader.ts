@@ -1,5 +1,5 @@
 /**
- * Standalone configuration loader (FEAT7).
+ * Standalone configuration loader.
  *
  * Reads `<globalStorageDir>/config.json` (default: `~/.aiflowbridge/config.json`)
  * and exposes a typed reader that the standalone `IGatewayContext`
@@ -14,11 +14,11 @@
  * supported keys.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import type { ConfigReader } from "../aiflowbridge/types";
-import { logger } from "../logger";
-import { getNestedValue } from "./util";
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { ConfigReader } from '../aiflowbridge/types';
+import { logger } from '../logger';
+import { getNestedValue } from './util';
 
 /**
  * Default configuration values, applied when the file is absent or
@@ -26,21 +26,21 @@ import { getNestedValue } from "./util";
  * `package.json#contributes.configuration.properties`.
  */
 export const DEFAULT_STANDALONE_CONFIG: Record<string, unknown> = {
-  "gateway.enabled": true,
-  "gateway.port": 8787,
-  "gateway.baseUrl": "http://127.0.0.1:8787/v1",
-  "gateway.defaultModel": "",
-  "telemetry.enabled": true,
-  "telemetry.logRequests": true,
-  "vision.excludedVendors": ["aiflowbridge"],
-  "vision.copilotVisionModel": "oswe-vscode-prime",
-  "providers": [],
-  "providers.deepseek.baseUrl": "https://api.deepseek.com",
-  "providers.minimax.baseUrl": "https://api.minimax.io/v1",
-  "providers.xiaomi.baseUrl": "https://api.xiaomimimo.com/v1",
-  "providers.deepseek.maxTokens": 0,
-  "providers.minimax.maxTokens": 0,
-  "providers.xiaomi.maxTokens": 0,
+  'gateway.enabled': true,
+  'gateway.port': 8787,
+  'gateway.baseUrl': 'http://127.0.0.1:8787/v1',
+  'gateway.defaultModel': '',
+  'telemetry.enabled': true,
+  'telemetry.logRequests': true,
+  'vision.excludedVendors': ['aiflowbridge'],
+  'vision.copilotVisionModel': 'oswe-vscode-prime',
+  providers: [],
+  'providers.deepseek.baseUrl': 'https://api.deepseek.com',
+  'providers.minimax.baseUrl': 'https://api.minimax.io/v1',
+  'providers.xiaomi.baseUrl': 'https://api.xiaomimimo.com/v1',
+  'providers.deepseek.maxTokens': 0,
+  'providers.minimax.maxTokens': 0,
+  'providers.xiaomi.maxTokens': 0,
 };
 
 /**
@@ -81,9 +81,9 @@ function loadFromDisk(path: string): Record<string, unknown> {
     return {};
   }
   try {
-    const raw = readFileSync(path, "utf8");
+    const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return parsed as Record<string, unknown>;
     }
     logger.warn(`[Standalone] Config file at ${path} is not a JSON object, using defaults.`);
@@ -99,5 +99,5 @@ function loadFromDisk(path: string): Record<string, unknown> {
  * a storage dir.
  */
 export function defaultStandaloneConfigPath(globalStorageDir: string): string {
-  return join(globalStorageDir, "config.json");
+  return join(globalStorageDir, 'config.json');
 }

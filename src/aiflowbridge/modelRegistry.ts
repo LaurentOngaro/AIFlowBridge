@@ -55,16 +55,16 @@ export const GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH = ['models.json'] as const;
 export const WORKSPACE_REGISTRY_RELATIVE_PATH = ['.vscode', 'aiflowbridge.models.json'] as const;
 
 export interface LoadModelRegistryOptions {
-	/**
-	 * Filesystem used to read the three tiers. Defaults to `vscode.workspace.fs`.
-	 * Exposed for unit tests; only `readFile` is required.
-	 */
-	fs?: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike;
-	/**
-	 * Workspace folder to use for the workspace tier. Defaults to
-	 * `vscode.workspace.workspaceFolders?.[0]`. Exposed for unit tests.
-	 */
-	workspaceFolder?: vscode.WorkspaceFolder | UriLike | undefined;
+  /**
+   * Filesystem used to read the three tiers. Defaults to `vscode.workspace.fs`.
+   * Exposed for unit tests; only `readFile` is required.
+   */
+  fs?: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike;
+  /**
+   * Workspace folder to use for the workspace tier. Defaults to
+   * `vscode.workspace.workspaceFolders?.[0]`. Exposed for unit tests.
+   */
+  workspaceFolder?: vscode.WorkspaceFolder | UriLike | undefined;
 }
 
 interface TierLoadResult {
@@ -74,60 +74,60 @@ interface TierLoadResult {
 
 /**
  * Generic shape accepted by `loadModelRegistry`. Both `vscode.ExtensionContext`
- * and `IGatewayContext` (FEAT7) satisfy this shape - the
+ * and `IGatewayContext` satisfy this shape - the
  * loader only needs `extensionUri`, `globalStorageUri` (or
  * `globalStorageDir`), and the optional `workspaceFolder`.
  */
 type RegistryHost = Pick<IGatewayContext, 'extensionUri' | 'globalStorageDir' | 'workspaceFolder' | 'fs'> & {
-	globalStorageUri?: { fsPath: string };
+  globalStorageUri?: { fsPath: string };
 };
 
 function resolveGlobalStorageDir(host: RegistryHost): string {
-	if (host.globalStorageDir) {
-		return host.globalStorageDir;
-	}
-	const uri = (host as { globalStorageUri?: { fsPath: string } }).globalStorageUri;
-	return uri?.fsPath ?? '';
+  if (host.globalStorageDir) {
+    return host.globalStorageDir;
+  }
+  const uri = (host as { globalStorageUri?: { fsPath: string } }).globalStorageUri;
+  return uri?.fsPath ?? '';
 }
 
 function resolveExtensionUri(host: RegistryHost): UriLike {
-	if (host.extensionUri) {
-		return host.extensionUri;
-	}
-	return { fsPath: '', toString: () => '' };
+  if (host.extensionUri) {
+    return host.extensionUri;
+  }
+  return { fsPath: '', toString: () => '' };
 }
 
 function resolveWorkspaceFolder(host: RegistryHost): UriLike | { uri: vscode.Uri } | undefined {
-	if (host.workspaceFolder) {
-		return host.workspaceFolder as UriLike | { uri: vscode.Uri };
-	}
-	return undefined;
+  if (host.workspaceFolder) {
+    return host.workspaceFolder as UriLike | { uri: vscode.Uri };
+  }
+  return undefined;
 }
 
 function workspaceFsPath(folder: UriLike | { uri: vscode.Uri }): string {
-	if ('fsPath' in folder) {
-		return (folder as UriLike).fsPath;
-	}
-	return (folder as { uri: vscode.Uri }).uri.fsPath;
+  if ('fsPath' in folder) {
+    return (folder as UriLike).fsPath;
+  }
+  return (folder as { uri: vscode.Uri }).uri.fsPath;
 }
 
 function resolveFs(host: RegistryHost, options: LoadModelRegistryOptions): Pick<vscode.FileSystem, 'readFile'> | FileSystemLike {
-	if (options.fs) {
-		return options.fs;
-	}
-	if (host.fs) {
-		return host.fs;
-	}
-	return vscode.workspace.fs;
+  if (options.fs) {
+    return options.fs;
+  }
+  if (host.fs) {
+    return host.fs;
+  }
+  return vscode.workspace.fs;
 }
 
 function joinPath(base: UriLike, ...segments: string[]): UriLike {
-	const cleaned = base.fsPath.replace(/\/+$/, '');
-	const fsPath = [cleaned, ...segments].join('/');
-	return {
-		fsPath,
-		toString: () => fsPath,
-	} as UriLike;
+  const cleaned = base.fsPath.replace(/\/+$/, '');
+  const fsPath = [cleaned, ...segments].join('/');
+  return {
+    fsPath,
+    toString: () => fsPath,
+  } as UriLike;
 }
 
 /**
@@ -139,75 +139,70 @@ function joinPath(base: UriLike, ...segments: string[]): UriLike {
  * broken shipped file is a programming error, not a recoverable condition).
  *
  * Accepts either a `vscode.ExtensionContext` (legacy VS Code entry point)
- * or an `IGatewayContext` (FEAT7 standalone entry point). Both expose
+ * or an `IGatewayContext` ( standalone entry point). Both expose
  * `extensionUri`, `globalStorageUri` / `globalStorageDir`, and the optional
  * `workspaceFolder` / `fs` fields the loader needs.
  */
 export async function loadModelRegistry(
-	context: RegistryHost | vscode.ExtensionContext,
-	options: LoadModelRegistryOptions = {},
+  context: RegistryHost | vscode.ExtensionContext,
+  options: LoadModelRegistryOptions = {}
 ): Promise<ModelRegistry> {
-	// Idempotent: if the registry has already been loaded during this
-	// activation, return the cached object. Re-loading would re-read the
-	// bundled file from disk and re-validate, which is wasteful. The cache
-	// is invalidated by a window reload - v1 requires a reload to pick up hot-edits of the globalStorage
-	// file). For tests, `setLoadedRegistry(undefined)` clears it.
-	if (cachedRegistry) {
-		return cachedRegistry;
-	}
+  // Idempotent: if the registry has already been loaded during this
+  // activation, return the cached object. Re-loading would re-read the
+  // bundled file from disk and re-validate, which is wasteful. The cache
+  // is invalidated by a window reload - v1 requires a reload to pick up hot-edits of the globalStorage
+  // file). For tests, `setLoadedRegistry(undefined)` clears it.
+  if (cachedRegistry) {
+    return cachedRegistry;
+  }
 
-	const fs = resolveFs(context as RegistryHost, options);
-	const rawWorkspaceFolder = options.workspaceFolder ?? resolveWorkspaceFolder(context as RegistryHost);
-	const workspaceFolder: UriLike | undefined = rawWorkspaceFolder
-		? { fsPath: workspaceFsPath(rawWorkspaceFolder) }
-		: undefined;
-	const extensionUri = resolveExtensionUri(context as RegistryHost);
-	const globalStorageDir = resolveGlobalStorageDir(context as RegistryHost);
+  const fs = resolveFs(context as RegistryHost, options);
+  const rawWorkspaceFolder = options.workspaceFolder ?? resolveWorkspaceFolder(context as RegistryHost);
+  const workspaceFolder: UriLike | undefined = rawWorkspaceFolder ? { fsPath: workspaceFsPath(rawWorkspaceFolder) } : undefined;
+  const extensionUri = resolveExtensionUri(context as RegistryHost);
+  const globalStorageDir = resolveGlobalStorageDir(context as RegistryHost);
 
-	const bundledUri = joinPath(extensionUri, ...BUNDLED_REGISTRY_RELATIVE_PATH);
-	const globalStorageUri = joinPath({ fsPath: globalStorageDir }, ...GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH);
-	const workspaceUri = workspaceFolder
-		? joinPath(workspaceFolder, ...WORKSPACE_REGISTRY_RELATIVE_PATH)
-		: undefined;
+  const bundledUri = joinPath(extensionUri, ...BUNDLED_REGISTRY_RELATIVE_PATH);
+  const globalStorageUri = joinPath({ fsPath: globalStorageDir }, ...GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH);
+  const workspaceUri = workspaceFolder ? joinPath(workspaceFolder, ...WORKSPACE_REGISTRY_RELATIVE_PATH) : undefined;
 
-	const bundled = await loadTier(fs, bundledUri, 'bundled', { fatal: true, mode: 'strict' });
-	const globalStorage = await loadTier(fs, globalStorageUri, 'globalStorage', { fatal: false, mode: 'partial' });
-	const workspace = workspaceUri
-		? await loadTier(fs, workspaceUri, 'workspace', { fatal: false, mode: 'partial' })
-		: { tier: undefined, exists: false };
+  const bundled = await loadTier(fs, bundledUri, 'bundled', { fatal: true, mode: 'strict' });
+  const globalStorage = await loadTier(fs, globalStorageUri, 'globalStorage', { fatal: false, mode: 'partial' });
+  const workspace = workspaceUri
+    ? await loadTier(fs, workspaceUri, 'workspace', { fatal: false, mode: 'partial' })
+    : { tier: undefined, exists: false };
 
-	const merged = mergeTiers(bundled.tier, globalStorage.tier, workspace.tier);
+  const merged = mergeTiers(bundled.tier, globalStorage.tier, workspace.tier);
 
-	const sources: RegistrySources = {
-		bundled: { exists: true, path: bundledUri.toString() },
-		globalStorage: { exists: globalStorage.exists, path: globalStorageUri.toString() },
-		workspace: { exists: workspace.exists, path: workspaceUri?.toString() ?? '' },
-	};
+  const sources: RegistrySources = {
+    bundled: { exists: true, path: bundledUri.toString() },
+    globalStorage: { exists: globalStorage.exists, path: globalStorageUri.toString() },
+    workspace: { exists: workspace.exists, path: workspaceUri?.toString() ?? '' },
+  };
 
-	const result: ModelRegistry = { ...merged, sources };
-	cachedRegistry = result;
+  const result: ModelRegistry = { ...merged, sources };
+  cachedRegistry = result;
 
-	// Diagnostic: surface the resolved registry's pricing so the user can
-	// confirm T3 (pricing override) is actually flowing through the loader.
-	// Cheap, runs only once per activation, and is essential to debug the
-	// "I edited the file but the dashboard still shows the old price" report.
-	logger.info(`[AIFlowBridge] Model registry loaded (version ${result.version})`);
-	logger.info(`[AIFlowBridge]   bundled      = ${sources.bundled.path} (always present)`);
-	logger.info(`[AIFlowBridge]   globalStorage= ${sources.globalStorage.path} (exists=${globalStorage.exists})`);
-	logger.info(`[AIFlowBridge]   workspace    = ${sources.workspace.path || '<none>'} (exists=${workspace.exists})`);
-	for (const model of result.models) {
-		const pricingStr = model.pricing
-			? `in=${model.pricing.inputPerMillion}/M out=${model.pricing.outputPerMillion}/M ${model.pricing.currency}`
-			: '<no pricing>';
-		logger.info(`[AIFlowBridge]   model ${model.id.padEnd(20)} family=${model.family.padEnd(10)} pricing=${pricingStr}`);
-	}
+  // Diagnostic: surface the resolved registry's pricing so the user can
+  // confirm T3 (pricing override) is actually flowing through the loader.
+  // Cheap, runs only once per activation, and is essential to debug the
+  // "I edited the file but the dashboard still shows the old price" report.
+  logger.info(`[AIFlowBridge] Model registry loaded (version ${result.version})`);
+  logger.info(`[AIFlowBridge]   bundled      = ${sources.bundled.path} (always present)`);
+  logger.info(`[AIFlowBridge]   globalStorage= ${sources.globalStorage.path} (exists=${globalStorage.exists})`);
+  logger.info(`[AIFlowBridge]   workspace    = ${sources.workspace.path || '<none>'} (exists=${workspace.exists})`);
+  for (const model of result.models) {
+    const pricingStr = model.pricing
+      ? `in=${model.pricing.inputPerMillion}/M out=${model.pricing.outputPerMillion}/M ${model.pricing.currency}`
+      : '<no pricing>';
+    logger.info(`[AIFlowBridge]   model ${model.id.padEnd(20)} family=${model.family.padEnd(10)} pricing=${pricingStr}`);
+  }
 
-	return result;
+  return result;
 }
 
 // ---- Cached accessors ----
-//
-// The cache is populated by `loadModelRegistry()` during extension activation
+// // The cache is populated by `loadModelRegistry()` during extension activation
 // (see `src/runtime/lifecycle.ts`). Steps 4 (providers) and 5 (config) will
 // replace this synchronous cache with proper async / constructor-injected
 // access. For now, this seam lets us remove the compile-time constants
@@ -223,16 +218,16 @@ let cachedRegistry: ModelRegistry | undefined;
  * `loadModelRegistry()` call. Throws if no registry has been loaded yet.
  *
  * Intended for hot paths that run after extension activation (provider
- * methods, gateway request handlers, command handlers, ...).
+ * methods, gateway request handlers, command handlers,...).
  */
 export function getLoadedRegistry(): ModelRegistry {
-	if (!cachedRegistry) {
-		throw new Error(
-			'[AIFlowBridge] Model registry accessed before loadModelRegistry() was called. ' +
-				'Call it during extension activation (see src/runtime/lifecycle.ts).',
-		);
-	}
-	return cachedRegistry;
+  if (!cachedRegistry) {
+    throw new Error(
+      '[AIFlowBridge] Model registry accessed before loadModelRegistry() was called. ' +
+        'Call it during extension activation (see src/runtime/lifecycle.ts).'
+    );
+  }
+  return cachedRegistry;
 }
 
 /**
@@ -241,7 +236,7 @@ export function getLoadedRegistry(): ModelRegistry {
  * run before activation (e.g. JSON schema validators, unit tests).
  */
 export function tryGetLoadedRegistry(): ModelRegistry | undefined {
-	return cachedRegistry;
+  return cachedRegistry;
 }
 
 /**
@@ -249,14 +244,14 @@ export function tryGetLoadedRegistry(): ModelRegistry | undefined {
  * always go through `loadModelRegistry()`.
  */
 export function setLoadedRegistry(registry: ModelRegistry | undefined): void {
-	cachedRegistry = registry;
+  cachedRegistry = registry;
 }
 
 async function loadTier(
   fs: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike,
   uri: UriLike | vscode.Uri,
   label: 'bundled' | 'globalStorage' | 'workspace',
-  options: { fatal: boolean; mode: 'strict' | 'partial' },
+  options: { fatal: boolean; mode: 'strict' | 'partial' }
 ): Promise<TierLoadResult> {
   const raw = await readJsonFile(fs, uri);
   if (raw === undefined) {
@@ -271,17 +266,13 @@ async function loadTier(
     if (options.fatal) {
       throw err;
     }
-    logger.warn(
-      `[AIFlowBridge] Ignoring ${label} model registry at ${fsPath}: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    logger.warn(`[AIFlowBridge] Ignoring ${label} model registry at ${fsPath}: ${err instanceof Error ? err.message : String(err)}`);
     return { tier: undefined, exists: false };
   }
 
   const result = validateRegistryContent(raw, options.mode);
   for (const skip of result.log.skipped) {
-    logger.warn(
-      `[AIFlowBridge] Skipped invalid ${skip.kind} entry "${skip.key}" in ${label} model registry: ${skip.reason}`,
-    );
+    logger.warn(`[AIFlowBridge] Skipped invalid ${skip.kind} entry "${skip.key}" in ${label} model registry: ${skip.reason}`);
   }
 
   return { tier: result, exists: true };
@@ -300,37 +291,34 @@ async function loadTier(
  * pass the supplied URI straight through - the caller picks which URI
  * shape to build.
  */
-async function readJsonFile(
-	fs: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike,
-	uri: UriLike | vscode.Uri,
-): Promise<unknown | undefined> {
-	let bytes: Uint8Array;
-	try {
-		// `fs.readFile` accepts `vscode.Uri` (VS Code adapter) or `UriLike`
-		// (standalone adapter). The two shapes share `fsPath` so we cast
-		// through `unknown` to bridge the union.
-		bytes = await (fs.readFile as (u: UriLike | vscode.Uri) => Promise<Uint8Array>)(uri);
-	} catch (err) {
-		if (isFileNotFoundError(err)) {
-			return undefined;
-		}
-		throw err;
-	}
-	const text = new TextDecoder('utf-8').decode(bytes);
-	return JSON.parse(text) as unknown;
+async function readJsonFile(fs: Pick<vscode.FileSystem, 'readFile'> | FileSystemLike, uri: UriLike | vscode.Uri): Promise<unknown | undefined> {
+  let bytes: Uint8Array;
+  try {
+    // `fs.readFile` accepts `vscode.Uri` (VS Code adapter) or `UriLike`
+    // (standalone adapter). The two shapes share `fsPath` so we cast
+    // through `unknown` to bridge the union.
+    bytes = await (fs.readFile as (u: UriLike | vscode.Uri) => Promise<Uint8Array>)(uri);
+  } catch (err) {
+    if (isFileNotFoundError(err)) {
+      return undefined;
+    }
+    throw err;
+  }
+  const text = new TextDecoder('utf-8').decode(bytes);
+  return JSON.parse(text) as unknown;
 }
 
 function isFileNotFoundError(err: unknown): boolean {
-	if (!err || typeof err !== 'object') {
-		return false;
-	}
-	const code = (err as { code?: unknown }).code;
-	if (code === 'FileNotFound' || code === 'ENOENT') {
-		return true;
-	}
-	const name = (err as { name?: unknown }).name;
-	if (name === 'EntryNotFound' || name === 'FileNotFound') {
-		return true;
-	}
-	return false;
+  if (!err || typeof err !== 'object') {
+    return false;
+  }
+  const code = (err as { code?: unknown }).code;
+  if (code === 'FileNotFound' || code === 'ENOENT') {
+    return true;
+  }
+  const name = (err as { name?: unknown }).name;
+  if (name === 'EntryNotFound' || name === 'FileNotFound') {
+    return true;
+  }
+  return false;
 }

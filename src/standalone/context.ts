@@ -1,12 +1,12 @@
 /**
- * Standalone adapter for `IGatewayContext` (FEAT7).
+ * Standalone adapter for `IGatewayContext`.
  *
  * Implements the runtime-agnostic `IGatewayContext` interface for the
  * standalone CLI mode (no VS Code host). The standalone runtime is
  * intended to be launched as a background Node.js process - either by a
  * service manager (systemd, launchd, Task Scheduler), by the user from a
  * shell, or by an external OpenAI-compatible client (Kilo Code,
- * Continue, JetBrains AI Assistant, curl, ...).
+ * Continue, JetBrains AI Assistant, curl,...).
  *
  * Resolution of secrets (API keys):
  *   1. Environment variables `AIFLOWBRIDGE_<VENDOR>_API_KEY`
@@ -36,27 +36,20 @@
  *   `process.on("SIGTERM")`), so there is no host bag to mirror into.
  */
 
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, unwatchFile, watch, watchFile, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import type {
-  ConfigReader,
-  Disposable,
-  FileSystemLike,
-  IGatewayContext,
-  SecretStorageLike,
-  UriLike,
-} from "../aiflowbridge/types";
-import { logger } from "../logger";
-import { StandaloneConfigFile } from "./config-loader";
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, unwatchFile, watch, watchFile, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { ConfigReader, Disposable, FileSystemLike, IGatewayContext, SecretStorageLike, UriLike } from '../aiflowbridge/types';
+import { logger } from '../logger';
+import { StandaloneConfigFile } from './config-loader';
 
 const POLLING_INTERVAL_MS = 5_000;
 
 /** Map our standalone secret keys to environment variable names. */
 const SECRET_TO_ENV: Record<string, string> = {
-  "aiflowbridge.providers.deepseek.apiKey": "AIFLOWBRIDGE_DEEPSEEK_API_KEY",
-  "aiflowbridge.providers.minimax.apiKey": "AIFLOWBRIDGE_MINIMAX_API_KEY",
-  "aiflowbridge.providers.xiaomi.apiKey": "AIFLOWBRIDGE_XIAOMI_API_KEY",
+  'aiflowbridge.providers.deepseek.apiKey': 'AIFLOWBRIDGE_DEEPSEEK_API_KEY',
+  'aiflowbridge.providers.minimax.apiKey': 'AIFLOWBRIDGE_MINIMAX_API_KEY',
+  'aiflowbridge.providers.xiaomi.apiKey': 'AIFLOWBRIDGE_XIAOMI_API_KEY',
 };
 
 /**
@@ -73,9 +66,9 @@ const SECRET_TO_ENV: Record<string, string> = {
  * documentation aid, not a runtime lookup key.
  */
 const SECRET_SHORT_TO_FULL: Record<string, string> = {
-  "deepseek.apiKey": "aiflowbridge.providers.deepseek.apiKey",
-  "minimax.apiKey": "aiflowbridge.providers.minimax.apiKey",
-  "xiaomi.apiKey": "aiflowbridge.providers.xiaomi.apiKey",
+  'deepseek.apiKey': 'aiflowbridge.providers.deepseek.apiKey',
+  'minimax.apiKey': 'aiflowbridge.providers.minimax.apiKey',
+  'xiaomi.apiKey': 'aiflowbridge.providers.xiaomi.apiKey',
 };
 
 interface StandaloneContextOptions {
@@ -104,7 +97,7 @@ class StandaloneSecretStorage implements SecretStorageLike {
     const envName = SECRET_TO_ENV[key];
     if (envName) {
       const fromEnv = process.env[envName];
-      if (typeof fromEnv === "string" && fromEnv.length > 0) {
+      if (typeof fromEnv === 'string' && fromEnv.length > 0) {
         return fromEnv;
       }
     }
@@ -127,12 +120,12 @@ function readSecretsFile(path: string): Record<string, string> {
     return {};
   }
   try {
-    const raw = readFileSync(path, "utf8");
+    const raw = readFileSync(path, 'utf8');
     const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object") {
+    if (parsed && typeof parsed === 'object') {
       const result: Record<string, string> = {};
       for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof value !== "string" || value.length === 0) {
+        if (typeof value !== 'string' || value.length === 0) {
           continue;
         }
         // Store under the key as-is (covers full-prefix form and any
@@ -156,7 +149,7 @@ function readSecretsFile(path: string): Record<string, string> {
 }
 
 function writeSecretsFile(path: string, secrets: Record<string, string>): void {
-  mkdirSync(join(path, ".."), { recursive: true });
+  mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, JSON.stringify(secrets, null, 2), { mode: 0o600 });
   // Best-effort chmod on POSIX; Windows ignores the mode bit.
   try {
@@ -240,8 +233,8 @@ export async function createStandaloneContext(options: StandaloneContextOptions)
   // Ensure the storage dir exists before anything tries to write into it.
   mkdirSync(globalStorageDir, { recursive: true });
 
-  const secretsPath = join(globalStorageDir, "secrets.json");
-  const configPath = join(globalStorageDir, "config.json");
+  const secretsPath = join(globalStorageDir, 'secrets.json');
+  const configPath = join(globalStorageDir, 'config.json');
   const secrets = new StandaloneSecretStorage(secretsPath);
 
   // Shared ConfigReader instance; the watcher calls `invalidate()` on

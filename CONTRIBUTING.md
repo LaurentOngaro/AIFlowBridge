@@ -13,12 +13,13 @@ Thanks for your interest in contributing! AIFlowBridge is an open-source VS Code
 ## Development Workflow
 
 ```bash
-npm run compile   # TypeScript compile (0 errors required)
-npm test          # vitest, 237 tests must pass
-npm run package   # Build the .vsix locally
+npm run compile              # TypeScript compile (0 errors required)
+npm test                     # vitest
+npm run compile:standalone   # TypeScript compile of the standalone CLI (0 errors required)
+npm run package              # Build the .vsix locally (output in dist/)
 ```
 
-Always run `npm run compile` and `npm test` before opening a pull request.
+Always run `npm run compile`, `npm run compile:standalone`, and `npm test` before opening a pull request.
 
 ## Code Standards
 
@@ -29,29 +30,50 @@ Always run `npm run compile` and `npm test` before opening a pull request.
 - **No Chinese localization files** (this project is English-only by design)
 - Use **interfaces** for object shapes, **types** for unions/aliases
 - Use **const** over let wherever possible
+- No `console.*` in source - use `src/logger.ts`
+- No em-dash (U+2014) or en-dash (U+2013) in tracked files
 
 ## Project Structure
 
-See [`AGENTS.md`](AGENTS.md) for the full file structure, key architectural decisions, and common tasks (adding a provider, adding a model).
+See [`AGENTS.md`](AGENTS.md) for the high-level overview, and [`docs/agent-instructions/architecture.md`](docs/agent-instructions/architecture.md) for the full file structure, key architectural decisions, and the model registry 3-tier merge.
 
 ## Adding a New Provider
 
-1. Add the model definition to `src/consts.ts` (`MODELS` array)
-2. Register the provider in `package.json` (`contributes.languageModelChatProviders`)
-3. Create the provider implementation in `src/provider/<vendor>.ts`
-4. Add gateway provider normalization in `src/aiflowbridge/providers.ts`
-5. Add the API key command in `package.json` (`contributes.commands`)
-6. Add external URLs to `src/consts.ts` (`EXTERNAL_URLS`)
-7. Update `package.nls.json` with the provider's `model.<id>.detail` strings
-8. Update the README provider table
+> Models and vendors live in the **bundled registry** (`resources/models.json`), not in `src/consts.ts`. `MODELS` / `DEFAULT_PROVIDER_URLS` / `EXTERNAL_URLS` constants were removed in v1.3.0.
+
+1. Add a `vendors[<key>]` entry in `resources/models.json` (`baseUrl`, `apiKeySecret`, `externalUrls`). Use the **upstream API id** as the key.
+2. Add model definition(s) under `models` in `resources/models.json` with `family: <new-vendor>` and the upstream `id`.
+3. Register the provider in `package.json` (`contributes.languageModelChatProviders`).
+4. Create the provider implementation in `src/provider/<vendor>.ts` (reuse the shared helpers in `src/provider/{base,unified,convert,stream,segment,errors,tokens,request}.ts`).
+5. Add gateway provider normalization in `src/aiflowbridge/providers.ts` (SSRF-validated; the default `aiflowbridge.providers` array uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top).
+6. Add an entry to `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
+7. Add API key commands in `package.json` (`<vendor>: Set API Key` / `<vendor>: Clear API Key`).
+8. Add provider-specific settings in `package.json` (`aiflowbridge.providers.{vendor}.*`).
+9. Add unit tests in `tests/<vendor>-*.test.ts`.
+10. Update `docs/providers.md` and the README provider table.
 
 ## Adding a New Model
 
-1. Add to `MODELS` in `src/consts.ts`
-2. Follow the `ModelDefinition` interface (`src/types.ts`) with the correct capabilities flags
-3. Add a `model.<id>.detail` string to `package.nls.json`
-4. Update the README provider table
-5. Add unit tests if the model has provider-specific behavior
+> Models are validated against `RegistryModelDefinition` in `src/aiflowbridge/modelRegistry.schema.ts` (not `ModelDefinition` in `src/types.ts`, which is the older deprecated shape).
+
+1. Add to the `models` array in `resources/models.json` with the **exact upstream API id** (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm).
+2. Follow `RegistryModelDefinition` (`src/aiflowbridge/modelRegistry.schema.ts`) with the capabilities flags and, optionally, a `pricing` block.
+3. Add a `model.<id>.detail` string to `package.nls.json` (key is the upstream id, NOT a kebab-case alias).
+4. Update `README.md` provider table and `docs/providers.md`.
+5. Add unit tests if the model has provider-specific behavior.
+
+> If you want to add a model without editing `resources/models.json` (and waiting for a release), use `AIFlowBridge: Add a custom model` to add it to `aiflowbridge.userModels`, or place a workspace override at `.vscode/aiflowbridge.models.json`. Both go through the same merge path as the bundled registry.
+
+## Standalone Gateway
+
+If your change touches `src/aiflowbridge/`, `src/standalone/`, or `src/client/`, also run `npm run compile:standalone`. The standalone binary shares the gateway / telemetry / registry code with the VS Code extension (it is NOT a separate codebase), so the same quality gates apply:
+
+```bash
+npm run compile:standalone   # Compiles dist/standalone/main.js
+npm run start:standalone     # Smoke-tests the CLI (Ctrl+C to stop)
+```
+
+`tsconfig.standalone.json` path-maps `vscode` to `src/standalone/vscode-shim.ts` so the same source files typecheck without `@types/vscode`. Any change that adds a new `vscode.*` import must either go through `IGatewayContext` (preferred) or be added to the shim.
 
 ## Pull Requests
 
@@ -59,7 +81,7 @@ See [`AGENTS.md`](AGENTS.md) for the full file structure, key architectural deci
 - **Include tests** for any new behavior
 - **Update the CHANGELOG** under an "Unreleased" section if you change user-facing behavior
 - **Reference the issue** if your PR fixes a bug ("Fixes #123")
-- **Run `npm run compile && npm test` locally** before pushing
+- **Run `npm run compile && npm test && npm run compile:standalone` locally** before pushing
 
 ## Reporting Bugs
 
