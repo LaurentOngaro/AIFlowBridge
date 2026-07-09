@@ -59,6 +59,25 @@ const SECRET_TO_ENV: Record<string, string> = {
   "aiflowbridge.providers.xiaomi.apiKey": "AIFLOWBRIDGE_XIAOMI_API_KEY",
 };
 
+/**
+ * Map short-form secret keys (as documented in `docs/standalone.md`) to
+ * the full-prefix form expected by `API_KEY_SECRETS` in
+ * `src/consts.ts`. The runtime resolver looks up by the full form
+ * (`aiflowbridge.providers.<vendor>.apiKey`); the user-facing docs use
+ * the short form (`<vendor>.apiKey`) for readability. We accept both
+ * by mirroring short-form entries to the full form at load time so
+ * either lookup succeeds.
+ *
+ * Reverse direction (full -> short) is intentionally NOT mirrored: the
+ * resolver only ever asks for the full form, so the short form is a
+ * documentation aid, not a runtime lookup key.
+ */
+const SECRET_SHORT_TO_FULL: Record<string, string> = {
+  "deepseek.apiKey": "aiflowbridge.providers.deepseek.apiKey",
+  "minimax.apiKey": "aiflowbridge.providers.minimax.apiKey",
+  "xiaomi.apiKey": "aiflowbridge.providers.xiaomi.apiKey",
+};
+
 interface StandaloneContextOptions {
   globalStorageDir: string;
   extensionVersion: string;
@@ -113,8 +132,18 @@ function readSecretsFile(path: string): Record<string, string> {
     if (parsed && typeof parsed === "object") {
       const result: Record<string, string> = {};
       for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof value === "string" && value.length > 0) {
-          result[key] = value;
+        if (typeof value !== "string" || value.length === 0) {
+          continue;
+        }
+        // Store under the key as-is (covers full-prefix form and any
+        // custom keys the user might add).
+        result[key] = value;
+        // Mirror short-form keys to the full-prefix form so the runtime
+        // resolver (which only knows the full form via API_KEY_SECRETS)
+        // finds them. See SECRET_SHORT_TO_FULL above.
+        const fullKey = SECRET_SHORT_TO_FULL[key];
+        if (fullKey && !result[fullKey]) {
+          result[fullKey] = value;
         }
       }
       return result;

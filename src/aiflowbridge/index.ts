@@ -26,6 +26,33 @@ class AIFlowBridgeRuntime implements Disposable {
     this.statusBar = new StatusBarController();
   }
 
+  /**
+   * Public read-only snapshot of the gateway state for the standalone
+   * CLI startup banner and external consumers (status checks, health
+   * endpoints, ...). Returns the same shape as the private
+   * `gatewayStatus()` but with `isJoined` added so the CLI can
+   * distinguish "started our own gateway" from "joined an external
+   * peer" in the startup log.
+   *
+   * Only valid after `activate()` has resolved - before that, `config`
+   * and `gateway` are still undefined.
+   */
+  public get gatewayInfo(): {
+    running: boolean;
+    port: number;
+    baseUrl: string;
+    isJoined: boolean;
+    providerCount: number;
+  } {
+    return {
+      running: this.gateway.running,
+      port: this.config.gateway.port,
+      baseUrl: this.config.gateway.baseUrl,
+      isJoined: this.gateway.isJoined,
+      providerCount: this.config.providers.filter((provider) => provider.enabled).length,
+    };
+  }
+
   private loadPersistedTelemetry(): TelemetrySnapshot | undefined {
     // File is the source of truth (FEAT1). If the file does not exist
     // yet (e.g. first ever activation), still attempt the one-shot

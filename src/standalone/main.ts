@@ -105,6 +105,26 @@ async function main(): Promise<void> {
   const runtime = new AIFlowBridgeRuntime(ctx);
   await runtime.activate();
 
+  // Startup banner: tell the user what just happened and where to
+  // point their OpenAI-compatible client. Three distinct cases:
+  //   - `isJoined`  : we are reusing a peer gateway (VS Code or
+  //                   another standalone instance), we are not the
+  //                   listener. Log the peer's URL so the user knows
+  //                   where to point their client.
+  //   - `running`   : we started our own gateway on the configured
+  //                   port. Log the local URL.
+  //   - neither     : `gateway.enabled` is false in the standalone
+  //                   config. Log a clear "disabled" message so the
+  //                   user does not assume a port is bound.
+  const info = runtime.gatewayInfo;
+  if (info.isJoined) {
+    console.log(`[AIFlowBridge standalone] Joined external gateway at ${info.baseUrl}`);
+  } else if (info.running) {
+    console.log(`[AIFlowBridge standalone] Server started at ${info.baseUrl}`);
+  } else {
+    console.log(`[AIFlowBridge standalone] Server disabled (gateway.enabled = false in config)`);
+  }
+
   let shuttingDown = false;
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) {

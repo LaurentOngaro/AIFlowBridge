@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.1.1
+
+Standalone gateway hotfix + UX feedback.
+
+### Fixed
+
+- **Standalone: secrets.json short-form keys now resolve correctly.** The user-facing `docs/standalone.md` documents the short form (`"deepseek.apiKey"`, `"minimax.apiKey"`, `"xiaomi.apiKey"`) but the runtime resolver (via `API_KEY_SECRETS` in `src/consts.ts`) asks for the full-prefix form (`"aiflowbridge.providers.<vendor>.apiKey"`). Before this fix, a standalone user following the docs got `login fail: Please carry the API secret key in the 'Authorization' field of the request header (1004)` from the upstream API because the lookup missed. `StandaloneSecretStorage` now mirrors short-form entries to the full-prefix form at load time, so either format works. When both forms are present, the full form wins (deterministic). Symptom reported on Windows with `C:\Users\laure\.aiflowbridge\secrets.json` containing the documented short-form keys.
+
+### Changed / Added
+
+- **Standalone CLI: startup banner with server URL.** After `runtime.activate()`, the standalone CLI now logs one of three contextual messages so the user knows exactly what just happened and where to point their OpenAI-compatible client: `"Server started at http://127.0.0.1:<port>"` (we started our own gateway), `"Joined external gateway at http://127.0.0.1:<port>"` (we joined a VS Code peer or another standalone instance), or `"Server disabled (gateway.enabled = false in config)"` (gateway off in the standalone config). New public `gatewayInfo` getter on `AIFlowBridgeRuntime` exposes `{ running, port, baseUrl, isJoined, providerCount }` for the CLI banner and external consumers (status checks, health endpoints, ...).
+- **Build feedback: `compile:standalone` now prints `"[build:standalone] OK - dist/standalone/main.js (<bytes> bytes)"` on success.** `tsc` and `tsc-alias` produce no output on a clean compile, which made it look like the build was hanging. The trailing `node -e "console.log(...)"` confirms visually that the binary was emitted and reports its size.
+
+### Tests
+
+- **616 tests across 34 files** (was 614 in 2.1.0, +2). New: short-form `secrets.json` keys resolve correctly (regression for the 1004 bug) ; full-prefix form wins over short form when both are present (defensive determinism).
+
 ## 2.1.0
 
 Post-2.0.0 hardening + small features from the FEAT7 audit follow-up

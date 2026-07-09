@@ -148,6 +148,52 @@ describe('standalone secrets resolution', () => {
 		expect(value).toBe('sk-from-file');
 	});
 
+	it('accepts the short-form secrets.json keys documented in docs/standalone.md', async () => {
+		// The user-facing docs show the short form: "deepseek.apiKey",
+		// "minimax.apiKey", "xiaomi.apiKey". The runtime resolver (which
+		// uses API_KEY_SECRETS from src/consts.ts) asks for the
+		// full-prefix form: "aiflowbridge.providers.<vendor>.apiKey".
+		// Without normalization at load time, the lookup misses and the
+		// upstream returns 401 "API secret key missing" (regression seen
+		// in 2.1.0). The standalone adapter must mirror the short form
+		// to the full form so the runtime finds it.
+		writeFileSync(
+			join(tempDir, 'secrets.json'),
+			JSON.stringify({
+				'deepseek.apiKey': 'sk-short-deepseek',
+				'minimax.apiKey': 'sk-short-minimax',
+				'xiaomi.apiKey': 'sk-short-xiaomi',
+			}),
+		);
+		const ctx = await createStandaloneContext({
+			globalStorageDir: tempDir,
+			extensionVersion: '1.0.0',
+			extensionRootPath: tempDir,
+		});
+		expect(await ctx.secrets.get('aiflowbridge.providers.deepseek.apiKey')).toBe('sk-short-deepseek');
+		expect(await ctx.secrets.get('aiflowbridge.providers.minimax.apiKey')).toBe('sk-short-minimax');
+		expect(await ctx.secrets.get('aiflowbridge.providers.xiaomi.apiKey')).toBe('sk-short-xiaomi');
+	});
+
+	it('prefers the full-prefix form when both short and full are present in secrets.json', async () => {
+		// Defensive: if the user happened to define both forms (e.g. after
+		// migrating from a previous setup), the full form wins so the
+		// runtime behavior is deterministic.
+		writeFileSync(
+			join(tempDir, 'secrets.json'),
+			JSON.stringify({
+				'deepseek.apiKey': 'sk-short',
+				'aiflowbridge.providers.deepseek.apiKey': 'sk-full',
+			}),
+		);
+		const ctx = await createStandaloneContext({
+			globalStorageDir: tempDir,
+			extensionVersion: '1.0.0',
+			extensionRootPath: tempDir,
+		});
+		expect(await ctx.secrets.get('aiflowbridge.providers.deepseek.apiKey')).toBe('sk-full');
+	});
+
 	it('env var wins over the secrets.json file when both are set', async () => {
 		process.env.AIFLOWBRIDGE_DEEPSEEK_API_KEY = 'sk-from-env';
 		writeFileSync(
