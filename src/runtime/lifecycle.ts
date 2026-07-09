@@ -1,17 +1,17 @@
 import path from 'node:path';
 import vscode from 'vscode';
+import { AIFlowBridgeRuntime } from '../aiflowbridge';
+import { acquireGatewayLock, releaseGatewayLock, type GatewayLockHandle } from '../aiflowbridge/gateway/lock';
+import { loadModelRegistry } from '../aiflowbridge/modelRegistry';
+import { createVSCodeContext } from '../aiflowbridge/vscode-context-adapter';
 import { t } from '../i18n';
 import { logger } from '../logger';
-import { loadModelRegistry } from '../aiflowbridge/modelRegistry';
-import { acquireGatewayLock, releaseGatewayLock, type GatewayLockHandle } from '../aiflowbridge/gateway/lock';
 import { DeepSeekChatProvider } from '../provider';
-import { registerAllProviders, type RegisteredProvider } from './provider';
 import { registerActionUrls } from './actions';
 import { registerCommands } from './commands';
 import { initializeDiagnostics } from './diagnostics';
+import { registerAllProviders, type RegisteredProvider } from './provider';
 import { showWelcomeIfNeeded } from './welcome';
-import { createVSCodeContext } from '../aiflowbridge/vscode-context-adapter';
-import { AIFlowBridgeRuntime } from '../aiflowbridge';
 
 let activeProviders: RegisteredProvider[] = [];
 let deepseekProvider: DeepSeekChatProvider | undefined;
@@ -23,8 +23,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	await initializeDiagnostics(context);
 	// Acquire the gateway restart lock first: when a debug session reloads
 	// the extension while an old gateway is still running, this serializes
-	// the version-aware restart decision (see ACTION PLAN.md "Server
-	// singleton (version-aware cooperative restart)").
+	// the version-aware restart decision.
 	//
 	// If the lock is held by a peer activation OR by a stale lock left
 	// over from a crashed previous run, we do NOT start the gateway: the

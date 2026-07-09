@@ -1,6 +1,6 @@
 # TODOs
 
-Track open bugs, improvements, and active tickets. For the detailled implementation plan, see `_helpers/ACTION PLAN.md`.
+Track open bugs, improvements, and active tickets. For the detailled implementation plan, see `_Private/ACTION PLAN.md`.
 
 ## priorities
 
@@ -8,11 +8,11 @@ Implementation order is not strictly defined, but the general priority is:
 
 ## Project Improvements
 
-See `_helpers/ACTION PLAN.md` for implementation details, if required for some items bellow.
+See `_Private/ACTION PLAN.md` for implementation details, if required for some items bellow.
 
 ### Studies (last: STU02)
 
-- [-] STU01: external audit: commercial and marketshare (see internal doc `_helpers\Docs\03_Synthese_Strategique_2026_06_09.md`)
+- [-] STU01: external audit: commercial and marketshare (see internal doc `_Private\Docs\03_Synthese_Strategique_2026_06_09.md`)
   - [x] actions #1, #2, #3 delivered (1.5.3 / 1.7.0);
   - [ ] actions #4-#13 remaining (OpenRouter, Ollama, CSV/JSON export, sponsors, failover, videos, Kilo/Continue contact, awesome-lists, articles, Reddit posts)
 
@@ -74,7 +74,7 @@ Backlog (value to confirm):
 ### 2.0.0 (Standalone Gateway)
 
 - FEAT7: Standalone Gateway - use the endpoint independently of VS Code (1.7.0).
-  - Decouple `GatewayService` / `AIFlowBridgeRuntime` from `vscode.ExtensionContext` via an `IGatewayContext` interface (see `_helpers/ACTION PLAN.md` section FEAT7).
+  - Decouple `GatewayService` / `AIFlowBridgeRuntime` from `vscode.ExtensionContext` via an `IGatewayContext` interface (see `_Private/ACTION PLAN.md` section FEAT7).
   - Implement a standalone adapter (`src/standalone/`) that reads API keys from environment variables or `~/.aiflowbridge/secrets.json`.
   - Provide a compilable CLI entrypoint `src/standalone/main.ts` without vscode dependency (npm script `build:standalone` / `start:standalone`).
   - VS Code extension: if a standalone gateway is already running (lock held + probe successful), VS Code switches to "joined" mode (status bar `AIFlowBridge ↗ external`) without starting its own gateway.

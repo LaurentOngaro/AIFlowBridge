@@ -257,10 +257,7 @@ export class GatewayService {
         return this.status();
       }
       if (result.kind === "restart-failed") {
-        // Surface the peer PID to the caller (runtime) so it can show a
-        // targeted user-facing error. Per ACTION PLAN: "Si timeout atteint
-        // -> erreur claire a l'utilisateur avec le PID de l'ancienne
-        // instance."
+        // Surface the peer PID to the caller (runtime) so it can show a targeted user-facing error.
         const error = new Error(
           `Peer gateway (pid ${result.peerPid}) did not free port ${this.config.gateway.port} within timeout. ` +
             `If another AIFlowBridge is binding this port, stop it manually; otherwise wait for TIME_WAIT to clear.`,

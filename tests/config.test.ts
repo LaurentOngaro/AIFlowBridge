@@ -5,12 +5,12 @@
  * The model registry is populated from the bundled `resources/models.json`
  * via a `setLoadedRegistry()` call in `beforeAll`. This replaces the
  * previous static import of `DEFAULT_PROVIDER_URLS` from `src/consts.ts`
- * (now removed - see ACTION PLAN.md step 3).
+ * (now removed).
  */
 
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- VScode mock - must include default export for "import vscode from 'vscode'" ---
 const { mockWorkspaceConfig } = vi.hoisted(() => {
@@ -33,25 +33,25 @@ vi.mock('vscode', () => {
 });
 
 // Import after mocking
+import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
 import {
-  getProviderBaseUrl,
+  validateRegistryContent,
+  validateRegistryStructure,
+} from '../src/aiflowbridge/modelRegistry.schema';
+import {
+  getDebugLoggingEnabled,
+  getDebugMode,
   getProviderApiModelId,
+  getProviderBaseUrl,
   getProviderMaxTokens,
+  getProviderReasoningRequiredForToolCalls,
+  getProviderReasoningSplit,
   getProviderTemperature,
   getProviderTopP,
-  getProviderReasoningSplit,
-  getProviderReasoningRequiredForToolCalls,
-  getDebugMode,
-  getDebugLoggingEnabled,
   getRequestDumpEnabled,
   getStabilizeToolListEnabled,
   resolveReasoningSplit,
 } from '../src/config';
-import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
-import {
- validateRegistryStructure,
-	validateRegistryContent,
-} from '../src/aiflowbridge/modelRegistry.schema';
 
 const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json');
 

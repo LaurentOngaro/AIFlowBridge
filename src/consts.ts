@@ -4,9 +4,7 @@
  * These do NOT depend on the VS Code runtime (no workspace configuration,
  * no secrets API). For run-time settings reads see `config.ts`.
  *
- * Vendor / model / pricing data lives in `resources/models.json` and is
- * served by `src/aiflowbridge/modelRegistry.ts` via the
- * `getLoadedRegistry()` cache. See `ACTION PLAN.md` (refactor section).
+ * Vendor / model / pricing data lives in `resources/models.json` and is served by `src/aiflowbridge/modelRegistry.ts` via the`getLoadedRegistry()` cache.
  */
 
 /** VS Code configuration section prefix for all extension settings. */

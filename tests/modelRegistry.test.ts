@@ -68,8 +68,8 @@ vi.mock('vscode', () => {
 
 import * as vscode from 'vscode';
 import {
-	loadModelRegistry,
-	setLoadedRegistry,
+  loadModelRegistry,
+  setLoadedRegistry,
 } from '../src/aiflowbridge/modelRegistry';
 
 const ENCODER = new TextEncoder();
@@ -206,7 +206,7 @@ describe('loadModelRegistry - 3-tier merge', () => {
 	});
 
 	it('accepts a partial globalStorage override that only changes pricing (T3 regression)', async () => {
-		// T3 in `_helpers/ACTION PLAN.md`: the user edits `<globalStorageUri>/models.json`
+		// the user edits `<globalStorageUri>/models.json`
 		// to change the pricing of one model. In real life the user writes
 		// a minimal entry with just `id` and `pricing` (the other fields are
 		// inherited from the bundled tier). Before the partial-mode fix the

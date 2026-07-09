@@ -140,7 +140,7 @@ Validators accumulate skip reasons in a `ValidationLog` object that the loader t
 
 The loader caches the merged result in a module-level variable.
 Consumer modules read it via `getLoadedRegistry()` (throws if not loaded) or `tryGetLoadedRegistry()` (returns `undefined`). `loadModelRegistry()` is idempotent: a second call returns the same cached object instead of re-reading the bundled file.
-The cache is invalidated by a window reload (per `ACTION PLAN.md` "Pièges à éviter" - v1 requires a reload to pick up hot-edits of the globalStorage file).
+The cache is invalidated by a window reload.
 
 For tests, `setLoadedRegistry(registry)` seeds the cache.
 The unit tests in `tests/modelRegistry.test.ts` instead inject a fake `vscode.workspace.fs` through the loader's `options.fs` parameter, which keeps the test isolated from any real file system.

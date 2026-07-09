@@ -70,8 +70,7 @@ function buildDefaultGatewayProfiles(
 		}
 		// Pricing precedence for the hand-curated gateway entries:
 		//   1. `entry.pricing` (the hand-curated indicative default)
-		//   2. The per-model pricing from the merged registry - this is what
-		//      makes T3 in `_helpers/ACTION PLAN.md` work for hand-curated
+		//   2. The per-model pricing from the merged registry - work for hand-curated
 		//      entries too: editing a model's pricing in the globalStorage
 		//      override is picked up here on the next activation.
 		const registryEntry = registry.models.find((model) => model.id === entry.model);
@@ -136,8 +135,7 @@ function toProviderPricing(
  *   1. The model's own `pricing` block from the merged registry or
  *      `aiflowbridge.userModels` (i.e. whatever the globalStorage /
  *      workspace override has resolved to after the 3-tier merge in
- *      `loadModelRegistry`). This is what makes T3 in
- *      `_helpers/ACTION PLAN.md` work: editing a model's pricing in
+ *      `loadModelRegistry`). editing a model's pricing in
  *      `<globalStorageUri>/models.json` and reloading VS Code must surface
  *      in the dashboard.
  *   2. The family-level indicative `familyPricing` (the hardcoded token-plan

@@ -12,12 +12,12 @@
  * The model registry is populated from the bundled `resources/models.json`
  * via a hoisted `setLoadedRegistry()` call in `beforeAll`. This replaces
  * the previous static import of `MODELS` / `DEFAULT_PROVIDER_URLS` from
- * `src/consts.ts` (now removed - see ACTION PLAN.md step 3).
+ * `src/consts.ts` (now removed).
  */
 
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockUserModels, mockRegistry, mockConfiguration } = vi.hoisted(() => {
 	const mockUserModels = { value: [] as unknown[] };
@@ -51,10 +51,10 @@ vi.mock('vscode', () => {
 import { synthesizeProvidersFromBuiltInModels, synthesizeProvidersFromUserModels } from '../src/aiflowbridge/config';
 import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
 import {
-	validateRegistryStructure,
-	validateRegistryContent,
+  validateRegistryContent,
+  validateRegistryStructure,
 } from '../src/aiflowbridge/modelRegistry.schema';
-import { selectProvider, buildModelCatalog } from '../src/aiflowbridge/providers';
+import { buildModelCatalog, selectProvider } from '../src/aiflowbridge/providers';
 import type { ProviderProfile } from '../src/aiflowbridge/types';
 
 const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json');
@@ -289,7 +289,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
 	});
 
 	it('picks up the per-model pricing from a globalStorage / workspace override (T3 regression)', () => {
-		// T3 from `_helpers/ACTION PLAN.md`: editing a model's pricing in
+		// editing a model's pricing in
 		// `<globalStorageUri>/models.json` (or a workspace override) and
 		// reloading VS Code must surface the new rate in the gateway
 		// provider list (and therefore in the dashboard). The 3-tier

@@ -150,8 +150,7 @@ export async function loadModelRegistry(
 	// Idempotent: if the registry has already been loaded during this
 	// activation, return the cached object. Re-loading would re-read the
 	// bundled file from disk and re-validate, which is wasteful. The cache
-	// is invalidated by a window reload (per ACTION PLAN.md "pièges à
-	// éviter" - v1 requires a reload to pick up hot-edits of the globalStorage
+	// is invalidated by a window reload - v1 requires a reload to pick up hot-edits of the globalStorage
 	// file). For tests, `setLoadedRegistry(undefined)` clears it.
 	if (cachedRegistry) {
 		return cachedRegistry;
