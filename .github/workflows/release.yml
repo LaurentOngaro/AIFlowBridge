@@ -122,9 +122,17 @@ jobs:
         run: |
           set -euo pipefail
           DEST="release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}"
-          mkdir -p "$DEST/bin" "$DEST/dist/standalone"
+          mkdir -p "$DEST/bin" "$DEST/dist"
           # Copy the compiled standalone output (entry + helper modules).
-          cp -r dist/standalone/. "$DEST/dist/standalone/"
+          cp -r dist/standalone "$DEST/dist/standalone"
+          # main.js does `require('../aiflowbridge')` etc. - copy the sibling
+          # modules produced by `tsconfig.standalone.json` so the runtime can
+          # resolve them from inside dist/standalone/.
+          for module in aiflowbridge logger.js config.js consts.js types.js json.js; do
+            if [ -e "dist/$module" ]; then
+              cp -r "dist/$module" "$DEST/dist/$module"
+            fi
+          done
           # Copy only production node_modules (after `npm prune --omit=dev`).
           # `.bin` links are not portable across runners; drop them.
           cp -r node_modules "$DEST/node_modules"

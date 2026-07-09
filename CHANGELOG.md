@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.4.0
+
+New `AIFlowBridge: Install standalone gateway` command (FEAT8) for one-click download + extract of the standalone CLI from GitHub Releases, plus bugfixes to the standalone distribution pipeline and the GitHub API client.
+
+### Added
+
+- **AIFlowBridge: Install standalone gateway command.** New VS Code command (`aiflowbridge.installStandalone`) that downloads the platform-matched standalone CLI archive from the latest GitHub Release, extracts it to a user-chosen directory, makes the launcher executable (POSIX), and optionally registers an autostart service (`systemd --user` unit on Linux, `launchd` plist on macOS, scheduled task on Windows). Idempotent: detects an existing install and prompts for Replace / Keep (with date suffix) / Cancel. Resilient: streaming download with `Content-Length` cap (100 MB), atomic extraction to a staging directory with cleanup in a `finally` block, HTTP 301-308 redirects followed up to 5 hops (loop guard). New runtime dependencies: `adm-zip` (Windows archive extraction), `tar` (POSIX archive extraction). 13 new unit tests in `tests/install-standalone.test.ts` cover platform detection, `InstallError` discriminated union, tar.gz round-trip, ZIP round-trip, gzip header sanity.
+- **`docs/standalone.md` reworked.** Install section now leads with the in-VS-Code install command (Option A), then the manual GitHub Release download (Option B), then the build-from-source fallback (Option C). Reflects the actual recommended user journey.
+
+### Fixed
+
+- **Standalone archive was missing sibling modules.** The `standalone` job in `release.yml` only copied `dist/standalone/` into the release archive, but `dist/standalone/main.js` does `require('../aiflowbridge')` etc. for the gateway / telemetry / runtime modules. These siblings (`dist/aiflowbridge/`, `dist/logger.js`, `dist/config.js`, `dist/consts.js`, `dist/types.js`, `dist/json.js`) are now copied alongside the standalone entry, so the extracted archive runs out of the box (was: `Error: Cannot find module '../aiflowbridge'` on first launch).
+- **GitHub API requests lacked the required `User-Agent` header.** `/releases/latest` was returning HTTP 403 ("You must provide a User-Agent header") for some networks. The request now sends `User-Agent: AIFlowBridge-VSCode-Extension/2.4.0` plus `Accept: application/vnd.github+json` for the v3 REST API.
+- **GitHub API HTTP 3xx redirects were not followed.** The download now follows 301 / 302 / 303 / 307 / 308 up to 5 hops (loop guard), resolving both absolute and relative `Location` headers.
+- **Rate-limit response was indistinguishable from other 403 errors.** The error path now checks `x-ratelimit-remaining: 0` and surfaces a dedicated i18n string (`installStandalone.rateLimited`) pointing at `docs/standalone.md` as the build-from-source fallback.
+- **`installStandalone.pickInstallDir` i18n key was missing.** The folder-picker dialog's "Open" button label showed the raw i18n key instead of the translated "Choose install location" string. The key is now defined in both `src/i18n.ts` (runtime) and `package.nls.json` (VS Code marketplace).
+
+### Tests
+
+- **629 tests across 35 files** (was 616 / 34 in 2.3.0, +13). New file `tests/install-standalone.test.ts` covers platform detection (7 cases: linux x64, darwin arm64/x64, win32 x64, win32 arm64 unsupported, freebsd unsupported, ia32 unsupported), `InstallError` discriminated union (codes x2), tar.gz round-trip via `tar.create` + `tar.extract`, ZIP round-trip via adm-zip, gzip header sanity check.
+- Quality gates: `npm run compile` (0 errors), `npm test` (629/629), `npm run compile:standalone` (0 errors).
+
 ## 2.3.0
 
 Standalone CLI binary distribution via GitHub Release (Option 2 of the V2 distribution plan) and documentation overhaul for the 2.x API surface.

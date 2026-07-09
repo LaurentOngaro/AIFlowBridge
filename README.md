@@ -144,26 +144,27 @@ Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK
 
 ## Commands
 
-| Command                                                  | Description                                             |
-| -------------------------------------------------------- | ------------------------------------------------------- |
-| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                   |
-| `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                             |
-| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation) |
-| `AIFlowBridge: Start local gateway`                      | Start proxy                                             |
-| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                              |
-| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                   |
-| `AIFlowBridge: Join external (standalone) gateway`       | Switch to a running standalone gateway                  |
-| `AIFlowBridge: Add a custom model`                       | Declare a new model from `/v1/models`                   |
-| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor           |
-| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                               |
-| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                     |
-| `AIFlowBridge: Open settings`                            | Open the AIFlowBridge settings page                     |
-| `AIFlowBridge: Show logs`                                | Open output log                                         |
-| `AIFlowBridge: Open request dumps folder`                | Reveal the folder with request dumps for diagnosis      |
-| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials                             |
-| `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`        |
-| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials                              |
-| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials                          |
+| Command                                                  | Description                                              |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                    |
+| `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                              |
+| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation)  |
+| `AIFlowBridge: Start local gateway`                      | Start proxy                                              |
+| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                               |
+| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                    |
+| `AIFlowBridge: Join external (standalone) gateway`       | Switch to a running standalone gateway                   |
+| `AIFlowBridge: Add a custom model`                       | Declare a new model from `/v1/models`                    |
+| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor            |
+| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                                |
+| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                      |
+| `AIFlowBridge: Open settings`                            | Open the AIFlowBridge settings page                      |
+| `AIFlowBridge: Show logs`                                | Open output log                                          |
+| `AIFlowBridge: Open request dumps folder`                | Reveal the folder with request dumps for diagnosis       |
+| `AIFlowBridge: Install standalone gateway`               | Download + extract the standalone CLI for the current OS |
+| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials                              |
+| `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`         |
+| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials                               |
+| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials                           |
 
 ## Roadmap (extract)
 

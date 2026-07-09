@@ -17,8 +17,53 @@ If you only consume the gateway from VS Code itself (Copilot Chat or the Kilo Co
 
 ## Install
 
+### Option A - One-click install from VS Code (recommended)
+
+If you have the AIFlowBridge VS Code extension installed, run:
+
+1. `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) to open the Command Palette
+2. Type `AIFlowBridge: Install standalone gateway` and select it
+3. Pick the install folder (defaults: `%LOCALAPPDATA%\aiflowbridge\` on Windows, `~/Applications/AIFlowBridge/` on macOS, `~/.local/share/aiflowbridge/` on Linux)
+4. Wait for the download + extraction to complete (one notification, ~30s)
+5. Optional: confirm the autostart prompt to register a systemd / launchd / Task Scheduler service so the gateway starts at login
+
+The command downloads the platform-matched archive from the latest GitHub Release, extracts it, makes the launcher executable (POSIX), and writes the autostart unit if requested. It is **idempotent**: if an existing install is found at the chosen path, you are prompted to replace it, install alongside, or cancel.
+
+### Option B - Manual download from GitHub Releases
+
+Each AIFlowBridge release ships a prebuilt archive per platform, attached to the [GitHub Release page](https://github.com/LaurentOngaro/aiflowbridge/releases/latest).
+Download the archive for your platform:
+
+| Platform              | Architecture | Archive                                   |
+| --------------------- | ------------ | ----------------------------------------- |
+| Linux                 | x64          | `aiflowbridge-server-linux-x64.tar.gz`    |
+| macOS (Apple Silicon) | arm64        | `aiflowbridge-server-darwin-arm64.tar.gz` |
+| macOS (Intel) (1)     | x64          | `aiflowbridge-server-darwin-x64.tar.gz`   |
+| Windows               | x64          | `aiflowbridge-server-win-x64.zip`         |
+
+(1): this version can be missing with some releases because github has few available resources for this type of build.
+
+Extract it and run the launcher:
+
 ```bash
-# From the repository root:
+# POSIX
+tar xzf aiflowbridge-server-linux-x64.tar.gz
+./aiflowbridge-server-linux-x64/bin/aiflowbridge-server
+
+# Windows (PowerShell)
+Expand-Archive aiflowbridge-server-win-x64.zip
+.\aiflowbridge-server-win-x64\bin\aiflowbridge-server.cmd
+```
+
+Requires Node.js 20+ on the target machine (not bundled - keeps the artifact at ~5 MB instead of 80+ MB).
+
+### Option C - Build from source
+
+If neither Option A nor B fits your use case (custom patches, unreleased platform, offline build), compile from the repository:
+
+```bash
+git clone https://github.com/LaurentOngaro/aiflowbridge
+cd aiflowbridge
 npm ci
 npm run build:standalone
 ```

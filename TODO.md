@@ -29,7 +29,7 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
     - each session has a summary of the total tokens used, the total duration, and the total estimated cost
   - telemetry export (CSV/JSON)
 
-### Features (last: FEAT7)
+### Features (last: FEAT9)
 
 ### Publish (last: PUB02)
 
@@ -62,7 +62,6 @@ Next up:
 - [ ] Auto-routing with failover - ordered provider fallback list (e.g. DeepSeek -> MiniMax -> Ollama local) for resilience
 - [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway
 - [ ] Token-by-token streaming diff in the dashboard - first/last token of each response, not just the total
-- [ ] **AIFlowBridge: Install standalone gateway** (Option 3 of the V2 distribution plan, see `_Private/ACTION PLAN.md`) - one-click command in the VS Code extension that downloads the platform-matched standalone CLI binary from the latest GitHub Release, places it in the user's PATH (or `~/.local/bin/`), and offers to add an autostart unit (systemd / launchd / Task Scheduler). Removes the "clone the repo, run npm ci, run npm run build:standalone" friction for the majority of users who do not have the dev toolchain installed.
 
 Backlog (value to confirm):
 
@@ -71,6 +70,17 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 2.4.0 (Install Standalone Gateway)
+
+- **FEAT8**: Install standalone gateway (Option 3 of the V2 distribution plan, see `_Private/ACTION PLAN.md`) - one-click command in the VS Code extension that downloads the platform-matched standalone CLI binary from the latest GitHub Release, extracts it to a user-chosen directory, makes the launcher executable (POSIX), and offers to add an autostart unit (systemd / launchd / Task Scheduler). Removes the "clone the repo, run npm ci, run npm run build:standalone" friction for the majority of users who do not have the dev toolchain installed. Idempotent (detects existing install, prompts Replace / Keep / Cancel), atomic extraction (cleanup in `finally`), redirect-following (HTTP 301-308, max 5 hops). New runtime deps: `adm-zip` (Windows), `tar` (POSIX). New file `src/runtime/installStandalone.ts` + 13 unit tests in `tests/install-standalone.test.ts`.
+- `docs/standalone.md` reworked: Install section now leads with Option A (in-VS-Code install command), then Option B (manual GitHub Release download), then Option C (build from source fallback).
+- **Standalone archive missing sibling modules** (`release.yml`): the `standalone` job only copied `dist/standalone/` into the archive but `main.js` does `require('../aiflowbridge')`. Now also copies `dist/aiflowbridge/`, `dist/logger.js`, `dist/config.js`, `dist/consts.js`, `dist/types.js`, `dist/json.js`. Fixes `Error: Cannot find module '../aiflowbridge'` at runtime.
+- **GitHub API requests lacked `User-Agent` header** (`installStandalone.ts`): `/releases/latest` was returning HTTP 403. Now sends `User-Agent: AIFlowBridge-VSCode-Extension/2.4.0` + `Accept: application/vnd.github+json`.
+- **HTTP 3xx redirects not followed** (`installStandalone.ts`): the download now follows 301/302/303/307/308 up to 5 hops (loop guard), resolving both absolute and relative `Location` headers.
+- **Rate-limit indistinguishable from other 403s** (`installStandalone.ts`): checks `x-ratelimit-remaining: 0` and surfaces a dedicated i18n string (`installStandalone.rateLimited`) pointing at `docs/standalone.md` as the build-from-source fallback.
+- **`installStandalone.pickInstallDir` i18n key missing** (`src/i18n.ts` + `package.nls.json`): the folder-picker dialog's "Open" button label showed the raw key. The key is now defined in both runtime i18n and the marketplace NLS file.
+- Quality gates: `npm run compile` (0 errors), `npm test` (629/629 across 35 files), `npm run compile:standalone` (0 errors).
 
 ### 2.0.0 (Standalone Gateway)
 

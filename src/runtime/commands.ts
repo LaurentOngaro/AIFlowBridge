@@ -4,6 +4,7 @@ import { logger } from '../logger';
 import { ensureRequestDumpRoot } from '../provider/debug';
 import { addCustomModelCommand } from './addCustomModel';
 import { editModelRegistryCommand } from './editModelRegistry';
+import { installStandaloneCommand } from './installStandalone';
 import { resetModelRegistryCommand } from './resetModelRegistry';
 
 export function registerCommands(context: vscode.ExtensionContext): void {
@@ -20,6 +21,9 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 		),
 		vscode.commands.registerCommand('aiflowbridge.resetModelRegistry', () =>
 			resetModelRegistryCommand(context),
+		),
+		vscode.commands.registerCommand('aiflowbridge.installStandalone', () =>
+			installStandaloneCommand(context),
 		),
 	);
 }

@@ -74,5 +74,24 @@
   "command.resetModelRegistryConfirm": "Reset the model registry override to bundled defaults? Your customizations will be lost.",
   "command.resetModelRegistryDone": "Model registry override removed. Reload the window to apply the bundled defaults?",
   "command.resetModelRegistryReload": "Reload Window",
-  "command.resetModelRegistryFailed": "Failed to reset model registry: {0}"
+  "command.resetModelRegistryFailed": "Failed to reset model registry: {0}",
+
+  "installStandalone.progressDownload": "Downloading AIFlowBridge v{0} for {1}...",
+  "installStandalone.progressExtract": "Extracting {0}...",
+  "installStandalone.progressAutostart": "Registering autostart service...",
+  "installStandalone.successWithService": "AIFlowBridge v{0} installed at {1} and registered as autostart service. Start it with: {2}",
+  "installStandalone.successManual": "AIFlowBridge v{0} installed at {1}. Start it manually with: {2}",
+  "installStandalone.failure": "Failed to install standalone gateway: {0}",
+  "installStandalone.unsupportedPlatform": "No standalone binary available for {0}. Build from source: see docs/standalone.md.",
+  "installStandalone.replacePrompt": "AIFlowBridge v{0} is already installed at {1}. Replace?",
+  "installStandalone.replace": "Replace",
+  "installStandalone.keep": "Keep both",
+  "installStandalone.cancel": "Cancel",
+  "installStandalone.autostartPrompt": "Register an autostart service so the gateway starts at login?",
+  "installStandalone.autostartYes": "Yes (recommended)",
+  "installStandalone.autostartNo": "No, manual start",
+  "installStandalone.autostartFailed": "Failed to register autostart service: {0}. The gateway is installed at {1}; register the service manually.",
+  "installStandalone.noRelease": "No published release found on GitHub. Build from source or run `npm run build:standalone`.",
+  "installStandalone.pickInstallDir": "Choose install location",
+  "installStandalone.rateLimited": "GitHub API rate limit reached. Wait an hour and try again, or build from source: see docs/standalone.md."
 }
