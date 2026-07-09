@@ -256,7 +256,7 @@ describe('buildDashboardHtml', () => {
   it('renders an Est. cost column in the recent, by-model, and provider tables', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     // The header is rendered three times (recent / by-model / provider).
-    expect(html.match(/<th>Est\. cost<\/th>/g)?.length).toBe(3);
+    expect(html.match(/Est\. cost<\/th>/g)?.length).toBe(3);
   });
 
   it('shows the per-request estimated cost in the recent row', () => {
@@ -1091,6 +1091,107 @@ describe('buildDashboardHtml - telemetry truncation detection', () => {
     };
     const html = buildDashboardHtml(baseConfig(), snapshot, true);
     expect(html).not.toContain('id="truncation-banner"');
+  });
+});
+
+describe('AFF05: column sorting', () => {
+  it('renders data-sort-key attributes on all three tables', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // Recent table: 8 sortable columns (excluding optional action column)
+    const recentSortKeys = (html.match(/<th class="sortable" data-sort-key="\w+"/g) || []).length;
+    expect(recentSortKeys).toBeGreaterThanOrEqual(8);
+    // By-model + provider tables: 6 sortable columns each
+    expect(html).toContain('data-sort-key="name"');
+    expect(html).toContain('data-sort-key="requests"');
+    expect(html).toContain('data-sort-key="totalTokens"');
+    expect(html).toContain('data-sort-key="averageDurationMs"');
+    expect(html).toContain('data-sort-key="errors"');
+    expect(html).toContain('data-sort-key="estimatedCost"');
+  });
+
+  it('does NOT add sortable class to the action column header', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {}, () => true);
+    // The row-actions-col th must not be sortable
+    expect(html).not.toContain('row-actions-col sortable');
+  });
+
+  it('embeds sort state in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('sortState');
+    expect(html).toContain('key: null, dir: null');
+  });
+
+  it('embeds compareVals helper in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function compareVals');
+  });
+
+  it('embeds recentSortVal helper in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function recentSortVal');
+    expect(html).toContain('case "timestamp": return entry.timestamp');
+    expect(html).toContain('case "status": return entry.status');
+    expect(html).toContain('case "providerLabel": return entry.providerLabel');
+    expect(html).toContain('case "model": return entry.model');
+    expect(html).toContain('case "durationMs": return entry.durationMs');
+    expect(html).toContain('case "totalTokens": return entry.totalTokens');
+    expect(html).toContain('case "estimatedCost": return entry.estimatedCost');
+    expect(html).toContain('case "estimated": return entry.estimated');
+  });
+
+  it('embeds objSortVal helper in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function objSortVal');
+    expect(html).toContain('if (key === "name") return id');
+  });
+
+  it('embeds sortRecentEntries helper in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function sortRecentEntries');
+  });
+
+  it('embeds sortObjectEntries helper in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function sortObjectEntries');
+  });
+
+  it('embeds applySorts helper in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function applySorts');
+    expect(html).toContain('currentRecentSorted = sortRecentEntries');
+    expect(html).toContain('currentModelsSorted = sortObjectEntries');
+    expect(html).toContain('currentProvidersSorted = sortObjectEntries');
+  });
+
+  it('embeds updateSortArrows helper in the script block', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function updateSortArrows');
+  });
+
+  it('wires click handler on thead for sortable columns', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('th.sortable');
+    expect(html).toContain('thead.addEventListener("click"');
+    expect(html).toContain('sortState');
+  });
+
+  it('rerender calls applySorts and updateSortArrows', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // The rerender function must call both helpers
+    expect(html).toContain('function rerender');
+    // applySorts is called before pagination
+    const rerenderIdx = html.indexOf('function rerender');
+    const applySortsIdx = html.indexOf('applySorts()', rerenderIdx);
+    expect(applySortsIdx).toBeGreaterThan(rerenderIdx);
+  });
+
+  it('cycles sort direction: asc -> desc -> clear', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // The click handler must implement the 3-state cycle
+    expect(html).toContain('if (st.dir === "asc")');
+    expect(html).toContain('st.dir = "desc"');
+    expect(html).toContain('st.key = null');
+    expect(html).toContain('st.dir = null');
   });
 });
 

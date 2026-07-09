@@ -389,6 +389,11 @@ export function buildDashboardHtml(
       font-size: 14px;
     }
     th { color: var(--muted); font-weight: 600; }
+    th.sortable { cursor: pointer; user-select: none; transition: color 0.12s ease; }
+    th.sortable:hover { color: var(--text); }
+    th.sortable .sort-arrow { margin-left: 4px; font-size: 11px; opacity: 0; transition: opacity 0.12s ease; }
+    th.sortable:hover .sort-arrow { opacity: 0.5; }
+    th.sortable.sorted .sort-arrow { opacity: 1; color: var(--accent); }
     code {
       background: rgba(148, 163, 184, 0.12);
       border-radius: 6px;
@@ -664,6 +669,18 @@ export function buildDashboardHtml(
         provider: { page: 1, pageSize: 10, total: 0 },
       };
 
+      // sort state per panel. Click a column header once for
+      // ascending, click again for descending, click a third time to
+      // clear the sort (back to default order). Stored as { key, dir }
+      // where key is the data-sort-key value and dir is "asc" | "desc".
+      // Null key means no sort is active; the table keeps its natural
+      // order (reverse-chronological for recent, default for models).
+      const sortState = {
+        recent: { key: null, dir: null },
+        model: { key: null, dir: null },
+        provider: { key: null, dir: null },
+      };
+
       // read persisted page sizes from localStorage so the user's
       // "rows per page" choice survives a dashboard refresh. Defaults
       // match the plan: 20 for the recent table (most rows), 10 for
@@ -831,6 +848,130 @@ export function buildDashboardHtml(
         '</tr>';
       }
 
+      // --- sort helpers ---
+      // generic comparator: numbers compared numerically, strings
+      // compared locale-aware, everything else converted to string.
+      function compareVals(a, b) {
+        if (typeof a === "number" && typeof b === "number") {
+          if (Number.isNaN(a) && Number.isNaN(b)) return 0;
+          if (Number.isNaN(a)) return 1;
+          if (Number.isNaN(b)) return -1;
+          return a - b;
+        }
+        var sa = a == null ? "" : String(a);
+        var sb = b == null ? "" : String(b);
+        return sa.localeCompare(sb);
+      }
+
+      // extract the sort value from a flat array entry (recent table).
+      function recentSortVal(entry, key) {
+        switch (key) {
+          case "timestamp": return entry.timestamp || "";
+          case "status": return entry.status || 0;
+          case "providerLabel": return entry.providerLabel || "";
+          case "model": return entry.model || "";
+          case "durationMs": return entry.durationMs || 0;
+          case "totalTokens": return entry.totalTokens || 0;
+          case "estimatedCost": return entry.estimatedCost || 0;
+          case "estimated": return entry.estimated ? "estimated" : "usage";
+          default: return "";
+        }
+      }
+
+      // extract the sort value from a model/provider snapshot entry
+      // plus the key/id (for "name" sort key).
+      function objSortVal(id, snap, key) {
+        if (key === "name") return id || "";
+        if (typeof snap === "object" && snap !== null) {
+          if (key === "requests") return snap.requests || 0;
+          if (key === "totalTokens") return snap.totalTokens || 0;
+          if (key === "averageDurationMs") return snap.averageDurationMs || 0;
+          if (key === "errors") return snap.errors || 0;
+          if (key === "estimatedCost") return snap.estimatedCost || 0;
+        }
+        return "";
+      }
+
+      // sort a flat array of recent entries.
+      function sortRecentEntries(entries, key, dir) {
+        if (!key || !dir) return entries;
+        var copy = entries.slice();
+        copy.sort(function (a, b) {
+          return compareVals(recentSortVal(a, key), recentSortVal(b, key));
+        });
+        if (dir === "desc") copy.reverse();
+        return copy;
+      }
+
+      // sort an object map by snapshot field. Returns a new object whose
+      // keys are in the sorted order (modern engines preserve insertion
+      // order for string keys for for-in / Object.keys / Object.entries).
+      function sortObjectEntries(data, key, dir) {
+        if (!key || !dir) return data;
+        var entries = Object.keys(data).map(function (k) { return [k, data[k]]; });
+        entries.sort(function (a, b) {
+          var va = objSortVal(a[0], a[1], key);
+          var vb = objSortVal(b[0], b[1], key);
+          return compareVals(va, vb);
+        });
+        if (dir === "desc") entries.reverse();
+        var out = {};
+        for (var i = 0; i < entries.length; i++) {
+          out[entries[i][0]] = entries[i][1];
+        }
+        return out;
+      }
+
+      // apply the active sort to the current data sets. Call after
+      // every filter change and after every sort change.
+      function applySorts() {
+        currentRecentSorted = sortRecentEntries(currentRecent, sortState.recent.key, sortState.recent.dir);
+        currentModelsSorted = sortObjectEntries(currentModels, sortState.model.key, sortState.model.dir);
+        currentProvidersSorted = sortObjectEntries(currentProviders, sortState.provider.key, sortState.provider.dir);
+      }
+
+      // sorted copies of the filtered data. These are what the
+      // paginator slices and what the table renderers consume.
+      var currentRecentSorted = recent;
+      var currentModelsSorted = byModel;
+      var currentProvidersSorted = byProvider;
+
+      // update the arrow indicators on all sortable headers.
+      function updateSortArrows() {
+        var panels = [
+          { tableId: "recent-tbody", stateKey: "recent" },
+          { tableId: "model-tbody", stateKey: "model" },
+          { tableId: "provider-tbody", stateKey: "provider" },
+        ];
+        for (var i = 0; i < panels.length; i++) {
+          var tbody = document.getElementById(panels[i].tableId);
+          if (!tbody) continue;
+          var table = tbody.closest("table");
+          if (!table) continue;
+          var headers = table.querySelectorAll("th.sortable");
+          var state = sortState[panels[i].stateKey];
+          for (var j = 0; j < headers.length; j++) {
+            var th = headers[j];
+            var key = th.getAttribute("data-sort-key");
+            var arrowSpan = th.querySelector(".sort-arrow");
+            if (!arrowSpan) {
+              arrowSpan = document.createElement("span");
+              arrowSpan.className = "sort-arrow";
+              th.appendChild(arrowSpan);
+            }
+            if (key === state.key) {
+              th.classList.add("sorted");
+              arrowSpan.textContent = state.dir === "asc" ? " \\u25b2" : " \\u25bc";
+            } else {
+              th.classList.remove("sorted");
+              arrowSpan.textContent = " \\u25b2";
+            }
+          }
+        }
+      }
+
+      // --- sort helpers end ---
+
       // rerender all three paginated panels from the current
       // module-local data. Called by applyFilters (after a filter
       // change resets page numbers to 1) and by the pagination
@@ -838,12 +979,14 @@ export function buildDashboardHtml(
       // pagination strip is rebuilt every time - the controls are
       // cheap and the state object is the source of truth.
       function rerender() {
-        paginationState.recent.total = currentRecent.length;
-        paginationState.model.total = Object.keys(currentModels).length;
-        paginationState.provider.total = Object.keys(currentProviders).length;
-        bindPanelPaginator("recent-pagination", currentRecent, false);
-        bindPanelPaginator("model-pagination", currentModels, true);
-        bindPanelPaginator("provider-pagination", currentProviders, true);
+        applySorts();
+        paginationState.recent.total = currentRecentSorted.length;
+        paginationState.model.total = Object.keys(currentModelsSorted).length;
+        paginationState.provider.total = Object.keys(currentProvidersSorted).length;
+        bindPanelPaginator("recent-pagination", currentRecentSorted, false);
+        bindPanelPaginator("model-pagination", currentModelsSorted, true);
+        bindPanelPaginator("provider-pagination", currentProvidersSorted, true);
+        updateSortArrows();
       }
 
       // per-panel paginator helper. Owns the (1) paginated
@@ -1326,6 +1469,39 @@ export function buildDashboardHtml(
       }
       if (searchEl) searchEl.addEventListener("input", applyFilters);
 
+      // sortable column headers: click to cycle asc -> desc -> clear.
+      // Event delegation on each table's <thead> so re-renders
+      // (pagination, filter) do not break the handler.
+      (function bindSortHandlers() {
+        var panels = [
+          { thead: document.querySelector("#panel-recent table thead"), stateKey: "recent" },
+          { thead: document.querySelector("#panel-model table thead"), stateKey: "model" },
+          { thead: document.querySelector("#panel-provider table thead"), stateKey: "provider" },
+        ];
+        for (var i = 0; i < panels.length; i++) {
+          var thead = panels[i].thead;
+          var stateKey = panels[i].stateKey;
+          if (!thead) continue;
+          thead.addEventListener("click", function (key) {
+            return function (event) {
+              var th = event.target.closest("th.sortable");
+              if (!th) return;
+              var sortKey = th.getAttribute("data-sort-key");
+              if (!sortKey || sortKey === key) return;
+              var st = sortState[key];
+              if (st.key === sortKey) {
+                if (st.dir === "asc") { st.dir = "desc"; }
+                else if (st.dir === "desc") { st.key = null; st.dir = null; }
+              } else {
+                st.key = sortKey;
+                st.dir = "asc";
+              }
+              rerender();
+            };
+          }(stateKey));
+        }
+      })();
+
       // initial paginated render. The server-side render
       // emitted ALL rows in every table (so the dashboard still shows
       // data with JS disabled); this first rerender slices the rows
@@ -1354,14 +1530,14 @@ function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps, ca
       <thead>
         <tr>
           ${actionHeader}
-          <th>Status</th>
-          <th>Date</th>
-          <th>Provider</th>
-          <th>Model</th>
-          <th>Duration</th>
-          <th>Tokens</th>
-          <th>Est. cost</th>
-          <th>Source</th>
+          <th class="sortable" data-sort-key="status">Status</th>
+          <th class="sortable" data-sort-key="timestamp">Date</th>
+          <th class="sortable" data-sort-key="providerLabel">Provider</th>
+          <th class="sortable" data-sort-key="model">Model</th>
+          <th class="sortable" data-sort-key="durationMs">Duration</th>
+          <th class="sortable" data-sort-key="totalTokens">Tokens</th>
+          <th class="sortable" data-sort-key="estimatedCost">Est. cost</th>
+          <th class="sortable" data-sort-key="estimated">Source</th>
         </tr>
       </thead>
       <tbody id="recent-tbody">
@@ -1411,12 +1587,12 @@ function renderProviderSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps
     <table>
       <thead>
         <tr>
-          <th>Provider</th>
-          <th>Requests</th>
-          <th>Tokens</th>
-          <th>Avg duration</th>
-          <th>Errors</th>
-          <th>Est. cost</th>
+          <th class="sortable" data-sort-key="name">Provider</th>
+          <th class="sortable" data-sort-key="requests">Requests</th>
+          <th class="sortable" data-sort-key="totalTokens">Tokens</th>
+          <th class="sortable" data-sort-key="averageDurationMs">Avg duration</th>
+          <th class="sortable" data-sort-key="errors">Errors</th>
+          <th class="sortable" data-sort-key="estimatedCost">Est. cost</th>
         </tr>
       </thead>
       <tbody id="provider-tbody">
@@ -1449,12 +1625,12 @@ function renderModelSummary(snapshot: TelemetrySnapshot, pricing: PricingMaps): 
     <table>
       <thead>
         <tr>
-          <th>Model</th>
-          <th>Requests</th>
-          <th>Tokens</th>
-          <th>Avg duration</th>
-          <th>Errors</th>
-          <th>Est. cost</th>
+          <th class="sortable" data-sort-key="name">Model</th>
+          <th class="sortable" data-sort-key="requests">Requests</th>
+          <th class="sortable" data-sort-key="totalTokens">Tokens</th>
+          <th class="sortable" data-sort-key="averageDurationMs">Avg duration</th>
+          <th class="sortable" data-sort-key="errors">Errors</th>
+          <th class="sortable" data-sort-key="estimatedCost">Est. cost</th>
         </tr>
       </thead>
       <tbody id="model-tbody">

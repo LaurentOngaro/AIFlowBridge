@@ -6,8 +6,6 @@ import { createReadStream } from 'node:fs';
 import { createGunzip } from 'node:zlib';
 import * as https from 'node:https';
 import type { IncomingHttpHeaders } from 'node:http';
-import { extract } from 'tar';
-import AdmZip from 'adm-zip';
 import vscode from 'vscode';
 import { t } from '../i18n';
 import { logger } from '../logger';
@@ -202,6 +200,7 @@ async function downloadAsset(asset: GithubAsset, destPath: string, onProgress: (
 
 async function extractTarGz(archivePath: string, destDir: string): Promise<void> {
   await mkdir(destDir, { recursive: true });
+  const { extract } = await import('tar');
   await extract({
     file: archivePath,
     cwd: destDir,
@@ -210,6 +209,7 @@ async function extractTarGz(archivePath: string, destDir: string): Promise<void>
 }
 
 async function extractZip(archivePath: string, destDir: string): Promise<void> {
+  const AdmZip = (await import('adm-zip')).default;
   const zip = new AdmZip(archivePath);
   zip.extractAllTo(destDir, true);
 }

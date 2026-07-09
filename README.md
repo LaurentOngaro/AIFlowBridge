@@ -28,13 +28,13 @@ AIFlowBridge turns Copilot Chat into a multi-model switcher: pick the cheapest m
 >
 > The `aiflowbridge-server` CLI runs the gateway as a pure Node.js process: no VS Code, no extension host, ~30 MB RAM. Start it at boot with systemd / launchd / Task Scheduler, point Kilo Code, Continue, or the JetBrains AI Assistant custom endpoint at `http://127.0.0.1:8787/v1`, and the metrics stay consolidated across VS Code and the CLI. If both are running, the second one joins the first instead of starting a duplicate.
 >
-> ```bash
-> npm run build:standalone && node dist/standalone/main.js
-> ```
+> **Three install paths:**
+>
+> A) **[AIFlowBridge: Install standalone gateway](docs/standalone.md)** command in the VS Code extension - one click, platform-matched binary from GitHub Releases (~30 s).
+> B) **[Manual download](https://github.com/LaurentOngaro/aiflowbridge/releases/latest)** of the prebuilt archive for your OS - extract and run.
+> C) **[Build from source](docs/standalone.md#option-c---build-from-source)** - `git clone` + `npm ci` + `npm run build:standalone`.
 >
 > Full setup, autostart templates, and client configs: **[docs/standalone.md](docs/standalone.md)**.
->
-> **Recent (2.1.x) hardening:** cooperative shutdown now requires a per-instance auth token (1.7.0), provider `baseUrl` inputs are SSRF-validated (1.7.0), the API key in the docs example secrets.json short form (`deepseek.apiKey`) now resolves at runtime (2.1.1), and the standalone CLI prints a startup banner reporting which mode it is in (started / joined / disabled - 2.1.1).
 
 ## Migrating from Copilot alone?
 

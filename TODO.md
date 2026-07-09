@@ -16,17 +16,17 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
   - [x] actions #1, #2, #3 delivered (1.5.3 / 1.7.0);
   - [ ] actions #4-#13 remaining (OpenRouter, Ollama, CSV/JSON export, sponsors, failover, videos, Kilo/Continue contact, awesome-lists, articles, Reddit posts)
 
-### Bugs (last: BUG12)
+### Bugs (last: BUG16)
 
 ### Documentation (last: DOC04)
 
-### Display (last: AFF05)
+### Display (last: AFF07)
 
-- [ ] AFF05: metric dashboard:
-  - add the possibility to sort the data by clicking on the column headers (ascending / descending)
+- [ ] AFF06: metric dashboard:
   - add the possibility to group the requests by sessions (using date/time check to group them in a session, e.g., 30 minutes of inactivity = new session)
     - each session is displayed as a collapsible section, with the session start time and the number of requests in that session
     - each session has a summary of the total tokens used, the total duration, and the total estimated cost
+- [ ] AFF07: metric dashboard:
   - telemetry export (CSV/JSON)
 
 ### Features (last: FEAT9)
@@ -70,6 +70,12 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 2.4.1 (Hotfix: broken commands + dashboard sorting)
+
+- **AFF05**: column sorting on the metrics dashboard. Click any column header on the Recent requests, By model, or Provider summary tables to sort ascending; click again for descending; click a third time to clear the sort. The sort state is per-panel (independent). Numeric columns compare numerically (tokens, cost, duration), text columns use locale-aware string comparison. Sort arrows (▲ / ▼) appear on the active column. 13 new dashboard tests in `tests/dashboard.test.ts`.
+- **BUG16**: all VS Code command palette commands broken after installing 2.4.0. Static top-level imports of `adm-zip` and `tar` in `src/runtime/installStandalone.ts` failed at module load time because these runtime dependencies are not shipped in the VSIX (`.vscodeignore` excludes `node_modules/**` and there is no bundler). The failure cascaded to `src/runtime/commands.ts` (which statically imported `installStandalone.ts`), blocking ALL command registrations. Fix: (1) `tar` and `adm-zip` imports moved to dynamic `import()` inside `extractTarGz()` / `extractZip()` so they only load when the user actually triggers the install command; (2) `commands.ts` wraps the `installStandalone` import in a `try/catch` so a future dependency issue with a single command cannot break all others.
+- Quality gates: `npm run compile` (0 errors), `npm test` (642/642 across 35 files, was 629/35 in 2.4.0, +13 AFF05 tests).
 
 ### 2.4.0 (Install Standalone Gateway)
 

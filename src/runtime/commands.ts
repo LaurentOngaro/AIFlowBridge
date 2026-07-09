@@ -4,7 +4,6 @@ import { logger } from '../logger';
 import { ensureRequestDumpRoot } from '../provider/debug';
 import { addCustomModelCommand } from './addCustomModel';
 import { editModelRegistryCommand } from './editModelRegistry';
-import { installStandaloneCommand } from './installStandalone';
 import { resetModelRegistryCommand } from './resetModelRegistry';
 
 export function registerCommands(context: vscode.ExtensionContext): void {
@@ -22,10 +21,9 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('aiflowbridge.resetModelRegistry', () =>
 			resetModelRegistryCommand(context),
 		),
-		vscode.commands.registerCommand('aiflowbridge.installStandalone', () =>
-			installStandaloneCommand(context),
-		),
 	);
+
+	registerInstallStandaloneCommand(context);
 }
 
 async function openRequestDumpsFolder(context: vscode.ExtensionContext): Promise<void> {
@@ -36,5 +34,18 @@ async function openRequestDumpsFolder(context: vscode.ExtensionContext): Promise
 	} catch (error) {
 		logger.warn('Failed to open request dumps folder', error);
 		void vscode.window.showErrorMessage(t('extension.openRequestDumpsFolderFailed'));
+	}
+}
+
+function registerInstallStandaloneCommand(context: vscode.ExtensionContext): void {
+	try {
+		const { installStandaloneCommand } = require('./installStandalone') as typeof import('./installStandalone');
+		context.subscriptions.push(
+			vscode.commands.registerCommand('aiflowbridge.installStandalone', () =>
+				installStandaloneCommand(context),
+			),
+		);
+	} catch (error) {
+		logger.warn('Failed to register installStandalone command (missing dependencies)', error);
 	}
 }

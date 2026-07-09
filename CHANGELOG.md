@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.4.1
+
+Hotfix for the 2.4.0 command-palette regression + AFF05 column sorting on the metrics dashboard.
+
+### Fixed
+
+- **BUG16 - All command palette commands broken after 2.4.0 install.** Static top-level imports of `adm-zip` and `tar` in `src/runtime/installStandalone.ts` failed at module load time because these runtime dependencies are not shipped in the VSIX (`.vscodeignore` excludes `node_modules/**` and the extension has no bundler). The failure cascaded to `src/runtime/commands.ts`, blocking ALL command registrations (`command 'aiflowbridge.showMetrics' not found`, etc.). Fix: (1) `tar` and `adm-zip` imports moved to dynamic `import()` inside `extractTarGz()` / `extractZip()` so they only load when the user actually triggers the install command; (2) `commands.ts` wraps the `installStandalone` import in a `try/catch` so a future dependency issue with a single command cannot break all others.
+
+### Added
+
+- **AFF05 - Column sorting on the metrics dashboard.** Click any column header on the Recent requests, By model, or Provider summary tables to sort ascending; click again for descending; click a third time to clear the sort (back to default order). Sort state is per-panel (independent). Numeric columns (tokens, cost, duration, status) compare numerically with `NaN` sentinel handling; text columns (provider, model, source) use locale-aware string comparison via `localeCompare()`. Sort arrows (▲ / ▼) appear on the active column with hover opacity hints. Implementation: CSS (`th.sortable`, `.sort-arrow`, `.sorted`), server-side `data-sort-key` attributes on all `<th>` elements, client-side `sortState` object + `compareVals` generic comparator + `recentSortVal` / `objSortVal` extractors + `sortRecentEntries` / `sortObjectEntries` sorter functions + `applySorts()` / `updateSortArrows()` helpers + event delegation click handler on each table's `<thead>` with the 3-state cycle. 13 new tests in `tests/dashboard.test.ts`.
+
+### Tests
+
+- **642 tests across 35 files** (was 629 / 35 in 2.4.0, +13). New AFF05 dashboard tests: `data-sort-key` attribute presence, action column not sortable, all sort helpers emitted in the script block, `rerender` integration, 3-state asc→desc→clear cycle.
+- Quality gates: `npm run compile` (0 errors), `npm test` (642/642).
+
 ## 2.4.0
 
 New `AIFlowBridge: Install standalone gateway` command (FEAT8) for one-click download + extract of the standalone CLI from GitHub Releases, plus bugfixes to the standalone distribution pipeline and the GitHub API client.
