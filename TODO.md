@@ -20,16 +20,28 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Documentation (last: DOC04)
 
-### Display (last: AFF07)
+### Display (last: AFF08)
 
 - [ ] AFF06: metric dashboard:
   - add the possibility to group the requests by sessions (using date/time check to group them in a session, e.g., 30 minutes of inactivity = new session)
     - each session is displayed as a collapsible section, with the session start time and the number of requests in that session
     - each session has a summary of the total tokens used, the total duration, and the total estimated cost
 - [ ] AFF07: metric dashboard:
-  - telemetry export (CSV/JSON)
+  - telemetry export (CSV/JSON) (using the selected filters)
+- [ ] AFF08: metric dashboard:
+  - [ ] display preset filter in a combobox instead of a list of buttons
+  - [ ] add new filters presets : last 15mn, last 30mn, last 2 days, last 3 days
+  - [ ] add a filter by providers (combo box)
 
-### Features (last: FEAT9)
+### Features (last: FEAT10)
+
+- [ ] FEAT10: Pair programming / multi-IDE / multi-language improvements (see `_Private/ACTION PLAN.md`)
+  - [ ] Per-client IDE telemetry (multi-IDE visibility) - see action plan item 1
+  - [ ] Bridge Copilot Chat path into TelemetryStore (pair-prog visibility) - see action plan item 6
+  - [ ] Workspace context injection (multi-language quality) - see action plan item 2
+  - [ ] Language-based model routing rules (multi-language) - see action plan item 5
+  - [ ] Zero-conf discovery (mDNS or UDP broadcast) - see action plan item 4
+  - [ ] Shared session log + replay endpoint + SSE - see action plan item 3
 
 ### Publish (last: PUB02)
 
@@ -71,12 +83,13 @@ Backlog (value to confirm):
 
 ## Completed
 
-### 2.4.2 (Standalone release artifact completeness guard)
+### 2.4.3 (Standalone release artifact completeness guard + missing runtime metadata)
 
-- **Standalone release artifact completeness guard.** The v2.3.0 release was shipped with only `dist/standalone/` inside the archive, while `dist/standalone/main.js` does `require('../aiflowbridge')`, `require('../aiflowbridge/modelRegistry')`, `require('../logger')`, `require('./context')`. End users hit `Error: Cannot find module '../aiflowbridge'` on every start. Two safeguards now block any future broken release: (1) the `Assemble release tree` step in `.github/workflows/release.yml` fails fast with a `::error::` annotation if any expected sibling module is missing - no more silent skip; (2) a new `Smoke test standalone bundle` step runs `scripts/check-standalone-bundle.js` against the staged tree, parsing `main.js` for every relative `require()` and verifying each one resolves on disk. The workflow cannot upload the archive to the GitHub Release unless both checks pass.
-- **`scripts/check-standalone-bundle.js`** - reusable Node script (no dependencies) that asserts a given CommonJS entry point can resolve every relative `require()`. Used by both the release workflow and the unit test suite.
-- **`tests/standalone-bundle.test.ts`** - 4 unit tests: script presence, end-to-end resolution against `dist/standalone/main.js`, regression guard for the v2.3.0 broken state, and extension-less specifier handling.
-- Quality gates: `npm run compile` (0 errors), `npm test` (646/646 across 36 files, was 642/35 in 2.4.1, +4).
+- **Standalone release artifact completeness guard.** The v2.3.0 release was shipped with only `dist/standalone/` inside the archive, while `dist/standalone/main.js` requires sibling modules (`require('../aiflowbridge')`, `require('../logger')`, etc.). End users hit `Error: Cannot find module '../aiflowbridge'` on every start. Three safeguards now block any future broken release: (1) `release.yml` fail-fast on missing sibling modules; (2) CI smoke test via `check-standalone-bundle.js` before upload; (3) vitest unit test on every `npm test`.
+- **Standalone archive missing `package.json` and `resources/models.json`.** The assemble step didn't ship these, causing version `0.0.0` (breaking version-aware gateway restart in the VS Code extension) and model registry fallback without pricing data.
+- **`scripts/check-standalone-bundle.js`** - resolves all `require()` calls + verifies runtime metadata files.
+- **`tests/standalone-bundle.test.ts`** - 5 unit tests covering requires resolution, runtime files, regression guard, and extension-less specifiers.
+- Quality gates: `npm run compile` (0 errors), `npm test` (647/647 across 36 files, was 642/35 in 2.4.1, +5).
 
 ### 2.4.1 (Hotfix: broken commands + dashboard sorting)
 

@@ -18,8 +18,8 @@ function runScript(entryPath: string): { status: number; stdout: string; stderr:
     const e = err as { status?: number; stdout?: Buffer | string; stderr?: Buffer | string };
     return {
       status: e.status ?? 1,
-      stdout: typeof e.stdout === 'string' ? e.stdout : e.stdout?.toString('utf8') ?? '',
-      stderr: typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString('utf8') ?? '',
+      stdout: typeof e.stdout === 'string' ? e.stdout : (e.stdout?.toString('utf8') ?? ''),
+      stderr: typeof e.stderr === 'string' ? e.stderr : (e.stderr?.toString('utf8') ?? ''),
     };
   }
 }
@@ -65,12 +65,40 @@ describe('standalone bundle completeness', () => {
     expect(result.stderr).toContain('../logger');
   });
 
+  it('reports missing package.json and resources/models.json as runtime references', () => {
+    const stage = mkdtempSync(join(tmpdir(), 'aifb-bundle-test-'));
+    // Simulate a tree where the JS modules are complete but the runtime
+    // metadata files (package.json, resources/models.json) are absent.
+    const distStandalone = join(stage, 'dist', 'standalone');
+    mkdirSync(distStandalone, { recursive: true });
+    writeFileSync(join(distStandalone, 'main.js'), `// stub - all relative requires are empty\n`);
+    writeFileSync(join(stage, 'dist', 'logger.js'), 'module.exports = {};\n');
+    mkdirSync(join(stage, 'dist', 'aiflowbridge'), { recursive: true });
+    writeFileSync(join(stage, 'dist', 'aiflowbridge', 'index.js'), 'module.exports = {};\n');
+    writeFileSync(join(stage, 'dist', 'aiflowbridge', 'modelRegistry.js'), 'module.exports = {};\n');
+    writeFileSync(join(stage, 'dist', 'standalone', 'context.js'), 'module.exports = {};\n');
+
+    const result = runScript(join(distStandalone, 'main.js'));
+    rmSync(stage, { recursive: true, force: true });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('package.json');
+    expect(result.stderr).toContain('resources/models.json');
+  });
+
   it('handles extension-less specifiers by trying .js / .json / /index.js', () => {
     const stage = mkdtempSync(join(tmpdir(), 'aifb-bundle-test-'));
-    mkdirSync(join(stage, 'lib'), { recursive: true });
-    writeFileSync(join(stage, 'lib', 'helper.js'), 'module.exports = {};\n');
-    writeFileSync(join(stage, 'main.js'), `require('./lib/helper');\n`);
-    const result = runScript(join(stage, 'main.js'));
+    // Mimic the installed standalone layout: entry is at
+    // <root>/dist/standalone/main.js, with runtime files
+    // package.json and resources/models.json at <root>.
+    mkdirSync(join(stage, 'dist', 'standalone'), { recursive: true });
+    mkdirSync(join(stage, 'dist', 'lib'), { recursive: true });
+    mkdirSync(join(stage, 'resources'), { recursive: true });
+    writeFileSync(join(stage, 'package.json'), '{"version":"1.0.0"}');
+    writeFileSync(join(stage, 'resources', 'models.json'), '{}');
+    writeFileSync(join(stage, 'dist', 'lib', 'helper.js'), 'module.exports = {};\n');
+    writeFileSync(join(stage, 'dist', 'standalone', 'main.js'), `require('../lib/helper');\n`);
+    const result = runScript(join(stage, 'dist', 'standalone', 'main.js'));
     rmSync(stage, { recursive: true, force: true });
     expect(result.status, result.stderr).toBe(0);
   });

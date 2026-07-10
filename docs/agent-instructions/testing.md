@@ -6,13 +6,6 @@
 
 **vitest** (`vitest` v2.x). Test files live under `tests/` and match `*.test.ts`.
 
-## Current state (2.1.1)
-
-**616 tests across 34 files.** Quality gates:
-
-- `npm run compile` - 0 TypeScript errors.
-- `npm test` - 616/616 passing.
-
 ## Conventions
 
 - **Pure functions** are tested in isolation. Side effects (logging, file I/O, network) are stubbed or faked.
@@ -57,7 +50,8 @@ tests/
 ├── subscriptions-bag.test.ts            # subscriptions Proxy wrapper
 ├── migration-legacy.test.ts             # 1.6.x -> 2.0.0 telemetry migration
 ├── commands-ux.test.ts                  # Command registration + IGatewayContext hooks (resetMetrics / copyGatewayUrl / openSettings / setVisionModel)
-├── migration-legacy.test.ts             # 1.6.x -> 2.0.0 telemetry migration
+├── install-standalone.test.ts           # Standalone CLI installation + first-run setup
+├── standalone-bundle.test.ts            # Standalone bundle integrity verification
 └── standalone/
     ├── context.test.ts                  # createStandaloneContext() env-var / secrets.json resolution + hot-reload
     └── config-loader.test.ts            # StandaloneConfigFile reader (override + cache + corrupt JSON)
@@ -77,6 +71,6 @@ Before opening a PR:
 
 ```bash
 npm run compile           # 0 errors
-npm test                  # 616/616
+npm test
 npm run compile:standalone  # 0 errors (if standalone touched)
 ```

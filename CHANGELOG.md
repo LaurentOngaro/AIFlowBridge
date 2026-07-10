@@ -1,22 +1,23 @@
 # Changelog
 
-## 2.4.2
+## 2.4.3
 
-Hardens the standalone distribution pipeline so the v2.3.0 regression cannot recur.
+Hardens the standalone distribution pipeline so the v2.3.0 regression cannot recur, and fixes missing runtime metadata in the standalone archive.
 
 ### Fixed
 
-- **Standalone release artifact completeness guard.** The v2.3.0 release was shipped with only `dist/standalone/` inside the archive, while `dist/standalone/main.js` does `require('../aiflowbridge')`, `require('../aiflowbridge/modelRegistry')`, `require('../logger')`, `require('./context')`. End users hit `Error: Cannot find module '../aiflowbridge'` on every start. Two safeguards now block any future broken release: (1) the `Assemble release tree` step in `.github/workflows/release.yml` fails fast with a `::error::` annotation if any expected sibling module (`dist/aiflowbridge/`, `dist/logger.js`, `dist/config.js`, `dist/consts.js`, `dist/types.js`, `dist/json.js`) is missing - no more silent skip via `[ -e "dist/$module" ]`; (2) a new `Smoke test standalone bundle` step runs `scripts/check-standalone-bundle.js` against the staged tree right after the assemble, parsing `main.js` for every relative `require()` and verifying each one resolves on disk (extension-less + `.js` + `.json` + `/index.js`). The workflow cannot upload the archive to the GitHub Release unless both checks pass.
+- **Standalone release artifact completeness guard.** The v2.3.0 release was shipped with only `dist/standalone/` inside the archive, while `dist/standalone/main.js` does `require('../aiflowbridge')`, `require('../aiflowbridge/modelRegistry')`, `require('../logger')`, `require('./context')`. End users hit `Error: Cannot find module '../aiflowbridge'` on every start. Three safeguards now block any future broken release: (1) the `Assemble release tree` step in `.github/workflows/release.yml` fails fast with a `::error::` annotation if any expected sibling module (`dist/aiflowbridge/`, `dist/logger.js`, `dist/config.js`, `dist/consts.js`, `dist/types.js`, `dist/json.js`) is missing - no more silent skip via `[ -e "dist/$module" ]`; (2) a new `Smoke test standalone bundle` step runs `scripts/check-standalone-bundle.js` against the staged tree right after the assemble, parsing `main.js` for every relative `require()` and verifying each one resolves on disk (extension-less + `.js` + `.json` + `/index.js`), plus checking that `package.json` and `resources/models.json` are present so the standalone can report its real version and load the bundled model registry; (3) the same smoke test runs as a vitest unit test on every `npm test`. The workflow cannot upload the archive to the GitHub Release unless all checks pass.
+- **Standalone archive missing `package.json` and `resources/models.json`.** The standalone reports `version 0.0.0` and falls back to synthesized providers without pricing because the assemble step never copied these runtime metadata files. `package.json` is now shipped so `resolveExtensionVersion()` reads the correct version (avoiding a cascade: 0.0.0 causes the VS Code extension's version-aware gateway restart to kill the standalone and relaunch it). `resources/models.json` is now shipped so the bundled tier of the 3-tier model registry loads real provider definitions with pricing data.
 
 ### Added
 
-- **`scripts/check-standalone-bundle.js`** - reusable Node script (no dependencies) that asserts a given CommonJS entry point can resolve every relative `require()`. Used by both the release workflow and the unit test suite. Exit 0 on success, exit 1 with the list of missing references on failure. Documentation in the script header.
-- **`tests/standalone-bundle.test.ts`** - 4 unit tests: script presence, end-to-end resolution against `dist/standalone/main.js`, regression guard for the v2.3.0 broken state (stub entry point with no siblings, asserts exit 1 + correct messages), and extension-less specifier handling (`./lib/helper` resolves to `./lib/helper.js`).
+- **`scripts/check-standalone-bundle.js`** - reusable Node script (no dependencies) that asserts a given CommonJS entry point can resolve every relative `require()`, and that the expected runtime metadata files (`package.json`, `resources/models.json`) are present at the archive root. Used by both the release workflow and the unit test suite. Exit 0 on success, exit 1 with the list of missing references on failure. Documentation in the script header.
+- **`tests/standalone-bundle.test.ts`** - 5 unit tests: script presence, end-to-end resolution against `dist/standalone/main.js` (requires + runtime files), regression guard for the v2.3.0 broken state (stub with missing `require()` targets, asserts exit 1 + correct messages), regression guard for missing runtime files (exit 1 + `package.json`/`resources/models.json` in error), and extension-less specifier handling in a full tree layout.
 
 ### Tests
 
-- **646 tests across 36 files** (was 642 / 35 in 2.4.1, +4 new standalone bundle tests).
-- Quality gates: `npm run compile` (0 errors), `npm test` (646/646).
+- **647 tests across 36 files** (was 642 / 35 in 2.4.1, +5 new standalone bundle tests).
+- Quality gates: `npm run compile` (0 errors), `npm test` (647/647).
 
 ## 2.4.1
 
@@ -103,9 +104,7 @@ Standalone gateway hotfix + UX feedback.
 ## 2.1.0
 
 Post-2.0.0 hardening + small features from the FEAT7 audit follow-up
-section of `_helpers/ACTION PLAN.md`. No behavior change for users on
-2.0.0; only new optional settings, more defensive code paths, and
-additional test coverage (596 -> 614 tests).
+2.0.0; only new optional settings, more defensive code paths, and additional test coverage (596 -> 614 tests).
 
 ### Added
 
@@ -351,7 +350,7 @@ Incremental additions on top of 1.5.0 without bumping the version. Each entry is
 
 ### Fixed
 
-- **AFF03 plan-compliance corrections** (caught in a post-release audit of `_helpers/ACTION PLAN.md`):
+- **AFF03 plan-compliance corrections**
   - **Preset ↔ custom date interaction**: the original 1.5.0 implementation intersected the preset and the custom-date filters (both applied at once). The plan asked for clear / deactivate semantics: clicking a preset now clears the From / To inputs; entering a custom date (on either input) calls a new `deactivatePresetButtons()` helper that removes the `active` class from every preset button. Clearing a date input does **not** re-activate the preset (the user has to pick a preset explicitly to go back to relative mode).
   - **By-model search on the model name**: the original 1.5.0 implementation only matched the search needle against the per-entry haystack. The plan asked for entry-level OR model-name substring match. The dashboard's `applyFilters` now runs two filtered lists: the recent table uses the entry-level match; the by-model table uses entry-level OR model-name substring match (`entry.model.toLowerCase().includes(needle)`). A model whose name contains the needle is now included in the by-model aggregation even when none of its individual entries match.
   - 5 new tests in `tests/dashboard.test.ts` cover both behaviors (preset click → from/to inputs cleared in the script source, change handler → `deactivatePresetButtons` invoked, by-model filter contains the `entry.model.toLowerCase().includes(...)` branch, and two behavioral simulations that re-derive the same logic in pure TypeScript and assert the contract). `AGENTS.md` test count updated. 471 tests / 26 files (was 466 / 26).
@@ -384,7 +383,7 @@ Patch release: restores CI on Linux/macOS runners, fixes `vsce publish` / `vsce 
 
 ### Fixed
 
-- **CI: hardcoded Windows path in 3 test files broke `npm test` on Linux/macOS since v1.4.0.** When the static `MODELS` / `DEFAULT_PROVIDER_URLS` imports were removed in v1.4.0 (ACTION PLAN.md step 3), three test files started loading the bundled registry directly from disk with a hardcoded absolute path to the developer's local checkout:
+- **CI: hardcoded Windows path in 3 test files broke `npm test` on Linux/macOS since v1.4.0.** When the static `MODELS` / `DEFAULT_PROVIDER_URLS` imports were removed in v1.4.0, three test files started loading the bundled registry directly from disk with a hardcoded absolute path to the developer's local checkout:
 - **`getUserModels()` printed a useless `console.warn` on every invalid entry.** The previous message (`[AIFlowBridge] Skipping invalid userModels entry: missing required field (id/name/family/version)`) didn't say which entry was invalid, fired via `console.warn` (bypassing the VS Code Output channel and polluting `npm test` / `npm run package` output 6 times per run), and listed all four fields as missing even when only one was.
   - Fix: switched to `logger.warn` (so the message goes to the AIFlowBridge Output channel instead of stdout), and made the message actionable:
 
@@ -514,7 +513,7 @@ Minor release: the canonical list of models and vendors is now an external JSON 
 - **Providers** (`src/provider/index.ts`, `minimax.ts`, `xiaomi.ts`, `base.ts`, `unified.ts`, `request.ts`) read their model and vendor data from the registry cache (`getLoadedRegistry()`), not from a `const MODELS` import. The cache is populated by `loadModelRegistry(context)` at activation, before any provider or command is registered.
 - **`loadConfig` is now async** (`src/aiflowbridge/config.ts:loadConfig(context)`): it awaits the registry, then derives the gateway catalog from `registry.vendors` and `registry.models`. The four synthesis helpers (`buildDefaultGatewayProfiles`, `synthesizeProviderForModel`, `synthesizeProvidersFromBuiltInModels`, `synthesizeProvidersFromUserModels`) take the `ModelRegistry` as a parameter, which makes them pure and unit-testable without touching the cache.
 - **Replays, client errors, and the "add custom model" command** also read from the registry. Two module-level constants that depended on a synchronous `MODELS` lookup at import time are now lazy getters (`getReplayMarkerPrefixes()` in `src/provider/replay/consts.ts`, `getApiProviderHttpErrorLinks()` in `src/client/consts.ts`) that resolve on first use, after the registry cache is populated.
-- **Registry loading is idempotent** (bug fix discovered while writing the loader tests): a second call to `loadModelRegistry(context)` from inside `loadConfig` (called from `AIFlowBridgeRuntime.activate()`) used to silently re-read the bundled file from disk and overwrite the cache. It now consults the cache first. This means activating with the globalStorage override does one disk read for the bundled, one for the override, and zero for the second call from `loadConfig`. Editing the globalStorage file at runtime still requires a window reload (planned in v1, as documented in `ACTION PLAN.md` "Pièges à éviter").
+- **Registry loading is idempotent** (bug fix discovered while writing the loader tests): a second call to `loadModelRegistry(context)` from inside `loadConfig` (called from `AIFlowBridgeRuntime.activate()`) used to silently re-read the bundled file from disk and overwrite the cache. It now consults the cache first. This means activating with the globalStorage override does one disk read for the bundled, one for the override, and zero for the second call from `loadConfig`. Editing the globalStorage file at runtime still requires a window reload (planned in v1).
 
 ### Tests
 

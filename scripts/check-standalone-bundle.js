@@ -67,22 +67,37 @@ function main() {
 
   const source = fs.readFileSync(ENTRY, 'utf8');
   const requires = listRequires(source);
-  if (requires.length === 0) {
-    console.error(`[check-standalone-bundle] No relative requires found in ${ENTRY} - nothing to verify.`);
-    process.exit(1);
-  }
 
-  const missing = [];
+  const requiresMissing = [];
   for (const spec of requires) {
     const resolved = resolveFromHere(spec);
     if (!resolved) {
-      missing.push(spec);
+      requiresMissing.push(spec);
     }
   }
 
-  if (missing.length > 0) {
-    console.error(`[check-standalone-bundle] ${missing.length} missing reference(s) from ${ENTRY}:`);
-    for (const spec of missing) {
+  // The entry point's extensionRoot is the directory containing
+  // `resources/models.json`. Verify both it and `package.json` exist
+  // so the standalone can report its version and load model definitions.
+  const root = path.resolve(ENTRY_DIR, '..', '..');
+  const runtimeFiles = ['package.json', 'resources/models.json'];
+  const runtimeMissing = [];
+  for (const rf of runtimeFiles) {
+    if (!fs.existsSync(path.join(root, rf))) {
+      runtimeMissing.push(rf + ' (runtime)');
+    }
+  }
+
+  const allMissing = [...requiresMissing, ...runtimeMissing];
+
+  if (requires.length === 0 && runtimeMissing.length === 0) {
+    console.error(`[check-standalone-bundle] No relative requires found in ${ENTRY} and no runtime files to verify - nothing to check.`);
+    process.exit(1);
+  }
+
+  if (allMissing.length > 0) {
+    console.error(`[check-standalone-bundle] ${allMissing.length} missing reference(s) from ${ENTRY}:`);
+    for (const spec of allMissing) {
       console.error(`  - ${spec}`);
     }
     console.error('');
@@ -96,6 +111,7 @@ function main() {
   for (const spec of requires) {
     console.log(`  - ${spec} -> ${path.relative(process.cwd(), resolveFromHere(spec))}`);
   }
+  console.log(`[check-standalone-bundle] OK - runtime files present (package.json, resources/models.json)`);
 }
 
 main();

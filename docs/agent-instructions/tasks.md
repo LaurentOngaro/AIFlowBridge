@@ -10,7 +10,7 @@ npm run watch                # Watch mode for development
 npm run package              # Build .vsix package (output in dist/)
 npm run build:standalone     # Build the standalone gateway CLI (dist/standalone/main.js)
 npm run start:standalone     # Run the standalone gateway CLI from a build
-npm test                     # Run vitest unit tests (616 tests / 34 files)
+npm test                     # Run vitest unit tests (647 tests / 36 files)
 npm run publish:vscode       # Publish to VS Code Marketplace (requires PAT)
 npm run publish:openvsx      # Publish to Open VSX (Cursor / Windsurf / VSCodium)
 npm run publish:all          # Publish to both stores

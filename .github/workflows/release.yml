@@ -164,6 +164,26 @@ jobs:
             fi
             cp -r "dist/$module" "$DEST/dist/$module"
           done
+          # Ship the bundled model registry so the standalone can load
+          # provider definitions, model metadata, and pricing without
+          # relying on VS Code's extension bundle. The registry loader
+          # reads this as the "bundled" tier (always present).
+          mkdir -p "$DEST/resources"
+          if [ ! -e "resources/models.json" ]; then
+            echo "::error::resources/models.json is missing - the standalone cannot load model definitions." >&2
+            exit 1
+          fi
+          cp resources/models.json "$DEST/resources/models.json"
+          # The standalone resolves the extension version by reading
+          # `package.json` next to `resources/models.json`. Without it
+          # the version header shows "0.0.0" which also triggers the
+          # version-aware gateway restart in the VS Code extension
+          # (it sees 0.0.0 != 2.4.x and restarts the gateway).
+          if [ ! -e "package.json" ]; then
+            echo "::error::package.json is missing - the standalone cannot report its version." >&2
+            exit 1
+          fi
+          cp package.json "$DEST/package.json"
           # Copy only production node_modules (after `npm prune --omit=dev`).
           # `.bin` links are not portable across runners; drop them.
           cp -r node_modules "$DEST/node_modules"
