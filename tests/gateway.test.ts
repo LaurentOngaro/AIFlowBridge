@@ -371,6 +371,7 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 			recent: [],
 			byProvider: { p1: { requests: 5, promptTokens: 100, completionTokens: 50, totalTokens: 150, estimatedCost: 0.001, errors: 1, averageDurationMs: 200 } },
 			byModel: { m1: { requests: 5, promptTokens: 100, completionTokens: 50, totalTokens: 150, estimatedCost: 0.001, errors: 1, averageDurationMs: 200 } },
+			byClient: {},
 		};
 		const loadState = vi.fn(() => persisted);
 		const saveState = vi.fn();
@@ -477,6 +478,7 @@ describe('GatewayService - telemetry persistence (loadState / saveState)', () =>
 			recent: [],
 			byProvider: {},
 			byModel: {},
+			byClient: {},
 		};
 		const service = new GatewayService(
 			makeConfig(),

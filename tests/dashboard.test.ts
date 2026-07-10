@@ -28,6 +28,7 @@ function emptySnapshot(): TelemetrySnapshot {
     recent: [],
     byProvider: {},
     byModel: {},
+    byClient: {},
   };
 }
 
@@ -117,6 +118,7 @@ function snapshotWithData(): TelemetrySnapshot {
         averageDurationMs: 450,
       },
     },
+    byClient: {},
   };
 }
 
@@ -323,6 +325,7 @@ describe('buildDashboardHtml', () => {
           averageDurationMs: 100,
         },
       },
+      byClient: {},
     };
     const html = buildDashboardHtml(config, snapshot, true);
     // The dash placeholder must appear in all three table bodies.
@@ -330,18 +333,18 @@ describe('buildDashboardHtml', () => {
     expect(dashCount).toBeGreaterThanOrEqual(3);
   });
 
-  it('expands the colspan of the empty-state row in the recent table to 8 columns (no remove hook)', () => {
+  it('expands the colspan of the empty-state row in the recent table to 9 columns (no remove hook)', () => {
     const html = buildDashboardHtml(baseConfig(), emptySnapshot(), true);
     // When no `onRemoveEntry` hook is supplied, the action column is
     // not rendered server-side, so the client-side colspan falls back
-    // to 8. The script block builds the value dynamically through
-    // `recentColspan` so it can switch to 9 when the trash column is
+    // to 9. The script block builds the value dynamically through
+    // `recentColspan` so it can switch to 10 when the trash column is
     // present (see the next test).
-    expect(html).toContain('recentColspan = canRemove ? 9 : 8');
+    expect(html).toContain('recentColspan = canRemove ? 10 : 9');
     expect(html).toContain("'<tr><td colspan=\"' + recentColspan + '\"");
   });
 
-  it('expands the colspan of the empty-state row in the recent table to 9 columns (with remove hook)', () => {
+  it('expands the colspan of the empty-state row in the recent table to 10 columns (with remove hook)', () => {
     // When the caller supplies an onRemoveEntry hook, the action column
     // is rendered server-side (the th.row-actions-col marker), and the
     // client mirrors that with canRemove = true. The dynamic colspan
@@ -351,7 +354,7 @@ describe('buildDashboardHtml', () => {
     // instead).
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {}, () => true);
     expect(html).toContain('<th class="row-actions-col"');
-    expect(html).toContain('canRemove ? 9 : 8');
+    expect(html).toContain('canRemove ? 10 : 9');
   });
 
   it('serializes estimatedCost into the recent array used by the client-side filter', () => {
@@ -404,7 +407,8 @@ describe('buildDashboardHtml', () => {
   it('wraps each panel body in a.panel-body div so the collapse rule can hide it', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const bodies = html.match(/<div class="panel-body">/g) ?? [];
-    expect(bodies.length).toBe(4);
+    // Gateway / Recent / By model / By client / Provider summary = 5
+    expect(bodies.length).toBe(5);
   });
 
   it('contains the collapse toggle JS handler that reads / writes localStorage', () => {
@@ -961,6 +965,7 @@ describe(' plan-compliance: filter pipeline', () => {
       ],
       byProvider: { p1: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0, averageDurationMs: 1 } },
       byModel: { m1: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0, averageDurationMs: 1 } },
+      byClient: {},
     };
     const html = buildDashboardHtml(baseConfig(), dangerous, true);
     // The script block must NOT contain a literal `</script>` followed
@@ -1004,6 +1009,7 @@ describe('buildDashboardHtml - telemetry truncation detection', () => {
       ],
       byProvider: {},
       byModel: {},
+      byClient: {},
     };
     const html = buildDashboardHtml(baseConfig(), snapshot, true);
     expect(html).toContain('id="truncation-banner"');
@@ -1061,6 +1067,7 @@ describe('buildDashboardHtml - telemetry truncation detection', () => {
       ],
       byProvider: {},
       byModel: {},
+      byClient: {},
     };
     const html = buildDashboardHtml(baseConfig(), snapshot, true);
     expect(html).not.toContain('id="truncation-banner"');
@@ -1088,6 +1095,7 @@ describe('buildDashboardHtml - telemetry truncation detection', () => {
       })),
       byProvider: {},
       byModel: {},
+      byClient: {},
     };
     const html = buildDashboardHtml(baseConfig(), snapshot, true);
     expect(html).not.toContain('id="truncation-banner"');
@@ -1223,5 +1231,157 @@ describe('formatCostCell', () => {
   it('falls back to USD when no pricing is supplied', () => {
     const html = formatCostCell(0.5, undefined);
     expect(html).toContain('$0.5');
+  });
+});
+
+describe('per-client IDE telemetry (ACTION PLAN item #1)', () => {
+  function snapshotWithClients(): TelemetrySnapshot {
+    const snap = emptySnapshot();
+    snap.requests = 4;
+    snap.totalTokens = 100;
+    snap.recent = [
+      {
+        id: 'r1',
+        timestamp: '2026-07-09T12:00:00.000Z',
+        providerId: 'p1',
+        providerLabel: 'Provider 1',
+        model: 'm1',
+        status: 200,
+        durationMs: 100,
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        estimatedCost: 0.001,
+        estimated: false,
+        clientId: 'kilo-code@1.2.3',
+      },
+      {
+        id: 'r2',
+        timestamp: '2026-07-09T12:00:01.000Z',
+        providerId: 'p1',
+        providerLabel: 'Provider 1',
+        model: 'm1',
+        status: 200,
+        durationMs: 200,
+        promptTokens: 20,
+        completionTokens: 10,
+        totalTokens: 30,
+        estimatedCost: 0.002,
+        estimated: false,
+        clientId: 'continue@0.9.x',
+      },
+      {
+        id: 'r3',
+        timestamp: '2026-07-09T12:00:02.000Z',
+        providerId: 'p1',
+        providerLabel: 'Provider 1',
+        model: 'm1',
+        status: 200,
+        durationMs: 50,
+        promptTokens: 5,
+        completionTokens: 0,
+        totalTokens: 5,
+        estimatedCost: 0,
+        estimated: true,
+        // older request, recorded before the clientId field existed.
+      },
+      {
+        id: 'r4',
+        timestamp: '2026-07-09T12:00:03.000Z',
+        providerId: 'p1',
+        providerLabel: 'Provider 1',
+        model: 'm1',
+        status: 200,
+        durationMs: 70,
+        promptTokens: 8,
+        completionTokens: 4,
+        totalTokens: 12,
+        estimatedCost: 0.0005,
+        estimated: false,
+        clientId: 'curl@8.10.1',
+      },
+    ];
+    snap.byProvider = { p1: { requests: 4, promptTokens: 43, completionTokens: 19, totalTokens: 62, estimatedCost: 0.0035, errors: 0, averageDurationMs: 105 } };
+    snap.byModel = { m1: { requests: 4, promptTokens: 43, completionTokens: 19, totalTokens: 62, estimatedCost: 0.0035, errors: 0, averageDurationMs: 105 } };
+    snap.byClient = {
+      'kilo-code@1.2.3': { requests: 1, promptTokens: 10, completionTokens: 5, totalTokens: 15, estimatedCost: 0.001, errors: 0, averageDurationMs: 100 },
+      'continue@0.9.x': { requests: 1, promptTokens: 20, completionTokens: 10, totalTokens: 30, estimatedCost: 0.002, errors: 0, averageDurationMs: 200 },
+      unknown: { requests: 1, promptTokens: 5, completionTokens: 0, totalTokens: 5, estimatedCost: 0, errors: 0, averageDurationMs: 50 },
+      'curl@8.10.1': { requests: 1, promptTokens: 8, completionTokens: 4, totalTokens: 12, estimatedCost: 0.0005, errors: 0, averageDurationMs: 70 },
+    };
+    return snap;
+  }
+
+  it('renders a Client column with a sortable header in the recent table', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    expect(html).toContain('data-sort-key="clientId">Client</th>');
+  });
+
+  it('renders the resolved clientId as a code cell on each recent row', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    expect(html).toContain('kilo-code@1.2.3');
+    expect(html).toContain('continue@0.9.x');
+    expect(html).toContain('curl@8.10.1');
+  });
+
+  it('renders the literal "unknown" for entries without a clientId', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    // older entry (r3): no clientId -> the cell shows the literal
+    // `unknown` string. We assert it appears at least once as a
+    // standalone cell (one occurrence from the row, plus possibly
+    // the by-client panel).
+    const matches = html.match(/>\s*unknown\s*</g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('serializes clientId into the script-block recent array', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    // The in-script `recent` array must carry the per-row clientId
+    // so the client-side renderer can rebuild rows without losing
+    // the column after a search filter.
+    expect(html).toContain('"clientId":"kilo-code@1.2.3"');
+    expect(html).toContain('"clientId":"continue@0.9.x"');
+    expect(html).toContain('"clientId":"curl@8.10.1"');
+  });
+
+  it('coalesces undefined clientId to the literal "unknown" in the script', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    // The older entry (r3) without a clientId must serialize as the
+    // literal string, not the literal `undefined` or an empty value,
+    // otherwise the client renderer / sort logic would treat the
+    // column as missing for search hits.
+    expect(html).toContain('"clientId":"unknown"');
+  });
+
+  it('renders a "By client" panel with one row per clientId bucket', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    expect(html).toContain('id="panel-client"');
+    expect(html).toContain('id="client-tbody"');
+    // Each named client bucket is rendered as a <code> tag in the by-client tbody.
+    expect(html).toContain('<code title="Client identification parsed from the request">kilo-code@1.2.3</code>');
+    expect(html).toContain('<code title="Client identification parsed from the request">continue@0.9.x</code>');
+    expect(html).toContain('<code title="Client identification parsed from the request">curl@8.10.1</code>');
+  });
+
+  it('renders the "By client" panel as a friendly placeholder when no client data exists', () => {
+    const html = buildDashboardHtml(baseConfig(), emptySnapshot(), true);
+    expect(html).toContain('id="panel-client"');
+    expect(html).toContain('No client telemetry yet.');
+  });
+
+  it('wires clientId into the client-side search haystack', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    // The search-haystack builder must include the clientId field so
+    // a user can filter the recent table by typing "kilo-code" or
+    // "curl" and only see matching rows.
+    expect(html).toMatch(/entry\.clientId\s*\|\|\s*""/);
+  });
+
+  it('wires clientId into the client-side sort map', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
+    // Clicking the Client column header must cycle asc -> desc ->
+    // cleared; the sort key map has to include the `clientId` case
+    // so the cycle does not no-op on this column.
+    expect(html).toMatch(/case "clientId":\s*return entry\.clientId/);
   });
 });

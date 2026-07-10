@@ -158,8 +158,16 @@ function isValidSnapshot(value: unknown): value is TelemetrySnapshot {
     typeof candidate.totalTokens === "number" &&
     Array.isArray(candidate.recent) &&
     typeof candidate.byProvider === "object" &&
-    typeof candidate.byModel === "object"
+    typeof candidate.byModel === "object" &&
+    typeof candidate.byClient === "object"
   );
+}
+
+function normalizeSnapshot(snapshot: TelemetrySnapshot): TelemetrySnapshot {
+  if (!snapshot.byProvider) snapshot.byProvider = {};
+  if (!snapshot.byModel) snapshot.byModel = {};
+  if (!snapshot.byClient) snapshot.byClient = {};
+  return snapshot;
 }
 
 export interface TelemetryPersisterOptions {
@@ -320,7 +328,7 @@ function readDiskSnapshot(filePath: string): TelemetrySnapshot | undefined {
     logger.warn(`[Telemetry] Telemetry file at ${filePath} does not match the expected shape, ignoring.`);
     return undefined;
   }
-  return parsed;
+  return normalizeSnapshot(parsed);
 }
 
 function atomicWriteJson(filePath: string, payload: unknown): void {

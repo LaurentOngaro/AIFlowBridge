@@ -41,6 +41,7 @@ export function emptyTelemetrySnapshot(): TelemetrySnapshot {
     recent: [],
     byProvider: {},
     byModel: {},
+    byClient: {},
   };
 }
 
@@ -86,6 +87,15 @@ export function applyEntryToSnapshot(snapshot: TelemetrySnapshot, entry: Request
   const modelSnapshot = snapshot.byModel[entry.model] ?? emptyProviderSnapshot();
   updateProviderSnapshot(modelSnapshot, entry);
   snapshot.byModel[entry.model] = modelSnapshot;
+
+  // Aggregate per originating client. Undefined clientId (older
+  // snapshots) is bucketed under `'unknown'` so the dashboard always
+  // shows a coherent accounting. The bucket is empty only on truly
+  // empty snapshots, never on a snapshot that has recorded requests.
+  const clientKey = entry.clientId ?? 'unknown';
+  const clientSnapshot = snapshot.byClient[clientKey] ?? emptyProviderSnapshot();
+  updateProviderSnapshot(clientSnapshot, entry);
+  snapshot.byClient[clientKey] = clientSnapshot;
 }
 
 function safeCost(value: number): number {
@@ -178,6 +188,16 @@ export class TelemetryStore {
   private readonly recent: RequestTelemetry[] = [];
   private readonly byProvider = new Map<string, ProviderSnapshot>();
   private readonly byModel = new Map<string, ProviderSnapshot>();
+  /**
+   * Per-originating-client aggregates. Keyed by the resolved
+   * `clientId` (`kilocode@1.2.3`, `curl@8.x`, ...). Entries with
+   * missing `clientId` are bucketed under `'unknown'` so the
+   * dashboard can split anonymous traffic from named clients.
+   * Backwards-compatible: a `restore()` call from an older snapshot
+   * (no `byClient`) leaves the map empty, and the next `record()`
+   * call repopulates it.
+   */
+  private readonly byClient = new Map<string, ProviderSnapshot>();
   private totalRequests = 0;
   private totalPromptTokens = 0;
   private totalCompletionTokens = 0;
@@ -265,6 +285,11 @@ export class TelemetryStore {
     const modelSnapshot = this.byModel.get(entry.model) ?? emptyProviderSnapshot();
     updateProviderSnapshot(modelSnapshot, entry);
     this.byModel.set(entry.model, modelSnapshot);
+
+    const clientKey = entry.clientId ?? 'unknown';
+    const clientSnapshot = this.byClient.get(clientKey) ?? emptyProviderSnapshot();
+    updateProviderSnapshot(clientSnapshot, entry);
+    this.byClient.set(clientKey, clientSnapshot);
   }
 
   snapshot(): TelemetrySnapshot {
@@ -280,6 +305,7 @@ export class TelemetryStore {
       recent: [...this.recent].reverse(),
       byProvider: Object.fromEntries(this.byProvider.entries()),
       byModel: Object.fromEntries(this.byModel.entries()),
+      byClient: Object.fromEntries(this.byClient.entries()),
     };
   }
 
@@ -340,6 +366,15 @@ export class TelemetryStore {
     }
     for (const [model, snapshot] of Object.entries(state.byModel)) {
       this.byModel.set(model, { ...snapshot });
+    }
+    // Older on-disk snapshots (pre-`byClient`) leave the map empty.
+    // The next `record()` will repopulate it as requests come in, so
+    // a multi-window session upgrades gradually instead of dropping
+    // pre-existing totals.
+    if (state.byClient) {
+      for (const [client, snapshot] of Object.entries(state.byClient)) {
+        this.byClient.set(client, { ...snapshot });
+      }
     }
 
     // The snapshot stores `recent` in reverse-chronological order. Reverse
@@ -423,6 +458,7 @@ export class TelemetryStore {
     this.recent.length = 0;
     this.byProvider.clear();
     this.byModel.clear();
+    this.byClient.clear();
     this.p95Cache = undefined;
     this.totalRequests = 0;
     this.totalPromptTokens = 0;
@@ -493,6 +529,22 @@ export class TelemetryStore {
       }
       if (modelSnapshot.requests <= 0) {
         this.byModel.delete(entry.model);
+      }
+    }
+
+    const clientKey = entry.clientId ?? 'unknown';
+    const clientSnapshot = this.byClient.get(clientKey);
+    if (clientSnapshot) {
+      clientSnapshot.requests = Math.max(0, clientSnapshot.requests - 1);
+      clientSnapshot.promptTokens = Math.max(0, clientSnapshot.promptTokens - entry.promptTokens);
+      clientSnapshot.completionTokens = Math.max(0, clientSnapshot.completionTokens - entry.completionTokens);
+      clientSnapshot.totalTokens = Math.max(0, clientSnapshot.totalTokens - entry.totalTokens);
+      clientSnapshot.estimatedCost = Math.max(0, clientSnapshot.estimatedCost - entry.estimatedCost);
+      if (entry.status >= 400) {
+        clientSnapshot.errors = Math.max(0, clientSnapshot.errors - 1);
+      }
+      if (clientSnapshot.requests <= 0) {
+        this.byClient.delete(clientKey);
       }
     }
 

@@ -542,6 +542,13 @@ export class GatewayService {
   private async forwardChatCompletion(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestId = randomUUID();
     const startedAt = Date.now();
+    // Resolve the originating client once, up-front. The result is
+    // propagated to every `recordTelemetry()` call below (streaming
+    // finish, non-streaming, catch block) so all paths share the
+    // same bucket key. `null` is the sentinel for "no client header
+    // AND no User-Agent header"; downstream code coalesces it to the
+    // literal `'unknown'` string in the by-client aggregation.
+    const clientId = resolveClientId(request);
     // cheap pre-flight check. Reading the body is expensive
     // (10 MB cap, stream piping); we want to bail out with 429 before
     // burning a body-read on a request we are about to reject. The
@@ -734,7 +741,7 @@ export class GatewayService {
           }
           telemetryRecorded = true;
           const durationMs = Date.now() - startedAt;
-          this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated);
+          this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
           if (this.config.logRequests) {
             logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
           }
@@ -765,7 +772,7 @@ export class GatewayService {
 
         telemetryRecorded = true;
         const durationMs = Date.now() - startedAt;
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated);
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
         if (this.config.logRequests) {
           logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
         }
@@ -778,7 +785,7 @@ export class GatewayService {
       const durationMs = Date.now() - startedAt;
       if (!telemetryRecorded) {
         telemetryRecorded = true;
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, true);
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, true, clientId);
       }
 
       if (!response.headersSent) {
@@ -820,7 +827,8 @@ export class GatewayService {
     promptTokens: number,
     completionTokens: number,
     totalTokens: number,
-    estimated: boolean
+    estimated: boolean,
+    clientId: string | null
   ): void {
     if (!this.config.telemetryEnabled) {
       return;
@@ -848,6 +856,10 @@ export class GatewayService {
       totalTokens,
       estimatedCost,
       estimated,
+      // `null` keeps the snapshot schema optional (older on-disk files
+      // have no `clientId` field). The store / dashboard coalesce
+      // absent and null into the `'unknown'` bucket at read time.
+      clientId: clientId ?? undefined,
     };
 
     this.telemetry.record(entry);
@@ -863,6 +875,102 @@ export class GatewayService {
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
   return new URL(path, baseUrl).toString();
+}
+
+/**
+ * Best-effort normalization of a raw client identifier (from the
+ * `X-AIFlowBridge-Client` header, or from the `User-Agent` header)
+ * into a stable string suitable for a dashboard bucket key.
+ *
+ * Output shape: lowercase, hyphenated, optional `@version` suffix
+ * (`kilocode@1.2.3`, `curl@8.10.1`,
+ * `jetbrains-ai-assistant@2024.3`, `unknown`).
+ *
+ * Returns `null` when no stable identifier can be derived so the
+ * caller can coalesce on `null` -> `'unknown'` at the aggregation
+ * site.
+ */
+export function normalizeClientId(raw: string | undefined | null): string | null {
+  if (!raw) {
+    return null;
+  }
+  const trimmed = raw.trim().slice(0, 200);
+  if (!trimmed) {
+    return null;
+  }
+
+  // Preferred form: "Name/Version" at the start of the header. Matches
+  // the convention used by Kilo Code, Continue, JetBrains AI Assistant,
+  // curl, the OpenAI CLI, and most modern OpenAI-compatible IDE
+  // integrations: `<product>/<semver-or-letters>` optionally followed by
+  // parens or whitespace.
+  const productMatch = /^([A-Za-z][A-Za-z0-9._+\- ]*?)\/([A-Za-z0-9_.\-+]+)(?:[ (]|$)/.exec(trimmed);
+  if (productMatch) {
+    const name = productMatch[1]
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9_.\-]/g, '');
+    const version = productMatch[2];
+    if (name) {
+      const id = `${name}@${version}`;
+      return id.length > 128 ? id.slice(0, 128) : id;
+    }
+  }
+
+  // Fallback for headers that don't follow the "Name/Version" form
+  // (curl wget, raw telnet, an HTTP probe from an unknown client).
+  // Lowercases, hyphenates whitespace, and strips anything outside a
+  // small alphabet to prevent junk from polluting the by-client map.
+  const fallback = trimmed
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_.@\-]/g, '');
+  if (!fallback) {
+    return null;
+  }
+  return fallback.length > 128 ? fallback.slice(0, 128) : fallback;
+}
+
+/**
+ * Resolve the originating client identifier for a `/v1/chat/completions`
+ * request. The explicit `X-AIFlowBridge-Client` header wins when set;
+ * otherwise the request's `User-Agent` header is parsed. Returns
+ * `null` when neither header is present (loopback probes, health
+ * checks) - the caller treats `null` as the `'unknown'` bucket.
+ */
+export function resolveClientId(request: IncomingMessage): string | null {
+  const pickFirst = (values: string | string[] | undefined): string | undefined => {
+    if (Array.isArray(values)) {
+      for (const value of values) {
+        if (typeof value === 'string' && value.trim()) {
+          return value;
+        }
+      }
+      return undefined;
+    }
+    if (typeof values === 'string') {
+      return values;
+    }
+    return undefined;
+  };
+
+  const explicit = pickFirst(request.headers['x-aiflowbridge-client']);
+  if (explicit) {
+    const normalized = normalizeClientId(explicit);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const ua = pickFirst(request.headers['user-agent']);
+  if (ua) {
+    const normalized = normalizeClientId(ua);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
 }
 
 /**

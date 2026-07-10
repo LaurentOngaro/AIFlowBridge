@@ -558,6 +558,18 @@ export function buildDashboardHtml(
       </div>
     </div>
 
+    <div class="panel" id="panel-client">
+      <div class="panel-header">
+        <button type="button" class="collapse-btn" data-collapse-target="panel-client" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>By client</h2>
+        </button>
+      </div>
+      <div class="panel-body">
+        ${renderClientSummary(snapshot)}
+      </div>
+    </div>
+
     <div class="panel" id="panel-provider">
       <div class="panel-header">
         <button type="button" class="collapse-btn" data-collapse-target="panel-provider" aria-expanded="true" title="Toggle section">
@@ -635,7 +647,12 @@ export function buildDashboardHtml(
       // name is concatenated so it does not leak into the script source
       // for the no-remove-hook unit tests.
       const canRemove = document.querySelector("th." + "row-ac" + "tions-col") !== null;
-      const recentColspan = canRemove ? 9 : 8;
+      // The recent table now carries an extra "Client" column
+      // (item #1 of the ACTION PLAN). The colspan counts: status,
+      // date, provider, model, client, duration, tokens, cost,
+      // source = 8 in the no-remove path, +1 action column when
+      // present.
+      const recentColspan = canRemove ? 10 : 9;
       const byModel = ${serializeByModel(snapshot.byModel)};
       const byProvider = ${serializeByProvider(snapshot.byProvider)};
       const pricingMaps = ${serializePricingMaps(pricingMaps)};
@@ -703,14 +720,15 @@ export function buildDashboardHtml(
 
       // search filter. Case-insensitive substring match across
       // every textual / numeric field of the entry, so users can grep
-      // for a model name, a provider id, a status code, a token count,
-      // or a part of the ISO timestamp.
+      // for a model name, a provider id, a client id, a status code,
+      // a token count, or a part of the ISO timestamp.
       function entrySearchHaystack(entry) {
         const ts = new Date(entry.timestamp);
         return [
           entry.model,
           entry.providerId,
           entry.providerLabel,
+          entry.clientId || "",
           String(entry.status),
           entry.timestamp,
           isNaN(ts.getTime()) ? "" : ts.toLocaleString(),
@@ -782,12 +800,21 @@ export function buildDashboardHtml(
           const actionCell = canRemove
             ? '<td class="row-actions">' + trashBtn.replace('{id}', escapeHtml(entry.id)) + '</td>'
             : "";
+          // Mirror the server-side client cell: code tag for named
+          // clients, italic muted text for the unknown sentinel. The
+          // server coalesced missing values to the literal string
+          // unknown already (see serializeRecent); we only need to
+          // choose between the code element and the muted cell.
+          var clientCell = entry.clientId && entry.clientId !== "unknown"
+            ? '<code title="Client identification parsed from the request">' + escapeHtml(entry.clientId) + '</code>'
+            : '<span class="muted" title="No client identification on this request">unknown</span>';
           return '<tr>' +
             actionCell +
             '<td><span class="pill ' + statusClass + '">' + entry.status + '</span></td>' +
             '<td class="muted" title="' + escapeHtml(tsText) + '">' + escapeHtml(formatTime(ts)) + '</td>' +
             '<td>' + escapeHtml(entry.providerLabel) + '</td>' +
             '<td><code>' + escapeHtml(entry.model) + '</code></td>' +
+            '<td>' + clientCell + '</td>' +
             '<td>' + formatNumber(entry.durationMs) + ' ms</td>' +
             '<td>' + formatNumber(entry.totalTokens) + '</td>' +
             '<td>' + formatCostCell(entry.estimatedCost || 0, lookupPricing(entry)) + '</td>' +
@@ -870,6 +897,7 @@ export function buildDashboardHtml(
           case "status": return entry.status || 0;
           case "providerLabel": return entry.providerLabel || "";
           case "model": return entry.model || "";
+          case "clientId": return entry.clientId || "";
           case "durationMs": return entry.durationMs || 0;
           case "totalTokens": return entry.totalTokens || 0;
           case "estimatedCost": return entry.estimatedCost || 0;
@@ -1534,6 +1562,7 @@ function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps, ca
           <th class="sortable" data-sort-key="timestamp">Date</th>
           <th class="sortable" data-sort-key="providerLabel">Provider</th>
           <th class="sortable" data-sort-key="model">Model</th>
+          <th class="sortable" data-sort-key="clientId">Client</th>
           <th class="sortable" data-sort-key="durationMs">Duration</th>
           <th class="sortable" data-sort-key="totalTokens">Tokens</th>
           <th class="sortable" data-sort-key="estimatedCost">Est. cost</th>
@@ -1556,12 +1585,20 @@ function recentRow(entry: RequestTelemetry, pricing: PricingMaps, canRemove: boo
   const actionCell = canRemove
     ? `<td class="row-actions"><button class="delete-btn" data-remove-id="${escapeHtml(entry.id)}" title="Delete this request" aria-label="Delete this request"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg></button></td>`
     : '';
+  // `clientId` is optional: older entries (pre-this-feature) have no
+  // field. Display the literal `'unknown'` so the column never shows
+  // an empty cell - it doubles as a visual hint that the user's
+  // traffic pre-dates the client-aware gateway.
+  const clientCell = entry.clientId
+    ? `<code title="Client identification parsed from the request">${escapeHtml(entry.clientId)}</code>`
+    : `<span class="muted" title="No client identification on this request">unknown</span>`;
   return `<tr>
         ${actionCell}
         <td><span class="pill ${entry.status >= 400 ? 'warn' : 'ok'}">${entry.status}</span></td>
         <td class="muted">${escapeHtml(formatClock(entry.timestamp))}</td>
         <td>${escapeHtml(entry.providerLabel)}</td>
         <td><code>${escapeHtml(entry.model)}</code></td>
+        <td>${clientCell}</td>
         <td>${formatNumber(entry.durationMs)} ms</td>
         <td>${formatNumber(entry.totalTokens)}</td>
         <td>${formatCostCell(entry.estimatedCost, rate)}</td>
@@ -1650,6 +1687,53 @@ function modelRow(model: string, entry: ProviderSnapshot, pricing: PricingMaps):
       </tr>`;
 }
 
+// "By client" panel. Aggregates traffic per originating client
+// (Kilo Code / Continue / curl / JetBrains AI Assistant / ...).
+// Drops the per-row "Est. cost" column because clients have no
+// pricing profile: the `estimatedCost` field is still present on the
+// per-client snapshot but is only meaningful when correlated with a
+// per-call provider pricing (which lives on the by-provider /
+// by-model panels). Rendering it here would be misleading.
+function renderClientSummary(snapshot: TelemetrySnapshot): string {
+  const entries = Object.entries(snapshot.byClient);
+  if (entries.length === 0) {
+    return '<p class="muted">No client telemetry yet.</p>';
+  }
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Requests</th>
+          <th>Tokens</th>
+          <th>Avg duration</th>
+          <th>Errors</th>
+        </tr>
+      </thead>
+      <tbody id="client-tbody">
+        ${entries.map(([clientId, entry]) => clientRow(clientId, entry)).join('')}
+      </tbody>
+    </table>`;
+}
+
+function clientRow(clientId: string, entry: ProviderSnapshot): string {
+  // The `'unknown'` literal is the sentinel bucket for entries
+  // recorded without a usable client header (older records, loopback
+  // probes). Render it as italic muted text so it is visible in the
+  // table without blending into the named clients above it.
+  const isUnknown = clientId === 'unknown';
+  const nameCell = isUnknown
+    ? `<span class="muted">unknown</span>`
+    : `<code title="Client identification parsed from the request">${escapeHtml(clientId)}</code>`;
+  return `<tr>
+        <td>${nameCell}</td>
+        <td>${formatNumber(entry.requests)}</td>
+        <td>${formatNumber(entry.totalTokens)}</td>
+        <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
+        <td>${formatNumber(entry.errors)}</td>
+      </tr>`;
+}
+
 function serializeRecent(recent: readonly RequestTelemetry[]): string {
   return serializeForScript(
     recent.map((entry) => ({
@@ -1665,6 +1749,11 @@ function serializeRecent(recent: readonly RequestTelemetry[]): string {
       totalTokens: entry.totalTokens,
       estimatedCost: entry.estimatedCost,
       estimated: entry.estimated,
+      // Coalesce absent and explicit empty values to a literal
+      // `'unknown'` here so the client renderer does not have to
+      // special-case the undefined string ('') for row sorting or
+      // search matching.
+      clientId: entry.clientId ?? 'unknown',
     }))
   );
 }

@@ -16,7 +16,14 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
   - [x] actions #1, #2, #3 delivered (1.5.3 / 1.7.0);
   - [ ] actions #4-#13 remaining (OpenRouter, Ollama, CSV/JSON export, sponsors, failover, videos, Kilo/Continue contact, awesome-lists, articles, Reddit posts)
 
-### Bugs (last: BUG16)
+### Bugs (last: BUG17)
+
+- [ ] BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - some requests take 100+ s while siblings complete in 5-15 s, and the gateway logs `MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Socket].` See `_Private/ACTION PLAN.md` for the full diagnosis and implementation plan.
+  - [ ] Fix A: silence `MaxListenersExceededWarning` (one `socket.once('close', ...)` per physical socket, not per request) at `src/aiflowbridge/gateway/server.ts:262-267`
+  - [ ] Fix B: upstream idle-stream watchdog + total stream ceiling on the upstream `fetch()` at `src/aiflowbridge/gateway/server.ts:703-733`
+  - [ ] Fix C: skip the unconditional parallel `fetchMinimaxPromptTokens` pre-count on streaming MiniMax requests (self-inflicted upstream amplification) at `src/aiflowbridge/gateway/server.ts:693-700`
+  - [ ] Fix D (optional, addresses root cause at the gateway): per-provider concurrency semaphore + new setting `gateway.maxConcurrentPerProvider` (default 3)
+  - [ ] Fix E (optional, observability for downstream clients): forward HTTP 429 + `Retry-After` from the upstream on streaming responses
 
 ### Documentation (last: DOC04)
 

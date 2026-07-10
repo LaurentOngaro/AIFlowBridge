@@ -226,6 +226,17 @@ export interface RequestTelemetry {
   totalTokens: number;
   estimatedCost: number;
   estimated: boolean;
+  /**
+   * Stable identifier of the originating client (e.g.
+   * `kilocode@1.2.3`, `continue@0.9.x`, `curl@8.10.1`,
+   * `jetbrains-ai-assistant@2024.3`, `unknown`). Resolved from the
+   * `X-AIFlowBridge-Client` header when present, otherwise parsed
+   * from the request's `User-Agent` header, otherwise the literal
+   * string `'unknown'`. Optional for backward compatibility: older
+   * snapshots (recorded before this field was introduced) leave it
+   * `undefined`, and aggregations treat undefined as `'unknown'`.
+   */
+  clientId?: string;
 }
 
 export interface ProviderSnapshot {
@@ -250,4 +261,16 @@ export interface TelemetrySnapshot {
   recent: RequestTelemetry[];
   byProvider: Record<string, ProviderSnapshot>;
   byModel: Record<string, ProviderSnapshot>;
+  /**
+   * Per-originating-client aggregates (same shape as `byProvider` /
+   * `byModel`). The key is the resolved `clientId` (`kilocode@1.2.3`,
+   * `curl@8.x`, `unknown`, ...). Always present on a snapshot
+   * returned by `TelemetryStore.snapshot()`; older on-disk snapshots
+   * (recorded before this field was introduced) get an empty object
+   * on load. Surfaced on the dashboard as a "By client" summary
+   * panel so the user can spot whether their traffic comes from
+   * Continue, Kilo Code, JetBrains AI Assistant, a curl script, or
+   * the VS Code Copilot Chat path.
+   */
+  byClient: Record<string, ProviderSnapshot>;
 }
