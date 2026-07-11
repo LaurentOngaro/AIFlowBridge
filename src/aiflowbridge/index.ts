@@ -53,6 +53,37 @@ class AIFlowBridgeRuntime implements Disposable {
     };
   }
 
+  /**
+   * Record a request driven by VS Code Copilot Chat. Action plan
+   * item #6: routes the call through the gateway's TelemetryStore so
+   * Copilot Chat traffic lands in the same `byProvider` / `byModel` /
+   * `byClient` maps as gateway traffic, and gains a new `bySource`
+   * split (`'gateway'` vs `'copilot-chat'`).
+   *
+   * Safe to call before `activate()` (no-op when the gateway has
+   * not been built yet, e.g. when the activation lock is held by a
+   * peer activation - the unified provider is still constructed and
+   * would otherwise record into a void).
+   */
+  public recordFromCopilotChat(options: {
+    providerId: string;
+    providerLabel: string;
+    model: string;
+    status: number;
+    durationMs: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    estimatedCost?: number;
+    estimated?: boolean;
+    errorMessage?: string;
+  }): void {
+    if (!this.gateway) {
+      return;
+    }
+    this.gateway.recordFromCopilotChat(options);
+  }
+
   private loadPersistedTelemetry(): TelemetrySnapshot | undefined {
     // File is the source of truth. If the file does not exist
     // yet (e.g. first ever activation), still attempt the one-shot

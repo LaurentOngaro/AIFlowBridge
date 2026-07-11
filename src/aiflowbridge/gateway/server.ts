@@ -249,6 +249,33 @@ export class GatewayService {
     return this.telemetry.removeEntry(entryId);
   }
 
+  /**
+   * Record a request driven by VS Code Copilot Chat (the
+   * `vscode.lm.registerLanguageModelChatProvider` path). Routed to
+   * the same `TelemetryStore` instance that backs the gateway HTTP
+   * path so the dashboard reads Copilot Chat + gateway traffic from
+   * the same source.
+   *
+   * Action plan item #6: closes the historical blind spot in the
+   * metrics view where ~50% of usage (the Copilot Chat path) was
+   * invisible because the gateway only ever saw its own traffic.
+   */
+  recordFromCopilotChat(options: {
+    providerId: string;
+    providerLabel: string;
+    model: string;
+    status: number;
+    durationMs: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    estimatedCost?: number;
+    estimated?: boolean;
+    errorMessage?: string;
+  }): void {
+    this.telemetry.recordFromCopilotChat(options);
+  }
+
   async start(): Promise<GatewayStatus> {
     if (this.server) {
       return this.status();
@@ -971,7 +998,7 @@ export class GatewayService {
           const durationMs = Date.now() - startedAt;
           this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
           if (this.config.logRequests) {
-            logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
+            logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
           }
           this.emitUpdate();
         });
@@ -1002,7 +1029,7 @@ export class GatewayService {
         const durationMs = Date.now() - startedAt;
         this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
         if (this.config.logRequests) {
-          logger.info(`[Gateway] ${requestId} ${provider.id} ${statusCode} ${durationMs}ms`);
+          logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
         }
       }
       // Avoid the unused-binding lint: ttfbMs is captured here purely
@@ -1142,6 +1169,56 @@ export class GatewayService {
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
   return new URL(path, baseUrl).toString();
+}
+
+/**
+ * Format the "request completed" log line for the gateway. The
+ * standalone CLI prints this line on every `/v1/chat/completions`
+ * (when `gateway.telemetry.logRequests = true`) and the line shows
+ * up in the user's console without a date / time prefix today, which
+ * makes the per-request tail latency (BUG17) hard to correlate with
+ * wall-clock spikes. We prepend a local-time `YYYY-MM-DD HH:MM:SS`
+ * stamp so the line is directly greppable: the `LogOutputChannel`
+ * shim already adds the `[INFO]  ` level prefix (see
+ * `src/standalone/vscode-shim.ts`), and the `[Gateway] ...` payload
+ * stays unchanged so the existing log-grep workflows keep working.
+ *
+ * The timestamp is captured at the call site (not the read site) so
+ * it reflects when the request finished, not when the line was
+ * written to the channel.
+ *
+ * Exported for unit testing - the format is part of the user-facing
+ * log contract (people grep on it), so a regression here is a
+ * user-visible regression.
+ */
+export function formatRequestLogLine(
+  requestId: string,
+  providerId: string,
+  status: number,
+  durationMs: number,
+  now: Date = new Date(),
+): string {
+  const stamp = formatLocalTimestamp(now);
+  return `[${stamp}] [Gateway] ${requestId} ${providerId} ${status} ${durationMs}ms`;
+}
+
+/**
+ * Format a `Date` as a fixed-width `YYYY-MM-DD HH:MM:SS` local
+ * timestamp. The helper is intentionally not locale-aware
+ * (no `toLocaleString`, no Intl): the line must be greppable
+ * across machines, time zones, and locales, and the explicit
+ * component-by-component formatting is the only way to guarantee
+ * that. Seconds resolution is enough for request-correlated
+ * logging (sub-second precision would be noise at 100 ms+ latency).
+ *
+ * Exported for unit testing.
+ */
+export function formatLocalTimestamp(date: Date): string {
+  const pad = (n: number): string => n.toString().padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  );
 }
 
 /**

@@ -16,8 +16,9 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
   - [x] actions #1, #2, #3 delivered (1.5.3 / 1.7.0);
   - [ ] actions #4-#13 remaining (OpenRouter, Ollama, CSV/JSON export, sponsors, failover, videos, Kilo/Continue contact, awesome-lists, articles, Reddit posts)
 
-### Bugs (last: BUG17)
+### Bugs (last: BUG18)
 
+- [x] BUG18: [2.6.0 wiped the dashboard for users upgrading from a version pre-2.5.0](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.6.1. `isValidSnapshot()` required every per-bucket map (`byClient` added in 2.5.0, `bySource` added in 2.6.0) to be a present object, so a 2.4.x on-disk file (no `byClient`) was rejected as "does not match the expected shape, ignoring" and the cumulative counters were silently wiped. Fix: per-bucket maps are now optional in the validator (`value === undefined || typeof value === "object"`); `normalizeSnapshot()` also defaults `bySource` to `{}`. Two regression tests in `tests/telemetry-persistence.test.ts` cover the pre-2.5.0 and post-2.5.0 pre-2.6.0 on-disk shapes.
 - [x] BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.5.1 (A+B+C+D scope). Fix A silences the `MaxListenersExceededWarning`; B adds upstream idle + total stream timeouts (HTTP 504 instead of indefinite standby); C removes the self-inflicted parallel pre-count on streaming MiniMax requests; D adds the per-provider concurrency semaphore. See `_Private/ACTION PLAN.md` for the full implementation summary.
   - [x] Fix A: silence `MaxListenersExceededWarning` (one `socket.once('close', ...)` per physical socket via `WeakSet<Socket>`, not per request) at `src/aiflowbridge/gateway/server.ts:262-280`
   - [x] Fix B: upstream idle-stream watchdog (default 90 s, `gateway.upstreamIdleTimeoutMs`) + total stream ceiling (default 300 s, `gateway.streamTotalTimeoutMs`) on the upstream `fetch()`; surfaces HTTP 504 to the client instead of indefinite standby
@@ -43,8 +44,8 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
 ### Features (last: FEAT10)
 
 - [ ] FEAT10: Pair programming / multi-IDE / multi-language improvements (see `_Private/ACTION PLAN.md`)
-  - [ ] Per-client IDE telemetry (multi-IDE visibility) - see action plan item 1
-  - [ ] Bridge Copilot Chat path into TelemetryStore (pair-prog visibility) - see action plan item 6
+  - [x] Per-client IDE telemetry (multi-IDE visibility) - shipped in 2.5.0 (item 1)
+  - [x] Bridge Copilot Chat path into TelemetryStore (pair-prog visibility) - shipped in 2.6.0 (item 6)
   - [ ] Workspace context injection (multi-language quality) - see action plan item 2
   - [ ] Language-based model routing rules (multi-language) - see action plan item 5
   - [ ] Zero-conf discovery (mDNS or UDP broadcast) - see action plan item 4
@@ -89,6 +90,19 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 2.6.1 (Hotfix: 2.6.0 wiped the dashboard for pre-2.5.0 users)
+
+- **BUG18 - 2.6.0 wiped the dashboard for users upgrading from a version pre-2.5.0.** `isValidSnapshot()` in `src/aiflowbridge/telemetry/persistence.ts` previously required every per-bucket map to be a present object: `typeof candidate.byProvider === "object"`, `typeof candidate.byModel === "object"`, `typeof candidate.byClient === "object"`. A user upgrading from 2.4.x (where `byClient` did not exist in the on-disk shape) had the file rejected as "does not match the expected shape, ignoring", and the cumulative counters (which the user had built up over months) were silently wiped because the in-memory `TelemetryStore` started from `emptyTelemetrySnapshot()` and the very next `record()` overwrote the rejected file. Fix: the three per-bucket maps are now treated as optional in the validator (`value === undefined || typeof value === "object"`), matching the optional shape they already have in the `TelemetrySnapshot` interface. `normalizeSnapshot()` now also defaults `bySource` to `{}` so the in-memory state matches the on-disk shape after `restore()`. Two new regression tests in `tests/telemetry-persistence.test.ts` cover the pre-2.5.0 shape (no `byClient`, no `bySource`, legacy entry with no `source` field) and the post-2.5.0 pre-2.6.0 shape (`byClient: {}` present, `bySource` absent).
+- Quality gates: `npm run compile` (0 errors), `npm run compile:standalone` (0 errors), `npm test` (721/721 across 40 files, was 719/40 in 2.6.0, +2).
+
+### 2.6.0 (Bridge Copilot Chat path into TelemetryStore + dashboard By source panel + per-request log timestamp)
+
+- **FEAT6 (item 6 of the action plan).** `UnifiedChatProvider.provideLanguageModelChatResponse` now wraps every Copilot Chat call (success and error) with a `TelemetryStore.recordFromCopilotChat()` call. A new `CopilotChatTelemetrySink` interface is wired in `lifecycle.ts` after the runtime builds its `TelemetryStore`, so Copilot Chat traffic lands in the same `byProvider` / `byModel` / `byClient` maps as gateway traffic and gains a new `bySource` split (`'gateway'` vs `'copilot-chat'`). Pure additive change to the `TelemetrySnapshot` schema (the `source` field on `RequestTelemetry` and the `bySource` field on `TelemetrySnapshot` are both optional, defaulting to `'gateway'` and `{}` respectively, so older on-disk snapshots load unchanged and the next `record()` call repopulates the new aggregation as requests come in). The wrap is best-effort: a throw inside the sink (telemetry broken) never breaks the upstream pipeline, and a missing sink (runtime not yet built, e.g. when the activation lock is held by a peer activation) is a no-op. Errors are classified into HTTP-ish status codes (e.g. a `ProviderRequestError` carrying `status: 502` from a MiniMax upstream is recorded as 502; anything else lands as 500) so the dashboard's "errors" counter and per-source status breakdown stay meaningful. New public methods: `GatewayService.recordFromCopilotChat(options)`, `AIFlowBridgeRuntime.recordFromCopilotChat(options)`, `UnifiedChatProvider.setTelemetrySink(sink)`, `TelemetryStore.recordFromCopilotChat(options)`.
+- **Dashboard `By source` panel + sortable `Path` column.** New panel between "By client" and "Provider summary" with a table (`Source | Requests | Tokens | Avg duration | Errors`) showing the gateway vs copilot-chat split at a glance. New sortable `Path` column on the Recent requests table (data-sort-key `source`). Existing `Token source` column (estimated vs usage) renamed from the previous `Source` column to free up the term - the `data-sort-key` stays `estimated` so the sort behaviour and existing tests are unchanged. Search haystack extended with the entry's `source` value. Recent table colspan bumped from 9 / 10 to 10 / 11. Collapse / chevron wiring extended to the new panel.
+- **Per-request log line carries a local-time `YYYY-MM-DD HH:MM:SS` stamp.** The standalone CLI was missing any date / time on the per-request `[INFO]  [Gateway] ...` line, which made the BUG17 tail-latency investigation hard to correlate with wall-clock spikes. New `formatRequestLogLine()` + `formatLocalTimestamp()` helpers in `src/aiflowbridge/gateway/server.ts` prepend a fixed-width `YYYY-MM-DD HH:MM:SS` stamp (local time, no millisecond noise, locale-independent so the line is greppable across machines and time zones). The line now reads `[INFO]  [2026-07-11 11:04:41] [Gateway] 99929fbd-9ab1-485c-993f-01b7acf85ff5 MiniMax-M3 200 3642ms`. The payload after `[Gateway]` is unchanged so existing log-grep workflows keep working.
+- `tests/copilot-chat-telemetry.test.ts` (16 tests) + `tests/gateway-log-format.test.ts` (8 tests) + 3 dashboard tests updated.
+- Quality gates: `npm run compile` (0 errors), `npm run compile:standalone` (0 errors), `npm test` (719/719 across 40 files, was 695/38 in 2.5.1, +24).
 
 ### 2.4.3 (Standalone release artifact completeness guard + missing runtime metadata)
 

@@ -122,6 +122,66 @@
       "dependsOn": "npm: watch",
       "dependsOrder": "sequence",
       "problemMatcher": []
+    },
+    {
+      "label": "Publish AIFlowBridge (Stable)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/_helpers/Publish-AIFlowBridge.ps1",
+        "-Quality",
+        "stable",
+        "-AllProfiles"
+      ],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Publish AIFlowBridge (Insiders)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/_helpers/Publish-AIFlowBridge.ps1",
+        "-Quality",
+        "insiders",
+        "-AllProfiles"
+      ],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Update Standalone Server",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/_helpers/UpdateStandAloneServer.ps1"
+      ],
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
     }
   ],
   "inputs": [

@@ -570,6 +570,18 @@ export function buildDashboardHtml(
       </div>
     </div>
 
+    <div class="panel" id="panel-source">
+      <div class="panel-header">
+        <button type="button" class="collapse-btn" data-collapse-target="panel-source" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>By source</h2>
+        </button>
+      </div>
+      <div class="panel-body">
+        ${renderSourceSummary(snapshot)}
+      </div>
+    </div>
+
     <div class="panel" id="panel-provider">
       <div class="panel-header">
         <button type="button" class="collapse-btn" data-collapse-target="panel-provider" aria-expanded="true" title="Toggle section">
@@ -647,12 +659,12 @@ export function buildDashboardHtml(
       // name is concatenated so it does not leak into the script source
       // for the no-remove-hook unit tests.
       const canRemove = document.querySelector("th." + "row-ac" + "tions-col") !== null;
-      // The recent table now carries an extra "Client" column
-      // (item #1 of the ACTION PLAN). The colspan counts: status,
+      // The recent table now carries "Client" (item #1) and
+      // "Path" (item #6) columns. The colspan counts: status,
       // date, provider, model, client, duration, tokens, cost,
-      // source = 8 in the no-remove path, +1 action column when
-      // present.
-      const recentColspan = canRemove ? 10 : 9;
+      // token source, path = 10 in the no-remove path, +1 action
+      // column when present.
+      const recentColspan = canRemove ? 11 : 10;
       const byModel = ${serializeByModel(snapshot.byModel)};
       const byProvider = ${serializeByProvider(snapshot.byProvider)};
       const pricingMaps = ${serializePricingMaps(pricingMaps)};
@@ -738,6 +750,11 @@ export function buildDashboardHtml(
           String(entry.completionTokens),
           String(entry.estimatedCost || 0),
           entry.estimated ? "estimated usage" : "exact usage",
+          // Add the request 'source' ('gateway' / 'copilot-chat')
+          // to the search haystack so a user typing 'copilot'
+          // filters down to Copilot Chat traffic. Action plan
+          // item #6.
+          entry.source || "gateway",
         ].join(" ").toLowerCase();
       }
       function matchesSearch(entry, needle) {
@@ -819,6 +836,7 @@ export function buildDashboardHtml(
             '<td>' + formatNumber(entry.totalTokens) + '</td>' +
             '<td>' + formatCostCell(entry.estimatedCost || 0, lookupPricing(entry)) + '</td>' +
             '<td>' + (entry.estimated ? "estimated" : "usage") + '</td>' +
+            '<td>' + (entry.source === "copilot-chat" ? '<code title="Driven by VS Code Copilot Chat (vscode.lm API)">copilot-chat</code>' : "gateway") + '</td>' +
           '</tr>';
         }).join("");
       }
@@ -902,6 +920,10 @@ export function buildDashboardHtml(
           case "totalTokens": return entry.totalTokens || 0;
           case "estimatedCost": return entry.estimatedCost || 0;
           case "estimated": return entry.estimated ? "estimated" : "usage";
+          // Action plan item #6: the new 'Path' column is sortable
+          // by 'source'. Coalesce absent to 'gateway' so older
+          // entries do not sort to the top by default.
+          case "source": return entry.source || "gateway";
           default: return "";
         }
       }
@@ -1566,7 +1588,8 @@ function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps, ca
           <th class="sortable" data-sort-key="durationMs">Duration</th>
           <th class="sortable" data-sort-key="totalTokens">Tokens</th>
           <th class="sortable" data-sort-key="estimatedCost">Est. cost</th>
-          <th class="sortable" data-sort-key="estimated">Source</th>
+          <th class="sortable" data-sort-key="estimated">Token source</th>
+          <th class="sortable" data-sort-key="source">Path</th>
         </tr>
       </thead>
       <tbody id="recent-tbody">
@@ -1603,6 +1626,7 @@ function recentRow(entry: RequestTelemetry, pricing: PricingMaps, canRemove: boo
         <td>${formatNumber(entry.totalTokens)}</td>
         <td>${formatCostCell(entry.estimatedCost, rate)}</td>
         <td>${entry.estimated ? 'estimated' : 'usage'}</td>
+        <td>${formatSourceCell(entry.source)}</td>
       </tr>`;
 }
 
@@ -1734,6 +1758,69 @@ function clientRow(clientId: string, entry: ProviderSnapshot): string {
       </tr>`;
 }
 
+// "By source" panel. Aggregates traffic per originating AIFlowBridge
+// path (`gateway` for `/v1/chat/completions` requests, `copilot-chat`
+// for `vscode.lm` requests served through `UnifiedChatProvider`).
+// Closes the historical blind spot where ~50% of usage (the Copilot
+// Chat path) was invisible in the dashboard. Older on-disk snapshots
+// (recorded before `bySource` existed) leave the map empty; entries
+// are coalesced to the `'gateway'` bucket on read so a single session
+// upgrade is coherent from the first request.
+function renderSourceSummary(snapshot: TelemetrySnapshot): string {
+  const entries = Object.entries(snapshot.bySource ?? {});
+  if (entries.length === 0) {
+    return '<p class="muted">No source telemetry yet.</p>';
+  }
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Requests</th>
+          <th>Tokens</th>
+          <th>Avg duration</th>
+          <th>Errors</th>
+        </tr>
+      </thead>
+      <tbody id="source-tbody">
+        ${entries.map(([source, entry]) => sourceRow(source, entry)).join('')}
+      </tbody>
+    </table>`;
+}
+
+function sourceRow(source: string, entry: ProviderSnapshot): string {
+  // The `'gateway'` literal is the default for entries recorded
+  // before `source` was added (every entry went through the
+  // gateway). Render it as plain text. `'copilot-chat'` is shown
+  // inside a <code> tag so it matches the model / provider / client
+  // naming convention elsewhere on the dashboard.
+  const isGateway = source === 'gateway';
+  const nameCell = isGateway
+    ? 'gateway'
+    : `<code title="Origin of the request inside the AIFlowBridge process">${escapeHtml(source)}</code>`;
+  return `<tr>
+        <td>${nameCell}</td>
+        <td>${formatNumber(entry.requests)}</td>
+        <td>${formatNumber(entry.totalTokens)}</td>
+        <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
+        <td>${formatNumber(entry.errors)}</td>
+      </tr>`;
+}
+
+// Format the `source` field of a `RequestTelemetry` as a short,
+// human-friendly cell for the Recent table. Coalesces absent to
+// `'gateway'` (the historical default) so older entries do not show
+// an empty cell. Copilot Chat entries get a small visual hint via
+// the <code> tag so they stand out from the plain-text gateway
+// rows.
+function formatSourceCell(source: string | undefined): string {
+  const resolved = source ?? 'gateway';
+  if (resolved === 'copilot-chat') {
+    return `<code title="Driven by VS Code Copilot Chat (vscode.lm API)">${resolved}</code>`;
+  }
+  return 'gateway';
+}
+
 function serializeRecent(recent: readonly RequestTelemetry[]): string {
   return serializeForScript(
     recent.map((entry) => ({
@@ -1754,6 +1841,13 @@ function serializeRecent(recent: readonly RequestTelemetry[]): string {
       // special-case the undefined string ('') for row sorting or
       // search matching.
       clientId: entry.clientId ?? 'unknown',
+      // Same coalesce for the new `source` field (action plan item
+      // #6). Older entries have no `source` field; default to
+      // `'gateway'` because every pre-this-feature entry went
+      // through the gateway. The dashboard Recent cell, the search
+      // haystack, and the sort comparator all use this normalised
+      // value.
+      source: entry.source ?? 'gateway',
     }))
   );
 }

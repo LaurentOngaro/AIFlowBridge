@@ -153,13 +153,19 @@ function isValidSnapshot(value: unknown): value is TelemetrySnapshot {
     return false;
   }
   const candidate = value as Partial<TelemetrySnapshot>;
+  // `byClient` was added in 2.5.0 and `bySource` in 2.6.0; both are
+  // optional in the snapshot schema. Older on-disk files written by
+  // pre-2.5.0 versions do not include them, and rejecting the file
+  // would wipe the user's cumulative counters (BUG18). Treat the
+  // per-bucket maps as optional: missing / `undefined` is OK,
+  // `normalizeSnapshot` fills in empty objects on the way out.
   return (
     typeof candidate.requests === "number" &&
     typeof candidate.totalTokens === "number" &&
     Array.isArray(candidate.recent) &&
-    typeof candidate.byProvider === "object" &&
-    typeof candidate.byModel === "object" &&
-    typeof candidate.byClient === "object"
+    (candidate.byProvider === undefined || typeof candidate.byProvider === "object") &&
+    (candidate.byModel === undefined || typeof candidate.byModel === "object") &&
+    (candidate.byClient === undefined || typeof candidate.byClient === "object")
   );
 }
 
@@ -167,6 +173,7 @@ function normalizeSnapshot(snapshot: TelemetrySnapshot): TelemetrySnapshot {
   if (!snapshot.byProvider) snapshot.byProvider = {};
   if (!snapshot.byModel) snapshot.byModel = {};
   if (!snapshot.byClient) snapshot.byClient = {};
+  if (!snapshot.bySource) snapshot.bySource = {};
   return snapshot;
 }
 

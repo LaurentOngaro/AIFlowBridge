@@ -333,28 +333,31 @@ describe('buildDashboardHtml', () => {
     expect(dashCount).toBeGreaterThanOrEqual(3);
   });
 
-  it('expands the colspan of the empty-state row in the recent table to 9 columns (no remove hook)', () => {
+  it('expands the colspan of the empty-state row in the recent table to 10 columns (no remove hook)', () => {
     const html = buildDashboardHtml(baseConfig(), emptySnapshot(), true);
     // When no `onRemoveEntry` hook is supplied, the action column is
     // not rendered server-side, so the client-side colspan falls back
-    // to 9. The script block builds the value dynamically through
-    // `recentColspan` so it can switch to 10 when the trash column is
-    // present (see the next test).
-    expect(html).toContain('recentColspan = canRemove ? 10 : 9');
+    // to 10 (9 data columns + 1 action column placeholder kept in
+    // sync by the dynamic `recentColspan` expression). Bumped from
+    // 9 to 10 by action plan item #6 to account for the new "Path"
+    // column (source of the request inside the AIFlowBridge
+    // process: `gateway` or `copilot-chat`).
+    expect(html).toContain('recentColspan = canRemove ? 11 : 10');
     expect(html).toContain("'<tr><td colspan=\"' + recentColspan + '\"");
   });
 
-  it('expands the colspan of the empty-state row in the recent table to 10 columns (with remove hook)', () => {
+  it('expands the colspan of the empty-state row in the recent table to 11 columns (with remove hook)', () => {
     // When the caller supplies an onRemoveEntry hook, the action column
     // is rendered server-side (the th.row-actions-col marker), and the
     // client mirrors that with canRemove = true. The dynamic colspan
-    // expression resolves to 9 at runtime. Use a non-empty snapshot
-    // because the table itself is not rendered when `recent` is empty
-    // (the panel shows a muted "No request recorded yet." paragraph
-    // instead).
+    // expression resolves to 11 at runtime (10 data columns + 1
+    // action column). Use a non-empty snapshot because the table
+    // itself is not rendered when `recent` is empty (the panel shows
+    // a muted "No request recorded yet." paragraph instead). Bumped
+    // from 10 to 11 by action plan item #6 (new "Path" column).
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {}, () => true);
     expect(html).toContain('<th class="row-actions-col"');
-    expect(html).toContain('canRemove ? 10 : 9');
+    expect(html).toContain('canRemove ? 11 : 10');
   });
 
   it('serializes estimatedCost into the recent array used by the client-side filter', () => {
@@ -395,6 +398,10 @@ describe('buildDashboardHtml', () => {
       'data-collapse-target="panel-recent"',
       'data-collapse-target="panel-model"',
       'data-collapse-target="panel-provider"',
+      // Action plan item #6: new "By source" panel (gateway vs
+      // copilot-chat split). It needs the same collapse / chevron
+      // wiring as the other panels so the user can hide it.
+      'data-collapse-target="panel-source"',
     ];
     for (const target of expectedTargets) {
       expect(html).toContain(target);
@@ -407,8 +414,10 @@ describe('buildDashboardHtml', () => {
   it('wraps each panel body in a.panel-body div so the collapse rule can hide it', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const bodies = html.match(/<div class="panel-body">/g) ?? [];
-    // Gateway / Recent / By model / By client / Provider summary = 5
-    expect(bodies.length).toBe(5);
+    // Gateway / Recent / By model / By client / By source /
+    // Provider summary = 6 (was 5; "By source" added by action
+    // plan item #6).
+    expect(bodies.length).toBe(6);
   });
 
   it('contains the collapse toggle JS handler that reads / writes localStorage', () => {

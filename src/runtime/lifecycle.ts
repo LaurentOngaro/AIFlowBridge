@@ -10,10 +10,11 @@ import { DeepSeekChatProvider } from '../provider';
 import { registerActionUrls } from './actions';
 import { registerCommands } from './commands';
 import { initializeDiagnostics } from './diagnostics';
-import { registerAllProviders, type RegisteredProvider } from './provider';
+import { registerAllProviders, type RegisteredProvider, type RegisteredProviders } from './provider';
 import { showWelcomeIfNeeded } from './welcome';
 
-let activeProviders: RegisteredProvider[] = [];
+let activeProviders: RegisteredProviders | undefined;
+let perVendorProviders: RegisteredProvider[] = [];
 let deepseekProvider: DeepSeekChatProvider | undefined;
 let gatewayLock: GatewayLockHandle | null = null;
 let ownsGatewayLock = false;
@@ -63,7 +64,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   try {
     activeProviders = await registerAllProviders(context);
-    deepseekProvider = activeProviders.find((p) => p.name === 'deepseek')?.provider as DeepSeekChatProvider;
+    perVendorProviders = activeProviders.perVendor;
+    deepseekProvider = perVendorProviders.find((p) => p.name === 'deepseek')?.provider as DeepSeekChatProvider;
 
     if (deepseekProvider) {
       void showWelcomeIfNeeded(context, deepseekProvider).catch((error) => {
@@ -77,6 +79,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (ownsGatewayLock) {
       aiflowbridgeRuntime = new AIFlowBridgeRuntime(gatewayContext);
       await aiflowbridgeRuntime.activate();
+      // Action plan item #6: wire the unified provider's Copilot
+      // Chat telemetry sink now that the runtime has built its
+      // `TelemetryStore`. The sink is a thin closure over
+      // `runtime.recordFromCopilotChat()` so the provider keeps no
+      // reference to the runtime / store. When the activation lock
+      // is held by a peer (no runtime locally), the sink is wired
+      // to a no-op so the provider keeps working in standalone
+      // mode without recording.
+      const runtime = aiflowbridgeRuntime;
+      activeProviders.unified.setTelemetrySink({
+        recordFromCopilotChat: (options) => runtime.recordFromCopilotChat(options),
+      });
     } else {
       logger.info('[AIFlowBridge] Skipping gateway start (lock not owned). The holding activation will own the gateway for this session.');
     }
@@ -93,13 +107,14 @@ export async function deactivate(): Promise<void> {
   try {
     await aiflowbridgeRuntime?.deactivate();
     aiflowbridgeRuntime = undefined;
-    for (const { provider } of activeProviders) {
+    for (const { provider } of perVendorProviders) {
       await provider.prepareForDeactivate();
     }
   } catch (error) {
     logger.warn(t('extension.deactivateFailed'), error);
   } finally {
-    activeProviders = [];
+    activeProviders = undefined;
+    perVendorProviders = [];
     deepseekProvider = undefined;
     releaseGatewayLock(gatewayLock);
     gatewayLock = null;

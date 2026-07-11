@@ -212,6 +212,85 @@ describe("TelemetryPersister.loadSync", () => {
 		writeFileSync(filePath, JSON.stringify({ unrelated: true }), "utf8");
 		expect(persister.loadSync()).toBeUndefined();
 	});
+
+	// BUG18 regression: a 2.6.0 / 2.5.1 user upgrading from a version
+	// pre-2.5.0 had their `telemetry.json` rejected by the validator
+	// because the old files do not include `byClient` (added in
+	// 2.5.0) or `bySource` (added in 2.6.0). The validator must
+	// treat the per-bucket maps as optional so historical counters
+	// are not wiped on every schema extension. `normalizeSnapshot`
+	// fills in empty objects on the way out.
+	it("accepts a pre-2.5.0 on-disk snapshot (no byClient, no bySource)", () => {
+		const legacyShape = {
+			requests: 42,
+			promptTokens: 1000,
+			completionTokens: 500,
+			totalTokens: 1500,
+			estimatedCost: 0.01,
+			errors: 0,
+			averageDurationMs: 1200,
+			p95DurationMs: 3500,
+			recent: [
+				{
+					id: "legacy-1",
+					timestamp: "2026-06-01T00:00:00.000Z",
+					providerId: "minimax",
+					providerLabel: "MiniMax",
+					model: "MiniMax-M3",
+					status: 200,
+					durationMs: 1200,
+					promptTokens: 1000,
+					completionTokens: 500,
+					totalTokens: 1500,
+					estimatedCost: 0.01,
+					estimated: false,
+					// NO `source` field, NO `clientId` field - this is
+					// exactly the shape a 2.4.x on-disk file would
+					// have on upgrade to 2.5.x / 2.6.0.
+				},
+			],
+			byProvider: { minimax: { requests: 1, promptTokens: 1000, completionTokens: 500, totalTokens: 1500, estimatedCost: 0.01, errors: 0, averageDurationMs: 1200 } },
+			byModel: { "MiniMax-M3": { requests: 1, promptTokens: 1000, completionTokens: 500, totalTokens: 1500, estimatedCost: 0.01, errors: 0, averageDurationMs: 1200 } },
+			// NO `byClient` - the pre-2.5.0 file shape.
+			// NO `bySource` - the pre-2.6.0 file shape.
+		};
+		writeFileSync(filePath, JSON.stringify(legacyShape), "utf8");
+		const loaded = persister.loadSync();
+		expect(loaded).toBeDefined();
+		expect(loaded?.requests).toBe(42);
+		expect(loaded?.totalTokens).toBe(1500);
+		// The new optional fields are filled in with empty maps so
+		// downstream code (dashboard, applyEntryToSnapshot) does
+		// not have to special-case `undefined`.
+		expect(loaded?.byClient).toEqual({});
+		expect(loaded?.bySource).toEqual({});
+		// The legacy entry survives verbatim.
+		expect(loaded?.recent).toHaveLength(1);
+		expect(loaded?.recent[0]?.id).toBe("legacy-1");
+	});
+
+	it("accepts a snapshot where the per-bucket maps are present but empty (post-2.5.0 pre-2.6.0)", () => {
+		const midShape = {
+			requests: 5,
+			promptTokens: 100,
+			completionTokens: 50,
+			totalTokens: 150,
+			estimatedCost: 0,
+			errors: 0,
+			averageDurationMs: 100,
+			p95DurationMs: 100,
+			recent: [],
+			byProvider: {},
+			byModel: {},
+			byClient: {}, // 2.5.0+ adds it
+			// NO bySource (2.6.0+)
+		};
+		writeFileSync(filePath, JSON.stringify(midShape), "utf8");
+		const loaded = persister.loadSync();
+		expect(loaded).toBeDefined();
+		expect(loaded?.byClient).toEqual({});
+		expect(loaded?.bySource).toEqual({});
+	});
 });
 
 describe("TelemetryPersister.appendDelta", () => {

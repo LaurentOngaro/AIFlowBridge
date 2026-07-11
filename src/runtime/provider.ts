@@ -10,19 +10,37 @@ export interface RegisteredProvider {
 	provider: DeepSeekChatProvider | MiniMaxChatProvider | XiaomiChatProvider;
 }
 
+export interface RegisteredProviders {
+	/**
+	 * One entry per underlying vendor. Mirrors the historical
+	 * return type of `registerAllProviders(context)` so callers
+	 * that only care about per-vendor providers (e.g. the welcome
+	 * prompt) keep working unchanged.
+	 */
+	perVendor: RegisteredProvider[];
+	/**
+	 * The single unified provider registered under the
+	 * `'aiflowbridge'` vendor via
+	 * `vscode.lm.registerLanguageModelChatProvider`. Exposed so the
+	 * runtime can wire a telemetry sink for Copilot Chat traffic
+	 * once the `TelemetryStore` is built (action plan item #6).
+	 */
+	unified: UnifiedChatProvider;
+}
+
 export async function registerAllProviders(
 	context: vscode.ExtensionContext,
-): Promise<RegisteredProvider[]> {
-	const providers: RegisteredProvider[] = [];
+): Promise<RegisteredProviders> {
+	const perVendor: RegisteredProvider[] = [];
 
 	const deepseekProvider = new DeepSeekChatProvider(context);
-	providers.push({ name: 'deepseek', provider: deepseekProvider });
+	perVendor.push({ name: 'deepseek', provider: deepseekProvider });
 
 	const minimaxProvider = new MiniMaxChatProvider(context);
-	providers.push({ name: 'minimax', provider: minimaxProvider });
+	perVendor.push({ name: 'minimax', provider: minimaxProvider });
 
 	const xiaomiProvider = new XiaomiChatProvider(context);
-	providers.push({ name: 'xiaomi', provider: xiaomiProvider });
+	perVendor.push({ name: 'xiaomi', provider: xiaomiProvider });
 
 	// Single unified provider registered under 'aiflowbridge' vendor
 	const unifiedProvider = new UnifiedChatProvider([
@@ -66,7 +84,7 @@ export async function registerAllProviders(
 	minimaxProvider.refreshModelPicker();
 	xiaomiProvider.refreshModelPicker();
 
-	return providers;
+	return { perVendor, unified: unifiedProvider };
 }
 
 async function activateCopilotChat(): Promise<void> {

@@ -1,4 +1,5 @@
 import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from './types';
+import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
 
 /**
@@ -42,6 +43,7 @@ export function emptyTelemetrySnapshot(): TelemetrySnapshot {
     byProvider: {},
     byModel: {},
     byClient: {},
+    bySource: {},
   };
 }
 
@@ -96,6 +98,18 @@ export function applyEntryToSnapshot(snapshot: TelemetrySnapshot, entry: Request
   const clientSnapshot = snapshot.byClient[clientKey] ?? emptyProviderSnapshot();
   updateProviderSnapshot(clientSnapshot, entry);
   snapshot.byClient[clientKey] = clientSnapshot;
+
+  // Per-origin aggregation (gateway vs copilot-chat). Older entries
+  // (recorded before `source` was added) have no `source` field; we
+  // coalesce them to the `'gateway'` bucket on read so the dashboard
+  // shows one coherent accounting. `bySource` is optional in the
+  // snapshot schema for backward compat, but the store always
+  // populates it on write.
+  const sourceKey = entry.source ?? 'gateway';
+  const sourceMap = snapshot.bySource ?? (snapshot.bySource = {});
+  const sourceSnapshot = sourceMap[sourceKey] ?? emptyProviderSnapshot();
+  updateProviderSnapshot(sourceSnapshot, entry);
+  sourceMap[sourceKey] = sourceSnapshot;
 }
 
 function safeCost(value: number): number {
@@ -198,6 +212,16 @@ export class TelemetryStore {
    * call repopulates it.
    */
   private readonly byClient = new Map<string, ProviderSnapshot>();
+  /**
+   * Per-origin aggregates. Keyed by the entry's `source` field
+   * (`'gateway'`, `'copilot-chat'`). Entries recorded before the
+   * `source` field existed (pre-this-feature) are coalesced to the
+   * `'gateway'` bucket on read so the dashboard sees one coherent
+   * accounting. Backwards-compatible: a `restore()` call from an
+   * older snapshot (no `bySource` on disk) leaves the map empty, and
+   * the next `record()` call repopulates it.
+   */
+  private readonly bySource = new Map<string, ProviderSnapshot>();
   private totalRequests = 0;
   private totalPromptTokens = 0;
   private totalCompletionTokens = 0;
@@ -290,6 +314,71 @@ export class TelemetryStore {
     const clientSnapshot = this.byClient.get(clientKey) ?? emptyProviderSnapshot();
     updateProviderSnapshot(clientSnapshot, entry);
     this.byClient.set(clientKey, clientSnapshot);
+
+    // Per-origin aggregation. Older entries (no `source` field)
+    // coalesce to `'gateway'`: the gateway path was the only
+    // recordable origin before Copilot Chat was wired in.
+    const sourceKey = entry.source ?? 'gateway';
+    const sourceSnapshot = this.bySource.get(sourceKey) ?? emptyProviderSnapshot();
+    updateProviderSnapshot(sourceSnapshot, entry);
+    this.bySource.set(sourceKey, sourceSnapshot);
+  }
+
+  /**
+   * Record a request driven by VS Code Copilot Chat (the
+   * `vscode.lm.registerLanguageModelChatProvider` path). Builds a
+   * `RequestTelemetry` with `source: 'copilot-chat'` and routes it
+   * through the regular `record()` path so the on-disk persister,
+   * listeners, and all other aggregations fire uniformly.
+   *
+   * The Copilot Chat provider does not currently return token counts
+   * from its stream (it surfaces usage through `provideTokenCount`
+   * on a separate path, not on the streaming response). Callers pass
+   * whatever counts they have; `estimated: true` is set when the
+   * caller filled in heuristic values so the dashboard "Token
+   * source" column can label the entry as approximate.
+   *
+   * Action plan item #6: closes the historical blind spot in the
+   * metrics view where ~50% of usage (Copilot Chat traffic) was
+   * invisible because the gateway only ever saw its own traffic.
+   */
+  recordFromCopilotChat(options: {
+    providerId: string;
+    providerLabel: string;
+    model: string;
+    status: number;
+    durationMs: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    estimatedCost?: number;
+    estimated?: boolean;
+    errorMessage?: string;
+  }): void {
+    const promptTokens = options.promptTokens ?? 0;
+    const completionTokens = options.completionTokens ?? 0;
+    const totalTokens = options.totalTokens ?? promptTokens + completionTokens;
+    const entry: RequestTelemetry = {
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      providerId: options.providerId,
+      providerLabel: options.providerLabel,
+      model: options.model,
+      status: options.status,
+      durationMs: options.durationMs,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      // Cost is the per-call snapshot; the store recomputes on every
+      // `record()` and the persister re-emits the delta. Heuristic
+      // estimates are flagged as `estimated: true` so the dashboard
+      // surfaces "estimated" instead of "usage" in the Token source
+      // column.
+      estimatedCost: options.estimatedCost ?? 0,
+      estimated: options.estimated ?? true,
+      source: 'copilot-chat',
+    };
+    this.record(entry);
   }
 
   snapshot(): TelemetrySnapshot {
@@ -306,6 +395,7 @@ export class TelemetryStore {
       byProvider: Object.fromEntries(this.byProvider.entries()),
       byModel: Object.fromEntries(this.byModel.entries()),
       byClient: Object.fromEntries(this.byClient.entries()),
+      bySource: Object.fromEntries(this.bySource.entries()),
     };
   }
 
@@ -374,6 +464,15 @@ export class TelemetryStore {
     if (state.byClient) {
       for (const [client, snapshot] of Object.entries(state.byClient)) {
         this.byClient.set(client, { ...snapshot });
+      }
+    }
+    // Older on-disk snapshots (pre-`bySource`) leave the map empty.
+    // The next `record()` will repopulate it as requests come in, so
+    // a multi-window session upgrades gradually instead of dropping
+    // pre-existing totals.
+    if (state.bySource) {
+      for (const [source, snapshot] of Object.entries(state.bySource)) {
+        this.bySource.set(source, { ...snapshot });
       }
     }
 
@@ -459,6 +558,7 @@ export class TelemetryStore {
     this.byProvider.clear();
     this.byModel.clear();
     this.byClient.clear();
+    this.bySource.clear();
     this.p95Cache = undefined;
     this.totalRequests = 0;
     this.totalPromptTokens = 0;
@@ -545,6 +645,22 @@ export class TelemetryStore {
       }
       if (clientSnapshot.requests <= 0) {
         this.byClient.delete(clientKey);
+      }
+    }
+
+    const sourceKey = entry.source ?? 'gateway';
+    const sourceSnapshot = this.bySource.get(sourceKey);
+    if (sourceSnapshot) {
+      sourceSnapshot.requests = Math.max(0, sourceSnapshot.requests - 1);
+      sourceSnapshot.promptTokens = Math.max(0, sourceSnapshot.promptTokens - entry.promptTokens);
+      sourceSnapshot.completionTokens = Math.max(0, sourceSnapshot.completionTokens - entry.completionTokens);
+      sourceSnapshot.totalTokens = Math.max(0, sourceSnapshot.totalTokens - entry.totalTokens);
+      sourceSnapshot.estimatedCost = Math.max(0, sourceSnapshot.estimatedCost - entry.estimatedCost);
+      if (entry.status >= 400) {
+        sourceSnapshot.errors = Math.max(0, sourceSnapshot.errors - 1);
+      }
+      if (sourceSnapshot.requests <= 0) {
+        this.bySource.delete(sourceKey);
       }
     }
 

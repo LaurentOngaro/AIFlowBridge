@@ -306,7 +306,32 @@ export interface RequestTelemetry {
    * `undefined`, and aggregations treat undefined as `'unknown'`.
    */
   clientId?: string;
+  /**
+   * Origin of the request inside the AIFlowBridge process. `'gateway'`
+   * is the default for any entry that arrived through the local
+   * OpenAI-compatible gateway (`POST /v1/chat/completions`).
+   * `'copilot-chat'` is set by `UnifiedChatProvider` when the entry
+   * was driven by VS Code Copilot Chat (the `vscode.lm` API path),
+   * which used to be invisible in the dashboard - it now records
+   * via `TelemetryStore.recordFromCopilotChat()`. Optional for
+   * backward compatibility: older snapshots (recorded before this
+   * field was introduced) leave it `undefined`; the dashboard
+   * coalesces absent to `'gateway'` for display.
+   */
+  source?: TelemetrySource;
 }
+
+/**
+ * Source of a recorded request. `'gateway'` covers every request
+ * served by `GatewayService` (Kilo Code, Continue, curl, Open WebUI,
+ * etc. hitting `http://127.0.0.1:8787/v1/chat/completions`).
+ * `'copilot-chat'` covers every request driven by VS Code Copilot
+ * Chat through the `vscode.lm.registerLanguageModelChatProvider`
+ * path. The split closes the historical blind spot in the metrics
+ * view where ~50% of usage (the Copilot Chat path) was invisible
+ * because the gateway only ever saw its own traffic.
+ */
+export type TelemetrySource = 'gateway' | 'copilot-chat';
 
 export interface ProviderSnapshot {
   requests: number;
@@ -342,4 +367,16 @@ export interface TelemetrySnapshot {
    * the VS Code Copilot Chat path.
    */
   byClient: Record<string, ProviderSnapshot>;
+  /**
+   * Per-origin aggregates (same shape as `byProvider` / `byModel`).
+   * The key is the `source` field on the recorded entry
+   * (`'gateway'`, `'copilot-chat'`, or `'unknown'` for older
+   * snapshots). Optional for backward compatibility: older
+   * on-disk snapshots (recorded before this field was introduced)
+   * leave the field `undefined`; the dashboard coalesces absent
+   * to `{}` for display. Surfaced on the dashboard as a "By
+   * source" summary panel so the user can split gateway traffic
+   * from Copilot Chat traffic at a glance.
+   */
+  bySource?: Record<string, ProviderSnapshot>;
 }

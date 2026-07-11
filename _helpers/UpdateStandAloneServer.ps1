@@ -113,8 +113,8 @@ Invoke-CheckedRobocopy -SourcePath (Join-Path $Source 'dist\standalone') -Destin
 Invoke-CheckedRobocopy -SourcePath (Join-Path $Source 'dist\aiflowbridge') -DestinationPath (Join-Path $Destination 'dist\aiflowbridge')
 
 foreach ($module in 'logger.js','config.js','consts.js','types.js','json.js') {
-  $src = Join-Path $Source 'dist' $module
-  $dst = Join-Path $Destination 'dist' $module
+  $src = Join-Path (Join-Path $Source 'dist') $module
+  $dst = Join-Path (Join-Path $Destination 'dist') $module
   if (-not (Test-Path -LiteralPath $src)) {
     throw "Expected build artifact missing: $src"
   }
