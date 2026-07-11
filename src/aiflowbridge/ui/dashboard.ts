@@ -113,6 +113,45 @@ function attachMessageHandler(
       });
       return;
     }
+    // Action plan item #3: the Shared Session panel's "Replay"
+    // button posts a `replay` message with the recorded request
+    // id. The reply carries the JSON body of
+    // `GET /v1/replay/{id}` so the user can see the stored prompt
+    // + response without leaving VS Code. We re-hydrate the body
+    // from the in-memory store (same source the HTTP endpoint
+    // reads); the HTTP endpoint itself stays available for
+    // external clients (curl, Kilo Code, ...).
+    if (typed.type === 'replay' && typeof typed.id === 'string') {
+      const entry = getSnapshot().recent.find((candidate) => candidate.id === typed.id);
+      const payload = entry
+        ? {
+            id: entry.id,
+            object: 'chat.completion.replay',
+            timestamp: entry.timestamp,
+            model: entry.model,
+            providerId: entry.providerId,
+            providerLabel: entry.providerLabel,
+            status: entry.status,
+            durationMs: entry.durationMs,
+            usage: {
+              promptTokens: entry.promptTokens,
+              completionTokens: entry.completionTokens,
+              totalTokens: entry.totalTokens,
+            },
+            promptSummary: entry.promptSummary ?? '',
+            responseSummary: entry.responseSummary ?? '',
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content: entry.responseSummary ?? '' },
+                finish_reason: 'stop',
+              },
+            ],
+          }
+        : { error: 'Request not found', id: typed.id };
+      void panel.webview.postMessage({ type: 'replayResult', id: typed.id, payload });
+      return;
+    }
     if (typed.type === 'removeRequest' && typeof typed.id === 'string' && onRemoveEntry) {
       // in-memory store + on-disk file is synchronous-ish (the
       // on-disk write is fire-and-forget through the persister); the
@@ -249,6 +288,16 @@ export function buildDashboardHtml(
       --muted: #94a3b8;
       --border: rgba(148, 163, 184, 0.18);
     }
+    .shared-session-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .shared-session-row { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+    .shared-session-meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .shared-session-time { font-variant-numeric: tabular-nums; }
+    .shared-session-provider { color: var(--text); font-weight: 500; }
+    .shared-session-model { color: var(--accent); }
+    .shared-session-prompt { font-size: 13px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+    .shared-session-replay { background: var(--bg); padding: 8px; margin-top: 8px; border-radius: 6px; max-height: 320px; overflow: auto; font-size: 12px; }
+    .replay-btn { margin-left: auto; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 2px 10px; cursor: pointer; }
+    .replay-btn:hover { border-color: var(--accent); color: var(--accent); }
     body {
       margin: 0;
       font-family: "Segoe UI", system-ui, sans-serif;
@@ -731,6 +780,24 @@ export function buildDashboardHtml(
       </div>
     </div>
 
+    <div class="panel" id="panel-shared-session">
+      <div class="panel-header">
+        <button type="button" class="collapse-btn" data-collapse-target="panel-shared-session" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>Shared session</h2>
+        </button>
+        <div class="filters">
+          <span class="muted" style="font-size:12px;" id="shared-session-sse-status" title="Live status of the /v1/events stream">offline</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="muted" style="margin-top:0;">Pair-programming view: recent prompts captured by the gateway. Click <strong>Replay</strong> to re-fetch the stored prompt + response summaries via <code>GET /v1/replay/{id}</code>. Auto-refreshes via <code>GET /v1/events</code> SSE when the dashboard is open in a browser pointed at the gateway's loopback URL.</p>
+        <div id="shared-session-list">
+          ${renderSharedSessionList(snapshot)}
+        </div>
+      </div>
+    </div>
+
     <div class="panel" id="panel-client">
       <div class="panel-header">
         <button type="button" class="collapse-btn" data-collapse-target="panel-client" aria-expanded="true" title="Toggle section">
@@ -799,6 +866,41 @@ export function buildDashboardHtml(
           vscodeApi.postMessage({ type: "resetMetrics" });
         });
       }
+
+      // Action plan item #3: wire the Shared Session panel's
+      // "Replay" buttons. The dashboard is a VS Code webview
+      // without fetch() into the gateway loopback URL (CSP), so the
+      // replay payload is requested through the extension host via
+      // a dedicated message type. The host returns the JSON body
+      // (or an error string) which we then render in the row's
+      // <pre data-replay-out="..."> block.
+      const replayButtons = document.querySelectorAll("[data-replay-id]");
+      replayButtons.forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const id = btn.getAttribute("data-replay-id");
+          if (!id) return;
+          const out = document.querySelector('[data-replay-out="' + CSS.escape(id) + '"]');
+          if (out) {
+            out.hidden = false;
+            out.textContent = "Loading…";
+          }
+          vscodeApi.postMessage({ type: "replay", id });
+        });
+      });
+
+      // Action plan item #3: receive the host's replay payload and
+      // render it into the matching <pre>. Trims long responses so
+      // the panel does not blow up on a 1000-char response summary.
+      window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type !== "replayResult" || typeof data.id !== "string") return;
+        const out = document.querySelector('[data-replay-out="' + CSS.escape(data.id) + '"]');
+        if (!out) return;
+        const text = JSON.stringify(data.payload, null, 2);
+        out.textContent = text.length > 4000 ? text.slice(0, 4000) + '\\n... (truncated)' : text;
+      });
 
       // collapsible sections. Persist state in localStorage so the
       // user does not have to re-collapse every time the dashboard is
@@ -2395,4 +2497,41 @@ function formatCostValue(cost: number): string {
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+/**
+ * Action plan item #3. Render the Shared Session panel. Lists the
+ * most recent recorded requests (reverse chronological), each with
+ * a sanitized prompt snippet + a "Replay" button that calls
+ * `GET /v1/replay/{id}` and shows the result in a `<pre>` block.
+ * The panel degrades gracefully when the gateway is not reachable
+ * from the dashboard webview (Replay button stays disabled with a
+ * tooltip).
+ */
+export function renderSharedSessionList(snapshot: TelemetrySnapshot): string {
+  // Use the existing `recent` list (newest first). When the
+  // dashboard is reloaded, the server-side snapshot carries the
+  // sanitized prompt summary on every entry (when capture is
+  // enabled); older entries recorded before the feature shipped
+  // carry `undefined` and render as a muted dash.
+  const recent = snapshot.recent.slice(0, 20);
+  if (recent.length === 0) {
+    return '<p class="muted">No recorded sessions yet. Send a chat completion to populate this panel.</p>';
+  }
+  const rows = recent.map((entry) => {
+    const prompt = entry.promptSummary ? escapeHtml(entry.promptSummary) : '<span class="muted">(no summary)</span>';
+    const time = new Date(entry.timestamp).toLocaleTimeString();
+    const safeId = escapeHtml(entry.id);
+    return `<li class="shared-session-row" data-id="${safeId}">
+      <div class="shared-session-meta">
+        <span class="shared-session-time">${escapeHtml(time)}</span>
+        <span class="shared-session-provider">${escapeHtml(entry.providerLabel)}</span>
+        <span class="shared-session-model">${escapeHtml(entry.model)}</span>
+        <button type="button" class="replay-btn" data-replay-id="${safeId}" title="GET /v1/replay/${safeId}">Replay</button>
+      </div>
+      <div class="shared-session-prompt">${prompt}</div>
+      <pre class="shared-session-replay" data-replay-out="${safeId}" hidden></pre>
+    </li>`;
+  }).join('');
+  return `<ul class="shared-session-list">${rows}</ul>`;
 }

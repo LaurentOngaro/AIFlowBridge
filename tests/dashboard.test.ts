@@ -52,6 +52,7 @@ function baseConfig(): AiFlowBridgeConfig {
     ],
     telemetryEnabled: true,
     logRequests: true,
+    captureSessionLog: false,
     visionProxy: { excludedVendors: ['aiflowbridge'], copilotVisionModel: 'oswe-vscode-prime' },
   };
 }
@@ -430,9 +431,10 @@ describe('buildDashboardHtml', () => {
   it('wraps each panel body in a.panel-body div so the collapse rule can hide it', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const bodies = html.match(/<div class="panel-body">/g) ?? [];
-    // Gateway / Recent / By model / By client / By source /
-    // Provider summary = 7 (was 6; "Sessions" panel added by AFF06).
-    expect(bodies.length).toBe(7);
+// Gateway / Recent / Sessions / By model / By client / By source /
+// Provider summary / Shared session = 8 (was 7; "Shared session"
+// panel added by action plan item #3).
+expect(bodies.length).toBe(8);
   });
 
   it('contains the collapse toggle JS handler that reads / writes localStorage', () => {

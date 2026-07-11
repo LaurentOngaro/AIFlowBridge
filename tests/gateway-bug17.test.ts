@@ -122,6 +122,7 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
     providers: [makeProvider()],
     telemetryEnabled: true,
     logRequests: false,
+    captureSessionLog: false,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
     ...overrides,
   };

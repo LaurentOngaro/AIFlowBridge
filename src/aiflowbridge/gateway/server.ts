@@ -9,8 +9,9 @@ import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type Worksp
 import { buildModelCatalog } from '../providers';
 import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
+import { buildPromptSummary, buildResponseSummary } from '../telemetry/summary';
 import { fetchMinimaxPromptTokens } from '../token-counter';
-import type { AiFlowBridgeConfig, GatewaySettings, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from '../types';
+import type { AiFlowBridgeConfig, GatewaySettings, GatewayStatus, ProviderProfile, RequestTelemetry, ReplayResponse, TelemetrySnapshot } from '../types';
 import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
 
@@ -728,6 +729,52 @@ export class GatewayService {
       return;
     }
 
+    // Action plan item #3: shared session log. `GET /v1/sessions`
+    // returns the most recent recorded entries in a lightweight
+    // shape (no `responseSummary`; the list view only needs the
+    // truncated prompt + totals so the dashboard stays snappy).
+    if (request.method === 'GET' && path === '/v1/sessions') {
+      const limit = this.resolveSessionListLimit(requestUrl.searchParams);
+      this.writeJson(response, 200, {
+        object: 'list',
+        sessions: this.telemetry.listSessions(limit),
+      });
+      return;
+    }
+
+    // Action plan item #3: replay endpoint. Re-hydrates the stored
+    // prompt / response summaries into an OpenAI `chat.completion`-
+    // shaped body. Pure read from the in-memory `TelemetryStore`;
+    // no upstream re-forward, so a replay is safe to fire
+    // indefinitely without cost.
+    if (request.method === 'GET' && path.startsWith('/v1/replay/')) {
+      const requestId = decodeURIComponent(path.slice('/v1/replay/'.length));
+      if (!requestId || requestId.length > 128) {
+        this.writeJson(response, 400, { error: 'Missing or invalid requestId' });
+        return;
+      }
+      const entry = this.telemetry.getEntry(requestId);
+      if (!entry) {
+        this.writeJson(response, 404, { error: 'Request not found', id: requestId });
+        return;
+      }
+      this.writeJson(response, 200, buildReplayResponse(entry));
+      return;
+    }
+
+    // Action plan item #3: SSE event stream. Emits a `request.recorded`
+    // event on every `TelemetryStore.record()` call (and a
+    // `config.changed` event when the runtime pushes a fresh
+    // config snapshot through the optional hook). The connection
+    // is a long-lived HTTP response with `Content-Type:
+    // text/event-stream`; clients (the dashboard, an external
+    // observer) consume events through the standard `EventSource`
+    // API or `curl -N`.
+    if (request.method === 'GET' && path === '/v1/events') {
+      await this.streamSseEvents(request, response);
+      return;
+    }
+
     this.writeJson(response, 404, {
       error: 'Not found',
       path,
@@ -784,6 +831,15 @@ export class GatewayService {
       });
       return;
     }
+
+    // Action plan item #3: capture a sanitized + truncated prompt
+    // summary at the entry point so every recordTelemetry() call
+    // downstream carries it. The summary is computed once here
+    // (the request body does not change after the body read) and
+    // re-used on the success / streaming / catch paths. When
+    // `captureSessionLog` is disabled the summary is `undefined`
+    // so the recordTelemetry() path stores empty fields.
+    const promptSummary = this.config.captureSessionLog ? buildPromptSummary(payload) : undefined;
 
     const modelName = typeof payload?.model === 'string' ? payload.model : this.config.gateway.defaultModel;
     const enabledProviders = this.config.providers.filter((profile) => profile.enabled);
@@ -1139,7 +1195,7 @@ export class GatewayService {
         response.end(backoffBody);
         telemetryRecorded = true;
         const durationMs = Date.now() - startedAt;
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId, promptSummary, this.config.captureSessionLog ? buildResponseSummary(backoffBody) : undefined);
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
         }
@@ -1234,7 +1290,12 @@ export class GatewayService {
           }
           telemetryRecorded = true;
           const durationMs = Date.now() - startedAt;
-          this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
+          // Action plan item #3: the streaming finish path does
+          // not buffer the upstream response body (we pipe
+          // straight to the client), so there is no response
+          // summary to capture here. The prompt summary is still
+          // propagated for the Shared Session panel.
+          this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId, promptSummary);
           if (this.config.logRequests) {
             logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
           }
@@ -1265,7 +1326,7 @@ export class GatewayService {
 
         telemetryRecorded = true;
         const durationMs = Date.now() - startedAt;
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId, promptSummary, this.config.captureSessionLog ? buildResponseSummary(responseText) : undefined);
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
         }
@@ -1284,7 +1345,11 @@ export class GatewayService {
       const durationMs = Date.now() - startedAt;
       if (!telemetryRecorded) {
         telemetryRecorded = true;
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, true, clientId);
+        // Error path: still propagate the captured prompt summary
+        // so the pair can see what was asked; no response summary
+        // because the upstream either errored before responding
+        // or we never finished reading its body.
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, true, clientId, promptSummary);
       }
 
       if (!response.headersSent) {
@@ -1360,7 +1425,9 @@ export class GatewayService {
     completionTokens: number,
     totalTokens: number,
     estimated: boolean,
-    clientId: string | null
+    clientId: string | null,
+    promptSummary?: string,
+    responseSummary?: string
   ): void {
     if (!this.config.telemetryEnabled) {
       return;
@@ -1392,6 +1459,14 @@ export class GatewayService {
       // have no `clientId` field). The store / dashboard coalesce
       // absent and null into the `'unknown'` bucket at read time.
       clientId: clientId ?? undefined,
+      // Action plan item #3: pair-programming summaries. Optional
+      // for backward compatibility with callers (e.g. Copilot Chat
+      // path) that do not have a captured prompt / response at the
+      // point of recording. Both fields are sanitized + truncated
+      // at extraction time (see `telemetry/summary.ts`), so the
+      // store accepts them verbatim.
+      promptSummary,
+      responseSummary,
     };
 
     this.telemetry.record(entry);
@@ -1401,6 +1476,83 @@ export class GatewayService {
     response.statusCode = statusCode;
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.end(JSON.stringify(payload, null, 2));
+  }
+
+  /**
+   * Action plan item #3. Resolve the `?limit=N` query parameter for
+   * `GET /v1/sessions`. Clamps to `[1, 200]` so a malicious loopback
+   * caller cannot ask for the entire in-memory `recent` list (10 000+
+   * entries by default) and inflate the SSE payload.
+   */
+  private resolveSessionListLimit(searchParams: URLSearchParams): number {
+    const raw = searchParams.get('limit');
+    if (!raw) {
+      return 20;
+    }
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return 20;
+    }
+    return Math.min(200, parsed);
+  }
+
+  /**
+   * Action plan item #3. Open a long-lived SSE response and pipe
+   * `request.recorded` / `config.changed` events into it. The
+   * listener is detached when the client closes the connection, so
+   * no leak across reconnect cycles.
+   *
+   * Heartbeat comment frames (`:`) are emitted every 15 s so
+   * intermediaries (curl, browsers, reverse proxies) keep the
+   * connection open and do not time it out.
+   */
+  private async streamSseEvents(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    response.statusCode = 200;
+    response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('Connection', 'keep-alive');
+    response.setHeader('X-Accel-Buffering', 'no');
+    // Hint to the client that the stream is open.
+    response.write(`event: ready\ndata: {"ok":true}\n\n`);
+
+    const heartbeat = setInterval(() => {
+      try {
+        response.write(`: heartbeat ${Date.now()}\n\n`);
+      } catch {
+        // Ignore write errors - the close listener will fire
+        // shortly and clean up.
+      }
+    }, 15_000);
+
+    const send = (eventName: string, payload: unknown): void => {
+      try {
+        response.write(`event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`);
+      } catch {
+        // ignore
+      }
+    };
+
+    // Subscribe to telemetry updates and emit a `request.recorded`
+    // event for every recorded entry. We use the snapshot's
+    // `recent[0]` so the listener does not have to re-read the
+    // store. The first emission happens immediately so the client
+    // sees the current state on connect.
+    const snapshot = this.telemetry.snapshot();
+    send('snapshot', { recentCount: snapshot.recent.length });
+
+    const unsubscribe = this.telemetry.subscribe((next) => {
+      const top = next.recent[0];
+      if (top) {
+        send('request.recorded', top);
+      }
+    });
+
+    const cleanup = (): void => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+    request.once('close', cleanup);
+    request.once('aborted', cleanup);
   }
 
   /**
@@ -1948,6 +2100,46 @@ function extractUsage(raw: string): { promptTokens: number; completionTokens: nu
     promptTokens: promptTokens ?? 0,
     completionTokens: completionTokens ?? 0,
     totalTokens: totalTokens ?? (promptTokens ?? 0) + (completionTokens ?? 0),
+  };
+}
+
+/**
+ * Action plan item #3. Build the `GET /v1/replay/{requestId}`
+ * response payload. The shape mirrors the OpenAI
+ * `/v1/chat/completions` non-streaming body so a pair can pipe it
+ * back into their IDE without further translation. Pure function
+ * exported for unit testing.
+ */
+export function buildReplayResponse(entry: RequestTelemetry): ReplayResponse {
+  const created = Date.parse(entry.timestamp);
+  const promptSummary = entry.promptSummary ?? '';
+  const responseSummary = entry.responseSummary ?? '';
+  return {
+    id: entry.id,
+    object: 'chat.completion.replay',
+    created: Number.isFinite(created) ? Math.floor(created / 1000) : 0,
+    model: entry.model,
+    providerId: entry.providerId,
+    providerLabel: entry.providerLabel,
+    status: entry.status,
+    durationMs: entry.durationMs,
+    usage: {
+      promptTokens: entry.promptTokens,
+      completionTokens: entry.completionTokens,
+      totalTokens: entry.totalTokens,
+    },
+    promptSummary,
+    responseSummary,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: 'assistant',
+          content: responseSummary,
+        },
+        finish_reason: 'stop',
+      },
+    ],
   };
 }
 

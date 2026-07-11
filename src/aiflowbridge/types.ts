@@ -314,6 +314,16 @@ export interface AiFlowBridgeConfig {
   providers: ProviderProfile[];
   telemetryEnabled: boolean;
   logRequests: boolean;
+  /**
+   * Action plan item #3. When `true` (default), the gateway
+   * captures sanitized + truncated prompt / response summaries on
+   * every recorded request and persists them alongside the regular
+   * counters. When `false`, summaries are dropped at recording
+   * time (the `GET /v1/sessions` / `GET /v1/replay/{id}` endpoints
+   * still respond, but with empty prompt / response fields for
+   * entries recorded after the flag was flipped).
+   */
+  captureSessionLog: boolean;
   visionProxy: VisionProxySettings;
 }
 
@@ -394,6 +404,88 @@ export interface RequestTelemetry {
    * coalesces absent to `'gateway'` for display.
    */
   source?: TelemetrySource;
+  /**
+   * Action plan item #3: sanitized, truncated prompt text (max 500
+   * chars) captured at recording time so a pair can see what was
+   * asked. API keys and bearer tokens are redacted before storage.
+   * Optional for backward compatibility: entries recorded before
+   * this field was introduced leave it `undefined`. The replay
+   * endpoint returns the stored value verbatim.
+   */
+  promptSummary?: string;
+  /**
+   * Action plan item #3: sanitized, truncated assistant response
+   * text (max 1000 chars) captured at recording time. Same redaction
+   * and truncation rules as `promptSummary`. Optional for backward
+   * compatibility. For streaming responses the captured value is
+   * the concatenated text-`delta` from the SSE chunks (no `data:`
+   * framing, no `[DONE]`); for non-streaming it is the upstream
+   * JSON body's `choices[0].message.content` extracted lazily.
+   */
+  responseSummary?: string;
+}
+
+/**
+ * Action plan item #3. Lightweight summary of a recorded request,
+ * served by `GET /v1/sessions`. Smaller than `RequestTelemetry`
+ * (only the fields an IDE needs to render a session list).
+ */
+export interface SessionSummary {
+  /** Stable identifier of the recorded request (`entry.id`). */
+  id: string;
+  /** ISO 8601 timestamp of the request. */
+  timestamp: string;
+  providerId: string;
+  providerLabel: string;
+  model: string;
+  status: number;
+  durationMs: number;
+  totalTokens: number;
+  /**
+   * Truncated prompt summary (already redacted + capped). Empty
+   * string when the entry was recorded before the summary feature
+   * was introduced or when sanitization stripped the entire prompt.
+   */
+  promptSummary: string;
+}
+
+/**
+ * Action plan item #3. Replay payload served by
+ * `GET /v1/replay/{requestId}`. The shape mirrors the OpenAI
+ * `/v1/chat/completions` non-streaming response so a pair can
+ * paste the body back into their IDE without further translation.
+ */
+export interface ReplayResponse {
+  /** Echoes the recorded request id. */
+  id: string;
+  object: 'chat.completion.replay';
+  created: number;
+  model: string;
+  providerId: string;
+  providerLabel: string;
+  status: number;
+  durationMs: number;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  /** The stored, sanitized prompt summary (may be empty). */
+  promptSummary: string;
+  /** The stored, sanitized response summary (may be empty). */
+  responseSummary: string;
+  choices: Array<{
+    index: 0;
+    message: {
+      role: 'assistant';
+      /**
+       * The assistant text from `responseSummary`. Empty string when
+       * nothing was captured (e.g. pre-feature entries).
+       */
+      content: string;
+    };
+    finish_reason: 'stop';
+  }>;
 }
 
 /**

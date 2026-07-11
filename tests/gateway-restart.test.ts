@@ -65,6 +65,7 @@ function makeConfig(port: number, baseUrl: string): AiFlowBridgeConfig {
 		providers: [makeProvider()],
 		telemetryEnabled: false,
 		logRequests: false,
+    captureSessionLog: false,
 		visionProxy: { excludedVendors: [], copilotVisionModel: '' },
 	};
 }

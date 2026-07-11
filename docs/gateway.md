@@ -24,6 +24,15 @@ curl http://127.0.0.1:8787/version
 
 # Cooperative shutdown (only an aiflowbridge-gateway instance will honour it)
 curl -X POST http://127.0.0.1:8787/shutdown
+
+# Recorded sessions (Q&A summary list, for pair programming)
+curl 'http://127.0.0.1:8787/v1/sessions?limit=20'
+
+# Replay one recorded session (pure read from the in-memory store)
+curl http://127.0.0.1:8787/v1/replay/<requestId>
+
+# Live event stream (Server-Sent Events: ready / snapshot / request.recorded)
+curl -N http://127.0.0.1:8787/v1/events
 ```
 
 ### Workspace context (`GET /v1/context`)
@@ -81,6 +90,74 @@ curl http://127.0.0.1:8787/v1/discovery
 The UDP beacon (when enabled) broadcasts a tiny JSON payload on `gateway.discovery.broadcastPort` (default `8788`) every `gateway.discovery.broadcastIntervalMs` (default `2000` ms). **Privacy caveat:** the UDP broadcast announces the gateway's existence to every host on the LAN. The payload contains only the loopback host, the TCP port, and the gateway version - no API key, no workspace path, no model. The HTTP `/v1/discovery` endpoint is reachable on the loopback URL only (the gateway binds `127.0.0.1`); the HTTP endpoint and the UDP broadcast are gated on the same `discovery.enabled` flag.
 
 `broadcastPort` is clamped at runtime to the IANA registered-port range `[1024, 65535]`. Values outside that range (e.g. `0`, hand-edited config) fall back to `8788` with a warning. `broadcastIntervalMs` is clamped to `[500, 300_000]` for the same reason.
+
+### Shared session log + replay + SSE stream (`GET /v1/sessions`, `GET /v1/replay/{id}`, `GET /v1/events`)
+
+These three endpoints (added in 2.10.0) close the pair-programming loop: a developer can see what the AI just told their pair, replay the original assistant message without re-running the upstream call, and watch new requests land in real time.
+
+When `aiflowbridge.telemetry.captureSessionLog` is `true` (default), every recorded `RequestTelemetry` carries a sanitized + truncated `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars). Both are stored in memory and on disk alongside the regular counters; both are redacted at extraction time so a `Bearer ...`, `sk-...`, or `x-api-key: ...` value (and any 60+-char token-like blob without whitespace) never reaches the on-disk telemetry file.
+
+The three endpoints:
+
+```bash
+curl 'http://127.0.0.1:8787/v1/sessions?limit=20'
+# {
+#   "object": "list",
+#   "sessions": [
+#     {
+#       "id": "99929fbd-...",
+#       "timestamp": "2026-07-11T17:14:54.243Z",
+#       "providerId": "minimax",
+#       "providerLabel": "MiniMax M3",
+#       "model": "MiniMax-M3",
+#       "status": 200,
+#       "durationMs": 3642,
+#       "totalTokens": 1842,
+#       "promptSummary": "What does HTTP 429 mean on the MiniMax streaming endpoint?"
+#     },
+#     ...
+#   ]
+# }
+
+curl http://127.0.0.1:8787/v1/replay/99929fbd-9ab1-485c-993f-01b7acf85ff5
+# {
+#   "id": "99929fbd-...",
+#   "object": "chat.completion.replay",
+#   "created": 1720708494,
+#   "model": "MiniMax-M3",
+#   "providerId": "minimax",
+#   "providerLabel": "MiniMax M3",
+#   "status": 200,
+#   "durationMs": 3642,
+#   "usage": { "promptTokens": 12, "completionTokens": 1830, "totalTokens": 1842 },
+#   "promptSummary": "What does HTTP 429 mean on the MiniMax streaming endpoint?",
+#   "responseSummary": "HTTP 429 means Too Many Requests. Back off and retry after the time in Retry-After ...",
+#   "choices": [{ "index": 0, "message": { "role": "assistant", "content": "HTTP 429 means ..." }, "finish_reason": "stop" }]
+# }
+
+curl -N http://127.0.0.1:8787/v1/events
+# event: ready
+# data: {"ok":true}
+#
+# event: snapshot
+# data: {"recentCount":0}
+#
+# event: request.recorded
+# data: {"id":"99929fbd-...","timestamp":"2026-07-11T17:14:54.243Z","providerId":"minimax",...}
+#
+# : heartbeat 1720708500
+# : heartbeat 1720708515
+# ...
+```
+
+Notes:
+
+- `GET /v1/replay/{requestId}` is a **pure read** from the in-memory `TelemetryStore` - no upstream re-forward, safe to fire indefinitely. Returns `400` for missing or overlong (`128+` chars) ids, `404` for unknown ids, `200` with the re-hydrated `chat.completion`-shaped body otherwise. The replay body mirrors the OpenAI non-streaming shape so a pair can paste it back into their IDE without further translation.
+- `GET /v1/events` is a long-lived `text/event-stream` connection. The gateway sends a `ready` frame on connect, a `snapshot` frame with `{ recentCount }` so the client sees the current state, and a `request.recorded` frame on every `TelemetryStore.record()` call. A 15 s heartbeat comment frame (`: heartbeat <ts>`) keeps intermediaries from timing the connection out. Listeners are detached on `request.once('close' | 'aborted', cleanup)` so no leak across reconnects.
+- The three endpoints are loopback-only (the gateway binds `127.0.0.1`), same posture as `/health`, `/version`, `/v1/models`. The `/v1/events` SSE endpoint is **not** behind the discovery flag: it is always reachable on the loopback URL so a dashboard running on the same machine can subscribe.
+- Set `aiflowbridge.telemetry.captureSessionLog = false` to keep the on-disk telemetry file lean. The endpoints still respond but the `promptSummary` / `responseSummary` fields are empty for entries recorded after the flag was flipped (the dashboard Shared Session panel renders those rows as a muted `(no summary)` placeholder).
+
+The corresponding dashboard panel ("Shared session") sits between "By model" and "By client". Each row shows the local time, provider, model, and sanitized prompt snippet; a per-row "Replay" button posts to the extension host, which re-hydrates the entry from the in-memory store and renders the body inline in a `<pre>` block.
 
 ## Singleton behavior
 
@@ -156,29 +233,30 @@ The dashboard and the `GET /v1/models` catalog will skip any provider with `"ena
 
 ## Settings
 
-| Setting                                              | Default                       | Description                                                                                                         |
-| ---------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `aiflowbridge.gateway.enabled`                       | `true`                        | Start gateway on activation                                                                                         |
-| `aiflowbridge.gateway.port`                          | `8787`                        | Local proxy port                                                                                                    |
-| `aiflowbridge.gateway.baseUrl`                       | `http://127.0.0.1:8787/v1`    | Gateway URL                                                                                                         |
-| `aiflowbridge.gateway.defaultModel`                  | `""`                          | Default model when client doesn't specify one                                                                       |
-| `aiflowbridge.gateway.probeTimeoutMs`                | `500`                         | Per-call timeout (ms) for `GET /version` when probing a peer gateway on activation                                  |
-| `aiflowbridge.gateway.maxConcurrentRequests`         | `20`                          | Hard cap on in-flight `/v1/chat/completions` (above the cap the gateway returns `429` + `Retry-After`)              |
-| `aiflowbridge.gateway.maxConcurrentPerProvider`      | `3`                           | Per-upstream-provider cap on parallel in-flight requests (BUG17 fix; `0` disables the cap)                          |
-| `aiflowbridge.gateway.upstreamIdleTimeoutMs`         | `90000`                       | Watchdog that aborts the upstream `fetch` after this many ms without bytes (BUG17; `0` disables)                    |
-| `aiflowbridge.gateway.streamTotalTimeoutMs`          | `300000`                      | Hard ceiling on the upstream call duration in ms (BUG17; `0` disables)                                              |
-| `aiflowbridge.gateway.minimaxParallelTokenCount`     | `false`                       | When `true`, fires the parallel `/input_tokens` pre-count on streaming MiniMax requests too (BUG17; off by default) |
-| `aiflowbridge.gateway.workspaceContext.enabled`      | `true`                        | Inject the detected workspace context as a system message on every chat completion                                  |
-| `aiflowbridge.gateway.workspaceContext.root`         | `""`                          | Explicit workspace root directory (falls back to `AIFLOWBRIDGE_WORKSPACE`, then `process.cwd()`)                    |
-| `aiflowbridge.gateway.workspaceContext.maxDepth`     | `2`                           | Max directory depth the detector walks                                                                              |
-| `aiflowbridge.gateway.workspaceContext.ignoredDirs`  | `[node_modules, target, ...]` | Directory names to skip entirely (no recursion, no listing)                                                         |
-| `aiflowbridge.gateway.languageRouting`               | `{}`                          | Map of `language -> providerId`. The `*` wildcard is the fallback for any language not explicitly mapped            |
-| `aiflowbridge.gateway.discovery.enabled`             | `false`                       | Master switch for the UDP beacon + the `GET /v1/discovery` HTTP endpoint                                            |
-| `aiflowbridge.gateway.discovery.broadcastPort`       | `8788`                        | UDP destination port (clamped to `[1024, 65535]` at runtime)                                                        |
-| `aiflowbridge.gateway.discovery.broadcastIntervalMs` | `2000`                        | Beacon emission interval in ms (clamped to `[500, 300_000]` at runtime)                                             |
+| Setting                                              | Default                       | Description                                                                                                                                                                          |
+| ---------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `aiflowbridge.gateway.enabled`                       | `true`                        | Start gateway on activation                                                                                                                                                          |
+| `aiflowbridge.gateway.port`                          | `8787`                        | Local proxy port                                                                                                                                                                     |
+| `aiflowbridge.gateway.baseUrl`                       | `http://127.0.0.1:8787/v1`    | Gateway URL                                                                                                                                                                          |
+| `aiflowbridge.gateway.defaultModel`                  | `""`                          | Default model when client doesn't specify one                                                                                                                                        |
+| `aiflowbridge.gateway.probeTimeoutMs`                | `500`                         | Per-call timeout (ms) for `GET /version` when probing a peer gateway on activation                                                                                                   |
+| `aiflowbridge.gateway.maxConcurrentRequests`         | `20`                          | Hard cap on in-flight `/v1/chat/completions` (above the cap the gateway returns `429` + `Retry-After`)                                                                               |
+| `aiflowbridge.gateway.maxConcurrentPerProvider`      | `3`                           | Per-upstream-provider cap on parallel in-flight requests (BUG17 fix; `0` disables the cap)                                                                                           |
+| `aiflowbridge.gateway.upstreamIdleTimeoutMs`         | `90000`                       | Watchdog that aborts the upstream `fetch` after this many ms without bytes (BUG17; `0` disables)                                                                                     |
+| `aiflowbridge.gateway.streamTotalTimeoutMs`          | `300000`                      | Hard ceiling on the upstream call duration in ms (BUG17; `0` disables)                                                                                                               |
+| `aiflowbridge.gateway.minimaxParallelTokenCount`     | `false`                       | When `true`, fires the parallel `/input_tokens` pre-count on streaming MiniMax requests too (BUG17; off by default)                                                                  |
+| `aiflowbridge.gateway.workspaceContext.enabled`      | `true`                        | Inject the detected workspace context as a system message on every chat completion                                                                                                   |
+| `aiflowbridge.gateway.workspaceContext.root`         | `""`                          | Explicit workspace root directory (falls back to `AIFLOWBRIDGE_WORKSPACE`, then `process.cwd()`)                                                                                     |
+| `aiflowbridge.gateway.workspaceContext.maxDepth`     | `2`                           | Max directory depth the detector walks                                                                                                                                               |
+| `aiflowbridge.gateway.workspaceContext.ignoredDirs`  | `[node_modules, target, ...]` | Directory names to skip entirely (no recursion, no listing)                                                                                                                          |
+| `aiflowbridge.gateway.languageRouting`               | `{}`                          | Map of `language -> providerId`. The `*` wildcard is the fallback for any language not explicitly mapped                                                                             |
+| `aiflowbridge.gateway.discovery.enabled`             | `false`                       | Master switch for the UDP beacon + the `GET /v1/discovery` HTTP endpoint                                                                                                             |
+| `aiflowbridge.gateway.discovery.broadcastPort`       | `8788`                        | UDP destination port (clamped to `[1024, 65535]` at runtime)                                                                                                                         |
+| `aiflowbridge.gateway.discovery.broadcastIntervalMs` | `2000`                        | Beacon emission interval in ms (clamped to `[500, 300_000]` at runtime)                                                                                                              |
+| `aiflowbridge.telemetry.captureSessionLog`           | `true`                        | Capture sanitized + truncated prompt / response summaries on every recorded request (powers `/v1/sessions`, `/v1/replay/{id}`, `/v1/events`, and the dashboard Shared session panel) |
 
 `AIFLOWBRIDGE_WORKSPACE` (environment variable) overrides `aiflowbridge.gateway.workspaceContext.root` for service-manager launches of the standalone CLI (`systemd`, `launchd`, Task Scheduler, ...). When the explicit `root` setting does not resolve to a directory, the gateway logs a warning and falls back to the env var / `cwd`.
 
 ## Privacy
 
-The gateway binds to `127.0.0.1` only - it is not reachable from other machines on your network. Outbound requests go only to the upstream API endpoints you configure. The `/v1/context` endpoint exposes the workspace root as an absolute path; the `/v1/discovery` endpoint exposes the bundled gateway version plus one-paste client config snippets. Both are loopback-only (the bind on `127.0.0.1` is the gate), so the same info is already reachable through `/health`, `/version`, `/v1/models`. When `aiflowbridge.gateway.discovery.enabled` is `true`, the UDP broadcast announces the gateway's existence to every host on the LAN. The payload is intentionally tiny (host, port, version) and contains no API key, no workspace path, no model name. See [development.md](development.md#privacy--security) for the full privacy posture.
+The gateway binds to `127.0.0.1` only - it is not reachable from other machines on your network. Outbound requests go only to the upstream API endpoints you configure. The `/v1/context` endpoint exposes the workspace root as an absolute path; the `/v1/discovery` endpoint exposes the bundled gateway version plus one-paste client config snippets; the `/v1/replay/{id}` endpoint returns the stored prompt + response summaries (already redacted for credentials). All three are loopback-only (the bind on `127.0.0.1` is the gate), so the same info is already reachable through `/health`, `/version`, `/v1/models`. When `aiflowbridge.gateway.discovery.enabled` is `true`, the UDP broadcast announces the gateway's existence to every host on the LAN. The payload is intentionally tiny (host, port, version) and contains no API key, no workspace path, no model name. The `promptSummary` / `responseSummary` captured for the Shared Session feature are redacted for Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob before being persisted, so a developer pasting a `curl` one-liner with their upstream key does not leak it via `/v1/replay/{id}` or the dashboard. See [development.md](development.md#privacy--security) for the full privacy posture.

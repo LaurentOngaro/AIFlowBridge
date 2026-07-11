@@ -101,6 +101,7 @@ AIFlowBridge is **local-first** by design:
 - **Provider `baseUrl` SSRF validation (1.7.0+)**: non-http(s) schemes and cloud metadata endpoints (`169.254.x.x`, `100.100.100.200`, `fd00:ec2::254`) are rejected.
 - **Cooperative shutdown auth (1.7.0+)**: `POST /shutdown` requires a per-instance token returned by `GET /version`.
 - **API key redaction in logs** (2.1.0): every diagnostic line that would surface a `ProviderProfile` strips the `apiKey` field.
+- **Credential redaction in session log** (2.10.0+): when the Shared session log feature is enabled (`aiflowbridge.telemetry.captureSessionLog`, default `true`), the stored `promptSummary` and `responseSummary` are sanitized at extraction time. Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob without whitespace are redacted to `[REDACTED]` before the snippet ever reaches the on-disk telemetry file, the dashboard HTML, or the `GET /v1/replay/{id}` response. A developer pasting a `curl` one-liner with their upstream key does not leak it via the replay endpoint or the dashboard.
 
 You can audit the network traffic from the `AIFlowBridge: Show Logs` output channel.
 

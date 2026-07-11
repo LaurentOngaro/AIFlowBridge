@@ -32,14 +32,30 @@ The on-disk file is always written atomically: a crash mid-write leaves the prev
 In-memory store. Public API:
 
 - `record(entry)` - add a request, schedules `persister.appendDelta`.
-- `snapshot()` - read the current in-memory snapshot (totals + `recent` + per-provider / per-model maps).
+- `recordFromCopilotChat(options)` - build a `RequestTelemetry` with `source: 'copilot-chat'` and route through `record()` (action plan item #6).
+- `snapshot()` - read the current in-memory snapshot (totals + `recent` + per-provider / per-model / per-client / per-source maps).
 - `restore(snapshot?)` - load from a snapshot or from the persister.
 - `reset()` - clear in-memory + on-disk.
 - `removeEntry(id)` - reverse-delta.
 - `refreshFromDisk()` - reload from the persister (used by `AIFlowBridge: Refresh metrics`).
-- `subscribe(listener)` - notify on every mutation.
+- `subscribe(listener)` - notify on every mutation (powers the `/v1/events` SSE stream).
+- `getEntry(id)` - lookup a recorded entry by id (powers `GET /v1/replay/{id}` and the dashboard Shared Session panel).
+- `listSessions(limit)` - lightweight projection for the session list view, reverse chronological, limit clamped to `[1, 200]`.
 
 `TelemetryStore.MAX_RECENT` cap was removed in 1.6.0; every recorded request is appended with no eviction. The configurable `memoryCap` (default 10000) caps the in-memory `recent` array to bound memory under high throughput; the on-disk persister still receives every entry.
+
+### Session log sanitization (action plan item #3, 2.10.0+)
+
+`RequestTelemetry` carries optional `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars), captured at recording time by the gateway (`src/aiflowbridge/telemetry/summary.ts`). Both are sanitized at extraction time:
+
+- `Bearer <token>` strings (12+ chars after the prefix) become `Bearer [REDACTED]`.
+- `sk-<token>` strings (20+ chars after the prefix) become `sk-[REDACTED]`.
+- `x-api-key=<token>` / `x-api-key: <token>` strings (16+ chars) become `x-api-key=[REDACTED]`.
+- Any 60+-char run of `A-Za-z0-9+/=_-` without whitespace becomes `[REDACTED]` (catches base64-looking blobs and unquoted API keys).
+
+The sanitization is idempotent (running it twice on the same input returns the same output) and happens **before** the truncation cap, so a redacted credential that survives the cap is no longer reachable. The whole pipeline is gated on `aiflowbridge.telemetry.captureSessionLog` (default `true`).
+
+The `RequestTelemetry.promptSummary` / `responseSummary` fields are **optional** in the schema, so older on-disk snapshots load unchanged and the next `record()` call repopulates the new fields as requests come in. No migration is required.
 
 ## Cost estimation
 
@@ -53,12 +69,16 @@ On first activation after upgrading from a pre-1.5.0 install, if the legacy `aif
 
 ## Dashboard
 
-`src/aiflowbridge/ui/dashboard.ts` builds a self-contained HTML page with four panels:
+`src/aiflowbridge/ui/dashboard.ts` builds a self-contained HTML page with eight panels:
 
 1. **Gateway** - status, version, port, base URL.
 2. **Recent requests** - per-row table with timestamp / model / status / duration / tokens / cost. Filters: time preset `<select>` (All / Last 15 min / Last 30 min / Last 1 h / Last 24 h / Last 2 days / Last 3 days / Last 7 days / Last 30 days), provider `<select>` (`All providers` + dynamic per-`byProvider` key list), custom date range (`<input type="date">` x 2), and free-text search. Pagination (per-panel, persisted in `localStorage`). Per-row delete button (when `onRemoveEntry` is wired).
-3. **By model** - aggregated per-model counters with the same filter chain (the time preset is shared across both panels via `syncPresetSelects()`), plus a model-name substring match (entry-level OR model-name). The provider filter applies here too.
-4. **Provider summary** - aggregated per-provider counters.
+3. **Sessions** - recorded requests grouped into sessions by an inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min via the `Inactivity gap` dropdown). Each session is rendered as a collapsible card with a header summary (total tokens, average duration, total estimated cost, span in minutes) and a collapsible per-request details list.
+4. **By model** - aggregated per-model counters with the same filter chain (the time preset is shared across both panels via `syncPresetSelects()`), plus a model-name substring match (entry-level OR model-name). The provider filter applies here too.
+5. **By client** - aggregated per `clientId` (kilocode@1.2.3, curl@8.x, ...).
+6. **By source** - aggregated per origin (`gateway` vs `copilot-chat`).
+7. **Shared session** (2.10.0+, action plan item #3) - pair-programming view: the 20 most recent recorded requests with their sanitized `promptSummary`. Each row carries a **Replay** button that posts a `replay` message to the extension host; the host re-hydrates the entry from the in-memory `TelemetryStore.getEntry(id)` and posts back a `replayResult` rendered in a `<pre>` block. The replay is a pure read - no upstream re-forward.
+8. **Provider summary** - aggregated per-provider counters.
 
 The page renders server-side first (works without JS), then a JS init pass + `rerender()` slice the rows into the persisted page size for each panel.
 

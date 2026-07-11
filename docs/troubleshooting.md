@@ -61,4 +61,12 @@ The in-memory `recent` list is no longer capped. Every recorded request is kept 
 
 If your on-disk telemetry file was written under an older release (before 1.6.0), it only contains the last 20 or 100 entries in the `recent` tail. The cumulative totals (Requests / Tokens / Estimated cost) always reflect the full history regardless of the recent tail length. New requests recorded after upgrading are appended with no eviction, so the recent tail grows over time.
 
+## `Shared session` panel shows "(no summary)" for every row
+
+Either `aiflowbridge.telemetry.captureSessionLog` is set to `false` (opt-out), or the on-disk telemetry file was written by an extension older than 2.10.0 and the existing entries pre-date the `promptSummary` / `responseSummary` fields. Both cases are expected: the panel degrades gracefully, and new requests recorded after enabling the flag (or after upgrading to 2.10.0) get the summary. To start fresh with all summaries populated, run `AIFlowBridge: Reset metrics` after enabling the flag.
+
+## `curl http://127.0.0.1:8787/v1/replay/<id>` returns 404
+
+The recorded entry is no longer in the in-memory `recent` list. The list is bounded by `memoryCap` (default 10 000); the on-disk persister still receives every entry, but the replay endpoint reads from memory only. Either raise `memoryCap` via the gateway's telemetry store options, or use a `requestId` recorded in the most recent 10 000 requests. The `/v1/sessions?limit=N` endpoint returns the available request ids in reverse chronological order so you can pick one that is still in memory.
+
 **For more details**, run `AIFlowBridge: Show Logs` from the Command Palette.

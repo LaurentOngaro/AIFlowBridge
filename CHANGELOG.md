@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.10.0
+
+Pair-programming headline feature. Shared session log + replay endpoint + Server-Sent Events stream let a pair see what the AI just told their partner, re-fetch the original assistant message without re-forwarding upstream, and watch new requests land in real time.
+
+### Added
+
+- **Item #3 - Shared session log + replay + SSE stream.** `RequestTelemetry` gains optional `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars) fields captured at recording time. Both are sanitized before storage (Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob without whitespace are redacted to `[REDACTED]`) so a developer pasting a `curl` one-liner with their upstream key does not silently leak it on the dashboard or via the new endpoints. Three new HTTP endpoints on the loopback URL:
+  - `GET /v1/sessions?limit=N` returns the most recent recorded entries (lightweight shape: id, timestamp, provider, model, status, duration, totalTokens, promptSummary).
+  - `GET /v1/replay/{requestId}` re-hydrates the stored prompt + response summaries into an OpenAI `chat.completion.replay`-shaped body (pure read from the in-memory store, no upstream re-forward).
+  - `GET /v1/events` is a long-lived Server-Sent Events stream emitting `ready`, `snapshot`, and `request.recorded` frames on every `TelemetryStore.record()` call, with a 15 s heartbeat comment frame so intermediaries do not time the connection out.
+- **Dashboard "Shared session" panel.** New panel between "By model" and "By client" with the 20 most recent recorded requests (reverse chronological). Each row shows the local time, provider, model, and the sanitized prompt snippet; a "Replay" button per row requests the matching `/v1/replay/{id}` payload from the extension host and renders it inline in a `<pre>` block. The panel degrades gracefully on entries recorded before the feature shipped (`promptSummary` renders as a muted "(no summary)" placeholder).
+- **`TelemetryStore.getEntry(id)` + `listSessions(limit)`.** New lookup helpers used by the gateway endpoints and the dashboard projection. `getEntry` returns `undefined` for unknown or evicted ids (the in-memory `recent` list is bounded by `memoryCap` - 10 000 by default; the persister still receives every entry, so no data is lost across reloads). `listSessions` clamps the limit and returns reverse-chronological entries.
+- **`aiflowbridge.telemetry.captureSessionLog` setting** (default `true`). When disabled, prompt + response summaries are dropped at recording time so the on-disk `telemetry.json` file stays lean. The replay endpoints still respond but the `promptSummary` / `responseSummary` fields are empty for entries recorded after the flag was flipped.
+- **32 new tests** in `tests/session-share.test.ts` covering sanitization (Bearer / sk- / x-api-key / long-blob redaction, idempotency), prompt + response summary extraction (OpenAI messages array, legacy `prompt` fallback, non-streaming JSON, SSE concatenated chunks, `[DONE]` skip, malformed-chunk tolerance, truncation cap, UTF-16 surrogate safety), `TelemetryStore.getEntry` + `listSessions` (hit / miss, reverse-chronological order, limit clamping), `buildReplayResponse` (OpenAI-shaped payload, usage echo, prompt / response projections, created epoch conversion), and end-to-end HTTP integration (`GET /v1/sessions` empty + populated, `GET /v1/replay/{id}` 200 / 404 / 400 for overlong ids, `GET /v1/events` SSE stream with a `request.recorded` event delivered to a live subscriber).
+
+### Fixed
+
+- The dashboard's `<script>` tag now escapes the `\\n` continuation in the "Loading..." / "(truncated)" branches of the Shared Session replay handler. The pre-existing bug surfaced as a `SyntaxError: Invalid or unexpected token` in the webview console when the user opened the Shared Session panel and clicked Replay on an over-4000-character response (the JS string literal was split across two lines, breaking parsing). No visible behaviour change for the 4 KB-or-smaller default case.
+
+### Tests
+
+`npm test` : **845/845 pass** (45 files, 4.25 s). +32 tests vs 2.9.0 (32 in `tests/session-share.test.ts`). `npm run compile` (0 errors), `npm run compile:standalone` (0 errors).
+
 ## 2.9.0
 
 Dashboard grouping + UX refinements. One new panel (`Sessions`) and eight preset options for the inactivity gap, with no behaviour change to existing panels or to the telemetry capture path.

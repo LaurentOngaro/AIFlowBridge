@@ -420,6 +420,10 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     providers,
     telemetryEnabled: configuration.get<boolean>('telemetry.enabled', true),
     logRequests: configuration.get<boolean>('telemetry.logRequests', true),
+    // Action plan item #3: enable by default so the Shared Session
+    // panel + replay + SSE work out of the box. Opt-out is a single
+    // setting (`aiflowbridge.telemetry.captureSessionLog = false`).
+    captureSessionLog: configuration.get<boolean>('telemetry.captureSessionLog', true),
     visionProxy,
   };
 }

@@ -31,15 +31,11 @@ _None for now._
 
 ### Features (last: FEAT10)
 
-- [ ] FEAT10: Pair programming / multi-IDE / multi-language improvements (see `_Private/ACTION PLAN.md`)
-  - [x] Per-client IDE telemetry (multi-IDE visibility) - shipped in 2.5.0 (item 1)
-  - [x] Bridge Copilot Chat path into TelemetryStore (pair-prog visibility) - shipped in 2.6.0 (item 6)
-  - [x] Workspace context injection (multi-language quality) - shipped in 2.7.0 (item 2)
-  - [x] Language-based model routing rules (multi-language) - shipped in 2.7.0 (item 5)
-  - [x] Zero-conf discovery (mDNS or UDP broadcast) - shipped in 2.7.0 (item 4)
-  - [ ] Shared session log + replay endpoint + SSE - see action plan item 3
+_None for now._
 
 ### Publish (last: PUB02)
+
+_None for now._
 
 ### Refactoring (last:)
 
@@ -78,6 +74,16 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 2.10.0
+
+- FEAT10: Pair programming / multi-IDE / multi-language improvements (see `_Private/ACTION PLAN.md`)
+  - Per-client IDE telemetry (multi-IDE visibility) - shipped in 2.5.0 (item 1)
+  - Bridge Copilot Chat path into TelemetryStore (pair-prog visibility) - shipped in 2.6.0 (item 6)
+  - Workspace context injection (multi-language quality) - shipped in 2.7.0 (item 2)
+  - Language-based model routing rules (multi-language) - shipped in 2.7.0 (item 5)
+  - Zero-conf discovery (mDNS or UDP broadcast) - shipped in 2.7.0 (item 4)
+  - Shared session log + replay endpoint + SSE - shipped in 2.10.0 (item 3)
 
 ### 2.9.0
 

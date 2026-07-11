@@ -128,6 +128,14 @@ The standalone process and the VS Code extension share the same `gateway.lock` f
 The standalone process logs to **stderr** (and the bundled log file at `~/.aiflowbridge/gateway.log` once we add it).
 All request telemetry goes to `~/.aiflowbridge/telemetry.json`, shared with the VS Code extension so the two stay in sync (use `AIFlowBridge: Refresh metrics` in VS Code to pull the latest snapshot).
 
+The standalone gateway exposes the same OpenAI-compatible surface as the VS Code extension, plus the loopback-only pair-programming endpoints added in 2.10.0:
+
+- `GET /v1/sessions?limit=N` - lightweight list of recorded requests (sanitized `promptSummary` + totals). Powered by `TelemetryStore.listSessions()`.
+- `GET /v1/replay/{requestId}` - re-hydrates the stored prompt + response summaries into an OpenAI `chat.completion.replay`-shaped body. Pure read from the in-memory store, no upstream re-forward. Powered by `TelemetryStore.getEntry()`.
+- `GET /v1/events` - long-lived Server-Sent Events stream (15 s heartbeat comment frames, `ready` / `snapshot` / `request.recorded` event types). Powered by `TelemetryStore.subscribe()`.
+
+All three endpoints bind on `127.0.0.1` only (same posture as the rest of the gateway). The sanitization step on capture is identical to the VS Code extension's (Bearer / `sk-...` / `x-api-key` / 60+-char token-like blobs redacted to `[REDACTED]`), so the on-disk telemetry file is safe to share via Git or backup. See [gateway.md](gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events) for the full request / response shapes.
+
 ## Security
 
 ### API key resolution

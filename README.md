@@ -58,6 +58,7 @@ AIFlowBridge itself is **free, open-source, ad-free, tracker-free, no data colle
 - **Local OpenAI-compatible gateway** on port 8787 - Kilo Code, Continue, Open WebUI, curl, the JetBrains AI Assistant custom endpoint
 - **Two ways to run it**: as a VS Code extension or as a standalone Node.js binary (new in 2.0.0) - see [docs/standalone.md](docs/standalone.md)
 - **Per-request metrics**: token counts, latency, estimated cost - see [docs/dashboard.md](docs/dashboard.md)
+- **Shared session log + replay**: see what the AI just told your pair, replay the original assistant message without re-running upstream, watch new requests land in real time over SSE - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events) (new in 2.10.0)
 - **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](docs/vision-proxy.md)
 - **Reasoning picker** for MiniMax M3 (None/High/Max) - see [docs/reasoning.md](docs/reasoning.md)
 - **Local-first**: API keys live in your OS keychain, telemetry stays on your machine
@@ -67,6 +68,7 @@ AIFlowBridge itself is **free, open-source, ad-free, tracker-free, no data colle
 - **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2 -> M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See [docs/providers.md](docs/providers.md).
 - **Transparent vision proxy** - text-only models handle images via another installed Copilot model. Zero configuration.
 - **Built-in OpenAI-compatible gateway** - port 8787, runs as a VS Code extension or a standalone CLI, singleton across processes. See [docs/gateway.md](docs/gateway.md) and [docs/standalone.md](docs/standalone.md).
+- **Pair-programming session log + replay** (new in 2.10.0) - the gateway captures sanitized + truncated prompt / response summaries on every recorded request, exposed as `GET /v1/sessions`, `GET /v1/replay/{id}` (OpenAI-shaped body), and `GET /v1/events` (Server-Sent Events stream). The dashboard's Shared session panel lets you click one button to re-fetch what the AI just told your pair without re-running the upstream call. Bearer / `sk-...` / `x-api-key` credentials are redacted at extraction time.
 - **Copilot Chat integration** - agent mode, tool calling, instructions, MCP, skills. 1M token context on supporting models.
 - **Secure by default** - API keys in VS Code's `SecretStorage` (or env vars / `secrets.json` in standalone), never in `settings.json`. Telemetry is local.
 

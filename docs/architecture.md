@@ -12,11 +12,15 @@ src/
 │   │   ├── probe.ts                    # probeServerVersion / requestPeerShutdown / waitUntilPortFree / compareSemver
 │   │   └── lock.ts                     # acquireGatewayLock / releaseGatewayLock (fs.openSync 'wx')
 │   ├── telemetry/                      # Cross-window telemetry persistence
-│   │   └── persistence.ts              # TelemetryPersister + acquireTelemetryLock / releaseTelemetryLock
+│   │   ├── persistence.ts              # TelemetryPersister + acquireTelemetryLock / releaseTelemetryLock
+│   │   └── summary.ts                  # sanitizeSummaryText + buildPromptSummary + buildResponseSummary (pair-programming log)
 │   ├── ui/                             # Dashboard webview + status bar
 │   │   ├── dashboard.ts                # buildDashboardHtml + showMetricsDashboard
 │   │   └── statusbar.ts                # Status bar entry, "joined" state when peer owns the gateway
 │   ├── token-counter.ts                # MiniMax /v1/responses/input_tokens wrapper
+│   ├── context/                        # Workspace detector + language routing (action plan items #2 + #5)
+│   │   ├── workspace-context.ts        # detectWorkspaceContext + renderWorkspaceContext + prependSystemMessage
+│   │   └── language-routing.ts         # selectProviderWithLanguage + detectLanguageHintFromPayload
 │   ├── modelRegistry.schema.ts         # Hand-rolled registry types + validators + deep merge
 │   ├── modelRegistry.ts                # 3-tier loader (bundled < globalStorage < workspace)
 │   ├── telemetry.ts                    # TelemetryStore + cost estimation
@@ -169,3 +173,13 @@ The model id field in the registry is the **upstream API id** (`MiniMax-M2.7`, `
 The local gateway enforces a singleton across all VS Code windows AND the standalone CLI. When a second window / process activates, it probes `GET /version` on the configured port; see [gateway.md](gateway.md#version-aware-restart) for the full restart flow (`/shutdown`, `/version`, `<globalStorageUri>/gateway.lock`).
 
 The `/shutdown` endpoint (1.7.0+) requires a per-instance random token returned by `GET /version` and echoed in the `X-AIFlowBridge-Shutdown-Token` header. Foreign services on the port are never touched (no `POST /shutdown` is sent).
+
+## Pair-programming HTTP surface
+
+The gateway exposes a small set of loopback-only endpoints on top of the OpenAI-compatible `/v1/chat/completions` core, all bound to `127.0.0.1` (same posture as the rest of the gateway):
+
+- **Workspace context** (`GET /v1/context`, action plan item #2) - JSON dump of the detected workspace languages / package managers / linters / formatters.
+- **Discovery** (`GET /v1/discovery`, item #4) - one-paste client config snippets for Continue / Kilo Code / OpenAI Python SDK / curl, gated on `gateway.discovery.enabled`.
+- **Sessions + replay + SSE** (`GET /v1/sessions`, `GET /v1/replay/{id}`, `GET /v1/events`, item #3, 2.10.0+) - the pair-programming surface. The Shared session panel in the dashboard uses the same HTTP endpoints; the in-process replay path (via `TelemetryStore.getEntry()` + `attachMessageHandler()`) is what wires the button.
+
+The `promptSummary` / `responseSummary` fields on `RequestTelemetry` are populated by `src/aiflowbridge/telemetry/summary.ts` at recording time and sanitized before storage (Bearer tokens, `sk-...` keys, `x-api-key` headers, and 60+-char token-like blobs are redacted to `[REDACTED]`). Both fields are optional in the schema so older on-disk snapshots load unchanged and the next `record()` call repopulates the new fields as requests come in - no migration required.

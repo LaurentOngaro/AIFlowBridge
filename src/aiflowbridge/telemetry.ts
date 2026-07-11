@@ -277,6 +277,10 @@ export class TelemetryStore {
       });
     }
 
+    // Emit a lightweight event to SSE subscribers (action plan item
+    // #3). The snapshot is passed through so the listener does not
+    // have to re-read the store. The same listener-safe try/catch
+    // wraps each notification.
     for (const listener of this.listeners) {
       try {
         listener(this.snapshot());
@@ -284,6 +288,70 @@ export class TelemetryStore {
         // Listeners must not break recording.
       }
     }
+  }
+
+  /**
+   * Action plan item #3. Look up a recorded entry by id. Returns
+   * `undefined` when the id is not in the in-memory `recent` list
+   * (oldest entries past `memoryCap` were evicted, or the id is
+   * unknown). The replay endpoint uses this to re-hydrate the
+   * stored prompt/response summaries into a `chat.completion`-
+   * shaped JSON body without re-forwarding the request upstream.
+   */
+  getEntry(entryId: string): RequestTelemetry | undefined {
+    if (!entryId) {
+      return undefined;
+    }
+    return this.recent.find((entry) => entry.id === entryId);
+  }
+
+  /**
+   * Action plan item #3. List the most recent entries in reverse-
+   * chronological order, each projected to a lightweight
+   * `SessionSummary`. The dashboard's "Shared Session" panel and
+   * the `GET /v1/sessions` HTTP endpoint both consume this. The
+   * projection skips `clientId` / `source` / `promptSummary` /
+   * `responseSummary` because the lightweight shape only carries
+   * what a session list needs.
+   */
+  listSessions(limit: number): Array<{
+    id: string;
+    timestamp: string;
+    providerId: string;
+    providerLabel: string;
+    model: string;
+    status: number;
+    durationMs: number;
+    totalTokens: number;
+    promptSummary: string;
+  }> {
+    const cap = Math.max(0, Math.min(limit, this.recent.length));
+    const out: Array<{
+      id: string;
+      timestamp: string;
+      providerId: string;
+      providerLabel: string;
+      model: string;
+      status: number;
+      durationMs: number;
+      totalTokens: number;
+      promptSummary: string;
+    }> = [];
+    for (let i = this.recent.length - 1; i >= 0 && out.length < cap; i--) {
+      const entry = this.recent[i];
+      out.push({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        providerId: entry.providerId,
+        providerLabel: entry.providerLabel,
+        model: entry.model,
+        status: entry.status,
+        durationMs: entry.durationMs,
+        totalTokens: entry.totalTokens,
+        promptSummary: entry.promptSummary ?? '',
+      });
+    }
+    return out;
   }
 
   private applyEntryInMemory(entry: RequestTelemetry): void {

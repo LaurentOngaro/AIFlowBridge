@@ -9,7 +9,10 @@ The metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or 
 - **Top cards** - Total requests, prompt/completion tokens, average duration, and total **Estimated cost**. With no filter active the cards show **cumulative** totals since you started using the gateway; with a filter active they recompute from the filtered subset.
 - **Gateway panel** - Running state (or stopped / error), port, default model.
 - **Recent requests table** - Timestamp, model, tokens, latency, status (200/4xx/5xx as a colored pill), **Est. cost** (with the per-rate tooltip), and per-row delete button.
+- **Sessions panel** - Recorded requests grouped into sessions by an inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min). Each session is rendered as a collapsible card showing the start time, request count, and a header summary (total tokens, average duration, total estimated cost, session span in minutes); expanding reveals per-request details.
 - **By model panel** - Same metrics aggregated per model ID, with the same time/date/search filters.
+- **By client / By source panels** - Per-`clientId` (kilocode@1.2.3, curl@8.x, ...) and per-origin (gateway vs copilot-chat) splits.
+- **Shared session panel** - Pair-programming view: the 20 most recent recorded requests with their sanitized prompt snippets. Click **Replay** to re-fetch the stored prompt + response summaries via `GET /v1/replay/{id}` without re-running the upstream call. Auto-refreshes when the loopback `GET /v1/events` SSE stream is reachable (the dashboard subscribes on first render).
 - **Provider summary** - Per provider (DeepSeek / MiniMax / Xiaomi) totals.
 
 ## Header badge
@@ -24,7 +27,7 @@ A "Current version: v1.6.0" subtitle displays the installed extension version.
 
 ## Collapsible panels
 
-Each of the four panel sections (Gateway / Recent / By model / Provider) can be collapsed by clicking the chevron in its header. The collapsed state is persisted per-panel in `localStorage`.
+Each of the eight panel sections (Gateway / Recent / Sessions / By model / By client / By source / Shared session / Provider) can be collapsed by clicking the chevron in its header. The collapsed state is persisted per-panel in `localStorage`.
 
 ## Time filters
 
@@ -62,6 +65,16 @@ Each row in the "Recent requests" table has a leading trash-icon column. Clickin
 3. Re-renders the panel with the updated cumulative counters and the updated recent list.
 
 The action column is only rendered when the dashboard is opened from the extension host (which wires an `onRemoveEntry` hook). Backward-compat callers that pass no hook see neither the action column nor the trash button. `AIFlowBridge: Refresh metrics` in any window picks up the deletion because the persister writes through to the on-disk file, which is the source of truth.
+
+## Shared session panel (pair programming)
+
+The "Shared session" panel (added in 2.10.0) lists the 20 most recent recorded requests in reverse chronological order. Each row carries the local time, provider, model, and a sanitized `promptSummary` snippet (max 500 chars). Clicking **Replay** posts a message to the extension host, which re-hydrates the matching entry from the in-memory `TelemetryStore` (same source the HTTP `/v1/replay/{id}` endpoint reads) and renders the body inline in a `<pre>` block. The replay is a pure read - no upstream re-forward, safe to fire as many times as needed.
+
+The sanitization is non-negotiable: Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob without whitespace are redacted to `[REDACTED]` before the snippet ever reaches the dashboard HTML. A developer pasting a `curl` one-liner that includes their upstream key will not see it in the dashboard or via `GET /v1/replay/{id}`.
+
+The panel degrades gracefully on entries recorded before the feature shipped (pre-2.10.0 snapshots have no `promptSummary` - the row renders as a muted `(no summary)` placeholder and the Replay button is hidden for that entry). The button stays functional even when the gateway is unreachable from the webview (the host process brokers the read).
+
+Set `aiflowbridge.telemetry.captureSessionLog = false` to keep the on-disk telemetry file lean - the panel still appears but shows `(no summary)` placeholders for entries recorded after the flag was flipped.
 
 ## Cross-window shared metrics
 

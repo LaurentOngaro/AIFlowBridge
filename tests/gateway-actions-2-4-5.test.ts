@@ -402,6 +402,7 @@ function makeBaseConfig(overrides: { discovery?: { enabled: boolean; broadcastPo
     ],
     telemetryEnabled: false,
     logRequests: false,
+    captureSessionLog: false,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
   };
 }
@@ -517,6 +518,7 @@ describe('resolveLanguageHint (CR02 B3 header cap)', () => {
     providers: [],
     telemetryEnabled: false,
     logRequests: false,
+    captureSessionLog: false,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
   } as unknown as Parameters<typeof resolveLanguageHint>[2];
 
@@ -623,6 +625,7 @@ describe('resolveLanguageHint header cap is applied before trim (review F4)', ()
     providers: [],
     telemetryEnabled: false,
     logRequests: false,
+    captureSessionLog: false,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
   } as unknown as Parameters<typeof resolveLanguageHint>[2];
 

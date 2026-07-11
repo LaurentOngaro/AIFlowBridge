@@ -159,6 +159,12 @@ function isValidSnapshot(value: unknown): value is TelemetrySnapshot {
   // would wipe the user's cumulative counters (BUG18). Treat the
   // per-bucket maps as optional: missing / `undefined` is OK,
   // `normalizeSnapshot` fills in empty objects on the way out.
+  // Per-entry `promptSummary` / `responseSummary` (action plan item
+  // #3) are also optional. We only validate that `recent` is an
+  // array; the per-entry shape is already enforced by the
+  // TypeScript `RequestTelemetry` type and a malformed entry
+  // would surface as a runtime no-op (the dashboard coalesces
+  // absent fields to `''`).
   return (
     typeof candidate.requests === "number" &&
     typeof candidate.totalTokens === "number" &&

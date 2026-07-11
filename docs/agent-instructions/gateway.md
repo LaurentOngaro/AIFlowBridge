@@ -6,15 +6,20 @@
 
 The local gateway is an OpenAI-compatible HTTP proxy that starts on port 8787 when the extension activates (if `aiflowbridge.gateway.enabled` is `true`):
 
-| Endpoint               | Method | Purpose                                                         |
-| ---------------------- | ------ | --------------------------------------------------------------- |
-| `/health`              | GET    | Liveness probe                                                  |
-| `/metrics`             | GET    | Prometheus-style metrics                                        |
-| `/v1/metrics`          | GET    | Same metrics under the OpenAI-compatible path                   |
-| `/v1/models`           | GET    | Catalog (auto-synthesized from the registry)                    |
-| `/v1/chat/completions` | POST   | OpenAI-compatible chat completion (streaming supported)         |
-| `/version`             | GET    | Returns `{ name, version, pid, startedAt, shutdownToken? }`     |
-| `/shutdown`            | POST   | Cooperative shutdown (requires `X-AIFlowBridge-Shutdown-Token`) |
+| Endpoint               | Method | Purpose                                                               |
+| ---------------------- | ------ | --------------------------------------------------------------------- |
+| `/health`              | GET    | Liveness probe                                                        |
+| `/metrics`             | GET    | Prometheus-style metrics                                              |
+| `/v1/metrics`          | GET    | Same metrics under the OpenAI-compatible path                         |
+| `/v1/models`           | GET    | Catalog (auto-synthesized from the registry)                          |
+| `/v1/chat/completions` | POST   | OpenAI-compatible chat completion (streaming supported)               |
+| `/v1/context`          | GET    | Detected workspace context (action plan item #2)                      |
+| `/v1/discovery`        | GET    | Zero-conf discovery payload + client config snippets (#4)             |
+| `/v1/sessions`         | GET    | Recorded Q&A summary list, reverse chronological (#3)                 |
+| `/v1/replay/{id}`      | GET    | Re-hydrated prompt + response summaries from the in-memory store (#3) |
+| `/v1/events`           | GET    | SSE stream: `ready` / `snapshot` / `request.recorded` events (#3)     |
+| `/version`             | GET    | Returns `{ name, version, pid, startedAt, shutdownToken? }`           |
+| `/shutdown`            | POST   | Cooperative shutdown (requires `X-AIFlowBridge-Shutdown-Token`)       |
 
 After `start()`, `config.gateway.port` and `config.gateway.baseUrl` are synced to the actual bound port (matters when `port: 0` is configured).
 
