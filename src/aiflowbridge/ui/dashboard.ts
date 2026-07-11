@@ -333,10 +333,10 @@ export function buildDashboardHtml(
       align-items: center;
       gap: 8px;
       font: inherit;
-    }.collapse-btn:hover { color: var(--text); }.collapse-btn.chevron {
+    }.collapse-btn:hover { color: var(--text); }.collapse-btn .chevron {
       display: inline-block;
       transition: transform 0.15s ease;
-    }.panel.collapsed.chevron { transform: rotate(-90deg); }.panel.collapsed.panel-body { display: none; }.filters {
+    }.panel.collapsed .chevron { transform: rotate(-90deg); }.panel.collapsed .panel-body { display: none; }.filters {
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
@@ -355,7 +355,9 @@ export function buildDashboardHtml(
       border-color: var(--accent);
       color: var(--accent);
     }.preset-select {
-      background: rgba(15, 23, 42, 0.6);
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--panel-2) !important;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 6px 10px;
@@ -363,9 +365,12 @@ export function buildDashboardHtml(
       font-size: 12px;
       cursor: pointer;
       transition: border-color 0.15s ease, background 0.15s ease;
+    }.preset-select option {
+      background: var(--panel-2);
+      color: var(--text);
     }.preset-select:hover, .preset-select:focus {
       border-color: var(--accent);
-      background: rgba(56, 189, 248, 0.08);
+      background: rgba(56, 189, 248, 0.08) !important;
       outline: none;
     }.date-input {
       background: rgba(15, 23, 42, 0.6);

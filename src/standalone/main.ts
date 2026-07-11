@@ -7,10 +7,11 @@
  * (`tsconfig.standalone.json` -> `dist/standalone/main.js`).
  *
  * Lifecycle:
- *   1. Resolve the storage directory (`AIFLOWBRIDGE_DATA_DIR` env var,
- *      default `~/.aiflowbridge/`) and the bundled extension root
- *      (next to the running binary, where `resources/models.json`
- *      ships).
+ *   1. Resolve the storage directory (see `storage-dir.ts` for the
+ *      precedence rules: env var, then VS Code ext globalStorageUri
+ *      when installed, then `~/.aiflowbridge/`) and the bundled
+ *      extension root (next to the running binary, where
+ *      `resources/models.json` ships).
  *   2. Build the `IGatewayContext` via `createStandaloneContext`.
  *   3. Activate the runtime (starts the gateway if enabled in the
  *      standalone config file).
@@ -26,14 +27,12 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { AIFlowBridgeRuntime } from '../aiflowbridge';
 import { loadModelRegistry } from '../aiflowbridge/modelRegistry';
 import { logger } from '../logger';
 import { createStandaloneContext } from './context';
-
-const DEFAULT_STORAGE_DIRNAME = '.aiflowbridge';
+import { resolveStorageDir } from './storage-dir';
 
 function resolveExtensionRoot(): string {
   // Resolve the path to the directory that contains `resources/models.json`.
@@ -57,14 +56,6 @@ function resolveExtensionRoot(): string {
   // Fall back to the closest candidate (CWD-relative) so the error
   // message from `loadModelRegistry` shows the path the loader tried.
   return candidates[0];
-}
-
-function resolveStorageDir(): string {
-  const fromEnv = process.env.AIFLOWBRIDGE_DATA_DIR;
-  if (fromEnv && fromEnv.trim().length > 0) {
-    return fromEnv;
-  }
-  return join(homedir(), DEFAULT_STORAGE_DIRNAME);
 }
 
 function resolveExtensionVersion(extensionRoot: string): string {
