@@ -1,6 +1,6 @@
 import vscode from 'vscode';
-import { AuthManager } from '../auth';
 import { getLoadedRegistry } from '../aiflowbridge/modelRegistry';
+import { AuthManager } from '../auth';
 import { getStabilizeToolListEnabled } from '../config';
 import { API_KEY_SECRETS } from '../consts';
 import { t } from '../i18n';
@@ -89,6 +89,14 @@ export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
 	}
 
 	async chooseVisionProxyModel(): Promise<void> {
+		// Vision proxy is a global feature of the extension (one
+		// `aiflowbridge.vision.copilotVisionModel` setting, shared by
+		// every text-only model across all vendors). The picker is
+		// registered globally in the runtime, not as a per-provider
+		// method. This thin wrapper is kept so any leftover caller
+		// (or the future `aiflowbridge.setVisionModel` refactor) can
+		// still delegate to the global picker without duplicating
+		// the import chain in every provider file.
 		await chooseVisionProxyModel();
 	}
 

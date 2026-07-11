@@ -17,9 +17,12 @@
  *         `ctx.openSettings("aiflowbridge")` (or surfaces the
  *         standalone config path on stderr/info when the hook is
  *         absent).
- *   `aiflowbridge.setVisionModel` re-registers as an alias
- *         to `aiflowbridge.providers.deepseek.setVisionModel` via
- *         `ctx.executeCommand`.
+ *   `aiflowbridge.setVisionModel` is the global vision proxy
+ *         picker and forwards to
+ *         `aiflowbridge.chooseVisionProxyModel` via
+ *         `ctx.executeCommand`. The picker applies to every
+ *         text-only model across all vendors (DeepSeek, MiniMax,
+ *         Xiaomi); it is not deepseek-specific.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -273,13 +276,22 @@ describe('AIFlowBridgeRuntime - UX command regressions (.)', () => {
     expect(host.openSettingsCalls).toEqual(['aiflowbridge']);
   });
 
-  it('setVisionModel forwards via ctx.executeCommand to the deepseek alias', async () => {
+  it('setVisionModel forwards via ctx.executeCommand to the global vision picker', async () => {
+    // The vision proxy is a global feature (one
+    // `aiflowbridge.vision.copilotVisionModel` setting, used by
+    // every text-only model across all vendors). The runtime
+    // registers `aiflowbridge.setVisionModel` as the user-facing
+    // command palette entry and forwards to the picker
+    // (`aiflowbridge.chooseVisionProxyModel`, registered in
+    // `src/runtime/provider.ts` next to the VS Code adapter).
+    // Forwarding by command name keeps the runtime host-agnostic
+    // (the picker itself imports `vscode.lm` directly).
     const handler = host.commands.get('aiflowbridge.setVisionModel');
     expect(handler).toBeDefined();
 
     await (handler as (...args: unknown[]) => unknown)();
 
     expect(host.executeCommandCalls).toHaveLength(1);
-    expect(host.executeCommandCalls[0].command).toBe('aiflowbridge.providers.deepseek.setVisionModel');
+    expect(host.executeCommandCalls[0].command).toBe('aiflowbridge.chooseVisionProxyModel');
   });
 });

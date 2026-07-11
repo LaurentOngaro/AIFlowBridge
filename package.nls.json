@@ -28,6 +28,9 @@
   "vision.current": "Current",
   "vision.unavailable": "No vision models available",
   "vision.proxyError": "Vision proxy error:",
+  "vision.configuredMissing": "Currently configured but no longer available. Pick a replacement below.",
+  "vision.configuredMissingVendor": "configured",
+  "vision.configuredModelMissing": "AIFlowBridge: the configured vision model \"{0}\" is not registered with VS Code. Falling back to the default model. Run \"AIFlowBridge: Set vision proxy model\" to pick a new one.",
   "request.toolsLimitExceeded": "This model supports at most {0} functions in a single request, but this request contains {1}.",
   "request.preflightRoundLimitExceeded": "Experimental tool-list stabilization tried {0} rounds but still could not get a stable enabled-tools list. Turn this experimental setting off, or use VS Code Configure Tools to disable tools you rarely use first.",
   "notice.toolDrift": "Tool list is unstable; cache hit rate may drop. [Learn more](https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/notices/tool-drift.en.md)",
@@ -75,7 +78,6 @@
   "command.resetModelRegistryDone": "Model registry override removed. Reload the window to apply the bundled defaults?",
   "command.resetModelRegistryReload": "Reload Window",
   "command.resetModelRegistryFailed": "Failed to reset model registry: {0}",
-
   "installStandalone.progressDownload": "Downloading AIFlowBridge v{0} for {1}...",
   "installStandalone.progressExtract": "Extracting {0}...",
   "installStandalone.progressAutostart": "Registering autostart service...",

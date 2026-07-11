@@ -46,7 +46,7 @@ See [`AGENTS.md`](AGENTS.md) for the high-level overview, and [`docs/agent-instr
 3. Register the provider in `package.json` (`contributes.languageModelChatProviders`).
 4. Create the provider implementation in `src/provider/<vendor>.ts` (reuse the shared helpers in `src/provider/{base,unified,convert,stream,segment,errors,tokens,request}.ts`).
 5. Add gateway provider normalization in `src/aiflowbridge/providers.ts` (SSRF-validated; the default `aiflowbridge.providers` array uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top).
-6. Add an entry to `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
+6. Add an entry to `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/host-config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
 7. Add API key commands in `package.json` (`<vendor>: Set API Key` / `<vendor>: Clear API Key`).
 8. Add provider-specific settings in `package.json` (`aiflowbridge.providers.{vendor}.*`).
 9. Add unit tests in `tests/<vendor>-*.test.ts`.

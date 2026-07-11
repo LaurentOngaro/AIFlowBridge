@@ -3,6 +3,7 @@ import { logger } from '../logger';
 import { DeepSeekChatProvider } from '../provider';
 import { MiniMaxChatProvider } from '../provider/minimax';
 import { UnifiedChatProvider } from '../provider/unified';
+import { chooseVisionProxyModel } from '../provider/vision';
 import { XiaomiChatProvider } from '../provider/xiaomi';
 
 export interface RegisteredProvider {
@@ -56,9 +57,6 @@ export async function registerAllProviders(
 		vscode.commands.registerCommand('aiflowbridge.providers.deepseek.clearApiKey', () =>
 			deepseekProvider.clearApiKey(),
 		),
-		vscode.commands.registerCommand('aiflowbridge.providers.deepseek.setVisionModel', () =>
-			deepseekProvider.chooseVisionProxyModel(),
-		),
 
 		vscode.commands.registerCommand('aiflowbridge.providers.minimax.setApiKey', () =>
 			minimaxProvider.configureApiKey(),
@@ -72,6 +70,19 @@ export async function registerAllProviders(
 		),
 		vscode.commands.registerCommand('aiflowbridge.providers.xiaomi.clearApiKey', () =>
 			xiaomiProvider.clearApiKey(),
+		),
+
+		// Vision proxy picker. Registered here (next to the VS Code
+		// adapter) because the implementation imports `vscode.lm`
+		// directly to list available models. The picker is global:
+		// it writes the shared `aiflowbridge.vision.copilotVisionModel`
+		// setting, used by every text-only model across all vendors
+		// (DeepSeek, MiniMax text-only, Xiaomi text-only). The user-
+		// facing command palette entry is `aiflowbridge.setVisionModel`,
+		// registered in `src/aiflowbridge/index.ts` and forwarded
+		// here by name to keep the runtime host-agnostic.
+		vscode.commands.registerCommand('aiflowbridge.chooseVisionProxyModel', () =>
+			chooseVisionProxyModel(),
 		),
 
 		// Single registration - unified provider handles all models

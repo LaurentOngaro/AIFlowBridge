@@ -1,7 +1,7 @@
 import { logger } from '../logger';
 import { resolveVendorApiKey } from './api-key-resolver';
-import { loadConfigFromContext } from './config';
 import { GatewayService, isPortInUse } from './gateway/server';
+import { loadConfigFromContext } from './host-config';
 import { TelemetryStore } from './telemetry';
 import { TelemetryPersister, defaultTelemetryPaths } from './telemetry/persistence';
 import type { AiFlowBridgeConfig, Disposable, GatewayStatus, IGatewayContext, TelemetrySnapshot } from './types';
@@ -34,8 +34,16 @@ class AIFlowBridgeRuntime implements Disposable {
    * distinguish "started our own gateway" from "joined an external
    * peer" in the startup log.
    *
-   * Only valid after `activate()` has resolved - before that, `config`
-   * and `gateway` are still undefined.
+   * **Always safe to call.** Before `activate()` resolves (or after
+   * it threw), `config` and `gateway` are still undefined; this
+   * getter returns a sensible "all disabled" stub instead of
+   * crashing on the missing fields. BUG-03 fix: a previous version
+   * reached straight into `this.gateway.running` and crashed the
+   * standalone CLI when the getter was hit before activation. The
+   * standalone binary (see `src/standalone/main.ts`) currently
+   * reads this after `activate()`, but the public getter is also
+   * exposed to test harnesses and any future early-startup consumer
+   * that may want to peek at the state.
    */
   public get gatewayInfo(): {
     running: boolean;
@@ -44,6 +52,15 @@ class AIFlowBridgeRuntime implements Disposable {
     isJoined: boolean;
     providerCount: number;
   } {
+    if (!this.config || !this.gateway) {
+      return {
+        running: false,
+        port: 0,
+        baseUrl: '',
+        isJoined: false,
+        providerCount: 0,
+      };
+    }
     return {
       running: this.gateway.running,
       port: this.config.gateway.port,
@@ -147,12 +164,6 @@ class AIFlowBridgeRuntime implements Disposable {
     return legacy;
   }
 
-  private savePersistedTelemetry(_snapshot: TelemetrySnapshot): void {
-    // No-op: the file-based persister is wired directly into the
-    // TelemetryStore.record() path. The callback is preserved for the
-    // GatewayService contract but does nothing when a persister is set.
-  }
-
   async activate(): Promise<void> {
     logger.info('[AIFlowBridge] Activating...');
 
@@ -167,12 +178,18 @@ class AIFlowBridgeRuntime implements Disposable {
     this.persister = new TelemetryPersister(telemetryPaths);
     this.telemetryFallback = new TelemetryStore(this.persister);
 
+    // No `saveState` callback is wired here: persistence is handled
+    // directly by the file-based persister (TelemetryStore.record()
+    // writes through it on every snapshot change). The GatewayService
+    // contract still accepts an optional saveState hook for tests and
+    // non-VS Code hosts that rely on the legacy globalState path,
+    // but the production runtime does not need it.
     this.gateway = new GatewayService(
       this.config,
       (status, snapshot) => this.refreshUi(status, snapshot),
       (vendor) => resolveVendorApiKey(vendor, this.ctx.secrets),
       () => this.loadPersistedTelemetry(),
-      (snapshot) => this.savePersistedTelemetry(snapshot),
+      undefined,
       this.ctx.extensionVersion,
       undefined,
       this.persister
@@ -361,13 +378,21 @@ class AIFlowBridgeRuntime implements Disposable {
       })
     );
 
-    // the `aiflowbridge.setVisionModel` command is declared in
-    // package.json (line 113) but the handler was removed in the
-    // refactor, so VS Code displayed "command not found". Re-register
-    // it as a thin alias that delegates to the per-provider command.
+    // The vision proxy is a global feature of the extension: one
+    // `aiflowbridge.vision.copilotVisionModel` setting, shared by
+    // every text-only model across all vendors (DeepSeek, MiniMax
+    // text-only variants, Xiaomi text-only variants). The picker
+    // implementation lives in `src/provider/vision/model.ts` and
+    // is registered as a command from `src/runtime/provider.ts` so
+    // it sits next to the VS Code adapter (`vscode.lm` lives
+    // there). This runtime-level handler is the user-facing
+    // command palette entry ("AIFlowBridge: Set vision proxy
+    // model") and forwards to the picker command by name; the
+    // indirection keeps the runtime host-agnostic (the picker
+    // itself imports `vscode.lm` directly and cannot live here).
     this.ctx.subscriptions.push(
       register('aiflowbridge.setVisionModel', async () => {
-        await this.ctx.executeCommand?.('aiflowbridge.providers.deepseek.setVisionModel');
+        await this.ctx.executeCommand?.('aiflowbridge.chooseVisionProxyModel');
       })
     );
 
@@ -427,22 +452,36 @@ class AIFlowBridgeRuntime implements Disposable {
       // port refused to shut down within the timeout. Surface a
       // targeted warning so the user knows what to do (stop the peer
       // manually, or wait for TIME_WAIT to clear on Windows).
+      // BUG-04 fix: distinguish "first-time start" (wasRunning was
+      // false) from "restart" (wasRunning was true) in the user-
+      // facing message. The two paths have different remediations
+      // and the previous generic message was misleading in the
+      // first-time case (the user did not "restart" anything).
       try {
         await this.gateway.start();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const code = (error as NodeJS.ErrnoException).code;
         const peerPid = (error as { peerPid?: number }).peerPid;
-        logger.error(`[AIFlowBridge] Gateway failed to restart after config reload: ${message}`);
+        const actionLabel = wasRunning ? 'restart' : 'start';
+        logger.error(`[AIFlowBridge] Gateway failed to ${actionLabel} after config reload: ${message}`);
         if (code === 'EPEERSTALLED' && typeof peerPid === 'number') {
           this.ctx.showWarning?.(
-            `AIFlowBridge gateway could not restart: the older instance (pid ${peerPid}) did not free port ${this.config.gateway.port} within the timeout. ` +
+            `AIFlowBridge gateway could not ${actionLabel}: the older instance (pid ${peerPid}) did not free port ${this.config.gateway.port} within the timeout. ` +
               `Stop that process manually (or wait for TIME_WAIT to clear), then reload the window.`
           );
         } else {
-          this.ctx.showWarning?.(`AIFlowBridge gateway failed to restart: ${message}`);
+          this.ctx.showWarning?.(`AIFlowBridge gateway failed to ${actionLabel} after config reload: ${message}`);
         }
       }
+    } else if (wasRunning) {
+      // The gateway was running and is now disabled by the new
+      // config. `wasRunning` is true but we deliberately did not
+      // call `stop()` in the branch above (the gateway is no
+      // longer desired). The user has implicitly stopped it by
+      // toggling `gateway.enabled` to false; surface an info
+      // message so the status bar transition is not silent.
+      logger.info('[AIFlowBridge] Gateway disabled by new configuration; previously running gateway remains stopped.');
     }
 
     this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());

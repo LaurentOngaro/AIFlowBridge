@@ -35,7 +35,7 @@ If you run the helper without `-Profiles` or `-AllProfiles`, the script detects 
 3. **Provider registration** in `package.json` (`contributes.languageModelChatProviders`).
 4. **Provider implementation** in `src/provider/<vendor>.ts`. Reuse `src/provider/{base,unified,convert,stream,segment,errors,tokens,request}.ts`.
 5. **Gateway provider normalization** in `src/aiflowbridge/providers.ts` - the default `aiflowbridge.providers` array uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top.
-6. **`DEFAULT_GATEWAY_PROFILES`** in `src/aiflowbridge/config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
+6. **`DEFAULT_GATEWAY_PROFILES`** in `src/aiflowbridge/host-config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
 7. **API key commands** in `package.json` (`<vendor>: Set API Key` / `Clear API Key`).
 8. **Provider-specific settings** in `package.json` (`aiflowbridge.providers.{vendor}.*`).
 9. **Add tests** in `tests/<vendor>-*.test.ts` + register in `docs/agent-instructions/testing.md`.

@@ -1,5 +1,9 @@
 /**
- * Unit tests for src/aiflowbridge/config.ts
+ * Unit tests for src/aiflowbridge/host-config.ts (renamed from
+ * `src/aiflowbridge/config.ts` in the 2026-07-11 audit pass to
+ * disambiguate from the VS Code-specific `src/config.ts` at the
+ * repo root).
+ *
  * Focus:
  * - synthesizeProvidersFromUserModels() - merging user-declared models
  *   into the gateway provider list so OpenAI-compatible clients (Kilo Code,
@@ -48,7 +52,7 @@ vi.mock('vscode', () => {
   };
 });
 
-import { synthesizeProvidersFromBuiltInModels, synthesizeProvidersFromUserModels } from '../src/aiflowbridge/config';
+import { synthesizeProvidersFromBuiltInModels, synthesizeProvidersFromUserModels } from '../src/aiflowbridge/host-config';
 import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
 import { validateRegistryContent, validateRegistryStructure } from '../src/aiflowbridge/modelRegistry.schema';
 import { buildModelCatalog, selectProvider } from '../src/aiflowbridge/providers';

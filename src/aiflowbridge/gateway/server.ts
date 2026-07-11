@@ -4,13 +4,13 @@ import type { Socket } from 'node:net';
 import { Readable } from 'node:stream';
 import { URL } from 'node:url';
 import { logger } from '../../logger';
-import { buildModelCatalog, selectProvider } from '../providers';
+import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../context/language-routing';
+import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
+import { buildModelCatalog } from '../providers';
 import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
 import { fetchMinimaxPromptTokens } from '../token-counter';
 import type { AiFlowBridgeConfig, GatewaySettings, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from '../types';
-import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
-import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../context/language-routing';
 import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
 
@@ -114,6 +114,15 @@ export class GatewayService {
    * `stop()`. `null` when discovery is disabled.
    */
   private discoveryBeacon: DiscoveryBeacon | null = null;
+  /**
+   * Per-instance provider concurrency semaphores (BUG17 fix D,
+   * BUG-02 hardening). Each `GatewayService` keeps its own Map so
+   * multiple instances in the same process (test suite, dev
+   * reload, multiple standalones) do not share provider caps.
+   * Previously a module-level Map, which leaked slots across
+   * instances and made the per-test isolation unreliable.
+   */
+  private readonly providerSemaphores = new Map<string, ProviderSemaphore>();
 
   constructor(
     config: AiFlowBridgeConfig,
@@ -588,8 +597,20 @@ export class GatewayService {
       }
       logger.info(`[Gateway] Shutdown requested by peer on ${request.socket.remoteAddress ?? 'unknown'}`);
       this.writeJson(response, 200, { ok: true });
+      // BUG-01 fix: capture the server handle locally so the deferred
+      // close targets the socket that was actually serving the request,
+      // not whatever `this.server` may have been reassigned to in the
+      // 100 ms gap (e.g. by a concurrent `stop()` call from
+      // `deactivate()`). Without this, `?.` swallowed the reassignment
+      // and the socket leaked until the OS keep-alive timeout, which
+      // could keep the port bound on Windows TIME_WAIT and break the
+      // follow-up bind from the new activation.
+      const serverToClose = this.server;
+      this.server = undefined;
       setTimeout(() => {
-        void this.server?.close();
+        if (serverToClose) {
+          void serverToClose.close();
+        }
       }, 100);
       return;
     }
@@ -883,7 +904,7 @@ export class GatewayService {
     // `max = 0` disables the cap (used by local dev / tests that
     // want no queueing).
     const maxPerProvider = resolveMaxConcurrentPerProvider(this.config.gateway);
-    await acquireProviderSlot(provider.id, maxPerProvider);
+    await this.acquireProviderSlot(provider.id, maxPerProvider);
     let providerSlotHeld = true;
     // `releaseOnAbort` is called once on every exit path
     // (success, error, timeout) so the slot is never leaked. The
@@ -894,7 +915,7 @@ export class GatewayService {
         return;
       }
       providerSlotHeld = false;
-      releaseProviderSlot(provider.id);
+      this.releaseProviderSlot(provider.id);
     };
 
     // Translate AIFB-specific body fields into the upstream API's expected
@@ -1381,6 +1402,66 @@ export class GatewayService {
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.end(JSON.stringify(payload, null, 2));
   }
+
+  /**
+   * Acquire a per-provider concurrency slot (BUG17 fix D,
+   * BUG-02 hardening). Per-instance Map (see `providerSemaphores`)
+   * so multiple `GatewayService` instances in the same process do
+   * not share caps.
+   *
+   * `max = 0` disables the cap (every acquirer resolves
+   * immediately). Useful for local development where one process
+   * is the only client.
+   */
+  private acquireProviderSlot(providerId: string, max: number): Promise<void> {
+    if (max <= 0) {
+      return Promise.resolve();
+    }
+    let lock = this.providerSemaphores.get(providerId);
+    if (!lock) {
+      lock = { active: 0, waiters: [] };
+      this.providerSemaphores.set(providerId, lock);
+    }
+    if (lock.active < max) {
+      lock.active++;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      lock!.waiters.push(() => {
+        // The slot is transferred to us, NOT released to the pool.
+        // `releaseProviderSlot` will pop the next waiter or decrement
+        // `active` when this caller is done.
+        lock!.active++;
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Release a per-provider concurrency slot acquired via
+   * `acquireProviderSlot`. The `max <= 0` path leaves nothing
+   * tracked, so this is also a no-op (keeps the disabled path
+   * allocation-free and side-effect-free).
+   */
+  private releaseProviderSlot(providerId: string): void {
+    const lock = this.providerSemaphores.get(providerId);
+    if (!lock) {
+      return;
+    }
+    const next = lock.waiters.shift();
+    if (next) {
+      next();
+    } else {
+      lock.active--;
+      if (lock.active === 0) {
+        // Free the entry so the Map does not grow unbounded with
+        // distinct provider ids. Safe even if a waiter is queued
+        // in the same microtask: the awaiter is in `waiters` and
+        // we only free on empty queue.
+        this.providerSemaphores.delete(providerId);
+      }
+    }
+  }
 }
 
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
@@ -1583,11 +1664,11 @@ function resolveStreamTotalTimeoutMs(gateway: GatewaySettings): number {
  *
  * Keyed by `provider.id` (not by upstream URL) so that two
  * distinct gateway profiles that happen to point at the same
- * upstream base URL still get independent caps. The Map is module
- * state: it survives across requests and across the whole
- * `GatewayService` lifetime, which is what we want (semaphores
- * track concurrent upstream calls regardless of which client
- * triggered them). Cleared implicitly when the module unloads.
+ * upstream base URL still get independent caps. The Map is
+ * **per-instance** state (a property on `GatewayService`): each
+ * `GatewayService` keeps an isolated semaphore pool so multiple
+ * instances in the same process (tests, reloads) do not share
+ * provider caps. Cleared when the `GatewayService` is garbage-collected.
  *
  * `max = 0` disables the cap (every acquirer resolves immediately
  * with `active = Infinity` effectively). Useful for local
@@ -1596,55 +1677,6 @@ function resolveStreamTotalTimeoutMs(gateway: GatewaySettings): number {
 interface ProviderSemaphore {
   active: number;
   waiters: Array<() => void>;
-}
-
-const providerSemaphores = new Map<string, ProviderSemaphore>();
-
-function acquireProviderSlot(providerId: string, max: number): Promise<void> {
-  if (max <= 0) {
-    return Promise.resolve();
-  }
-  let lock = providerSemaphores.get(providerId);
-  if (!lock) {
-    lock = { active: 0, waiters: [] };
-    providerSemaphores.set(providerId, lock);
-  }
-  if (lock.active < max) {
-    lock.active++;
-    return Promise.resolve();
-  }
-  return new Promise<void>((resolve) => {
-    lock!.waiters.push(() => {
-      // The slot is transferred to us, NOT released to the pool.
-      // `releaseProviderSlot` will pop the next waiter or decrement
-      // `active` when this caller is done.
-      lock!.active++;
-      resolve();
-    });
-  });
-}
-
-function releaseProviderSlot(providerId: string): void {
-  // `acquireProviderSlot` skipped (max <= 0) means nothing was
-  // tracked; also skip the release. Keeps the disabled path
-  // allocation-free and side-effect-free.
-  const lock = providerSemaphores.get(providerId);
-  if (!lock) {
-    return;
-  }
-  const next = lock.waiters.shift();
-  if (next) {
-    next();
-  } else {
-    lock.active--;
-    if (lock.active === 0) {
-      // Free the entry so the Map does not grow unbounded with
-      // distinct provider ids. Safe even if a waiter is queued in
-      // the same microtask: the awaiter is in `waiters` and we
-      // only free on empty queue.
-      providerSemaphores.delete(providerId);
-    }
-  }
 }
 
 /**
