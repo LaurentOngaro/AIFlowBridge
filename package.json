@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "Multi-provider AI switcher for GitHub Copilot Chat: DeepSeek V4 ($0.27/M in), MiniMax M3, Xiaomi MiMo V2 Omni. 3 problems solved: (1) one Copilot Chat picker for 14 models across 3 vendors, (2) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (3) a built-in OpenAI-compatible local gateway on port 8787 so Kilo Code, Continue, Open WebUI, and curl can all use the same models - with a live metrics dashboard, per-request token counts, and estimated cost. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.8.1",
+  "version": "2.9.0",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"

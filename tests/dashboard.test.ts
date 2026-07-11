@@ -272,8 +272,9 @@ describe('buildDashboardHtml', () => {
 
   it('renders an Est. cost column in the recent, by-model, and provider tables', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    // The header is rendered three times (recent / by-model / provider).
-    expect(html.match(/Est\. cost<\/th>/g)?.length).toBe(3);
+    // The header is rendered five times (recent / by-model / provider /
+    // sessions summary / sessions per-request details).
+    expect(html.match(/Est\. cost<\/th>/g)?.length).toBe(5);
   });
 
   it('shows the per-request estimated cost in the recent row', () => {
@@ -430,9 +431,8 @@ describe('buildDashboardHtml', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const bodies = html.match(/<div class="panel-body">/g) ?? [];
     // Gateway / Recent / By model / By client / By source /
-    // Provider summary = 6 (was 5; "By source" added by action
-    // plan item #6).
-    expect(bodies.length).toBe(6);
+    // Provider summary = 7 (was 6; "Sessions" panel added by AFF06).
+    expect(bodies.length).toBe(7);
   });
 
   it('contains the collapse toggle JS handler that reads / writes localStorage', () => {
@@ -1468,5 +1468,89 @@ describe('AFF08 - preset combobox and provider filter', () => {
     // `filterByProvider` must filter on `entry.providerId` (the
     // stable id, not the human-readable label).
     expect(script).toMatch(/filterByProvider[\s\S]*?entry\.providerId/);
+  });
+
+  // AFF06: session grouping panel
+  it('renders the sessions panel with collapse button', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('id="panel-sessions"');
+    expect(html).toContain('data-collapse-target="panel-sessions"');
+  });
+
+  it('renders the session gap dropdown with 1, 2, 5, 10, 15, 30, 45, 60 min options', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('id="session-gap"');
+    expect(html).toContain('<option value="1">1 min</option>');
+    expect(html).toContain('<option value="2">2 min</option>');
+    expect(html).toContain('<option value="5">5 min</option>');
+    expect(html).toContain('<option value="10">10 min</option>');
+    expect(html).toContain('<option value="15">15 min</option>');
+    expect(html).toContain('<option value="30" selected>30 min</option>');
+    expect(html).toContain('<option value="45">45 min</option>');
+    expect(html).toContain('<option value="60">60 min</option>');
+  });
+
+  it('renders sessions container and pagination div', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('id="sessions-container"');
+    expect(html).toContain('id="sessions-pagination"');
+  });
+
+  it('shows "No sessions to show." when recent is empty', () => {
+    const html = buildDashboardHtml(baseConfig(), emptySnapshot(), true);
+    expect(html).toContain('>No sessions to show.</p>');
+  });
+
+  it('contains the session grouping JS functions', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(script).toContain('groupSessions');
+    expect(script).toContain('renderSessionSections');
+    expect(script).toContain('bindSessionsPaginator');
+  });
+
+  it('contains session CSS classes', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('.session-section');
+    expect(html).toContain('.session-toggle');
+    expect(html).toContain('.session-body');
+    expect(html).toContain('.session-summary-table');
+  });
+
+  it('sessions pagination state defaults to pageSize 5', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(script).toContain('sessions: { page: 1, pageSize: 5, total: 0 }');
+  });
+
+  it('sessions panel loads persisted page size from localStorage', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(script).toMatch(/loadPageSize\("sessions"/);
+  });
+
+  it('contains session request-details JS function', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(script).toContain('renderSessionEntries');
+    expect(script).toContain('session-entries');
+    expect(script).toContain('data-entries-toggle');
+  });
+
+  it('contains session request-details CSS classes', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('.session-entries');
+    expect(html).toContain('.session-entries-table');
+    expect(html).toContain('.session-entries-title');
+    expect(html).toContain('.session-entries-toggle');
+    expect(html).toContain('.session-entries-body');
+  });
+
+  it('groupSessions stores the entries belonging to each session', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    // The groupSessions function must push each entry into the
+    // session's entries array so renderSessionEntries can list them.
+    expect(script).toMatch(/current\.entries\.push/);
   });
 });

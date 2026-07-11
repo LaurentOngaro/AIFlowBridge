@@ -26,10 +26,6 @@ _None for now._
 
 ### Display (last: AFF08)
 
-- [ ] AFF06: metric dashboard:
-  - add the possibility to group the requests by sessions (using date/time check to group them in a session, e.g., 30 minutes of inactivity = new session)
-    - each session is displayed as a collapsible section, with the session start time and the number of requests in that session
-    - each session has a summary of the total tokens used, the total duration, and the total estimated cost
 - [ ] AFF07: metric dashboard:
   - telemetry export (CSV/JSON) (using the selected filters)
 
@@ -83,7 +79,12 @@ Backlog (value to confirm):
 
 ## Completed
 
-### 2.8.0
+### 2.9.0
+
+- AFF06: metric dashboard:
+  - add the possibility to group the requests by sessions (using date/time check to group them in a session, e.g., 30 minutes of inactivity = new session)
+    - each session is displayed as a collapsible section, with the session start time and the number of requests in that session
+    - each session has a summary of the total tokens used, the total duration, and the total estimated cost
 
 ### 2.7.0 - `/review uncommitted` follow-ups (post-CR02 hardening)
 

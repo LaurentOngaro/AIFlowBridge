@@ -487,7 +487,141 @@ export function buildDashboardHtml(
       font-size: 12px;
       width: 56px;
       text-align: center;
-    }.pagination.page-label { white-space: nowrap; }.pagination.page-info { margin-left: auto; white-space: nowrap; }.footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
+    }.pagination.page-label { white-space: nowrap; }.pagination.page-info { margin-left: auto; white-space: nowrap; }.session-section {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }.session-toggle {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      background: transparent;
+      border: 0;
+      padding: 12px 14px;
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }.session-toggle:hover {
+      background: rgba(56, 189, 248, 0.08);
+    }.session-toggle .chevron {
+      display: inline-block;
+      transition: transform 0.15s ease;
+      margin-right: 8px;
+      color: var(--muted);
+    }.session-section.closed .session-toggle .chevron {
+      transform: rotate(-90deg);
+    }.session-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+    }.session-time {
+      font-weight: 600;
+      font-size: 13px;
+    }.session-count {
+      color: var(--muted);
+      font-size: 12px;
+    }.session-stats {
+      font-size: 12px;
+      color: var(--muted);
+    }.session-stats span {
+      margin-left: 12px;
+    }.session-body {
+      display: none;
+      padding: 0 14px 12px;
+    }.session-section.open .session-body {
+      display: block;
+    }.session-summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }.session-summary-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }.session-summary-table td {
+      padding: 6px 10px;
+      color: var(--text);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    }.session-summary-table td.muted {
+      color: var(--muted);
+    }.session-entries {
+      margin-top: 12px;
+    }.session-entries-title {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin: 0 0 6px;
+    }.session-entries-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }.session-entries-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }.session-entries-table td {
+      padding: 4px 8px;
+      color: var(--text);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+      white-space: nowrap;
+    }.session-entries-table td.muted {
+      color: var(--muted);
+    }.session-entries-table .pill {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }.session-entries-table .pill.ok {
+      background: rgba(34, 197, 94, 0.15);
+      color: #86efac;
+    }.session-entries-table .pill.warn {
+      background: rgba(251, 113, 133, 0.15);
+      color: #fda4af;
+    }.session-entries-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      background: transparent;
+      border: 0;
+      padding: 6px 0;
+      color: var(--muted);
+      font: inherit;
+      cursor: pointer;
+      text-align: left;
+    }.session-entries-toggle:hover {
+      color: var(--text);
+    }.session-entries-toggle .chevron {
+      display: inline-block;
+      transition: transform 0.15s ease;
+      font-size: 10px;
+    }.session-entries.closed .session-entries-toggle .chevron {
+      transform: rotate(-90deg);
+    }.session-entries.open .session-entries-body {
+      display: block;
+    }.session-entries.closed .session-entries-body {
+      display: none;
+    }.footer { color: var(--muted); font-size: 12px; margin-top: 18px; }
   </style>
 </head>
 <body>
@@ -550,6 +684,34 @@ export function buildDashboardHtml(
       <div class="panel-body">
         ${snapshot.recent.length === 0 ? '<p class="muted">No request recorded yet.</p>' : renderRecentTable(snapshot, pricingMaps, Boolean(onRemoveEntry))}
         <div class="pagination" id="recent-pagination" hidden></div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-sessions">
+      <div class="panel-header">
+        <button type="button" class="collapse-btn" data-collapse-target="panel-sessions" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>Sessions</h2>
+        </button>
+        <div class="filters">
+          <label class="muted" for="session-gap" style="font-size:12px;">Inactivity gap</label>
+          <select class="preset-select" id="session-gap" aria-label="Session inactivity gap">
+            <option value="1">1 min</option>
+            <option value="2">2 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="sessions-container">
+          <p class="muted">No sessions to show.</p>
+        </div>
+        <div class="pagination" id="sessions-pagination" hidden></div>
       </div>
     </div>
 
@@ -694,6 +856,7 @@ export function buildDashboardHtml(
       let currentRecent = recent;
       let currentModels = byModel;
       let currentProviders = byProvider;
+      let currentSessions = [];
 
       // pagination state. Declared early (before the loadPageSize
       // calls below) to avoid a TDZ ReferenceError when the IIFE runs.
@@ -707,6 +870,7 @@ export function buildDashboardHtml(
         recent: { page: 1, pageSize: 25, total: 0 },
         model: { page: 1, pageSize: 10, total: 0 },
         provider: { page: 1, pageSize: 10, total: 0 },
+        sessions: { page: 1, pageSize: 5, total: 0 },
       };
 
       // sort state per panel. Click a column header once for
@@ -728,6 +892,7 @@ export function buildDashboardHtml(
       paginationState.recent.pageSize = loadPageSize("recent", paginationState.recent.pageSize);
       paginationState.model.pageSize = loadPageSize("model", paginationState.model.pageSize);
       paginationState.provider.pageSize = loadPageSize("provider", paginationState.provider.pageSize);
+      paginationState.sessions.pageSize = loadPageSize("sessions", paginationState.sessions.pageSize);
 
       function lookupPricing(entry) {
         return pricingMaps.byProviderId[entry.providerId]
@@ -1070,7 +1235,19 @@ export function buildDashboardHtml(
         bindPanelPaginator("recent-pagination", currentRecentSorted, false);
         bindPanelPaginator("model-pagination", currentModelsSorted, true);
         bindPanelPaginator("provider-pagination", currentProvidersSorted, true);
+        bindSessionsPaginator();
         updateSortArrows();
+      }
+
+      function bindSessionsPaginator() {
+        paginationState.sessions.total = currentSessions.length;
+        var state = paginationState.sessions;
+        var refresh = function() {
+          var page = paginate(currentSessions, state.page, state.pageSize);
+          renderSessionSections(page);
+          renderPagination("sessions-pagination", state, refresh);
+        };
+        refresh();
       }
 
       // per-panel paginator helper. Owns the (1) paginated
@@ -1134,8 +1311,184 @@ export function buildDashboardHtml(
         return result;
       }
 
+      function groupSessions(entries, thresholdMinutes) {
+        if (entries.length === 0) return [];
+        const sorted = entries.slice().sort((a, b) => {
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        });
+        const gapMs = thresholdMinutes * 60 * 1000;
+        const sessions = [];
+        let current = null;
+        for (var i = 0; i < sorted.length; i++) {
+          var ts = new Date(sorted[i].timestamp).getTime();
+          if (current && ts - current.lastTs > gapMs) {
+            sessions.push(current);
+            current = null;
+          }
+          if (!current) {
+            current = {
+              startTime: sorted[i].timestamp,
+              endTime: sorted[i].timestamp,
+              lastTs: ts,
+              count: 0,
+              totalTokens: 0,
+              totalDurationMs: 0,
+              estimatedCost: 0,
+              errors: 0,
+              entries: [],
+            };
+          }
+          current.count += 1;
+          current.totalTokens += sorted[i].totalTokens || 0;
+          current.totalDurationMs += sorted[i].durationMs || 0;
+          current.estimatedCost += sorted[i].estimatedCost || 0;
+          current.errors += sorted[i].status >= 400 ? 1 : 0;
+          current.endTime = sorted[i].timestamp;
+          current.lastTs = ts;
+          current.entries.push(sorted[i]);
+        }
+        if (current) sessions.push(current);
+        sessions.reverse();
+        return sessions;
+      }
+
+      function renderSessionSections(sessions) {
+        var container = document.getElementById("sessions-container");
+        if (!container) return;
+        if (sessions.length === 0) {
+          container.innerHTML = '<p class="muted">No sessions to show.</p>';
+          return;
+        }
+        var html = "";
+        for (var i = 0; i < sessions.length; i++) {
+          var s = sessions[i];
+          var startTs = new Date(s.startTime);
+          var endTs = new Date(s.endTime);
+          var avgDurationMs = s.count > 0 ? Math.round(s.totalDurationMs / s.count) : 0;
+          var durationMinutes = s.lastTs > 0 && startTs.getTime() > 0
+            ? Math.round((s.lastTs - startTs.getTime()) / 60000)
+            : 0;
+          html += '<div class="session-section closed" id="session-' + i + '">'
+            + '<button class="session-toggle" data-session-id="' + i + '" title="Click to expand">'
+            + '<span class="chevron">&#9662;</span>'
+            + '<div class="session-info">'
+            + '<span class="session-time">' + escapeHtml(startTs.toLocaleString()) + '</span>'
+            + '<span class="session-count">' + formatNumber(s.count) + ' request' + (s.count === 1 ? '' : 's') + '</span>'
+            + '<span class="session-stats">'
+            + '<span>&#x2B55; ' + formatNumber(s.totalTokens) + ' tokens</span>'
+            + '<span>&#x23F1; ' + formatNumber(avgDurationMs) + ' ms avg</span>'
+            + (durationMinutes > 0 ? '<span>&#x1F552; ' + durationMinutes + ' min</span>' : '')
+            + '<span>' + formatCostCell(s.estimatedCost, null) + '</span>'
+            + '</span>'
+            + '</div>'
+            + '</button>'
+            + '<div class="session-body">'
+            + '<table class="session-summary-table">'
+            + '<thead><tr>'
+            + '<th>Start</th>'
+            + '<th>End</th>'
+            + '<th>Requests</th>'
+            + '<th>Tokens</th>'
+            + '<th>Avg duration</th>'
+            + '<th>Errors</th>'
+            + '<th>Est. cost</th>'
+            + '</tr></thead>'
+            + '<tbody><tr>'
+            + '<td class="muted">' + escapeHtml(startTs.toLocaleString()) + '</td>'
+            + '<td class="muted">' + escapeHtml(endTs.toLocaleString()) + '</td>'
+            + '<td>' + formatNumber(s.count) + '</td>'
+            + '<td>' + formatNumber(s.totalTokens) + '</td>'
+            + '<td>' + formatNumber(avgDurationMs) + ' ms</td>'
+            + '<td>' + formatNumber(s.errors) + '</td>'
+            + '<td>' + formatCostCell(s.estimatedCost, null) + '</td>'
+            + '</tr></tbody>'
+            + '</table>'
+            + renderSessionEntries(s.entries, i)
+            + '</div>'
+            + '</div>';
+        }
+        container.innerHTML = html;
+        for (var i = 0; i < sessions.length; i++) {
+          (function(idx) {
+            var toggle = container.querySelector('[data-session-id="' + idx + '"]');
+            if (toggle) {
+              toggle.addEventListener("click", function() {
+                var section = document.getElementById("session-" + idx);
+                if (section) {
+                  if (section.classList.contains("open")) {
+                    section.classList.remove("open");
+                    section.classList.add("closed");
+                  } else {
+                    section.classList.remove("closed");
+                    section.classList.add("open");
+                  }
+                }
+              });
+            }
+            var entriesToggle = container.querySelector('[data-entries-toggle="' + idx + '"]');
+            if (entriesToggle) {
+              entriesToggle.addEventListener("click", function(ev) {
+                ev.stopPropagation();
+                var entriesEl = document.getElementById("session-entries-" + idx);
+                if (entriesEl) {
+                  if (entriesEl.classList.contains("open")) {
+                    entriesEl.classList.remove("open");
+                    entriesEl.classList.add("closed");
+                  } else {
+                    entriesEl.classList.remove("closed");
+                    entriesEl.classList.add("open");
+                  }
+                }
+              });
+            }
+          })(i);
+        }
+      }
+
       function formatTime(date) {
         return date.toLocaleString();
+      }
+
+      function renderSessionEntries(entries, sessionId) {
+        if (!entries || entries.length === 0) return '';
+        var rows = '';
+        for (var j = 0; j < entries.length; j++) {
+          var e = entries[j];
+          var ts = new Date(e.timestamp);
+          var statusClass = e.status >= 400 ? 'warn' : 'ok';
+          rows += '<tr>'
+            + '<td class="muted" title="' + escapeHtml(ts.toLocaleString()) + '">'
+            + escapeHtml(ts.toLocaleTimeString())
+            + '</td>'
+            + '<td>' + escapeHtml(e.providerLabel || e.providerId) + '</td>'
+            + '<td><code>' + escapeHtml(e.model) + '</code></td>'
+            + '<td><span class="pill ' + statusClass + '">' + e.status + '</span></td>'
+            + '<td>' + formatNumber(e.durationMs) + ' ms</td>'
+            + '<td>' + formatNumber(e.totalTokens) + '</td>'
+            + '<td>' + formatCostCell(e.estimatedCost || 0, lookupPricing(e)) + '</td>'
+            + '</tr>';
+        }
+        var containerId = 'session-entries-' + sessionId;
+        return '<div class="session-entries closed" id="' + containerId + '">'
+          + '<button class="session-entries-toggle" data-entries-toggle="' + sessionId + '" title="Toggle request details">'
+          + '<span class="chevron">&#9662;</span>'
+          + '<span class="session-entries-title">Request details (' + formatNumber(entries.length) + ')</span>'
+          + '</button>'
+          + '<div class="session-entries-body">'
+          + '<table class="session-entries-table">'
+          + '<thead><tr>'
+          + '<th>Time</th>'
+          + '<th>Provider</th>'
+          + '<th>Model</th>'
+          + '<th>Status</th>'
+          + '<th>Duration</th>'
+          + '<th>Tokens</th>'
+          + '<th>Est. cost</th>'
+          + '</tr></thead>'
+          + '<tbody>' + rows + '</tbody>'
+          + '</table>'
+          + '</div>'
+          + '</div>';
       }
       function formatNumber(value) {
         return new Intl.NumberFormat("en-US").format(value);
@@ -1280,6 +1633,11 @@ export function buildDashboardHtml(
             })
           : timeFiltered;
         currentModels = aggregateModels(modelSource);
+        // Session grouping uses the same filter entries as the recent
+        // table, respecting time range, date, provider, and search.
+        var gapEl = document.getElementById("session-gap");
+        var thresholdMinutes = gapEl ? parseInt(gapEl.value, 10) || 30 : 30;
+        currentSessions = groupSessions(currentRecent, thresholdMinutes);
         // Provider summary is NOT filtered by time/search in the current
         // dashboard (no filter UI on that panel) - it always reflects
         // the cumulative by-provider aggregates from the snapshot.
@@ -1287,6 +1645,7 @@ export function buildDashboardHtml(
         // change so the user lands on a valid page.
         paginationState.recent.page = 1;
         paginationState.model.page = 1;
+        paginationState.sessions.page = 1;
         rerender();
         // keep the top metric cards in sync with the filtered
         // entries. When no filter is active the cards reflect the
@@ -1576,6 +1935,9 @@ export function buildDashboardHtml(
       }
       if (searchEl) searchEl.addEventListener("input", applyFilters);
 
+      var sessionGapEl = document.getElementById("session-gap");
+      if (sessionGapEl) sessionGapEl.addEventListener("change", applyFilters);
+
       // sortable column headers: click to cycle asc -> desc -> clear.
       // Event delegation on each table's <thead> so re-renders
       // (pagination, filter) do not break the handler.
@@ -1613,6 +1975,7 @@ export function buildDashboardHtml(
       // emitted ALL rows in every table (so the dashboard still shows
       // data with JS disabled); this first rerender slices the rows
       // into the persisted page size for each panel.
+      currentSessions = groupSessions(recent, 30);
       rerender();
     })();
   </script>

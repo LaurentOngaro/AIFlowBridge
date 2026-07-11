@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.9.0
+
+Dashboard grouping + UX refinements. One new panel (`Sessions`) and eight preset options for the inactivity gap, with no behaviour change to existing panels or to the telemetry capture path.
+
+### Added
+
+- **AFF06 - Sessions panel on the metrics dashboard.** Groups recorded requests into sessions using a configurable inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min via the `Inactivity gap` dropdown). Each session is rendered as a collapsible card showing the start time, the request count, and a header summary (total tokens, average duration, total estimated cost, session span in minutes). Expanding a session reveals an aggregate stats table (start / end / requests / tokens / avg duration / errors / est. cost) and a collapsible **Request details (N)** sub-section that lists every individual request (time, provider, model, status pill, duration, tokens, est. cost). The grouping respects all existing filters (time preset, custom date range, provider, search) and lives in its own paginated panel (5 sessions per page by default, persisted in `localStorage` like the other panels). The card is collapsed by default; clicking the header toggles the aggregate body; clicking the `Request details` button toggles the per-request list with `stopPropagation` so the two toggles do not interfere. The styling reuses the existing dark-theme tokens (`--panel-2`, `--accent`, `--border`, etc.) so the new panel matches the rest of the dashboard. No change to the `TelemetryStore`, `RequestTelemetry`, or `TelemetrySnapshot` shapes - the grouping is purely client-side on the existing `recent[]` array. 8 new tests in `tests/dashboard.test.ts` cover the panel structure, the dropdown options, the JS functions (`groupSessions`, `renderSessionSections`, `renderSessionEntries`, `bindSessionsPaginator`), the CSS classes, the persisted page-size lookup, and the new `Est. cost` header count (now 5: recent, by-model, provider summary, session summary, session per-request details).
+
+### Tests
+
+`npm test` : **813/813 pass** (44 files, 4.32 s). +13 tests vs 2.8.1: 11 new dashboard tests for the Sessions panel and request details.
+
 ## 2.8.1
 
 Bugfix release addressing two regressions introduced in 2.8.0's storage layout change. Both shipped for the standalone CLI; the VS Code extension's telemetry and dashboard are unchanged on default settings.
