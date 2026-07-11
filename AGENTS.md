@@ -20,7 +20,8 @@ AIFlowBridge is a VS Code extension providing multi-provider AI coding assistanc
 - **Code, comments, docs:** English only.
 - **Markdown prose:** one paragraph = one physical line. No line break inside a sentence.
 - **No em-dash (U+2014) or en-dash (U+2013).** Use ASCII `-`.
-- **No smart quotes / ellipsis.** ASCII `'` `"` `...`. French diacritics are fine.
+- **No smart quotes / ellipsis.** ASCII ' " .... French diacritics stay as-is in French prose (see style.md).
+- **French diacritics are NOT to be stripped.** é, è, ê, à, â, ç, ô, ù, û, ï, î, ë must be preserved as-is in any French text (chat, comments, docs, private notes). They are allowed by the style rule. Removing them is a bug.
 - **No Chinese localization files** (`package.nls.zh-cn.json`, `README.zh-cn.md`, ...).
 - **TypeScript:** strict, ES modules, async/await, `const` over `let`, `interface` for object shapes.
 
