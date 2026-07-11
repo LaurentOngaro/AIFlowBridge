@@ -46,7 +46,7 @@ npm test
 npx vitest --watch
 ```
 
-The extension ships with **616 unit tests across 34 files** (vitest) covering the registry loader, gateway HTTP routes, telemetry store and persister, dashboard generation, provider ID resolution, the file-locking telemetry persister, the standalone CLI context, and end-to-end cooperative restart flows.
+The extension ships with **an exhaustive battery of unit tests** (vitest) covering the registry loader, gateway HTTP routes, telemetry store and persister, dashboard generation, provider ID resolution, the file-locking telemetry persister, the standalone CLI context, and end-to-end cooperative restart flows.
 
 ## Package & install locally
 

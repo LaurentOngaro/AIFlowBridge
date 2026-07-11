@@ -9,6 +9,9 @@ import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
 import { fetchMinimaxPromptTokens } from '../token-counter';
 import type { AiFlowBridgeConfig, GatewaySettings, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from '../types';
+import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
+import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../context/language-routing';
+import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
 
 interface GatewaySnapshotListener {
@@ -104,6 +107,13 @@ export class GatewayService {
    * which let any local process stop the gateway).
    */
   private readonly shutdownToken: string = randomUUID();
+  /**
+   * Zero-conf discovery beacon (action plan item #4). Lazy: built
+   * on first `start()` only when the user opted in via
+   * `aiflowbridge.gateway.discovery.enabled`, then torn down on
+   * `stop()`. `null` when discovery is disabled.
+   */
+  private discoveryBeacon: DiscoveryBeacon | null = null;
 
   constructor(
     config: AiFlowBridgeConfig,
@@ -371,6 +381,22 @@ export class GatewayService {
       this.config.gateway.baseUrl = `http://127.0.0.1:${address.port}`;
     }
 
+    // Action plan item #4: start the discovery beacon now that we
+    // know the actual port. Best-effort; failure leaves the HTTP
+    // /v1/discovery endpoint reachable (the beacon is optional,
+    // the HTTP discovery is the actual feature).
+    const discovery = this.config.gateway.discovery;
+    if (discovery && discovery.enabled === true) {
+      this.discoveryBeacon = new DiscoveryBeacon({
+        host: '127.0.0.1',
+        port: this.config.gateway.port,
+        version: this.bundledVersion,
+        broadcastPort: discovery.broadcastPort,
+        broadcastIntervalMs: discovery.broadcastIntervalMs,
+      });
+      this.discoveryBeacon.start();
+    }
+
     this.emitUpdate();
     return this.status();
   }
@@ -406,6 +432,15 @@ export class GatewayService {
       await new Promise<void>((resolve) => {
         current.close(() => resolve());
       });
+    }
+
+    // Action plan item #4: tear down the discovery beacon so we
+    // stop emitting UDP packets after `stop()`. `stop()` is
+    // idempotent (the `if (this.discoveryBeacon)` guards the
+    // second call).
+    if (this.discoveryBeacon) {
+      this.discoveryBeacon.stop();
+      this.discoveryBeacon = null;
     }
 
     this.emitUpdate();
@@ -584,6 +619,89 @@ export class GatewayService {
       return;
     }
 
+    // Action plan item #2: `GET /v1/context` exposes the detected
+    // workspace context as raw JSON. Useful for IDEs that want to
+    // surface "this gateway detected Python + ruff in /home/me/proj"
+    // in their settings UI without having to run the detector
+    // themselves. The shape mirrors `WorkspaceContext` from
+    // `src/aiflowbridge/context/workspace-context.ts` so the IDE
+    // can re-use the same TypeScript types on both sides.
+    // Action plan item #4: `GET /v1/discovery` returns the canonical
+    // discovery payload (host, port, version, broadcasting state,
+    // one-paste client config snippets for Continue / Kilo Code /
+    // OpenAI SDK / curl). Gated on `gateway.discovery.enabled` so
+    // a user who opted out of the LAN-wide broadcast also opts
+    // out of the loopback HTTP endpoint (the same `enabled` flag
+    // controls both surfaces).
+    if (request.method === 'GET' && path === '/v1/discovery') {
+      if (!this.config.gateway.discovery?.enabled) {
+        this.writeJson(response, 200, {
+          enabled: false,
+          message: 'Discovery is disabled (gateway.discovery.enabled = false). Set the flag to true and restart the gateway to enable it.',
+        });
+        return;
+      }
+      // `this.discoveryBeacon` is null only when discovery is
+      // enabled but the gateway has not finished `start()`. When
+      // the gateway is fully running + discovery enabled, the
+      // beacon was built in `start()`.
+      const clients = buildClientConfigSnippets('127.0.0.1', this.config.gateway.port);
+      const inner = this.discoveryBeacon
+        ? this.discoveryBeacon.endpointPayload({ clients })
+        : {
+            host: '127.0.0.1',
+            port: this.config.gateway.port,
+            version: this.bundledVersion,
+            protocol: 'openai' as const,
+            path: '/v1' as const,
+            lastBroadcastAt: '',
+            broadcasting: false,
+            broadcastPort: this.config.gateway.discovery.broadcastPort ?? 8788,
+            broadcastIntervalMs: this.config.gateway.discovery.broadcastIntervalMs ?? 2_000,
+          };
+      // Add the `enabled: true` discriminator at the top so the
+      // shape is symmetric with the disabled branch (the dashboard
+      // can `if (body.enabled)` regardless of state).
+      this.writeJson(response, 200, { enabled: true, ...inner, clients });
+      return;
+    }
+
+    if (request.method === 'GET' && path === '/v1/context') {
+      const ctx = this.config.gateway.workspaceContext;
+      if (!ctx || ctx.enabled === false) {
+        this.writeJson(response, 200, {
+          enabled: false,
+          message: 'Workspace context injection is disabled (gateway.workspaceContext.enabled = false).',
+        });
+        return;
+      }
+      // `/review uncommitted` F10: dashboard endpoint wants fresh
+      // data on demand, so the cached variant is bypassed here.
+      const detected = detectWorkspaceContextFromSettings(ctx, { cached: false, cwdSentinels: CWD_PROJECT_SENTINELS });
+      if (!detected) {
+        this.writeJson(response, 200, {
+          enabled: true,
+          message: 'No workspace root resolved (set gateway.workspaceContext.root or AIFLOWBRIDGE_WORKSPACE).',
+          languages: [],
+          primaryLanguage: null,
+          packageManagers: [],
+          linters: [],
+          formatters: [],
+        });
+        return;
+      }
+      this.writeJson(response, 200, {
+        enabled: true,
+        root: detected.root,
+        languages: detected.languages,
+        primaryLanguage: detected.primaryLanguage,
+        packageManagers: detected.packageManagers,
+        linters: detected.linters,
+        formatters: detected.formatters,
+      });
+      return;
+    }
+
     if (request.method === 'POST' && path === '/v1/chat/completions') {
       await this.forwardChatCompletion(request, response);
       return;
@@ -657,7 +775,13 @@ export class GatewayService {
       return;
     }
 
-    const provider = selectProvider(this.config.providers, modelName, this.config.gateway.defaultModel);
+    const provider = selectProviderWithLanguage(
+      this.config.providers,
+      modelName,
+      this.config.gateway.defaultModel,
+      resolveLanguageHint(request, payload, this.config),
+      this.config.gateway.languageRouting,
+    );
 
     if (!provider) {
       const availableIds = enabledProviders.map((profile) => profile.id).join(', ');
@@ -797,12 +921,44 @@ export class GatewayService {
         );
       }
     }
+
+    // BUG-fix / action plan item #2: optional workspace-context
+    // injection. When `aiflowbridge.gateway.workspaceContext.enabled`
+    // is true AND a workspace root has been resolved, prepend a
+    // short system-message describing the languages / package
+    // managers / linters / formatters detected at the workspace
+    // root. The injection is a no-op when context injection is
+    // disabled, no workspace root is known, or detection returned
+    // no language (e.g. the user opened a non-code folder). Pure
+    // system-message prefix; the user's existing system message
+    // (if any) is preserved on the next slot. Default to
+    // `translatedPayload` so the rest of the pipeline always has a
+    // payload to work with.
+    //
+    // `/review uncommitted` F10: the resolved-root + options-shaping
+    // + cache-or-not dance lives in `detectWorkspaceContextFromSettings`.
+    let injectedFinalPayload: Record<string, unknown> = translatedPayload;
+    const context = detectWorkspaceContextFromSettings(this.config.gateway.workspaceContext, {
+      cached: true,
+      cwdSentinels: CWD_PROJECT_SENTINELS,
+    });
+    if (context) {
+      const prefix = renderWorkspaceContext(context);
+      if (prefix) {
+        injectedFinalPayload = prependSystemMessage(translatedPayload, prefix);
+        if (logger.debug && context.primaryLanguage) {
+          logger.debug(
+            `[Gateway] ${requestId} injected workspace context (languages=${context.languages.join(',')})`,
+          );
+        }
+      }
+    }
     // Override the model name in the forwarded request with the provider's
     // upstream model name, so Kilo Code and other clients can use any alias.
     // We always re-serialize (never pass `bodyText` through) so the
     // translation above is guaranteed to reach the upstream.
     const finalPayload =
-      provider.model && translatedPayload.model !== provider.model ? { ...translatedPayload, model: provider.model } : translatedPayload;
+      provider.model && injectedFinalPayload.model !== provider.model ? { ...injectedFinalPayload, model: provider.model } : injectedFinalPayload;
     const upstreamBody = JSON.stringify(finalPayload);
 
     let statusCode = 502;
@@ -911,6 +1067,67 @@ export class GatewayService {
       ttfbMs = Date.now() - startedAt;
       const contentType = upstreamResponse.headers.get('content-type') ?? '';
       const isStream = Boolean(payload?.stream) || contentType.includes('text/event-stream');
+      // BUG17 Fix E: forward any upstream backoff headers so a
+      // well-behaved upstream can ask the client to slow down. We
+      // propagate on every status (some upstreams use 503 + a
+      // Retry-After instead of 429) and expose both `Retry-After`
+      // (RFC 9110 delta-seconds / HTTP-date) and the de-facto
+      // `X-RateLimit-Reset` / `X-RateLimit-Reset-After` / `X-RateLimit-Remaining`
+      // trio used by some providers. The values are passed through
+      // verbatim; clients that follow RFC semantics stay
+      // RFC-compliant.
+      const upstreamBackoffHeaders = [
+        'retry-after',
+        'x-ratelimit-reset',
+        'x-ratelimit-reset-after',
+        'x-ratelimit-remaining',
+        'x-ratelimit-limit',
+      ];
+      for (const name of upstreamBackoffHeaders) {
+        const value = upstreamResponse.headers.get(name);
+        if (value !== null) {
+          response.setHeader(name, value);
+        }
+      }
+      // BUG17 Fix E: when the upstream returns a backoff status
+      // (HTTP 429 or 503 - the typical "slow down" codes) on a
+      // streaming request, do NOT pipe the upstream JSON body as
+      // an SSE stream. The client requested `stream: true` and
+      // would receive a JSON 429-shaped chunked response, which
+      // SSE parsers (Kilo Code, Continue, OpenAI SDK, curl --no-buffer)
+      // cannot consume. Detect the backoff before piping, end the
+      // response cleanly with the upstream body as the JSON
+      // payload (already JSON for MiniMax/OpenAI rate-limit
+      // responses), surface the status + Retry-After to the
+      // client, and let the `response.once('finish')` handler
+      // record telemetry.
+      const isBackoffStatus = statusCode === 429 || statusCode === 503;
+      if (isStream && isBackoffStatus) {
+        let backoffBody = '';
+        try {
+          backoffBody = await upstreamResponse.text();
+        } catch {
+          // upstream body unreadable: fall through with an empty
+          // payload.
+        }
+        response.setHeader('Content-Type', contentType || 'application/json; charset=utf-8');
+        // The chunked / SSE framing we set below would mislead
+        // parsers; end without Transfer-Encoding: chunked.
+        response.setHeader('Content-Length', String(Buffer.byteLength(backoffBody, 'utf8')));
+        response.statusCode = statusCode;
+        response.end(backoffBody);
+        telemetryRecorded = true;
+        const durationMs = Date.now() - startedAt;
+        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId);
+        if (this.config.logRequests) {
+          logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
+        }
+        this.emitUpdate();
+        // Skip the streaming pipe entirely. The `finally` block
+        // below releases the per-provider slot + decrements the
+        // in-flight counter via normal unwinding.
+        return;
+      }
 
       if (isStream) {
         // For streaming responses, MiniMax does not return usage in the stream.
@@ -1169,6 +1386,121 @@ export class GatewayService {
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
   return new URL(path, baseUrl).toString();
+}
+
+/**
+ * Action plan item #2: prepend a one-paragraph system-message
+ * describing the workspace context detected at the user's project
+ * root. The OpenAI / Anthropic / MiniMax / Xiaomi APIs all read the
+ * FIRST system message slot as the highest-priority instruction,
+ * which means a short prefix here anchors the LLM on the project's
+ * language / toolchain without overriding anything the user typed.
+ *
+ * Returns a NEW object (never mutates the input). The user's
+ * existing system message (if any) is preserved on the next slot
+ * verbatim - we do NOT rewrite the user's authoring. Pure function,
+ * safe to call from any code path.
+ *
+ * Exported for unit testing - the placement of the prefix (first
+ * vs. last slot) is part of the user-visible prompt contract.
+ */
+export function prependSystemMessage(
+  payload: Record<string, unknown>,
+  prefix: string,
+): Record<string, unknown> {
+  const existing = Array.isArray(payload.messages) ? payload.messages : [];
+  const messages = [
+    { role: 'system', content: prefix },
+    ...existing,
+  ];
+  return {
+    ...payload,
+    messages,
+  };
+}
+
+/**
+ * `/review uncommitted` F8 (deploy safety): sentinel filenames
+ * that prove a directory is a project root (not the gateway's own
+ * install dir, not a random folder). Used to gate the
+ * `process.cwd()` fallback in `resolveContextRoot`. Any one of
+ * these being present at the directory's top level is enough.
+ */
+const CWD_PROJECT_SENTINELS: string[] = [
+  'package.json',
+  'pyproject.toml',
+  'Cargo.toml',
+  'go.mod',
+  'Gemfile',
+  'pom.xml',
+  'build.gradle',
+  'build.gradle.kts',
+  'CMakeLists.txt',
+  'mix.exs',
+  'Package.swift',
+  'composer.json',
+  'meson.build',
+  '.git',
+];
+
+/**
+ * Action plan item #5: pick the language hint for the routing
+ * layer. Resolution order:
+ * 1. Explicit `X-AIFlowBridge-Language` HTTP request header
+ *    (lets an IDE force the language regardless of context).
+ * 2. First recognisable filename in the request body's
+ *    `messages[]` (a fenced `path/to/file.py` snippet, a file
+ *    path inside a user message, etc.).
+ * 3. Workspace context primary language (`aiflowbridge.gateway.workspaceContext`
+ *    + the workspace detector from action plan item #2). The detector
+ *    itself is memoized in `detectWorkspaceContextCached()` (CR02
+ *    fix B1) on the `root + options` key with a 5 s TTL + mtime
+ *    invalidation, so concurrent chat-completion requests against
+ *    the same workspace share a single `readdirSync` walk instead
+ *    of duplicating the FS work per request.
+ *
+ * Returns `undefined` when none of the above resolves to a
+ * recognised language. The caller then falls back to the
+ * existing `selectProvider(model, defaultModel)` chain unchanged.
+ */
+export function resolveLanguageHint(
+  request: IncomingMessage,
+  payload: Record<string, unknown> | undefined,
+  config: AiFlowBridgeConfig,
+): WorkspaceLanguage | string | undefined {
+  const fromHeader = request.headers['x-aiflowbridge-language'];
+  const headerValue = Array.isArray(fromHeader) ? fromHeader[0] : fromHeader;
+  if (typeof headerValue === 'string') {
+    // `/review uncommitted` F4: cap the raw header length BEFORE
+    // any string work. The CR02 B3 fix tried to do this but called
+    // `headerValue.trim()` first, which walks the entire buffer
+    // and allocates a fresh string before the cap rejects the
+    // value. A hostile loopback peer that sends
+    // `X-AIFlowBridge-Language: <whitespace> + 1 MB of trailing
+    // data` would still force V8 to allocate during `trim()`. The
+    // fix is to short-circuit on the raw length first; only the
+    // surviving short values go through `trim()` + `toLowerCase()`.
+    if (headerValue.length === 0 || headerValue.length > MAX_LANGUAGE_HINT_HEADER_LENGTH) {
+      return undefined;
+    }
+    const trimmed = headerValue.trim();
+    if (trimmed.length === 0) {
+      return undefined;
+    }
+    return trimmed.toLowerCase();
+  }
+  const fromBody = detectLanguageHintFromPayload(payload);
+  if (fromBody) {
+    return fromBody;
+  }
+  const ctx = config.gateway.workspaceContext;
+  // `/review uncommitted` F10: helper owns the enabled gate, the
+  // root resolution, and the cache-vs-fresh choice.
+  const detected = detectWorkspaceContextFromSettings(ctx, { cached: true, cwdSentinels: CWD_PROJECT_SENTINELS });
+  if (detected && detected.primaryLanguage) {
+    return detected.primaryLanguage;
+  }
+  return undefined;
 }
 
 /**
@@ -1460,6 +1792,16 @@ export function sanitizeUpstreamErrorMessage(raw: string, upstreamUrl: string): 
 }
 
 export const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
+
+/**
+ * CR02 B3: hard cap on the `X-AIFlowBridge-Language` HTTP header.
+ * 64 chars covers any reasonable BCP-47 language tag; values past
+ * that point are treated as a no-op (the caller falls through to
+ * the body / workspace-context resolution chain). Defends against
+ * hostile loopback peers sending multi-MB headers to force an
+ * allocation we would otherwise build and discard.
+ */
+export const MAX_LANGUAGE_HINT_HEADER_LENGTH = 64;
 
 export function readBody(request: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {

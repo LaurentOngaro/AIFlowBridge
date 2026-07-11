@@ -12,21 +12,17 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Studies (last: STU02)
 
-- [-] STU01: external audit: commercial and marketshare (see internal doc `_Private\Docs\03_Synthese_Strategique_2026_06_09.md`)
+- [-] STU01: external audit: commercial and marketshare (see internal doc `_Private\Docs\2026_06_09_Synthese_Strategique.md`)
   - [x] actions #1, #2, #3 delivered (1.5.3 / 1.7.0);
   - [ ] actions #4-#13 remaining (OpenRouter, Ollama, CSV/JSON export, sponsors, failover, videos, Kilo/Continue contact, awesome-lists, articles, Reddit posts)
 
 ### Bugs (last: BUG18)
 
-- [x] BUG18: [2.6.0 wiped the dashboard for users upgrading from a version pre-2.5.0](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.6.1. `isValidSnapshot()` required every per-bucket map (`byClient` added in 2.5.0, `bySource` added in 2.6.0) to be a present object, so a 2.4.x on-disk file (no `byClient`) was rejected as "does not match the expected shape, ignoring" and the cumulative counters were silently wiped. Fix: per-bucket maps are now optional in the validator (`value === undefined || typeof value === "object"`); `normalizeSnapshot()` also defaults `bySource` to `{}`. Two regression tests in `tests/telemetry-persistence.test.ts` cover the pre-2.5.0 and post-2.5.0 pre-2.6.0 on-disk shapes.
-- [x] BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.5.1 (A+B+C+D scope). Fix A silences the `MaxListenersExceededWarning`; B adds upstream idle + total stream timeouts (HTTP 504 instead of indefinite standby); C removes the self-inflicted parallel pre-count on streaming MiniMax requests; D adds the per-provider concurrency semaphore. See `_Private/ACTION PLAN.md` for the full implementation summary.
-  - [x] Fix A: silence `MaxListenersExceededWarning` (one `socket.once('close', ...)` per physical socket via `WeakSet<Socket>`, not per request) at `src/aiflowbridge/gateway/server.ts:262-280`
-  - [x] Fix B: upstream idle-stream watchdog (default 90 s, `gateway.upstreamIdleTimeoutMs`) + total stream ceiling (default 300 s, `gateway.streamTotalTimeoutMs`) on the upstream `fetch()`; surfaces HTTP 504 to the client instead of indefinite standby
-  - [x] Fix C: skip the unconditional parallel `fetchMinimaxPromptTokens` pre-count on streaming MiniMax requests (opt-in via `gateway.minimaxParallelTokenCount`, default `false`); share the abort signal with the main request
-  - [x] Fix D: per-provider concurrency semaphore (`gateway.maxConcurrentPerProvider`, default 3) - queues the 4th+ parallel request for the same provider instead of opening more upstream sockets
-  - [ ] Fix E (optional, skipped for now): forward HTTP 429 + `Retry-After` from the upstream on streaming responses
+_None for now._
 
 ### Documentation (last: DOC04)
+
+_None for now._
 
 ### Display (last: AFF08)
 
@@ -36,19 +32,15 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
     - each session has a summary of the total tokens used, the total duration, and the total estimated cost
 - [ ] AFF07: metric dashboard:
   - telemetry export (CSV/JSON) (using the selected filters)
-- [ ] AFF08: metric dashboard:
-  - [ ] display preset filter in a combobox instead of a list of buttons
-  - [ ] add new filters presets : last 15mn, last 30mn, last 2 days, last 3 days
-  - [ ] add a filter by providers (combo box)
 
 ### Features (last: FEAT10)
 
 - [ ] FEAT10: Pair programming / multi-IDE / multi-language improvements (see `_Private/ACTION PLAN.md`)
   - [x] Per-client IDE telemetry (multi-IDE visibility) - shipped in 2.5.0 (item 1)
   - [x] Bridge Copilot Chat path into TelemetryStore (pair-prog visibility) - shipped in 2.6.0 (item 6)
-  - [ ] Workspace context injection (multi-language quality) - see action plan item 2
-  - [ ] Language-based model routing rules (multi-language) - see action plan item 5
-  - [ ] Zero-conf discovery (mDNS or UDP broadcast) - see action plan item 4
+  - [x] Workspace context injection (multi-language quality) - shipped in 2.7.0 (item 2)
+  - [x] Language-based model routing rules (multi-language) - shipped in 2.7.0 (item 5)
+  - [x] Zero-conf discovery (mDNS or UDP broadcast) - shipped in 2.7.0 (item 4)
   - [ ] Shared session log + replay endpoint + SSE - see action plan item 3
 
 ### Publish (last: PUB02)
@@ -91,10 +83,52 @@ Backlog (value to confirm):
 
 ## Completed
 
+### 2.8.0
+
+### 2.7.0 - `/review uncommitted` follow-ups (post-CR02 hardening)
+
+- BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.5.1 (A+B+C+D scope). Fix A silences the `MaxListenersExceededWarning`; B adds upstream idle + total stream timeouts (HTTP 504 instead of indefinite standby); C removes the self-inflicted parallel pre-count on streaming MiniMax requests; D adds the per-provider concurrency semaphore. See `_Private/ACTION PLAN.md` for the full implementation summary.
+  - Fix A: silence `MaxListenersExceededWarning` (one `socket.once('close', ...)` per physical socket via `WeakSet<Socket>`, not per request) at `src/aiflowbridge/gateway/server.ts:262-280`
+  - Fix B: upstream idle-stream watchdog (default 90 s, `gateway.upstreamIdleTimeoutMs`) + total stream ceiling (default 300 s, `gateway.streamTotalTimeoutMs`) on the upstream `fetch()`; surfaces HTTP 504 to the client instead of indefinite standby
+  - Fix C: skip the unconditional parallel `fetchMinimaxPromptTokens` pre-count on streaming MiniMax requests (opt-in via `gateway.minimaxParallelTokenCount`, default `false`); share the abort signal with the main request
+  - Fix D: per-provider concurrency semaphore (`gateway.maxConcurrentPerProvider`, default 3) - queues the 4th+ parallel request for the same provider instead of opening more upstream sockets
+  - Fix E: forward HTTP 429 + `Retry-After` from the upstream on streaming responses; short-circuit streaming requests that hit a backoff status (429 / 503) so the upstream JSON body is NOT streamed as SSE - shipped in 2.7.0
+- AFF08: metric dashboard:
+  - display preset filter in a combobox instead of a list of buttons
+  - add new filters presets : last 15mn, last 30mn, last 2 days, last 3 days
+  - add a filter by providers (combo box) - shipped in 2.7.0
+- Second hardening pass driven by the code review of the uncommitted changes (13 findings: 1 CRITICAL deploy-safety, 9 WARNING, 3 SUGGESTION). All addressed before the 2.7.0 release.
+  - **CRITICAL F8 (deploy safety).** Workspace-context injection was enabled-by-default with a `process.cwd()` fallback that, for standalone CLI launches under Windows Task Scheduler / systemd, resolved to the gateway's own install directory. Every standalone user upgrading from 2.6.x would have silently received the install path as their "workspace context" on every chat completion, leaking the install path to upstream providers and biasing `selectProviderWithLanguage`. Fix: `resolveContextRoot` now requires a project sentinel (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `CMakeLists.txt`, `mix.exs`, `Package.swift`, `composer.json`, `meson.build`, `.git`) before accepting the cwd as a workspace; the cwd == install dir case logs a one-shot warning and returns `undefined`.
+  - **F1 - cache statSync on every hit.** Removed the per-hit mtime recheck; the 5 s TTL alone is short enough.
+  - **F2 - matchesGlob regex recompilation.** Precompiled `COMPILED_MARKERS` table at module load.
+  - **F3 - repeated resolveContextRoot per request.** Funneled through `detectWorkspaceContextFromSettings(settings, { cached, cwdSentinels })`.
+  - **F4 - header trim ran before length cap.** Length cap applied to raw header first.
+  - **F5 - DiscoveryBeacon start/stop race.** `stopped` flag in bind callback; socket recreated on `start()` after `stop()`.
+  - **F6 - URL false positives.** Post-filter in `detectLanguageHintFromPayload` rejects `//`, `://`, `..` prefixes.
+  - **F7 - explicit-root warning missed non-directory paths.** `explicitRootFailed` set for both throw and non-directory cases.
+  - **F9 - `collectText` duplicated `collectTextFragments`.** Reused the telemetry helper.
+  - **F10 - triple-duplicated option-shaping block.** Same helper as F3.
+  - **F11/F12/F13 - dead code.** Removed unused `__testing` export, `emitOnce()` method, `beaconForTest` getter.
+- Hardening pass driven by the `_Private/docs/2026-07-11_Last Code Review.md` (CR02) audit of the 2.7.0 work in progress. 3 bugs fixed, 6 quality issues addressed. No behaviour change for callers on default settings.
+  - **BUG-B1 - `detectWorkspaceContext` walked twice per request.** New `detectWorkspaceContextCached()` in `src/aiflowbridge/context/workspace-context.ts` memoizes the detector on the `root + maxDepth + ignoredDirs` key with a 5 s TTL and `statSync(root).mtimeMs` invalidation. Both call sites in `server.ts` (workspace-injection in `forwardChatCompletion` and the language-routing hint in `resolveLanguageHint`) now share a single `readdirSync` walk per chat-completion burst.
+  - **BUG-B2 - `DiscoveryBeacon.start()` swallowed every socket error silently.** Added `logBeaconError()` helper that emits a one-shot warning the first time `setBroadcast()`, the `socket.on('error')` listener, or a synchronous `bind()` throws. A Linux user without `CAP_NET_BROADCAST` now sees the failure instead of a beacon that pretends to work.
+  - **BUG-B3 - `X-AIFlowBridge-Language` header was unbounded.** `resolveLanguageHint()` now rejects headers longer than `MAX_LANGUAGE_HINT_HEADER_LENGTH` (64 chars). A hostile loopback peer can no longer force an MB-long allocation.
+  - **FIX-B4 - `broadcastPort` was not clamped at runtime.** `DiscoveryBeacon` constructor now clamps `broadcastPort` to `[1024, 65535]` and falls back to `8788` with a warning.
+  - **FIX-B5 - `matchesGlob()` did not escape `-` in its character class.** Added `-` to the regex character class.
+  - **FIX-A1 - No user-facing docs on the new settings / endpoints.** `docs/gateway.md` now documents `/v1/context`, `/v1/discovery`, the full settings table, and the `AIFLOWBRIDGE_WORKSPACE` env var override.
+  - **FIX-A2 - `prependSystemMessage` was exported but had no tests.** 4 new tests in `tests/gateway-actions-2-4-5.test.ts`.
+  - **FIX-A3 - `DiscoveryBeacon` did not validate `broadcastIntervalMs`.** Constructor now clamps to `[500, 300_000]` ms.
+  - **FIX-A6 - `resolveContextRoot()` silently fell back when the explicit root was invalid.** Now logs a one-shot warning.
+- Multi-language quality lift + zero-conf discovery
+  - **FEAT2 (item 2).** `src/aiflowbridge/context/workspace-context.ts` scans the workspace root for language manifests (`pyproject.toml`, `Cargo.toml`, `package.json`, `pom.xml`, `*.csproj`, `mix.exs`, `CMakeLists.txt`, ...) and prepends a short system message to every `/v1/chat/completions` describing the languages / package managers / linters / formatters detected. The detector is bounded by `maxDepth` (default 2) + `maxEntries` (default 50) + an `ignoredDirs` set so a deep dependency tree cannot stall the request. Workspace root resolution order: `aiflowbridge.gateway.workspaceContext.root` -> `AIFLOWBRIDGE_WORKSPACE` env var -> `process.cwd()` -> VS Code workspace folder. New `GET /v1/context` HTTP endpoint exposes the detected `WorkspaceContext` as raw JSON.
+  - **FEAT5 (item 5).** `aiflowbridge.gateway.languageRouting` config (map of `language -> providerId`, `*` wildcard). `selectProviderWithLanguage()` tries the routing table first, then falls back to the existing `selectProvider(model, defaultModel)`. The language hint resolves in order: explicit `X-A-F-Language` HTTP header -> first recognisable filename in the request body's `messages[]` -> workspace context primary language (item #2). Match against `provider.id` / `provider.model` / `provider.label` with case-insensitive sensitivity.
+  - **FEAT4 (item 4).** Pure-Node UDP broadcast on `aiflowbridge.gateway.discovery.broadcastPort` (default 8788) every `aiflowbridge.gateway.discovery.broadcastIntervalMs` (default 2 000 ms). Payload: `{ host, port, version, protocol: "openai", path: "/v1" }` broadcast to `255.255.255.255`. New `GET /v1/discovery` HTTP endpoint on the loopback URL returns one-paste client config snippets for Continue / Kilo Code / OpenAI Python SDK / curl. Both surfaces gated on `aiflowbridge.gateway.discovery.enabled` (default `false` so the standalone CLI does not emit UDP packets on shared machines unless explicitly opted in). No new runtime dependency: no `bonjour-service`, no `mdns`, no platform-specific binary.
+  - 8 new `aiflowbridge.gateway.*` settings added to `package.json` with full descriptions.
+  - `tests/gateway-actions-2-4-5.test.ts` (new) - 25 tests.
+
 ### 2.6.1 (Hotfix: 2.6.0 wiped the dashboard for pre-2.5.0 users)
 
 - **BUG18 - 2.6.0 wiped the dashboard for users upgrading from a version pre-2.5.0.** `isValidSnapshot()` in `src/aiflowbridge/telemetry/persistence.ts` previously required every per-bucket map to be a present object: `typeof candidate.byProvider === "object"`, `typeof candidate.byModel === "object"`, `typeof candidate.byClient === "object"`. A user upgrading from 2.4.x (where `byClient` did not exist in the on-disk shape) had the file rejected as "does not match the expected shape, ignoring", and the cumulative counters (which the user had built up over months) were silently wiped because the in-memory `TelemetryStore` started from `emptyTelemetrySnapshot()` and the very next `record()` overwrote the rejected file. Fix: the three per-bucket maps are now treated as optional in the validator (`value === undefined || typeof value === "object"`), matching the optional shape they already have in the `TelemetrySnapshot` interface. `normalizeSnapshot()` now also defaults `bySource` to `{}` so the in-memory state matches the on-disk shape after `restore()`. Two new regression tests in `tests/telemetry-persistence.test.ts` cover the pre-2.5.0 shape (no `byClient`, no `bySource`, legacy entry with no `source` field) and the post-2.5.0 pre-2.6.0 shape (`byClient: {}` present, `bySource` absent).
-- Quality gates: `npm run compile` (0 errors), `npm run compile:standalone` (0 errors), `npm test` (721/721 across 40 files, was 719/40 in 2.6.0, +2).
 
 ### 2.6.0 (Bridge Copilot Chat path into TelemetryStore + dashboard By source panel + per-request log timestamp)
 
@@ -102,7 +136,6 @@ Backlog (value to confirm):
 - **Dashboard `By source` panel + sortable `Path` column.** New panel between "By client" and "Provider summary" with a table (`Source | Requests | Tokens | Avg duration | Errors`) showing the gateway vs copilot-chat split at a glance. New sortable `Path` column on the Recent requests table (data-sort-key `source`). Existing `Token source` column (estimated vs usage) renamed from the previous `Source` column to free up the term - the `data-sort-key` stays `estimated` so the sort behaviour and existing tests are unchanged. Search haystack extended with the entry's `source` value. Recent table colspan bumped from 9 / 10 to 10 / 11. Collapse / chevron wiring extended to the new panel.
 - **Per-request log line carries a local-time `YYYY-MM-DD HH:MM:SS` stamp.** The standalone CLI was missing any date / time on the per-request `[INFO]  [Gateway] ...` line, which made the BUG17 tail-latency investigation hard to correlate with wall-clock spikes. New `formatRequestLogLine()` + `formatLocalTimestamp()` helpers in `src/aiflowbridge/gateway/server.ts` prepend a fixed-width `YYYY-MM-DD HH:MM:SS` stamp (local time, no millisecond noise, locale-independent so the line is greppable across machines and time zones). The line now reads `[INFO]  [2026-07-11 11:04:41] [Gateway] 99929fbd-9ab1-485c-993f-01b7acf85ff5 MiniMax-M3 200 3642ms`. The payload after `[Gateway]` is unchanged so existing log-grep workflows keep working.
 - `tests/copilot-chat-telemetry.test.ts` (16 tests) + `tests/gateway-log-format.test.ts` (8 tests) + 3 dashboard tests updated.
-- Quality gates: `npm run compile` (0 errors), `npm run compile:standalone` (0 errors), `npm test` (719/719 across 40 files, was 695/38 in 2.5.1, +24).
 
 ### 2.4.3 (Standalone release artifact completeness guard + missing runtime metadata)
 
@@ -110,13 +143,11 @@ Backlog (value to confirm):
 - **Standalone archive missing `package.json` and `resources/models.json`.** The assemble step didn't ship these, causing version `0.0.0` (breaking version-aware gateway restart in the VS Code extension) and model registry fallback without pricing data.
 - **`scripts/check-standalone-bundle.js`** - resolves all `require()` calls + verifies runtime metadata files.
 - **`tests/standalone-bundle.test.ts`** - 5 unit tests covering requires resolution, runtime files, regression guard, and extension-less specifiers.
-- Quality gates: `npm run compile` (0 errors), `npm test` (647/647 across 36 files, was 642/35 in 2.4.1, +5).
 
 ### 2.4.1 (Hotfix: broken commands + dashboard sorting)
 
 - **AFF05**: column sorting on the metrics dashboard. Click any column header on the Recent requests, By model, or Provider summary tables to sort ascending; click again for descending; click a third time to clear the sort. The sort state is per-panel (independent). Numeric columns compare numerically (tokens, cost, duration), text columns use locale-aware string comparison. Sort arrows (▲ / ▼) appear on the active column. 13 new dashboard tests in `tests/dashboard.test.ts`.
 - **BUG16**: all VS Code command palette commands broken after installing 2.4.0. Static top-level imports of `adm-zip` and `tar` in `src/runtime/installStandalone.ts` failed at module load time because these runtime dependencies are not shipped in the VSIX (`.vscodeignore` excludes `node_modules/**` and there is no bundler). The failure cascaded to `src/runtime/commands.ts` (which statically imported `installStandalone.ts`), blocking ALL command registrations. Fix: (1) `tar` and `adm-zip` imports moved to dynamic `import()` inside `extractTarGz()` / `extractZip()` so they only load when the user actually triggers the install command; (2) `commands.ts` wraps the `installStandalone` import in a `try/catch` so a future dependency issue with a single command cannot break all others.
-- Quality gates: `npm run compile` (0 errors), `npm test` (642/642 across 35 files, was 629/35 in 2.4.0, +13 AFF05 tests).
 
 ### 2.4.0 (Install Standalone Gateway)
 
@@ -127,7 +158,6 @@ Backlog (value to confirm):
 - **HTTP 3xx redirects not followed** (`installStandalone.ts`): the download now follows 301/302/303/307/308 up to 5 hops (loop guard), resolving both absolute and relative `Location` headers.
 - **Rate-limit indistinguishable from other 403s** (`installStandalone.ts`): checks `x-ratelimit-remaining: 0` and surfaces a dedicated i18n string (`installStandalone.rateLimited`) pointing at `docs/standalone.md` as the build-from-source fallback.
 - **`installStandalone.pickInstallDir` i18n key missing** (`src/i18n.ts` + `package.nls.json`): the folder-picker dialog's "Open" button label showed the raw key. The key is now defined in both runtime i18n and the marketplace NLS file.
-- Quality gates: `npm run compile` (0 errors), `npm test` (629/629 across 35 files), `npm run compile:standalone` (0 errors).
 
 ### 2.0.0 (Standalone Gateway)
 
@@ -150,7 +180,6 @@ Backlog (value to confirm):
 - **REF02 (audit 3.2)**: `isPortLikelyOccupied()` removed from `src/aiflowbridge/index.ts`. The single call site now uses `isPortInUse()` directly. The wrapper added no value.
 - **REF03 (audit 3.3)**: `getApiModelId(vscodeModelId)` (the hardcoded `'deepseek'` alias) removed from `src/config.ts`. The single call site in `src/provider/request.ts` now uses `getProviderApiModelId('deepseek', modelInfo.id)`. Verified by `grep -rn "getApiModelId\b" src/ tests/` - zero remaining call sites.
 - **Tests**: 551/551 passing (was 535 in 1.6.0, +16). New regression tests in `tests/gateway-version.test.ts` (+2), `tests/gateway-restart.test.ts` (+5), `tests/aiflowbridge-providers.test.ts` (+9).
-- **Quality gates**: `npm run compile` (0 errors), `npm test` (551/551). The internal audit document (`_helpers/docs/01 Modifications à Apporter_2026_06_05.md`) has been moved to `_helpers/archives/` with a DONE banner.
 
 ### 1.6.0
 

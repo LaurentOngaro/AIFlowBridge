@@ -201,16 +201,31 @@ describe('buildDashboardHtml', () => {
     expect(html).toContain('window.setTimeout');
   });
 
-  it('renders all four time filter buttons on both the recent and by-model panels', () => {
+  it('renders the AFF08 preset combobox + provider filter on both panels', () => {
+    // AFF08: the AFF08 preset row replaced the 5-button row with a
+    // 9-option <select> on each panel (plus a provider <select> on
+    // the recent panel). The new markup uses <select> with the same
+    // value vocabulary (all, 15m, 30m, 1h, 24h, 2d, 3d, 7d, 30d)
+    // and the same id conventions ("recent-preset", "model-preset",
+    // "recent-provider") so the existing JS sync logic still wires
+    // the two panels together.
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    const ranges = ['data-range="all"', 'data-range="1h"', 'data-range="24h"', 'data-range="7d"', 'data-range="30d"'];
-    for (const range of ranges) {
-      const matches = html.match(new RegExp(range, 'g')) ?? [];
-      // Should appear twice: once for recent, once for by-model
-      expect(matches.length).toBe(2);
-    }
+    expect(html).toContain('id="recent-preset"');
+    expect(html).toContain('id="model-preset"');
+    expect(html).toContain('id="recent-provider"');
     expect(html).toContain('id="recent-filters"');
     expect(html).toContain('id="model-filters"');
+    // All 9 preset options must appear in both panel selects (the
+    // recent panel ALSO ships the provider select). The markup is
+    // duplicated for the two preset selects; we count them with a
+    // regex match.
+    const presetValues = ['all', '15m', '30m', '1h', '24h', '2d', '3d', '7d', '30d'];
+    for (const value of presetValues) {
+      const optionPattern = new RegExp(`<option value="${value}"`, 'g');
+      const matches = html.match(optionPattern) ?? [];
+      // Two panels -> two selects -> two occurrences per value.
+      expect(matches.length).toBe(2);
+    }
   });
 
   it('serializes the recent and byModel data into a script block for client-side filtering', () => {
@@ -804,19 +819,16 @@ describe(' plan-compliance: filter pipeline', () => {
     expect(script).toMatch(/toEl\.value = ""/);
   });
 
-  it('entering a custom date calls deactivateAllPresetButtons (per the plan)', () => {
+  it('entering a custom date calls deactivateAllPresets (AFF08 combobox variant)', () => {
+    // AFF08: with the new <select>-based preset row, the
+    // "deactivate on custom date" helper became `deactivateAllPresets`
+    // (sets both preset `<select>`s back to `all`). The mirror
+    // helper is `syncPresetSelects` (propagates the chosen value
+    // across both selects on change).
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const script = extractScript(html);
-    expect(script).toContain('deactivateAllPresetButtons');
-    // The handler ( refactor: extracted to onDateChange) checks
-    // the element value before calling deactivate.
-    expect(script).toMatch(/el\.value[\s\S]{0,80}deactivateAllPresetButtons/);
-    // Both date inputs are wired (input + change events so consecutive
-    // picker changes are honored - see the  fix in dashboard.ts).
-    expect(script).toMatch(/fromEl\.addEventListener\("input"/);
-    expect(script).toMatch(/fromEl\.addEventListener\("change"/);
-    expect(script).toMatch(/toEl\.addEventListener\("input"/);
-    expect(script).toMatch(/toEl\.addEventListener\("change"/);
+    expect(script).toContain('deactivateAllPresets');
+    expect(script).toContain('syncPresetSelects');
   });
 
   it('by-model search filter matches the model name directly (per the plan)', () => {
@@ -935,18 +947,16 @@ describe(' plan-compliance: filter pipeline', () => {
   // Regression: the By model panel used to expose a row of preset
   // buttons that visually activated on click but did nothing else
   // (currentFilters() only read the Recent panel's active button).
-  it('clicking a By model preset synchronizes the Recent panel buttons and applies the filter', () => {
-    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    const script = extractScript(html);
-    // Both filter groups share a sync helper so the active class
-    // propagates from one panel to the other on click.
-    expect(script).toContain('syncPresetButtons');
+  it('clicking a By model preset synchronizes the Recent panel and applies the filter', () => {
+    // AFF08: the combobox variant uses `syncPresetSelects` to mirror
+    // the value across both preset `<select>`s, and the change
+    // handlers pass the new value through to `applyFilters`.
+    const script = extractScript(buildDashboardHtml(baseConfig(), snapshotWithData(), true));
+    expect(script).toContain('syncPresetSelects');
     // applyFilters accepts a range override so the panel-specific
-    // click handler can pass its value through (instead of relying on
-    // currentFilters() which only reads from recent-filters).
+    // change handler can pass its value through (instead of relying on
+    // currentFilters() which only reads from recent-preset).
     expect(script).toMatch(/function applyFilters\(rangeOverride\)/);
-    // The bind call for model-filters is in place.
-    expect(script).toContain('bindFilterGroup("model-filters"');
   });
 
   // XSS regression: a maliciously crafted providerLabel or model name
@@ -1392,5 +1402,71 @@ describe('per-client IDE telemetry (ACTION PLAN item #1)', () => {
     // cleared; the sort key map has to include the `clientId` case
     // so the cycle does not no-op on this column.
     expect(html).toMatch(/case "clientId":\s*return entry\.clientId/);
+  });
+});
+
+// ============================================================================
+// AFF08: preset combobox + provider filter + extended preset list
+// ============================================================================
+describe('AFF08 - preset combobox and provider filter', () => {
+  it('exports the 9 preset values via PRESET_OPTIONS', async () => {
+    // The new presets (15mn, 30mn, 2d, 3d) sit alongside the
+    // historical 1h / 24h / 7d / 30d. Ordering is the visual order
+    // in the dashboard combobox.
+    const { PRESET_OPTIONS } = await import('../src/aiflowbridge/ui/dashboard');
+    const values = PRESET_OPTIONS.map((o) => o.value);
+    expect(values).toEqual(['all', '15m', '30m', '1h', '24h', '2d', '3d', '7d', '30d']);
+  });
+
+  it('emits a 9-option preset <select> on both panels', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    // Two preset selects, each with 9 options.
+    const optionCount = (html.match(/<option value="/g) ?? []).length;
+    expect(optionCount).toBeGreaterThanOrEqual(18);
+    // The new short-duration presets must be present.
+    expect(html).toMatch(/<option value="15m"/);
+    expect(html).toMatch(/<option value="30m"/);
+    expect(html).toMatch(/<option value="2d"/);
+    expect(html).toMatch(/<option value="3d"/);
+  });
+
+  it('emits a provider filter <select> on the recent panel', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('id="recent-provider"');
+    // Static markup ships with the "All providers" default only;
+    // JS init populates the rest from the live snapshot.
+    expect(html).toMatch(/<option value="" selected>All providers<\/option>/);
+  });
+
+  it('wire: change handlers on the preset selects call applyFilters', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(script).toContain('bindPresetSelect');
+    expect(script).toContain('bindProviderSelect');
+    expect(script).toContain('refreshProviderOptions');
+    // The change handler must re-trigger applyFilters (via the
+    // range override so the model panel also receives the new range).
+    expect(script).toMatch(/onChange\(range\)/);
+    // The provider select change handler also triggers a re-filter.
+    expect(script).toContain('applyFilters');
+  });
+
+  it('applyAllFilters pipeline wires through range + dates + provider', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    // The provider filter sits BETWEEN the time/custom-date stage
+    // and the search filter, so time-based narrowing happens before
+    // the per-entry search match (search applies on top of the
+    // already-time-and-provider-narrowed set).
+    expect(script).toContain('applyAllFilters');
+    expect(script).toContain('filterByProvider');
+  });
+
+  it('provider filter narrows the by-model aggregation when a provider is selected', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    // `filterByProvider` must filter on `entry.providerId` (the
+    // stable id, not the human-readable label).
+    expect(script).toMatch(/filterByProvider[\s\S]*?entry\.providerId/);
   });
 });

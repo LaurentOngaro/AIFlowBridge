@@ -28,11 +28,15 @@ Each of the four panel sections (Gateway / Recent / By model / Provider) can be 
 
 ## Time filters
 
-Five preset windows are available on both the Recent and By model panels: **All / Last 1h / 24h / 7d / 30d**.
+Nine presets are available on both the Recent and By model panels, exposed as a single `<select>` per panel: **All / Last 15 min / Last 30 min / Last 1 h / Last 24 h / Last 2 days / Last 3 days / Last 7 days / Last 30 days**. The two selects stay synchronised: changing one reflects on the other (mirroring the previous button behaviour where the Recent and By model panels shared a single active preset).
+
+## Provider filter
+
+A second `<select>` on the Recent requests panel, alongside the time preset, lets the user narrow the recent table + by-model aggregation to a single provider. The options are **All providers** + one entry per provider id seen in the snapshot's `byProvider` map; the list refreshes on every dashboard snapshot reload so newly-enabled providers appear automatically.
 
 ## Custom date range
 
-Two `<input type="date">` controls (From / To) on the Recent requests panel filter by absolute dates on top of the preset. Entering a date deactivates the active preset button; clicking a preset clears the From / To inputs. Changing the date a second time in a row works as expected (`input` + `change` events are both wired).
+Two `<input type="date">` controls (From / To) on the Recent requests panel filter by absolute dates on top of the preset. Entering a date resets the preset selects back to **All**; changing the preset clears the From / To inputs. Changing the date a second time in a row works as expected (`input` + `change` events are both wired).
 
 ## Text search
 
@@ -45,7 +49,7 @@ Each panel paginates its results locally:
 - **First / Prev / Next / Last** buttons (`<<` `<` `>` `>>`)
 - **Direct page jump** (`Page X of Y` input)
 - **Per-page size** (defaults: 25 entries for Recent, 10 for By model, 10 for Provider summary). Page size is persisted per-panel in `localStorage`.
-- **Total scope note** under the top cards reflects what they cover: "Showing all recorded requests" when nothing is filtered, or "Filtered totals (preset: 24h · search: "minimax")." otherwise.
+- **Total scope note** under the top cards reflects what they cover: "Showing all recorded requests" when nothing is filtered, or "Filtered totals (preset: 24h · provider: deepseek-flash · search: \"minimax\")." otherwise. The provider is included in the note only when the provider filter is set.
 
 When the filtered set is empty, the pagination strip is hidden.
 
@@ -107,3 +111,5 @@ The status bar reflects the same source: it shows the gateway state, not Copilot
 | Kilo Code picker                                                                      | Gateway metrics                                                             |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | ![Kilo Code picker](resources/screenshots_v1.1.1/02_AIFB_kiloCode%20LLM%20picker.png) | ![Gateway metrics](resources/screenshots_v1.4.0/06a_AIFB_API_metrics_1.png) |
+
+The screenshots are captured against the v1.1.1 / v1.4.0 dashboard (preset buttons, no provider filter). New screenshots should land in `resources/screenshots_v2.7.0/` once captured; drop them into this table to refresh the visual references for the AFF08 combobox + provider filter.

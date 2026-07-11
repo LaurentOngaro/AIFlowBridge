@@ -298,6 +298,48 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // hurt the most. Default `false` (skip on streaming). Set to
     // `true` to restore the pre-2.5.1 behavior on streaming too.
     minimaxParallelTokenCount: configuration.get<boolean>('gateway.minimaxParallelTokenCount', false),
+    // Action plan item #2: workspace-context detector / system-message
+    // injector. The detector scans the workspace root for language
+    // manifests (pyproject.toml, Cargo.toml, package.json, ...) and
+    // prepends a short system message describing the languages /
+    // package managers / linters / formatters it found. Opt-out for
+    // non-code workspaces via `enabled: false` (or set
+    // `aiflowbridge.gateway.workspaceContext.enabled` to false in user
+    // settings). The root is resolved in this order:
+    // 1. `gateway.workspaceContext.root` setting (explicit).
+    // 2. `AIFLOWBRIDGE_WORKSPACE` env var (service-manager launch).
+    // 3. `process.cwd()` (standalone CLI launched from project root).
+    // 4. The VS Code workspace folder (handled by the host adapter,
+    //    not the standalone CLI).
+    workspaceContext: {
+      enabled: configuration.get<boolean>('gateway.workspaceContext.enabled', true),
+      root: configuration.get<string>('gateway.workspaceContext.root', ''),
+      maxDepth: configuration.get<number>('gateway.workspaceContext.maxDepth', 2),
+      ignoredDirs: configuration.get<string[]>('gateway.workspaceContext.ignoredDirs', [
+        'node_modules', 'target', 'build', 'dist', '.git', '.idea', '.vscode',
+        '__pycache__', '.gradle', 'venv', '.venv', '.next', '.turbo',
+      ]),
+    },
+    // Action plan item #5: language-based routing rules. Optional
+    // map of `language -> providerId` so a polyglot project's traffic
+    // automatically lands on the best model for that language. The
+    // `*` wildcard is the fallback for any language not explicitly
+    // mapped. Empty / missing / non-object values are treated as
+    // "no routing rule" (falls back to `selectProvider(model,
+    // defaultModel)` unchanged). Stored as a flat string map so
+    // the VS Code settings schema stays simple.
+    languageRouting: configuration.get<Record<string, string>>('gateway.languageRouting', {}),
+    // Action plan item #4: zero-conf discovery. Default off so the
+    // standalone CLI does not emit UDP packets on shared machines
+    // unless explicitly opted in. The HTTP `/v1/discovery`
+    // endpoint is also gated on this flag (turning it off makes
+    // the LAN-wide path a no-op; the user can still fetch a one-
+    // paste URL from the dashboard).
+    discovery: {
+      enabled: configuration.get<boolean>('gateway.discovery.enabled', false),
+      broadcastPort: configuration.get<number>('gateway.discovery.broadcastPort', 8788),
+      broadcastIntervalMs: configuration.get<number>('gateway.discovery.broadcastIntervalMs', 2_000),
+    },
   };
 
   const visionProxy: VisionProxySettings = {

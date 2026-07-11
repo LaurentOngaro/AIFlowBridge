@@ -354,6 +354,19 @@ export function buildDashboardHtml(
       background: rgba(56, 189, 248, 0.15);
       border-color: var(--accent);
       color: var(--accent);
+    }.preset-select {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }.preset-select:hover, .preset-select:focus {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+      outline: none;
     }.date-input {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--border);
@@ -518,11 +531,8 @@ export function buildDashboardHtml(
           <h2>Recent requests</h2>
         </button>
         <div class="filters" id="recent-filters">
-          <button class="filter-btn active" data-range="all">All</button>
-          <button class="filter-btn" data-range="1h">Last 1h</button>
-          <button class="filter-btn" data-range="24h">Last 24h</button>
-          <button class="filter-btn" data-range="7d">Last 7 days</button>
-          <button class="filter-btn" data-range="30d">Last 30 days</button>
+          ${renderPresetSelect('recent-preset')}
+          ${renderProviderSelect('recent-provider')}
           <span class="filter-separator" aria-hidden="true"></span>
           <label class="muted" for="recent-from">From</label>
           <input type="date" class="date-input" id="recent-from" />
@@ -545,11 +555,7 @@ export function buildDashboardHtml(
           <h2>By model</h2>
         </button>
         <div class="filters" id="model-filters">
-          <button class="filter-btn active" data-range="all">All</button>
-          <button class="filter-btn" data-range="1h">Last 1h</button>
-          <button class="filter-btn" data-range="24h">Last 24h</button>
-          <button class="filter-btn" data-range="7d">Last 7 days</button>
-          <button class="filter-btn" data-range="30d">Last 30 days</button>
+          ${renderPresetSelect('model-preset')}
         </div>
       </div>
       <div class="panel-body">
@@ -765,12 +771,29 @@ export function buildDashboardHtml(
       function filterByRange(entries, range) {
         if (range === "all" || !range) return entries;
         const now = Date.now();
-        const thresholds = { "1h": 3600000, "24h": 86400000, "7d": 604800000, "30d": 2592000000 };
+        // AFF08: extended preset list (15mn, 30mn, 2d, 3d in addition
+        // to the historical 1h / 24h / 7d / 30d). Values are in ms so
+        // the existing filter pipeline can stay arithmetic.
+        const thresholds = {
+          "15m": 15 * 60_000,
+          "30m": 30 * 60_000,
+          "1h": 60 * 60_000,
+          "24h": 24 * 60 * 60_000,
+          "2d": 2 * 24 * 60 * 60_000,
+          "3d": 3 * 24 * 60 * 60_000,
+          "7d": 7 * 24 * 60 * 60_000,
+          "30d": 30 * 24 * 60 * 60_000,
+        };
         const threshold = thresholds[range] || Infinity;
         return entries.filter((entry) => {
           const ts = new Date(entry.timestamp).getTime();
           return now - ts <= threshold;
         });
+      }
+
+      function filterByProvider(entries, providerId) {
+        if (!providerId) return entries;
+        return entries.filter((entry) => entry.providerId === providerId);
       }
 
       // custom date range. Both bounds are inclusive; missing or
@@ -791,6 +814,12 @@ export function buildDashboardHtml(
       function applyTimeAndDateFilters(range, fromStr, toStr) {
         let filtered = filterByRange(recent, range);
         filtered = filterByCustomDate(filtered, fromStr, toStr);
+        return filtered;
+      }
+
+      function applyAllFilters(f) {
+        let filtered = applyTimeAndDateFilters(f.range, f.from, f.to);
+        filtered = filterByProvider(filtered, f.provider);
         return filtered;
       }
 
@@ -1129,36 +1158,26 @@ export function buildDashboardHtml(
       // By model panel only updates that panel's visual state while the
       // Recent panel keeps showing the old preset - confusing because
       // both panels share the same time filter.
-      function syncPresetButtons(range) {
-        const groups = ["recent-filters", "model-filters"];
-        for (const groupId of groups) {
-          const container = document.getElementById(groupId);
-          if (!container) continue;
-          for (const btn of container.querySelectorAll(".filter-btn")) {
-            if (btn.getAttribute("data-range") === range) {
-              btn.classList.add("active");
-            } else {
-              btn.classList.remove("active");
-            }
-          }
+      function syncPresetSelects(range) {
+        const selects = document.querySelectorAll("#recent-preset, #model-preset");
+        for (const sel of selects) {
+          sel.value = range;
         }
       }
 
-      function bindFilterGroup(containerId, onChange) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-        container.addEventListener("click", (event) => {
-          const target = event.target.closest("[data-range]");
-          if (!target) return;
-          const range = target.getAttribute("data-range") || "all";
-          // Sync the active class across BOTH filter groups so the Recent
+      function bindPresetSelect(selectId, onChange) {
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        sel.addEventListener("change", () => {
+          const range = sel.value || "all";
+          // Sync the value across BOTH preset selects so the Recent
           // and By model panels visually agree on the active preset.
-          syncPresetButtons(range);
-          // clicking a preset clears the custom date range. The
+          syncPresetSelects(range);
+          // changing a preset clears the custom date range. The
           // two filter modes are mutually exclusive in the UI: presets
           // use a relative window (1h / 24h /...), the date pickers
           // use an absolute window. Clearing the dates on a preset
-          // click is what makes the deactivation visible to the user.
+          // change is what makes the deactivation visible to the user.
           const fromEl = document.getElementById("recent-from");
           const toEl = document.getElementById("recent-to");
           if (fromEl) fromEl.value = "";
@@ -1167,30 +1186,59 @@ export function buildDashboardHtml(
         });
       }
 
-      // entering a custom date deactivates the active preset
-      // button across BOTH filter groups (the date inputs live in the
-      // Recent panel but the By model panel mirrors the same time
-      // filter). Called from the date input change handlers below.
-      function deactivateAllPresetButtons() {
-        const groups = ["recent-filters", "model-filters"];
-        for (const groupId of groups) {
-          const container = document.getElementById(groupId);
-          if (!container) continue;
-          for (const btn of container.querySelectorAll(".filter-btn")) {
-            btn.classList.remove("active");
-          }
+      function bindProviderSelect(selectId, onChange) {
+        const sel = document.getElementById(selectId);
+        if (!sel) return;
+        sel.addEventListener("change", () => {
+          onChange();
+        });
+      }
+
+      // Population of the provider select element. Called once at JS-init
+      // with the snapshot's byProvider keys, sorted alphabetically.
+      // Static markup ships with just the "All providers" option;
+      // this pass appends the rest. We re-run this pass on every
+      // snapshot refresh so newly-enabled providers appear.
+      function refreshProviderOptions() {
+        const sel = document.getElementById("recent-provider");
+        if (!sel) return;
+        const keys = Object.keys(byProvider).sort();
+        const previous = sel.value;
+        const opts = ['<option value="">All providers</option>'];
+        for (const key of keys) {
+          const safe = escapeHtml(key);
+          opts.push('<option value="' + safe + '">' + safe + '</option>');
+        }
+        sel.innerHTML = opts.join("");
+        // Keep the user's selection if the previously chosen provider
+        // is still in the new list; otherwise reset to "All".
+        if (previous && keys.indexOf(previous) >= 0) {
+          sel.value = previous;
+        } else {
+          sel.value = "";
+        }
+      }
+
+      // entering a custom date sets the preset selects back to a
+      // neutral state (the date inputs live in the Recent panel but
+      // the By model panel mirrors the same time filter). Called
+      // from the date input change handlers below.
+      function deactivateAllPresets() {
+        const selects = document.querySelectorAll("#recent-preset, #model-preset");
+        for (const sel of selects) {
+          sel.value = "all";
         }
       }
 
       function currentFilters() {
-        const recentFilters = document.getElementById("recent-filters");
-        const activeBtn = recentFilters ? recentFilters.querySelector(".filter-btn.active") : null;
-        const range = activeBtn ? activeBtn.getAttribute("data-range") : "all";
+        const rangeSel = document.getElementById("recent-preset");
+        const providerSel = document.getElementById("recent-provider");
         const fromEl = document.getElementById("recent-from");
         const toEl = document.getElementById("recent-to");
         const searchEl = document.getElementById("recent-search");
         return {
-          range: range,
+          range: rangeSel ? rangeSel.value : "all",
+          provider: providerSel ? providerSel.value : "",
           from: fromEl ? fromEl.value : "",
           to: toEl ? toEl.value : "",
           search: searchEl ? searchEl.value.trim().toLowerCase() : "",
@@ -1215,7 +1263,7 @@ export function buildDashboardHtml(
         // - By-model table: entry-level OR model-name search match
         // (include a model if its name contains the needle, even
         // when none of its individual entries do).
-        const timeFiltered = applyTimeAndDateFilters(f.range, f.from, f.to);
+        const timeFiltered = applyAllFilters(f);
         currentRecent = f.search
           ? timeFiltered.filter((entry) => matchesSearch(entry, f.search))
           : timeFiltered;
@@ -1256,7 +1304,7 @@ export function buildDashboardHtml(
       // view.
       function updateTotals(f) {
         const hasActiveFilter =
-          (f.range && f.range !== "all") || !!f.from || !!f.to || !!f.search;
+          (f.range && f.range !== "all") || !!f.from || !!f.to || !!f.search || !!f.provider;
         let requests, promptTokens, completionTokens, totalTokens;
         let estimatedCost, averageDurationMs, p95DurationMs;
         let detail;
@@ -1326,20 +1374,24 @@ export function buildDashboardHtml(
         if (!note) return;
         const hasDate = !!(f.from || f.to);
         const hasPreset = f.range && f.range !== "all";
+        const hasProvider = !!f.provider;
         const hasSearch = !!f.search;
-        if (!hasPreset && !hasDate && !hasSearch) {
+        if (!hasPreset && !hasDate && !hasProvider && !hasSearch) {
           note.textContent = "Showing all recorded requests (no filter active).";
           return;
         }
         const parts = [];
         if (hasPreset) parts.push("preset: " + f.range);
+        if (hasProvider) parts.push("provider: " + f.provider);
         if (hasDate) parts.push("custom: " + (f.from || "*") + " \u2192 " + (f.to || "*"));
         if (hasSearch) parts.push("search: \\\"" + f.search + "\\\"");
         note.textContent = "Filtered totals (" + parts.join(" \u00b7 ") + ").";
       }
 
-      bindFilterGroup("recent-filters", applyFilters);
-      bindFilterGroup("model-filters", applyFilters);
+      bindPresetSelect("recent-preset", applyFilters);
+      bindPresetSelect("model-preset", applyFilters);
+      bindProviderSelect("recent-provider", applyFilters);
+      refreshProviderOptions();
 
       // pagination. Each paginated panel stores its current page
       // and page size in module-local state. Page size is persisted in
@@ -1506,7 +1558,7 @@ export function buildDashboardHtml(
       // refresh, and to clear (typing an empty value) also triggers a
       // refresh even when the picker is dismissed without picking.
       function onDateChange(el) {
-        if (el && el.value) deactivateAllPresetButtons();
+        if (el && el.value) deactivateAllPresets();
         applyFilters();
       }
       if (fromEl) {
@@ -1561,6 +1613,51 @@ export function buildDashboardHtml(
   </script>
 </body>
 </html>`;
+}
+
+/**
+ * AFF08: render a `<select>` for the time-range preset (All, Last 15 min,
+ * Last 30 min, Last 1 h, Last 24 h, Last 2 days, Last 3 days, Last 7 days,
+ * Last 30 days). The `id` parameter matches the DOM id used by the JS
+ * sync logic ("recent-preset" / "model-preset"). Extracted as a
+ * standalone string-builder so the unit tests assert the option list
+ * directly without scraping the full dashboard HTML.
+ *
+ * The matching JS handler is `bindPresetSelect()`; this helper only
+ * emits the markup.
+ */
+export const PRESET_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: '15m', label: 'Last 15 min' },
+  { value: '30m', label: 'Last 30 min' },
+  { value: '1h', label: 'Last 1 h' },
+  { value: '24h', label: 'Last 24 h' },
+  { value: '2d', label: 'Last 2 days' },
+  { value: '3d', label: 'Last 3 days' },
+  { value: '7d', label: 'Last 7 days' },
+  { value: '30d', label: 'Last 30 days' },
+];
+
+/**
+ * AFF08: render a `<select>` for the provider filter. The options are
+ * populated from `snapshot.byProvider` keys at JS-init time (we cannot
+ * enumerate providers statically because the list is dynamic). The
+ * static markup ships with a single "All providers" option; the JS
+ * init pass appends the rest by reading `byProvider` directly.
+ */
+function renderPresetSelect(id: string): string {
+  const options = PRESET_OPTIONS.map((opt) =>
+    `<option value="${escapeHtml(opt.value)}"${opt.value === 'all' ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`,
+  ).join('');
+  return `<select class="preset-select" id="${escapeHtml(id)}" aria-label="Time range">${options}</select>`;
+}
+
+function renderProviderSelect(id: string): string {
+  // The "All providers" option is the static default; JS-init populates
+  // the rest from the live snapshot. We intentionally do NOT list
+  // providers here so the static markup does not drift away from the
+  // dynamic set after a pricing override or a new model.
+  return `<select class="preset-select" id="${escapeHtml(id)}" aria-label="Provider"><option value="" selected>All providers</option></select>`;
 }
 
 function metricCard(title: string, value: string, detail: string, id?: string): string {

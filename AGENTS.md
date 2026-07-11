@@ -8,7 +8,7 @@ AIFlowBridge is a VS Code extension providing multi-provider AI coding assistanc
 
 - **Compile (VS Code ext):** `npm run compile`
 - **Compile (standalone CLI):** `npm run build:standalone`
-- **Test:** `npm test` (vitest, 616 tests / 34 files)
+- **Test:** `npm test` (vitest)
 - **Package:** `npm run package` (VSIX in `dist/`)
 - **Dev loop:** `npm run watch` + F5 in VS Code
 - **Local install helper:** `pwsh -File _helpers/Publish-AIFlowBridge.ps1`

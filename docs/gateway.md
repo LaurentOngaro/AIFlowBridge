@@ -26,6 +26,62 @@ curl http://127.0.0.1:8787/version
 curl -X POST http://127.0.0.1:8787/shutdown
 ```
 
+### Workspace context (`GET /v1/context`)
+
+When `aiflowbridge.gateway.workspaceContext.enabled` is `true` (default), the gateway scans the workspace root for language manifests (`pyproject.toml`, `Cargo.toml`, `package.json`, ...) and injects a short system message into every `/v1/chat/completions` body so the upstream model knows which language / package manager / linter / formatter governs the project.
+
+The same detector powers a read-only JSON endpoint that returns the raw detection:
+
+```bash
+curl http://127.0.0.1:8787/v1/context
+# {
+#   "enabled": true,
+#   "root": "/home/me/proj",
+#   "languages": ["python", "javascript"],
+#   "primaryLanguage": "python",
+#   "packageManagers": ["poetry / uv / pdm", "npm / pnpm / yarn / bun"],
+#   "linters": ["ruff / pylint / flake8", "eslint / biome"],
+#   "formatters": ["black / ruff", "prettier / biome"]
+# }
+```
+
+The detector is memoized on the `root + options` key with a 5-second TTL, so concurrent chat-completion requests against the same workspace share a single `readdirSync` walk (CR02 fix B1). The resolution order for the workspace root is:
+
+1. `aiflowbridge.gateway.workspaceContext.root` (explicit)
+2. `AIFLOWBRIDGE_WORKSPACE` environment variable (lets a service manager point the standalone CLI at the user's project)
+3. `process.cwd()` (standalone CLI launched from the project root), ONLY when the cwd contains a project sentinel (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `CMakeLists.txt`, `mix.exs`, `Package.swift`, `composer.json`, `meson.build`, `.git`). This guards the standalone CLI deployment where Windows Task Scheduler / systemd / launchd launch `aiflowbridge-server.cmd` from the install directory: the cwd would otherwise resolve to the install path and the gateway would inject its own `package.json` as the "workspace context" on every chat completion (`/review uncommitted` F8 deploy-safety fix). When the resolved cwd equals the install path, a one-shot warning is logged and injection is skipped.
+
+When the explicit root does not resolve (ENOENT, EACCES, or non-directory file), the gateway logs a one-shot warning and falls back to the env var / cwd.
+
+### Zero-conf discovery (`GET /v1/discovery`)
+
+When `aiflowbridge.gateway.discovery.enabled` is `true`, the gateway exposes a one-paste configuration endpoint on the loopback URL and (optionally) broadcasts its presence over UDP so LAN tools can pick it up without any pre-shared URL.
+
+```bash
+curl http://127.0.0.1:8787/v1/discovery
+# {
+#   "enabled": true,
+#   "host": "127.0.0.1",
+#   "port": 8787,
+#   "version": "2.7.0",
+#   "protocol": "openai",
+#   "path": "/v1",
+#   "broadcasting": true,
+#   "broadcastPort": 8788,
+#   "broadcastIntervalMs": 2000,
+#   "clients": [
+#     { "id": "continue", "displayName": "Continue (VS Code / JetBrains)", "config": "{ ... }" },
+#     { "id": "kilocode",  "displayName": "Kilo Code", "config": "{ ... }" },
+#     { "id": "openai-sdk","displayName": "OpenAI Python SDK", "config": "from openai import OpenAI\n..." },
+#     { "id": "curl",      "displayName": "curl", "config": "curl -X POST ..." }
+#   ]
+# }
+```
+
+The UDP beacon (when enabled) broadcasts a tiny JSON payload on `gateway.discovery.broadcastPort` (default `8788`) every `gateway.discovery.broadcastIntervalMs` (default `2000` ms). **Privacy caveat:** the UDP broadcast announces the gateway's existence to every host on the LAN. The payload contains only the loopback host, the TCP port, and the gateway version - no API key, no workspace path, no model. The HTTP `/v1/discovery` endpoint is reachable on the loopback URL only (the gateway binds `127.0.0.1`); the HTTP endpoint and the UDP broadcast are gated on the same `discovery.enabled` flag.
+
+`broadcastPort` is clamped at runtime to the IANA registered-port range `[1024, 65535]`. Values outside that range (e.g. `0`, hand-edited config) fall back to `8788` with a warning. `broadcastIntervalMs` is clamped to `[500, 300_000]` for the same reason.
+
 ## Singleton behavior
 
 The gateway runs as a single instance shared across all VS Code windows. If an AIFlowBridge gateway is already running when you open a new VS Code window, that window will automatically detect and use the existing gateway on port 8787 instead of starting a second instance. This ensures the gateway is always available at the same URL.
@@ -100,13 +156,29 @@ The dashboard and the `GET /v1/models` catalog will skip any provider with `"ena
 
 ## Settings
 
-| Setting                             | Default                    | Description                                   |
-| ----------------------------------- | -------------------------- | --------------------------------------------- |
-| `aiflowbridge.gateway.enabled`      | `true`                     | Start gateway on activation                   |
-| `aiflowbridge.gateway.port`         | `8787`                     | Local proxy port                              |
-| `aiflowbridge.gateway.baseUrl`      | `http://127.0.0.1:8787/v1` | Gateway URL                                   |
-| `aiflowbridge.gateway.defaultModel` | `""`                       | Default model when client doesn't specify one |
+| Setting                                              | Default                       | Description                                                                                                         |
+| ---------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `aiflowbridge.gateway.enabled`                       | `true`                        | Start gateway on activation                                                                                         |
+| `aiflowbridge.gateway.port`                          | `8787`                        | Local proxy port                                                                                                    |
+| `aiflowbridge.gateway.baseUrl`                       | `http://127.0.0.1:8787/v1`    | Gateway URL                                                                                                         |
+| `aiflowbridge.gateway.defaultModel`                  | `""`                          | Default model when client doesn't specify one                                                                       |
+| `aiflowbridge.gateway.probeTimeoutMs`                | `500`                         | Per-call timeout (ms) for `GET /version` when probing a peer gateway on activation                                  |
+| `aiflowbridge.gateway.maxConcurrentRequests`         | `20`                          | Hard cap on in-flight `/v1/chat/completions` (above the cap the gateway returns `429` + `Retry-After`)              |
+| `aiflowbridge.gateway.maxConcurrentPerProvider`      | `3`                           | Per-upstream-provider cap on parallel in-flight requests (BUG17 fix; `0` disables the cap)                          |
+| `aiflowbridge.gateway.upstreamIdleTimeoutMs`         | `90000`                       | Watchdog that aborts the upstream `fetch` after this many ms without bytes (BUG17; `0` disables)                    |
+| `aiflowbridge.gateway.streamTotalTimeoutMs`          | `300000`                      | Hard ceiling on the upstream call duration in ms (BUG17; `0` disables)                                              |
+| `aiflowbridge.gateway.minimaxParallelTokenCount`     | `false`                       | When `true`, fires the parallel `/input_tokens` pre-count on streaming MiniMax requests too (BUG17; off by default) |
+| `aiflowbridge.gateway.workspaceContext.enabled`      | `true`                        | Inject the detected workspace context as a system message on every chat completion                                  |
+| `aiflowbridge.gateway.workspaceContext.root`         | `""`                          | Explicit workspace root directory (falls back to `AIFLOWBRIDGE_WORKSPACE`, then `process.cwd()`)                    |
+| `aiflowbridge.gateway.workspaceContext.maxDepth`     | `2`                           | Max directory depth the detector walks                                                                              |
+| `aiflowbridge.gateway.workspaceContext.ignoredDirs`  | `[node_modules, target, ...]` | Directory names to skip entirely (no recursion, no listing)                                                         |
+| `aiflowbridge.gateway.languageRouting`               | `{}`                          | Map of `language -> providerId`. The `*` wildcard is the fallback for any language not explicitly mapped            |
+| `aiflowbridge.gateway.discovery.enabled`             | `false`                       | Master switch for the UDP beacon + the `GET /v1/discovery` HTTP endpoint                                            |
+| `aiflowbridge.gateway.discovery.broadcastPort`       | `8788`                        | UDP destination port (clamped to `[1024, 65535]` at runtime)                                                        |
+| `aiflowbridge.gateway.discovery.broadcastIntervalMs` | `2000`                        | Beacon emission interval in ms (clamped to `[500, 300_000]` at runtime)                                             |
+
+`AIFLOWBRIDGE_WORKSPACE` (environment variable) overrides `aiflowbridge.gateway.workspaceContext.root` for service-manager launches of the standalone CLI (`systemd`, `launchd`, Task Scheduler, ...). When the explicit `root` setting does not resolve to a directory, the gateway logs a warning and falls back to the env var / `cwd`.
 
 ## Privacy
 
-The gateway binds to `127.0.0.1` only - it is not reachable from other machines on your network. Outbound requests go only to the upstream API endpoints you configure. See [development.md](development.md#privacy--security) for the full privacy posture.
+The gateway binds to `127.0.0.1` only - it is not reachable from other machines on your network. Outbound requests go only to the upstream API endpoints you configure. The `/v1/context` endpoint exposes the workspace root as an absolute path; the `/v1/discovery` endpoint exposes the bundled gateway version plus one-paste client config snippets. Both are loopback-only (the bind on `127.0.0.1` is the gate), so the same info is already reachable through `/health`, `/version`, `/v1/models`. When `aiflowbridge.gateway.discovery.enabled` is `true`, the UDP broadcast announces the gateway's existence to every host on the LAN. The payload is intentionally tiny (host, port, version) and contains no API key, no workspace path, no model name. See [development.md](development.md#privacy--security) for the full privacy posture.

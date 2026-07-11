@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "Multi-provider AI switcher for GitHub Copilot Chat: DeepSeek V4 ($0.27/M in), MiniMax M3, Xiaomi MiMo V2 Omni. 3 problems solved: (1) one Copilot Chat picker for 14 models across 3 vendors, (2) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (3) a built-in OpenAI-compatible local gateway on port 8787 so Kilo Code, Continue, Open WebUI, and curl can all use the same models - with a live metrics dashboard, per-request token counts, and estimated cost. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.6.1",
+  "version": "2.7.0",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -252,6 +252,70 @@
           "type": "boolean",
           "default": false,
           "description": "Fire the parallel /v1/responses/input_tokens pre-count on every MiniMax request (including streaming). Default false: skip on streaming because the MiniMax stream emits usage on the final chunk and the parallel pre-count doubles upstream load precisely when thinking-mode bursts hurt the most."
+        },
+        "aiflowbridge.gateway.workspaceContext.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prepend a short system-message describing the workspace languages / package managers / linters / formatters detected at the configured root. Set to false for non-code workspaces or to opt out per-request. Action plan item #2."
+        },
+        "aiflowbridge.gateway.workspaceContext.root": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the workspace root to scan. Empty -> fall back to the AIFLOWBRIDGE_WORKSPACE env var, then to the VS Code workspace folder. Detection skips any missing path so an empty value is a no-op."
+        },
+        "aiflowbridge.gateway.workspaceContext.maxDepth": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 6,
+          "description": "Max directory depth the workspace-context detector walks (root = 0). Default 2 covers typical monorepo layouts without scanning deep dependency trees."
+        },
+        "aiflowbridge.gateway.workspaceContext.ignoredDirs": {
+          "type": "array",
+          "default": [
+            "node_modules",
+            "target",
+            "build",
+            "dist",
+            ".git",
+            ".idea",
+            ".vscode",
+            "__pycache__",
+            ".gradle",
+            "venv",
+            ".venv",
+            ".next",
+            ".turbo"
+          ],
+          "description": "Directory names the workspace-context detector skips entirely (no recursion, no listing). The defaults cover the standard build / VCS / dependency directories for all three supported vendor families."
+        },
+        "aiflowbridge.gateway.languageRouting": {
+          "type": "object",
+          "default": {},
+          "description": "Per-language provider routing map. Keys are language identifiers (python / rust / go / typescript / cpp / ...). Values are provider ids matched against the configured `aiflowbridge.providers[].id` (the same id resolution as the existing model picker). The wildcard key '*' is the fallback for any language not explicitly mapped. Action plan item #5. Example: { \"python\": \"deepseek-flash\", \"rust\": \"deepseek-pro\", \"*\": \"minimax\" }.",
+          "additionalProperties": {
+            "type": "string",
+            "description": "Provider id (e.g. deepseek-flash, deepseek-pro, MiniMax-M3, miniMax, xiaomi)."
+          }
+        },
+        "aiflowbridge.gateway.discovery.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the zero-conf UDP discovery beacon + GET /v1/discovery HTTP endpoint. Default false (no LAN broadcast). Action plan item #4."
+        },
+        "aiflowbridge.gateway.discovery.broadcastPort": {
+          "type": "number",
+          "default": 8788,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "UDP destination port for the discovery beacon. Default 8788. Listeners on the same network pick the gateway up on this port."
+        },
+        "aiflowbridge.gateway.discovery.broadcastIntervalMs": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 500,
+          "maximum": 60000,
+          "description": "Discovery beacon emission interval (ms). Default 2000 (every 2 s)."
         },
         "aiflowbridge.providers": {
           "type": "array",

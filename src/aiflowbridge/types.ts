@@ -221,18 +221,93 @@ export interface GatewaySettings {
    * backward compatibility.
    */
   streamTotalTimeoutMs?: number;
-  /**
+/**
    * Whether to fire the parallel `fetchMinimaxPromptTokens` POST on
    * every MiniMax request. When `false` (default), the parallel
    * pre-count is only fired for non-streaming requests, because the
    * MiniMax stream endpoint already emits usage on the final chunk
-   * and the pre-count doubles the upstream load precisely when
-   * thinking-mode bursts hurt the most (BUG17). Mirrors
+   * and the parallel pre-count doubles the upstream load precisely
+   * when thinking-mode bursts hurt the most (BUG17). Mirrors
    * `aiflowbridge.gateway.minimaxParallelTokenCount`. Optional for
    * backward compatibility.
    */
   minimaxParallelTokenCount?: boolean;
+  /**
+   * Action plan item #2. Settings for the workspace-context
+   * detector / system-message injector. The detector scans the
+   * workspace root for language manifests (`pyproject.toml`,
+   * `Cargo.toml`, `package.json`, etc.) and prepends a one-paragraph
+   * system message describing the languages / package managers /
+   * linters / formatters it found. Defaults: enabled (opt-out by
+   * setting `enabled` to `false` for non-code workspaces), max depth
+   * 2, ignored dirs default set (node_modules, target, build, dist,
+   * .git, .venv, .gradle, ...). The root is sourced from the VS Code
+   * workspace folder (extension mode) or from the `aiflowbridge.gateway.workspaceContext.root`
+   * setting (standalone mode), with the env var
+   * `AIFLOWBRIDGE_WORKSPACE` as an override for service-manager
+   * launches. Optional for backward compatibility (older
+   * `GatewaySettings` without this field default to `enabled=true`,
+   * `root=""`).
+   */
+  workspaceContext?: GatewayWorkspaceContextSettings;
+  /**
+   * Optional per-language provider routing rules (action plan item
+   * #5). Sourced from `aiflowbridge.gateway.languageRouting`.
+   * Optional for backward compatibility.
+   */
+  languageRouting?: Record<string, string>;
+  /**
+   * Action plan item #4. Settings for the zero-conf discovery
+   * beacon + `/v1/discovery` HTTP endpoint. Default off so the
+   * standalone CLI does not emit UDP packets on shared machines
+   * unless explicitly opted in. Optional for backward
+   * compatibility with older `GatewaySettings` that pre-date
+   * the feature.
+   */
+  discovery?: GatewayDiscoverySettings;
 }
+
+export interface GatewayDiscoverySettings {
+  /** Master switch. `false` (default) skips the UDP broadcast entirely; the HTTP `/v1/discovery` endpoint is also gated on this flag. */
+  enabled?: boolean;
+  /**
+   * UDP destination port for the beacon. Default 8788. Clients
+   * listening on the same network pick the gateway up on this
+   * port without any pre-shared URL.
+   */
+  broadcastPort?: number;
+  /**
+   * Beacon emission interval (ms). Default 2 000 (every 2
+   * seconds). The UDP payload is tiny (~80 bytes) so the
+   * bandwidth impact is negligible; the interval is just
+   * bounded so a hostile sniffer cannot reconstruct more than
+   * one frame per interval.
+   */
+  broadcastIntervalMs?: number;
+}
+
+export interface GatewayWorkspaceContextSettings {
+  /** Master switch. `true` (default) injects the context on every request; `false` is a no-op. */
+  enabled?: boolean;
+  /** Explicit root directory. Falls back to `process.env.AIFLOWBRIDGE_WORKSPACE`, then to the VS Code workspace folder if any. */
+  root?: string;
+  /** Max directory depth to walk. Default 2. */
+  maxDepth?: number;
+  /** Directory names to skip entirely (no recursion, no listing). */
+  ignoredDirs?: string[];
+}
+
+/**
+ * Source of a recorded request. `'gateway'` covers every request
+ * served by `GatewayService` (Kilo Code, Continue, curl, Open WebUI,
+ * etc. hitting `http://127.0.0.1:8787/v1/chat/completions`).
+ * `'copilot-chat'` covers every request driven by VS Code Copilot
+ * Chat through the `vscode.lm.registerLanguageModelChatProvider`
+ * path. The split closes the historical blind spot in the metrics
+ * view where ~50% of usage (the Copilot Chat path) was invisible
+ * because the gateway only ever saw its own traffic.
+ */
+export type TelemetrySource = 'gateway' | 'copilot-chat';
 
 export interface AiFlowBridgeConfig {
   gateway: GatewaySettings;
@@ -331,7 +406,6 @@ export interface RequestTelemetry {
  * view where ~50% of usage (the Copilot Chat path) was invisible
  * because the gateway only ever saw its own traffic.
  */
-export type TelemetrySource = 'gateway' | 'copilot-chat';
 
 export interface ProviderSnapshot {
   requests: number;

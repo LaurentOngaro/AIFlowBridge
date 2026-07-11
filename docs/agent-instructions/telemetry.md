@@ -56,8 +56,8 @@ On first activation after upgrading from a pre-1.5.0 install, if the legacy `aif
 `src/aiflowbridge/ui/dashboard.ts` builds a self-contained HTML page with four panels:
 
 1. **Gateway** - status, version, port, base URL.
-2. **Recent requests** - per-row table with timestamp / model / status / duration / tokens / cost, filterable by preset (All / 1h / 24h / 7d / 30d), custom date range (`<input type="date">` x 2), and free-text search. Pagination (per-panel, persisted in `localStorage`). Per-row delete button (when `onRemoveEntry` is wired).
-3. **By model** - aggregated per-model counters with the same filter chain, plus a model-name substring match (entry-level OR model-name).
+2. **Recent requests** - per-row table with timestamp / model / status / duration / tokens / cost. Filters: time preset `<select>` (All / Last 15 min / Last 30 min / Last 1 h / Last 24 h / Last 2 days / Last 3 days / Last 7 days / Last 30 days), provider `<select>` (`All providers` + dynamic per-`byProvider` key list), custom date range (`<input type="date">` x 2), and free-text search. Pagination (per-panel, persisted in `localStorage`). Per-row delete button (when `onRemoveEntry` is wired).
+3. **By model** - aggregated per-model counters with the same filter chain (the time preset is shared across both panels via `syncPresetSelects()`), plus a model-name substring match (entry-level OR model-name). The provider filter applies here too.
 4. **Provider summary** - aggregated per-provider counters.
 
 The page renders server-side first (works without JS), then a JS init pass + `rerender()` slice the rows into the persisted page size for each panel.

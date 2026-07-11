@@ -168,6 +168,18 @@ function postChat(
   port: number,
   options: PostOptions
 ): Promise<{ status: number; body: string; jsonBody: unknown }> {
+  return postChatRaw(port, options).then(({ status, body, jsonBody }) => ({ status, body, jsonBody }));
+}
+
+/**
+ * BUG17 Fix E: same as `postChat` but also returns the upstream
+ * response headers, so the test can assert on `Retry-After` /
+ * `X-RateLimit-*` propagation.
+ */
+function postChatRaw(
+  port: number,
+  options: PostOptions
+): Promise<{ status: number; body: string; jsonBody: unknown; headers: Record<string, string | string[] | undefined> }> {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(options.body);
     const req = httpRequest(
@@ -198,7 +210,7 @@ function postChat(
           } catch {
             jsonBody = null;
           }
-          resolve({ status: res.statusCode ?? 0, body, jsonBody });
+          resolve({ status: res.statusCode ?? 0, body, jsonBody, headers: res.headers });
         };
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', settle);
@@ -208,8 +220,6 @@ function postChat(
         // already been settled (i.e. `end` already fired with a
         // full body).
         res.on('close', () => {
-          // If we got bytes and `end` is just delayed, give it a
-          // tick. Otherwise settle now.
           if (!settled) {
             settle();
           }
@@ -794,5 +804,128 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
     expect(status.maxConcurrentPerProvider).toBe(3);
     expect(status.upstreamIdleTimeoutMs).toBe(90_000);
     expect(status.streamTotalTimeoutMs).toBe(300_000);
+  });
+});
+
+// ====================================================================
+// BUG17 Fix E - forward HTTP 429 / 503 + Retry-After from the upstream,
+//                and short-circuit streaming requests that hit a backoff
+//                status (the upstream JSON body would otherwise be
+//                streamed as SSE, which clients cannot consume).
+// ====================================================================
+describe('BUG17 fix E - upstream backoff propagation', () => {
+  let service: GatewayService;
+  let port: number;
+
+  beforeEach(async () => {
+    service = new GatewayService(makeConfig());
+    const status = await service.start();
+    port = Number(new URL(status.baseUrl).port);
+  });
+  afterEach(async () => {
+    await service.stop();
+    vi.unstubAllGlobals();
+  });
+
+  it('forwards Retry-After + X-RateLimit-* headers from upstream on a streaming 429', async () => {
+    const body = JSON.stringify({
+      error: {
+        message: 'Rate limit reached for requests',
+        type: 'rate_limit_error',
+        param: null,
+        code: 'rate_limit',
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(body, {
+          status: 429,
+          headers: {
+            'content-type': 'application/json',
+            'retry-after': '12',
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': '1735689600',
+          },
+        }),
+      ),
+    );
+
+    // BUG17 Fix E: the client requested `stream: true`. Without the
+    // short-circuit, the gateway would set
+    // `text/event-stream; charset=utf-8` and pipe the JSON 429 body
+    // as SSE chunks. The fix detects the backoff before piping and
+    // ends the response with `application/json` + the upstream body
+    // instead. Result: the client sees a clean HTTP 429 + JSON.
+    const r = await postChatRaw(port, {
+      body: { model: 'model-1', stream: true, messages: [{ role: 'user', content: 'hi' }] },
+    });
+    expect(r.status).toBe(429);
+    expect(r.headers['retry-after']).toBe('12');
+    expect(r.headers['x-ratelimit-remaining']).toBe('0');
+    expect(r.headers['x-ratelimit-reset']).toBe('1735689600');
+    expect(r.headers['content-type']).toMatch(/^application\/json/);
+    // Body is JSON, not SSE-framed.
+    expect(r.body).not.toMatch(/^data: /);
+    expect(JSON.parse(r.body).error.type).toBe('rate_limit_error');
+  });
+
+  it('forwards Retry-After on a non-streaming 429 without consuming an SSE slot', async () => {
+    const body = JSON.stringify({
+      error: { message: 'Too many requests', type: 'rate_limit_error' },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(body, {
+          status: 429,
+          headers: { 'content-type': 'application/json', 'retry-after': '5' },
+        }),
+      ),
+    );
+    const r = await postChatRaw(port, {
+      body: { model: 'model-1', messages: [{ role: 'user', content: 'hi' }] },
+    });
+    expect(r.status).toBe(429);
+    expect(r.headers['retry-after']).toBe('5');
+    expect(JSON.parse(r.body).error.type).toBe('rate_limit_error');
+  });
+
+  it('forwards Retry-After on streaming 503 (service unavailable with backoff)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: { message: 'overloaded, retry later' } }), {
+          status: 503,
+          headers: { 'content-type': 'application/json', 'retry-after': '60' },
+        }),
+      ),
+    );
+    const r = await postChatRaw(port, {
+      body: { model: 'model-1', stream: true, messages: [{ role: 'user', content: 'hi' }] },
+    });
+    expect(r.status).toBe(503);
+    expect(r.headers['retry-after']).toBe('60');
+    expect(r.headers['content-type']).toMatch(/^application\/json/);
+    expect(r.body).not.toMatch(/^data: /);
+  });
+
+  it('streams a normal 200 response as before (no regression)', async () => {
+    // sanity: a 200 response still streams as SSE.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          'data: {"id":"x","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { status: 200, headers: { 'content-type': 'text/event-stream' } },
+        ),
+      ),
+    );
+    const r = await postChatRaw(port, {
+      body: { model: 'model-1', stream: true, messages: [{ role: 'user', content: 'hi' }] },
+    });
+    expect(r.status).toBe(200);
+    expect(r.headers['content-type']).toMatch(/text\/event-stream/);
+    expect(r.body).toMatch(/^data: /);
   });
 });
