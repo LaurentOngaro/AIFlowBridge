@@ -8,7 +8,7 @@ import { buildModelCatalog, selectProvider } from '../providers';
 import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
 import { fetchMinimaxPromptTokens } from '../token-counter';
-import type { AiFlowBridgeConfig, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from '../types';
+import type { AiFlowBridgeConfig, GatewaySettings, GatewayStatus, ProviderProfile, RequestTelemetry, TelemetrySnapshot } from '../types';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
 
 interface GatewaySnapshotListener {
@@ -46,6 +46,20 @@ export class GatewayService {
    * activation.
    */
   private readonly activeSockets = new Set<Socket>();
+  /**
+   * Tracks which `Socket`s already have a `'close'` listener wired
+   * by the request handler. Without this, every HTTP request on
+   * the same long-lived HTTP/1.1 keep-alive socket would register
+   * a new `socket.once('close', ...)` listener on the SAME `Socket`
+   * emitter; after ~11 requests on the same connection Node
+   * prints `MaxListenersExceededWarning: Possible EventEmitter
+   * memory leak detected. 11 close listeners added to [Socket]`
+   * (BUG17, fix A). Functionally benign (`Set.delete` is
+   * idempotent) but noisy and correlated with the same workload
+   * pattern that triggers MiniMax upstream throttling. WeakSet so
+   * the `Socket` can still be GC'd when its refcount drops.
+   */
+  private readonly wiredSocketClosers = new WeakSet<Socket>();
   /**
    * counter of in-flight `/v1/chat/completions` requests.
    * When the value reaches `config.gateway.maxConcurrentRequests`, the
@@ -262,9 +276,21 @@ export class GatewayService {
     this.server = createServer((request, response) => {
       const socket = request.socket;
       this.activeSockets.add(socket);
-      socket.once('close', () => {
-        this.activeSockets.delete(socket);
-      });
+      // BUG17 fix A: wire the `'close'` cleanup listener at most
+      // once per PHYSICAL socket, not once per HTTP request. HTTP/1.1
+      // keep-alive reuses one TCP socket for N sequential requests;
+      // the old code accumulated N listeners on the same emitter and
+      // triggered `MaxListenersExceededWarning` after the 11th
+      // request. Functionally benign (Set.delete is idempotent, the
+      // listeners are `once`), but loud and correlated with the same
+      // workload pattern (3 agents / long-lived keep-alive) that
+      // triggers the upstream throttling bug.
+      if (!this.wiredSocketClosers.has(socket)) {
+        this.wiredSocketClosers.add(socket);
+        socket.once('close', () => {
+          this.activeSockets.delete(socket);
+        });
+      }
       void this.handleRequest(request, response).catch((error: unknown) => {
         logger.error('[Gateway] Request handling error', error);
         if (!response.headersSent) {
@@ -374,6 +400,9 @@ export class GatewayService {
       providerCount: this.config.providers.filter((provider) => provider.enabled).length,
       inFlightRequests: this.inFlightRequests,
       maxConcurrentRequests: this.config.gateway.maxConcurrentRequests,
+      maxConcurrentPerProvider: resolveMaxConcurrentPerProvider(this.config.gateway),
+      upstreamIdleTimeoutMs: resolveUpstreamIdleTimeoutMs(this.config.gateway),
+      streamTotalTimeoutMs: resolveStreamTotalTimeoutMs(this.config.gateway),
     };
   }
 
@@ -643,6 +672,79 @@ export class GatewayService {
     const abort = (): void => abortController.abort();
     request.once('aborted', abort);
     response.once('close', abort);
+    // BUG17 fix B: hoisted so the `endLocalResponseAfterWatchdog`
+    // helper (defined right below) and the watchdog setTimeout
+    // callbacks can read the resolved config values. The actual
+    // timer handles are still assigned inside the `try` block.
+    let idleTimeoutMs = resolveUpstreamIdleTimeoutMs(this.config.gateway);
+    let totalTimeoutMs = resolveStreamTotalTimeoutMs(this.config.gateway);
+    // BUG17 fix B: `abortController.abort()` only aborts the
+    // upstream `fetch()`. The pipe from the upstream body to the
+    // local `response` does not watch the signal, so when the
+    // watchdog fires AFTER headers have arrived (the stream-idle
+    // case), we must explicitly end the local response. Without
+    // this, the client hangs on the open HTTP response until the
+    // OS keep-alive timeout.
+    //
+    // The pipe may own the `response` lifecycle (`.pipe(response)`
+    // drains the source Readable into the response). `response.end()`
+    // alone is a no-op when the pipe is still active; we must
+    // destroy the source too so the pipe sees the source as
+    // terminated and yields the response back to us.
+    const endLocalResponseAfterWatchdog = (): void => {
+      if (response.writableEnded || response.destroyed) {
+        return;
+      }
+      if (!response.headersSent) {
+        // No headers have been sent yet (the headers-idle
+        // watchdog fired before the upstream returned headers).
+        // We can still write a structured 504 + JSON body.
+        response.statusCode = 504;
+        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        response.end(
+          JSON.stringify({
+            error: 'Gateway Timeout',
+            requestId,
+            details: 'Upstream did not respond within the configured idle or total timeout',
+            idleTimeoutMs: idleTimeoutMs || undefined,
+            totalTimeoutMs: totalTimeoutMs || undefined,
+          }),
+        );
+      } else {
+        // Headers already streamed (mid-stream abort). We can
+        // only end the body; the client will see an incomplete
+        // stream. Forcibly destroy the response so the pipe
+        // releases it - `response.end()` is a no-op while the
+        // pipe is active.
+        response.destroy();
+      }
+    };
+
+    // BUG17 fix D: acquire a per-provider concurrency slot before
+    // opening the upstream socket. 3 agents in parallel against
+    // MiniMax-M3 (reasoning_split: true) used to send 3 parallel
+    // thinking-mode requests + 3 parallel pre-count POSTs against
+    // the same API key, which MiniMax throttled to 100 s+ tail
+    // latency. A cap of 3 queues the 4th+ parallel request behind
+    // the first three instead of opening more upstream sockets.
+    // `resolveMaxConcurrentPerProvider` falls back to 3 when the
+    // setting is absent (backward compat with older snapshots).
+    // `max = 0` disables the cap (used by local dev / tests that
+    // want no queueing).
+    const maxPerProvider = resolveMaxConcurrentPerProvider(this.config.gateway);
+    await acquireProviderSlot(provider.id, maxPerProvider);
+    let providerSlotHeld = true;
+    // `releaseOnAbort` is called once on every exit path
+    // (success, error, timeout) so the slot is never leaked. The
+    // helper is a closure so the `finally` block stays symmetric
+    // with the abort + finally pattern below.
+    const releaseOnAbort = (): void => {
+      if (!providerSlotHeld) {
+        return;
+      }
+      providerSlotHeld = false;
+      releaseProviderSlot(provider.id);
+    };
 
     // Translate AIFB-specific body fields into the upstream API's expected
     // shape (e.g. Kilo Code's `reasoning: true/false` checkbox -> MiniMax's
@@ -687,25 +789,96 @@ export class GatewayService {
     let telemetryRecorded = false;
     let ttfbMs = 0;
 
-    // MiniMax exposes /v1/responses/input_tokens: kick off a parallel count
-    // when applicable so the heuristic can be replaced with the real number
-    // before telemetry is recorded. Never blocks the request.
-    const tokenCountPromise = isMinimaxProvider(provider)
+    // BUG17 fix C: gate the parallel MiniMax `/input_tokens`
+    // pre-count on streaming requests. The MiniMax stream endpoint
+    // emits usage on the final chunk; firing the pre-count in
+    // parallel doubles the upstream load precisely when
+    // thinking-mode bursts hurt the most. Default off for
+    // streaming; the user can re-enable per-config via
+    // `aiflowbridge.gateway.minimaxParallelTokenCount`.
+    const isStreamingRequest = Boolean(payload?.stream);
+    const parallelTokenCountEnabled =
+      this.config.gateway.minimaxParallelTokenCount ?? false;
+    const shouldPreCountTokens = isMinimaxProvider(provider) && (!isStreamingRequest || parallelTokenCountEnabled);
+    const tokenCountPromise = shouldPreCountTokens
       ? fetchMinimaxPromptTokens({
           baseUrl: provider.baseUrl,
           apiKey: resolvedKey ?? '',
           model: provider.model,
           messages: Array.isArray(payload?.messages) ? payload.messages : [],
+          // Share the same abort signal as the main upstream call
+          // (BUG17 fix B): if the idle / total watchdog aborts the
+          // upstream request, the pre-count is killed cleanly
+          // instead of outliving the main request.
+          signal: abortController.signal,
         })
       : Promise.resolve(undefined);
 
+    // BUG17 fix B: hoisted timer state so the `catch` and `finally`
+    // blocks below can reach them. The actual timer handles and the
+    // `clearTimers` closure are assigned inside the `try` block.
+    // `idleTimeoutMs` and `totalTimeoutMs` are hoisted above (just
+    // after the abort wiring) so the `endLocalResponseAfterWatchdog`
+    // helper can read them.
+    let idleTimer: NodeJS.Timeout | undefined;
+    let totalTimer: NodeJS.Timeout | undefined;
+    let clearTimers: () => void = () => {};
+
     try {
+      // BUG17 fix B: upstream idle + total timeouts. Without these,
+      // a stalled MiniMax thinking-mode request (the upstream opens
+      // the TCP socket but never sends bytes while it queues the
+      // request internally) leaves the gateway waiting indefinitely
+      // from the client's point of view - the agent UI sits in
+      // "standby" for minutes (100+ s tail observed in the bug
+      // report). The idle watchdog aborts when no bytes arrive for
+      // `upstreamIdleTimeoutMs`; the total watchdog is a bounded
+      // safety net for an upstream that trickles bytes forever.
+      // `0` disables the corresponding timer. Both timers share
+      // the same `abortController` as the client-disconnect abort,
+      // so the abort path is unified.
+      clearTimers = (): void => {
+        if (idleTimer) {
+          clearTimeout(idleTimer);
+          idleTimer = undefined;
+        }
+        if (totalTimer) {
+          clearTimeout(totalTimer);
+          totalTimer = undefined;
+        }
+      };
+      if (idleTimeoutMs > 0) {
+        idleTimer = setTimeout(() => {
+          logger.warn(
+            `[Gateway] ${requestId} upstream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`
+          );
+          abortController.abort();
+          endLocalResponseAfterWatchdog();
+        }, idleTimeoutMs);
+      }
+      if (totalTimeoutMs > 0) {
+        totalTimer = setTimeout(() => {
+          logger.warn(
+            `[Gateway] ${requestId} upstream total timeout ${totalTimeoutMs}ms reached, aborting (provider=${provider.id})`
+          );
+          abortController.abort();
+          endLocalResponseAfterWatchdog();
+        }, totalTimeoutMs);
+      }
+
       const upstreamResponse = await fetch(upstreamUrl, {
         method: 'POST',
         headers,
         body: upstreamBody,
         signal: abortController.signal,
       });
+      // Headers arrived: the connection is healthy enough that the
+      // idle watchdog no longer needs to fire. The total watchdog
+      // stays armed for the lifetime of the stream / body read.
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = undefined;
+      }
 
       statusCode = upstreamResponse.status;
       ttfbMs = Date.now() - startedAt;
@@ -718,7 +891,7 @@ export class GatewayService {
         const upstreamPromptTokens = await tokenCountPromise;
         if (typeof upstreamPromptTokens === 'number' && upstreamPromptTokens > 0) {
           promptTokens = upstreamPromptTokens;
-          totalTokens = promptTokens;
+          totalTokens = upstreamPromptTokens;
         }
 
         response.statusCode = upstreamResponse.status;
@@ -727,7 +900,58 @@ export class GatewayService {
         response.setHeader('Connection', 'keep-alive');
 
         if (upstreamResponse.body) {
-          Readable.fromWeb(upstreamResponse.body as unknown as globalThis.ReadableStream<Uint8Array>).pipe(response);
+          const node = Readable.fromWeb(upstreamResponse.body as unknown as globalThis.ReadableStream<Uint8Array>);
+          // BUG17 fix B: re-arm the idle watchdog as soon as we
+          // start piping the stream body. The headers-idle timer
+          // was cleared at line ~885 because headers arriving is
+          // a sign of life, but the stream itself can still go
+          // silent before sending any bytes (MiniMax queues the
+          // thinking request internally without enqueuing any
+          // tokens). Without re-arming here, the watchdog never
+          // fires if no `data` event ever arrives.
+          if (idleTimeoutMs > 0) {
+            idleTimer = setTimeout(() => {
+              logger.warn(
+                `[Gateway] ${requestId} upstream stream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`
+              );
+              abortController.abort();
+              endLocalResponseAfterWatchdog();
+            }, idleTimeoutMs);
+          }
+          // BUG17 fix B: explicit error handler on the pipe. Without
+          // this, a mid-stream upstream socket error becomes an
+          // unhandled error event; `response.once('close', abort)` is
+          // the only escape and it waits on TCP keep-alive (5+ min
+          // default). With this handler, any pipe-level error
+          // propagates to the shared abortController, the total
+          // watchdog fires if upstream is silent, and the response is
+          // ended cleanly.
+          node.on('error', (err: Error) => {
+            logger.warn(`[Gateway] ${requestId} upstream stream error: ${err.message}`);
+            abort();
+          });
+          // BUG17 fix B: reset the idle watchdog on every chunk
+          // received from the upstream. Without this, a slow but
+          // trickling upstream (bytes every 60 s) would be aborted by
+          // the idle timer even though it is making forward
+          // progress. The total watchdog stays armed.
+          if (idleTimeoutMs > 0) {
+            const resetIdle = (): void => {
+              if (!idleTimer) {
+                return;
+              }
+              clearTimeout(idleTimer);
+              idleTimer = setTimeout(() => {
+                logger.warn(
+                  `[Gateway] ${requestId} upstream stream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`
+                );
+                abortController.abort();
+                endLocalResponseAfterWatchdog();
+              }, idleTimeoutMs);
+            };
+            node.on('data', resetIdle);
+          }
+          node.pipe(response);
         } else {
           response.end();
         }
@@ -736,6 +960,10 @@ export class GatewayService {
         // `pipe()`, which is essentially time-to-first-byte and
         // under-reports total latency on long streams.
         response.once('finish', () => {
+          // BUG17 fix B: the response finished successfully - clear
+          // the total watchdog so it does not fire on a settled
+          // request.
+          clearTimers();
           if (telemetryRecorded) {
             return;
           }
@@ -782,6 +1010,12 @@ export class GatewayService {
       // the streaming finish handler above).
       void ttfbMs;
     } catch (error) {
+      // BUG17 fix B: always clear both watchdogs on the error
+      // path. The catch block is reached for any non-success
+      // outcome (upstream error, watchdog abort, client
+      // disconnect, body read failure) and timers MUST NOT leak
+      // into the next request.
+      clearTimers();
       const durationMs = Date.now() - startedAt;
       if (!telemetryRecorded) {
         telemetryRecorded = true;
@@ -789,26 +1023,59 @@ export class GatewayService {
       }
 
       if (!response.headersSent) {
-        response.statusCode = 502;
-        response.setHeader('Content-Type', 'application/json; charset=utf-8');
+        // BUG17 fix B: surface 504 (Gateway Timeout) when the
+        // abort came from our idle / total watchdog, distinguish
+        // from generic 502 (upstream error / unreachable).
+        //
+        // The watchdog abort case is detected by checking that
+        // `abortController.signal.aborted` is true. fetch() throws
+        // on abort and we never reach the `statusCode =
+        // upstreamResponse.status` assignment, so `statusCode` is
+        // still the default 502 sentinel. Anything else that
+        // throws before `statusCode` is reassigned (e.g. upstream
+        // TCP reset, DNS failure, TLS handshake failure) is treated
+        // as a generic 502.
+        if (abortController.signal.aborted) {
+          statusCode = 504;
+          response.statusCode = 504;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          response.end(
+            JSON.stringify({
+              error: 'Gateway Timeout',
+              requestId,
+              details: 'Upstream did not respond within the configured idle or total timeout',
+              idleTimeoutMs,
+              totalTimeoutMs,
+            })
+          );
+        } else {
+          response.statusCode = 502;
+          response.setHeader('Content-Type', 'application/json; charset=utf-8');
+          // the upstream `fetch` error message may include the
+          // full request URL, and upstream error bodies can contain
+          // `Authorization` echoes. Strip both before forwarding to the
+          // client so the API key never leaks through a 502 body.
+          const rawMessage = error instanceof Error ? error.message : String(error);
+          const sanitizedMessage = sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl);
+          response.end(
+            JSON.stringify({
+              error: 'Failed to forward request',
+              requestId,
+              details: sanitizedMessage,
+            })
+          );
+        }
       }
-
-      // the upstream `fetch` error message may include the
-      // full request URL, and upstream error bodies can contain
-      // `Authorization` echoes. Strip both before forwarding to the
-      // client so the API key never leaks through a 502 body.
-      const rawMessage = error instanceof Error ? error.message : String(error);
-      const sanitizedMessage = sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl);
-      response.end(
-        JSON.stringify({
-          error: 'Failed to forward request',
-          requestId,
-          details: sanitizedMessage,
-        })
-      );
     } finally {
+      // BUG17 fix B: belt-and-braces clearTimers. The success /
+      // streaming paths already clear in `response.once('finish')`,
+      // but the non-streaming path and the client-abort path may
+      // reach here without going through that listener.
+      clearTimers();
       request.off('aborted', abort);
       response.off('close', abort);
+      // release the per-provider slot (BUG17 fix D).
+      releaseOnAbort();
       // release the slot. The decrement is unconditional
       // (we incremented at the start of the method on a non-rejected
       // path) so the counter is exact regardless of upstream outcome
@@ -875,6 +1142,100 @@ export class GatewayService {
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
   return new URL(path, baseUrl).toString();
+}
+
+/**
+ * Resolved default for `gateway.maxConcurrentPerProvider`. The
+ * `GatewaySettings` field is optional (so older snapshots / test
+ * fixtures that predate BUG17 still compile); the gateway uses 3
+ * by default. `0` means "no cap" (semaphore skipped entirely).
+ */
+function resolveMaxConcurrentPerProvider(gateway: GatewaySettings): number {
+  return gateway.maxConcurrentPerProvider ?? 3;
+}
+
+function resolveUpstreamIdleTimeoutMs(gateway: GatewaySettings): number {
+  return gateway.upstreamIdleTimeoutMs ?? 90_000;
+}
+
+function resolveStreamTotalTimeoutMs(gateway: GatewaySettings): number {
+  return gateway.streamTotalTimeoutMs ?? 300_000;
+}
+
+/**
+ * Per-provider concurrency semaphore (BUG17 fix D).
+ *
+ * Bounded `Map<providerId, Semaphore>` where each `Semaphore`
+ * tracks the number of in-flight upstream calls and a FIFO queue
+ * of pending acquirers. `acquire` resolves immediately when
+ * `active < max`, otherwise awaits the next waiter slot. `release`
+ * hands the slot to the next waiter (without first decrementing)
+ * or decrements `active` when the queue is empty.
+ *
+ * Keyed by `provider.id` (not by upstream URL) so that two
+ * distinct gateway profiles that happen to point at the same
+ * upstream base URL still get independent caps. The Map is module
+ * state: it survives across requests and across the whole
+ * `GatewayService` lifetime, which is what we want (semaphores
+ * track concurrent upstream calls regardless of which client
+ * triggered them). Cleared implicitly when the module unloads.
+ *
+ * `max = 0` disables the cap (every acquirer resolves immediately
+ * with `active = Infinity` effectively). Useful for local
+ * development where one process is the only client.
+ */
+interface ProviderSemaphore {
+  active: number;
+  waiters: Array<() => void>;
+}
+
+const providerSemaphores = new Map<string, ProviderSemaphore>();
+
+function acquireProviderSlot(providerId: string, max: number): Promise<void> {
+  if (max <= 0) {
+    return Promise.resolve();
+  }
+  let lock = providerSemaphores.get(providerId);
+  if (!lock) {
+    lock = { active: 0, waiters: [] };
+    providerSemaphores.set(providerId, lock);
+  }
+  if (lock.active < max) {
+    lock.active++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    lock!.waiters.push(() => {
+      // The slot is transferred to us, NOT released to the pool.
+      // `releaseProviderSlot` will pop the next waiter or decrement
+      // `active` when this caller is done.
+      lock!.active++;
+      resolve();
+    });
+  });
+}
+
+function releaseProviderSlot(providerId: string): void {
+  // `acquireProviderSlot` skipped (max <= 0) means nothing was
+  // tracked; also skip the release. Keeps the disabled path
+  // allocation-free and side-effect-free.
+  const lock = providerSemaphores.get(providerId);
+  if (!lock) {
+    return;
+  }
+  const next = lock.waiters.shift();
+  if (next) {
+    next();
+  } else {
+    lock.active--;
+    if (lock.active === 0) {
+      // Free the entry so the Map does not grow unbounded with
+      // distinct provider ids. Safe even if a waiter is queued in
+      // the same microtask: the awaiter is in `waiters` and we
+      // only free on empty queue.
+      providerSemaphores.delete(providerId);
+    }
+  }
 }
 
 /**

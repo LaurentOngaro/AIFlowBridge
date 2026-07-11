@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "Multi-provider AI switcher for GitHub Copilot Chat: DeepSeek V4 ($0.27/M in), MiniMax M3, Xiaomi MiMo V2 Omni. 3 problems solved: (1) one Copilot Chat picker for 14 models across 3 vendors, (2) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (3) a built-in OpenAI-compatible local gateway on port 8787 so Kilo Code, Continue, Open WebUI, and curl can all use the same models - with a live metrics dashboard, per-request token counts, and estimated cost. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -226,6 +226,32 @@
           "minimum": 1,
           "maximum": 1000,
           "description": "Maximum number of upstream /v1/chat/completions requests in flight. Requests above the limit return HTTP 429. Protects the upstream from a runaway local client."
+        },
+        "aiflowbridge.gateway.maxConcurrentPerProvider": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Per-upstream-provider cap on concurrent in-flight requests. The gateway queues additional requests for the same provider behind this cap instead of opening more parallel sockets to the same upstream. Set to 0 to disable. Bugfix for BUG17: 3 agents in parallel against the same MiniMax thinking-mode model would otherwise throttle to 100s+ tail latency."
+        },
+        "aiflowbridge.gateway.upstreamIdleTimeoutMs": {
+          "type": "number",
+          "default": 90000,
+          "minimum": 0,
+          "maximum": 600000,
+          "description": "Idle timeout (ms) for the upstream fetch. If no bytes arrive for this many ms, the gateway aborts and returns HTTP 504. Caps the 'agent in standby for minutes' symptom when an upstream silently queues a thinking-mode request. Set to 0 to disable."
+        },
+        "aiflowbridge.gateway.streamTotalTimeoutMs": {
+          "type": "number",
+          "default": 300000,
+          "minimum": 0,
+          "maximum": 1800000,
+          "description": "Hard ceiling (ms) on total upstream call duration. Even if bytes keep flowing, the gateway aborts and returns HTTP 504 after this many ms. Bounded safety net for the idle watchdog. Set to 0 to disable."
+        },
+        "aiflowbridge.gateway.minimaxParallelTokenCount": {
+          "type": "boolean",
+          "default": false,
+          "description": "Fire the parallel /v1/responses/input_tokens pre-count on every MiniMax request (including streaming). Default false: skip on streaming because the MiniMax stream emits usage on the final chunk and the parallel pre-count doubles upstream load precisely when thinking-mode bursts hurt the most."
         },
         "aiflowbridge.providers": {
           "type": "array",

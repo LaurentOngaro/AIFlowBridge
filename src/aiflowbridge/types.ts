@@ -183,6 +183,55 @@ export interface GatewaySettings {
    * `aiflowbridge.gateway.maxConcurrentRequests` package.json setting.
    */
   maxConcurrentRequests: number;
+  /**
+   * Per-upstream-provider cap on concurrent in-flight requests. The
+   * gateway queues any further request for the same provider behind
+   * this cap instead of opening more parallel sockets to the same
+   * upstream. Key fix for BUG17: 3 agents in parallel against
+   * MiniMax-M3 (`reasoning_split: true`) used to send 3 parallel
+   * thinking-mode requests + 3 parallel `/input_tokens` pre-counts
+   * to the same API key, which MiniMax throttled to 100 s+ tail
+   * latency. A cap of 3 (the default) means a 4th parallel request
+   * queues behind the first three, never opens a 4th upstream
+   * socket. Set to 0 to disable (no cap). Mirrors
+   * `aiflowbridge.gateway.maxConcurrentPerProvider`. Optional for
+   * backward compatibility with older snapshots / test fixtures that
+   * do not yet populate the field; the gateway defaults to 3 at use.
+   */
+  maxConcurrentPerProvider?: number;
+  /**
+   * Idle timeout (ms) for the upstream `fetch()` call. If no bytes
+   * have arrived from the upstream for this many ms, the watchdog
+   * aborts the request and surfaces HTTP 504 to the client. Caps the
+   * "agent in standby for minutes" symptom reported in BUG17 when
+   * MiniMax queues thinking-mode requests without sending any bytes.
+   * Defaults to 90 000 ms (90 s). Set to 0 to disable. Mirrors
+   * `aiflowbridge.gateway.upstreamIdleTimeoutMs`. Optional for
+   * backward compatibility.
+   */
+  upstreamIdleTimeoutMs?: number;
+  /**
+   * Hard ceiling (ms) on the total upstream call duration. Even if
+   * bytes keep flowing, the watchdog aborts and returns HTTP 504 to
+   * the client after this many ms. Bounded safety net for the
+   * idle-watchdog (which would otherwise wait indefinitely on a
+   * slowly-trickling upstream). Defaults to 300 000 ms (5 min).
+   * Set to 0 to disable. Mirrors
+   * `aiflowbridge.gateway.streamTotalTimeoutMs`. Optional for
+   * backward compatibility.
+   */
+  streamTotalTimeoutMs?: number;
+  /**
+   * Whether to fire the parallel `fetchMinimaxPromptTokens` POST on
+   * every MiniMax request. When `false` (default), the parallel
+   * pre-count is only fired for non-streaming requests, because the
+   * MiniMax stream endpoint already emits usage on the final chunk
+   * and the pre-count doubles the upstream load precisely when
+   * thinking-mode bursts hurt the most (BUG17). Mirrors
+   * `aiflowbridge.gateway.minimaxParallelTokenCount`. Optional for
+   * backward compatibility.
+   */
+  minimaxParallelTokenCount?: boolean;
 }
 
 export interface AiFlowBridgeConfig {
@@ -211,6 +260,26 @@ export interface GatewayStatus {
    * `X / max` without re-reading the full config.
    */
   maxConcurrentRequests: number;
+  /**
+   * Per-upstream-provider cap mirrored from
+   * `GatewaySettings.maxConcurrentPerProvider`. Surfaced on the
+   * status payload so the dashboard can show the configured cap
+   * alongside the per-provider in-flight count.
+   */
+  maxConcurrentPerProvider?: number;
+  /**
+   * Upstream idle-stream timeout (ms) mirrored from
+   * `GatewaySettings.upstreamIdleTimeoutMs`. Surfaced on the status
+   * payload for diagnostics (helps correlate dashboard "in
+   * standby" reports with the configured idle cap).
+   */
+  upstreamIdleTimeoutMs?: number;
+  /**
+   * Total upstream-stream ceiling (ms) mirrored from
+   * `GatewaySettings.streamTotalTimeoutMs`. Surfaced on the status
+   * payload for diagnostics.
+   */
+  streamTotalTimeoutMs?: number;
 }
 
 export interface RequestTelemetry {

@@ -273,6 +273,31 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // development where one process is the only client; the cap is
     // mainly a protection against misbehaving test scripts.
     maxConcurrentRequests: configuration.get<number>('gateway.maxConcurrentRequests', 20),
+    // BUG17 fix: cap parallel in-flight requests per upstream
+    // provider. 3 agents in parallel against MiniMax-M3 used to send
+    // 3 parallel thinking-mode requests + 3 parallel pre-count
+    // POSTs against the same API key, which MiniMax throttled to
+    // 100 s+ tail latency. A cap of 3 queues the 4th+ parallel
+    // request behind the first three instead of opening more
+    // upstream sockets. Set to 0 to disable (no cap).
+    maxConcurrentPerProvider: configuration.get<number>('gateway.maxConcurrentPerProvider', 3),
+    // BUG17 fix: idle-stream watchdog. Aborts the upstream `fetch`
+    // when no bytes arrive for this many ms. Caps the "agent in
+    // standby for minutes" symptom when MiniMax silently queues a
+    // thinking-mode request without sending bytes. Set to 0 to
+    // disable.
+    upstreamIdleTimeoutMs: configuration.get<number>('gateway.upstreamIdleTimeoutMs', 90_000),
+    // BUG17 fix: total-stream ceiling. Hard upper bound on the
+    // upstream call duration even when bytes keep flowing. Bounded
+    // safety net for the idle watchdog. Set to 0 to disable.
+    streamTotalTimeoutMs: configuration.get<number>('gateway.streamTotalTimeoutMs', 300_000),
+    // BUG17 fix: gate the parallel `fetchMinimaxPromptTokens`
+    // pre-count on streaming requests. The MiniMax stream endpoint
+    // emits usage on the final chunk; the parallel pre-count
+    // doubles upstream load precisely when thinking-mode bursts
+    // hurt the most. Default `false` (skip on streaming). Set to
+    // `true` to restore the pre-2.5.1 behavior on streaming too.
+    minimaxParallelTokenCount: configuration.get<boolean>('gateway.minimaxParallelTokenCount', false),
   };
 
   const visionProxy: VisionProxySettings = {

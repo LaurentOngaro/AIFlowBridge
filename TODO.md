@@ -18,12 +18,12 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Bugs (last: BUG17)
 
-- [ ] BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - some requests take 100+ s while siblings complete in 5-15 s, and the gateway logs `MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Socket].` See `_Private/ACTION PLAN.md` for the full diagnosis and implementation plan.
-  - [ ] Fix A: silence `MaxListenersExceededWarning` (one `socket.once('close', ...)` per physical socket, not per request) at `src/aiflowbridge/gateway/server.ts:262-267`
-  - [ ] Fix B: upstream idle-stream watchdog + total stream ceiling on the upstream `fetch()` at `src/aiflowbridge/gateway/server.ts:703-733`
-  - [ ] Fix C: skip the unconditional parallel `fetchMinimaxPromptTokens` pre-count on streaming MiniMax requests (self-inflicted upstream amplification) at `src/aiflowbridge/gateway/server.ts:693-700`
-  - [ ] Fix D (optional, addresses root cause at the gateway): per-provider concurrency semaphore + new setting `gateway.maxConcurrentPerProvider` (default 3)
-  - [ ] Fix E (optional, observability for downstream clients): forward HTTP 429 + `Retry-After` from the upstream on streaming responses
+- [x] BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.5.1 (A+B+C+D scope). Fix A silences the `MaxListenersExceededWarning`; B adds upstream idle + total stream timeouts (HTTP 504 instead of indefinite standby); C removes the self-inflicted parallel pre-count on streaming MiniMax requests; D adds the per-provider concurrency semaphore. See `_Private/ACTION PLAN.md` for the full implementation summary.
+  - [x] Fix A: silence `MaxListenersExceededWarning` (one `socket.once('close', ...)` per physical socket via `WeakSet<Socket>`, not per request) at `src/aiflowbridge/gateway/server.ts:262-280`
+  - [x] Fix B: upstream idle-stream watchdog (default 90 s, `gateway.upstreamIdleTimeoutMs`) + total stream ceiling (default 300 s, `gateway.streamTotalTimeoutMs`) on the upstream `fetch()`; surfaces HTTP 504 to the client instead of indefinite standby
+  - [x] Fix C: skip the unconditional parallel `fetchMinimaxPromptTokens` pre-count on streaming MiniMax requests (opt-in via `gateway.minimaxParallelTokenCount`, default `false`); share the abort signal with the main request
+  - [x] Fix D: per-provider concurrency semaphore (`gateway.maxConcurrentPerProvider`, default 3) - queues the 4th+ parallel request for the same provider instead of opening more upstream sockets
+  - [ ] Fix E (optional, skipped for now): forward HTTP 429 + `Retry-After` from the upstream on streaming responses
 
 ### Documentation (last: DOC04)
 
