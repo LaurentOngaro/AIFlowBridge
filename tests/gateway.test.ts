@@ -283,7 +283,13 @@ describe('GatewayService - singleton detection', () => {
 
     const service = new GatewayService(
       makeConfig({
-        gateway: { enabled: true, port, baseUrl, defaultModel: '', probeTimeoutMs: 0, maxConcurrentRequests: 0 },
+        // probeTimeoutMs defaults to 500 in production. Setting it to 0
+        // here short-circuits the version probe, the gateway treats the
+        // peer as unknown and falls through to listen(), which then
+        // EADDRINUSE's on the port we just bound. 500 ms lets the probe
+        // resolve the fakeServer's /version reply and the gateway joins
+        // the peer cleanly.
+        gateway: { enabled: true, port, baseUrl, defaultModel: '', probeTimeoutMs: 500, maxConcurrentRequests: 0 },
       })
     );
 

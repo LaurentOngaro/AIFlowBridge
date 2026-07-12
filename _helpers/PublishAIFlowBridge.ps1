@@ -1,3 +1,38 @@
+<#
+.SYNOPSIS
+    Build the AIFlowBridge VSIX and install it into one or all VS Code profiles.
+
+.DESCRIPTION
+    Runs npm compile + npm package, locates the resulting VSIX in dist/, then installs it into the
+    selected profile folders (default: interactive selection from the APPDATA profile list).
+    Without -AllProfiles or -Profiles, the script prompts for which profile indices to target.
+
+.PARAMETER Quality
+    "stable" uses the `code` CLI, "insiders" uses the `code-insiders` CLI. Default: stable.
+
+.PARAMETER AllProfiles
+    Install into every profile found under %APPDATA%\Code\User\profiles.
+
+.PARAMETER Profiles
+    Explicit list of profile folder paths to install into.
+
+.EXAMPLE
+    pwsh -File _helpers/PublishAIFlowBridge.ps1
+    Interactive: pick profile indices, build, install.
+
+.EXAMPLE
+    pwsh -File _helpers/PublishAIFlowBridge.ps1 -AllProfiles
+    Install into every profile without prompting.
+
+.EXAMPLE
+    pwsh -File _helpers/PublishAIFlowBridge.ps1 -Quality insiders -Profiles 'C:\Users\me\AppData\Roaming\Code\User\profiles\work'
+    Build the insiders VSIX and install into a specific profile.
+
+.NOTES
+    Requirements: PowerShell 7+ (pwsh), npm, and the selected code CLI in PATH.
+#>
+
+[CmdletBinding()]
 param(
   [ValidateSet('stable', 'insiders')]
   [string]$Quality = 'stable',
@@ -7,25 +42,40 @@ param(
   [string[]]$Profiles = @()
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$distDir = Join-Path $workspaceRoot 'dist'
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$distDir = Join-Path $workspaceRoot "dist"
 
 switch ($Quality) {
-  'stable' {
-    $cli = 'code'
+  "stable" {
+    $cli = "code"
     $installHint = "Shell Command: Install 'code' command in PATH"
   }
-  'insiders' {
-    $cli = 'code-insiders'
+  "insiders" {
+    $cli = "code-insiders"
     $installHint = "Shell Command: Install 'code-insiders' command in PATH"
   }
 }
 
 if (-not (Get-Command $cli -ErrorAction SilentlyContinue)) {
   throw "Missing '$cli' in PATH. Install it from the VS Code Command Palette using: $installHint"
+}
+
+function Write-Step {
+  param([string]$Message)
+  Write-Host "[publish] $Message" -ForegroundColor Cyan
+}
+
+function Write-Warn {
+  param([string]$Message)
+  Write-Host "[publish] $Message" -ForegroundColor Yellow
+}
+
+function Write-Ok {
+  param([string]$Message)
+  Write-Host "[publish] $Message" -ForegroundColor Green
 }
 
 function Invoke-CheckedCommand {
@@ -53,9 +103,9 @@ function Add-ExtensionToProfile {
     [string]$ProfileFolder
   )
 
-  $extensionsFile = Join-Path $ProfileFolder 'extensions.json'
+  $extensionsFile = Join-Path $ProfileFolder "extensions.json"
   if (-not (Test-Path $extensionsFile)) {
-    Write-Warning "No extensions.json in profile '$ProfileFolder', skipping"
+    Write-Warn "No extensions.json in profile '$ProfileFolder', skipping"
     return $false
   }
 
@@ -65,8 +115,8 @@ function Add-ExtensionToProfile {
   try {
     # Extract VSIX (it's a ZIP file)
     Expand-Archive -Path $VsixPath -DestinationPath $tempDir -Force
-    $extensionManifest = Get-Content (Join-Path $tempDir 'extension/package.json') -Raw | ConvertFrom-Json
-    $extensionId = $extensionManifest.publisher + '.' + $extensionManifest.name
+    $extensionManifest = Get-Content (Join-Path $tempDir "extension/package.json") -Raw | ConvertFrom-Json
+    $extensionId = $extensionManifest.publisher + "." + $extensionManifest.name
     $version = $extensionManifest.version
   } finally {
     Remove-Item -Path $tempDir -Recurse -Force
@@ -79,21 +129,21 @@ function Add-ExtensionToProfile {
     $extensions = @($jsonContent | ConvertFrom-Json)
   } catch {
     # File exists but invalid JSON - skip
-    Write-Warning "Invalid extensions.json in profile '$ProfileFolder', skipping"
+    Write-Warn "Invalid extensions.json in profile '$ProfileFolder', skipping"
     return $false
   }
 
   # Check if extension already exists
   $alreadyInstalled = $false
   foreach ($ext in $extensions) {
-    if ($ext.identifier.id -like ($extensionId + '*')) {
+    if ($ext.identifier.id -like ($extensionId + "*")) {
       $alreadyInstalled = $true
       break
     }
   }
 
   if ($alreadyInstalled) {
-    Write-Host "  Extension $extensionId already installed in profile '$ProfileFolder'"
+    Write-Step "  Extension $extensionId already installed in profile '$ProfileFolder'"
     return $true
   }
 
@@ -111,7 +161,7 @@ function Add-ExtensionToProfile {
   $newJson = $newExtensions | ConvertTo-Json -Depth 100
   Set-Content -Path $extensionsFile -Value $newJson -Force
 
-  Write-Host "  Added $extensionId to profile '$ProfileFolder'"
+  Write-Ok "  Added $extensionId to profile '$ProfileFolder'"
   return $true
 }
 
@@ -123,7 +173,7 @@ function Remove-ExtensionFromProfile {
     [string]$ProfileFolder
   )
 
-  $extensionsFile = Join-Path $ProfileFolder 'extensions.json'
+  $extensionsFile = Join-Path $ProfileFolder "extensions.json"
   if (-not (Test-Path $extensionsFile)) {
     return $false
   }
@@ -137,7 +187,7 @@ function Remove-ExtensionFromProfile {
   }
 
   $originalCount = $extensions.Count
-  $extensions = @($extensions | Where-Object { $_.identifier.id -notlike ($ExtensionId + '*') })
+  $extensions = @($extensions | Where-Object { $_.identifier.id -notlike ($ExtensionId + "*") })
 
   if ($extensions.Count -eq $originalCount) {
     return $false
@@ -146,17 +196,17 @@ function Remove-ExtensionFromProfile {
   $newJson = $extensions | ConvertTo-Json -Depth 100
   Set-Content -Path $extensionsFile -Value $newJson -Force
 
-  Write-Host "  Removed $ExtensionId from profile '$ProfileFolder'"
+  Write-Step "  Removed $ExtensionId from profile '$ProfileFolder'"
   return $true
 }
 
 Push-Location $workspaceRoot
 try {
-  Write-Host "Building extension in $workspaceRoot"
-  Invoke-CheckedCommand -FilePath 'npm' -ArgumentList @('run', 'compile')
-  Invoke-CheckedCommand -FilePath 'npm' -ArgumentList @('run', 'package')
+  Write-Step "Building extension in $workspaceRoot"
+  Invoke-CheckedCommand -FilePath "npm" -ArgumentList @("run", "compile")
+  Invoke-CheckedCommand -FilePath "npm" -ArgumentList @("run", "package")
 
-  $vsix = Get-ChildItem -Path $distDir -Filter 'aiflowbridge-*.vsix' -File |
+  $vsix = Get-ChildItem -Path $distDir -Filter "aiflowbridge-*.vsix" -File |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 
@@ -168,7 +218,7 @@ try {
   $allProfileFolders = @()
 
   # Scan APPDATA profiles
-  $appDataProfilesRoot = Join-Path $env:APPDATA 'Code\User\profiles'
+  $appDataProfilesRoot = Join-Path $env:APPDATA "Code\User\profiles"
   if (Test-Path $appDataProfilesRoot) {
     Get-ChildItem -Path $appDataProfilesRoot -Directory | ForEach-Object {
       $allProfileFolders += $_.FullName
@@ -197,20 +247,20 @@ try {
     $targets = $allProfileFolders
   } else {
     # Interactive selection by folder index
-    Write-Host "Available profile folders found:`n"
+    Write-Step "Available profile folders found:`n"
     for ($i = 0; $i -lt $allProfileFolders.Count; $i++) {
       $idx = $i + 1
       Write-Host " [$idx] $($allProfileFolders[$i])"
     }
-    Write-Host "`nEnter comma-separated indices to install into (e.g. 1,3), or 'a' for all, or empty to cancel:"
+    Write-Step "`nEnter comma-separated indices to install into (e.g. 1,3), or 'a' for all, or empty to cancel:"
     $inputVal = Read-Host "Select profiles"
     if ([string]::IsNullOrWhiteSpace($inputVal)) {
-      Write-Host "Cancelled."
+      Write-Step "Cancelled."
       return
-    } elseif ($inputVal.Trim().ToLower() -eq 'a') {
+    } elseif ($inputVal.Trim().ToLower() -eq "a") {
       $targets = $allProfileFolders
     } else {
-      $indices = $inputVal -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[0-9]+$' } | ForEach-Object { [int]$_ }
+      $indices = $inputVal -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^[0-9]+$" } | ForEach-Object { [int]$_ }
       foreach ($n in $indices) {
         if ($n -ge 1 -and $n -le $allProfileFolders.Count) {
           $targets += $allProfileFolders[$n - 1]
@@ -220,24 +270,24 @@ try {
   }
 
   if ($targets.Count -eq 0) {
-    Write-Host "No profiles selected, nothing to install."
+    Write-Step "No profiles selected, nothing to install."
     return
   }
 
   foreach ($target in $targets) {
-    Write-Host "Installing into profile folder: $target"
+    Write-Step "Installing into profile folder: $target"
     try {
       Add-ExtensionToProfile -VsixPath $vsix.FullName -ProfileFolder $target
     } catch {
-      Write-Warning "Failed to install into profile folder '$target': $_"
+      Write-Warn "Failed to install into profile folder '$target': $_"
       continue
     }
   }
 
-  Write-Host ''
-  Write-Host "Done. VSIX: $($vsix.FullName)"
-  Write-Host ''
-  Write-Host "NOTE: Restart VS Code for the extension to appear in the profile."
+  Write-Step ""
+  Write-Ok "Done. VSIX: $($vsix.FullName)"
+  Write-Step ""
+  Write-Step "NOTE: Restart VS Code for the extension to appear in the profile."
 }
 finally {
   Pop-Location

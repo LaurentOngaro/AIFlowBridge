@@ -132,7 +132,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/_helpers/Publish-AIFlowBridge.ps1",
+        "${workspaceFolder}/_helpers/PublishAIFlowBridge.ps1",
         "-Quality",
         "stable",
         "-AllProfiles"
@@ -153,7 +153,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/_helpers/Publish-AIFlowBridge.ps1",
+        "${workspaceFolder}/_helpers/PublishAIFlowBridge.ps1",
         "-Quality",
         "insiders",
         "-AllProfiles"

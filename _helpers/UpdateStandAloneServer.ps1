@@ -1,15 +1,71 @@
+<#
+.SYNOPSIS
+    Build and deploy the standalone AIFlowBridge server to a destination folder.
+
+.DESCRIPTION
+    Stops the running instance (scheduled task or manual launch), rebuilds the standalone bundle with
+    npm ci + npm run build:standalone, mirrors dist/standalone and dist/aiflowbridge into the destination
+    via robocopy, then restarts the scheduled task if it was previously running.
+
+    The destination default points at the developer's standard install path on Windows; override with
+    -Destination for any other layout.
+
+.PARAMETER Source
+    Path to the repo root. Defaults to the parent of this script's folder.
+
+.PARAMETER Destination
+    Install root for the standalone server. Default: D:\Projets_Perso\03_Code\_Extensions\vsCode\aiflowbridge-server-win-x64.
+
+.PARAMETER TaskName
+    Name of the Windows scheduled task that runs the server. Default: "AIFlowBridge Standalone".
+
+.PARAMETER SkipBuild
+    Skip the npm ci + build:standalone step (use the existing dist/ output).
+
+.EXAMPLE
+    pwsh -File _helpers/UpdateStandAloneServer.ps1
+    Rebuild and redeploy the standalone server to the default destination.
+
+.EXAMPLE
+    pwsh -File _helpers/UpdateStandAloneServer.ps1 -SkipBuild
+    Redeploy without rebuilding (use the existing dist/ output).
+
+.EXAMPLE
+    pwsh -File _helpers/UpdateStandAloneServer.ps1 -Destination 'D:\servers\aifb' -TaskName 'AIFB'
+    Deploy to a custom location under a custom task name.
+
+.NOTES
+    Requirements: PowerShell 7+ (pwsh), npm, robocopy, and (optionally) the scheduled task defined by -TaskName.
+#>
+
+[CmdletBinding()]
 param(
-  [string]$Source = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+  [string]$Source = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
 
-  [string]$Destination = 'D:\Projets_Perso\03_Code\_Extensions\vsCode\aiflowbridge-server-win-x64',
+  [string]$Destination = "D:\Projets_Perso\03_Code\_Extensions\vsCode\aiflowbridge-server-win-x64",
 
-  [string]$TaskName = 'AIFlowBridge Standalone',
+  [string]$TaskName = "AIFlowBridge Standalone",
 
   [switch]$SkipBuild
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+function Write-Step {
+  param([string]$Message)
+  Write-Host "[update-standalone] $Message" -ForegroundColor Cyan
+}
+
+function Write-Warn {
+  param([string]$Message)
+  Write-Host "[update-standalone] $Message" -ForegroundColor Yellow
+}
+
+function Write-Ok {
+  param([string]$Message)
+  Write-Host "[update-standalone] $Message" -ForegroundColor Green
+}
 
 function Invoke-CheckedCommand {
   param(
@@ -55,7 +111,7 @@ function Test-ScheduledTaskRunning {
 
 function Stop-ManualServer {
   param([Parameter(Mandatory = $true)][string]$InstallPath)
-  $marker = Join-Path $InstallPath 'dist\standalone\main.js'
+  $marker = Join-Path $InstallPath "dist\standalone\main.js"
   if (-not (Test-Path -LiteralPath $marker)) {
     return
   }
@@ -64,7 +120,7 @@ function Stop-ManualServer {
   $query = "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'node.exe' AND CommandLine LIKE '%$escaped%'"
   $matches = Get-CimInstance -Query $query -ErrorAction SilentlyContinue
   foreach ($p in $matches) {
-    Write-Host "Stopping manual server (PID $($p.ProcessId))..."
+    Write-Step "Stopping manual server (PID $($p.ProcessId))..."
     Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
   }
 }
@@ -73,8 +129,8 @@ if (-not (Test-Path -LiteralPath $Destination)) {
   throw "Destination not found: $Destination"
 }
 
-Write-Host "Source:      $Source"
-Write-Host "Destination: $Destination"
+Write-Step "Source:      $Source"
+Write-Step "Destination: $Destination"
 
 $taskRegistered = Test-ScheduledTaskRegistered -Name $TaskName
 $taskWasRunning = $false
@@ -97,15 +153,15 @@ Stop-ManualServer -InstallPath $Destination
 if (-not $SkipBuild) {
   Push-Location $Source
   try {
-    Write-Host "Running npm ci..."
-    Invoke-CheckedCommand -FilePath 'npm' -ArgumentList @('ci')
-    Write-Host "Running npm run build:standalone..."
-    Invoke-CheckedCommand -FilePath 'npm' -ArgumentList @('run', 'build:standalone')
+    Write-Step "Running npm ci..."
+    Invoke-CheckedCommand -FilePath "npm" -ArgumentList @("ci")
+    Write-Step "Running npm run build:standalone..."
+    Invoke-CheckedCommand -FilePath "npm" -ArgumentList @("run", "build:standalone")
   } finally {
     Pop-Location
   }
 } else {
-  Write-Host "Skipping build (using existing dist/)."
+  Write-Step "Skipping build (using existing dist/)."
 }
 
 Write-Host "Copying files to $Destination ..."

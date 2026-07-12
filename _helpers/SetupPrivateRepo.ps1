@@ -43,6 +43,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
 
 # ---- Helpers ----
 

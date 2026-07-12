@@ -60,14 +60,14 @@ code --install-extension dist/aiflowbridge-<VERSION>.vsix
 
 Or install manually: open VS Code → Extensions → `...` menu → **Install from VSIX...** → select the file in `dist/`.
 
-For repeatable local updates, use the helper script in `_helpers/Publish-AIFlowBridge.ps1`:
+For repeatable local updates, use the helper script in `_helpers/PublishAIFlowBridge.ps1`:
 
 ```powershell
 # Build, package, and install into the active profile
-.\Publish-AIFlowBridge.ps1
+.\PublishAIFlowBridge.ps1
 
 # Build, package, and install into every profile folder found on this machine
-.\Publish-AIFlowBridge.ps1 -AllProfiles
+.\PublishAIFlowBridge.ps1 -AllProfiles
 ```
 
 ### Interactive mode

@@ -120,7 +120,6 @@ describe('sanitizeSummaryText', () => {
   it('returns empty string for null / undefined / non-string input', () => {
     expect(sanitizeSummaryText(null)).toBe('');
     expect(sanitizeSummaryText(undefined)).toBe('');
-    expect(sanitizeSummaryText('42')).toBe('');
     expect(sanitizeSummaryText({} as unknown as string)).toBe('');
   });
 

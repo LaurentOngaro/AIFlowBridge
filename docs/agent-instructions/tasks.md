@@ -20,10 +20,10 @@ npm run publish:all          # Publish to both stores
 
 ```bash
 # Build, package, and install into the active VS Code profile
-pwsh -File _helpers/Publish-AIFlowBridge.ps1
+pwsh -File _helpers/PublishAIFlowBridge.ps1
 
 # Build, package, and install into every profile folder found on this machine
-pwsh -File _helpers/Publish-AIFlowBridge.ps1 -AllProfiles
+pwsh -File _helpers/PublishAIFlowBridge.ps1 -AllProfiles
 ```
 
 If you run the helper without `-Profiles` or `-AllProfiles`, the script detects available local profiles and prompts you to pick which ones should receive the VSIX (you can type indices like `1,3` or `a` for all).
