@@ -80,11 +80,15 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
       port: 0,
       baseUrl: 'http://127.0.0.1:0',
       defaultModel: '',
+      probeTimeoutMs: 500,
+      maxConcurrentRequests: 100,
     },
     providers: [makeProvider()],
     telemetryEnabled: true,
     logRequests: false,
     captureSessionLog: false,
+    telemetryMaxStoredRequestBytes: 8192,
+    telemetryRetentionDays: 90,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
     ...overrides,
   };
@@ -321,7 +325,15 @@ describe('TelemetryStore.byClient aggregation', () => {
       totalTokens: 60,
       recent: [],
       byClient: {
-        'kilocode@1.2.3': { requests: 2, promptTokens: 30, completionTokens: 30, totalTokens: 60, estimatedCost: 0, errors: 0, averageDurationMs: 100 },
+        'kilocode@1.2.3': {
+          requests: 2,
+          promptTokens: 30,
+          completionTokens: 30,
+          totalTokens: 60,
+          estimatedCost: 0,
+          errors: 0,
+          averageDurationMs: 100,
+        },
       },
     };
     store.restore(persisted);
@@ -362,15 +374,13 @@ describe('GatewayService - records clientId on chat-completion requests', () => 
       JSON.stringify({
         id: 'cmpl-test',
         object: 'chat.completion',
-        choices: [
-          { index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' },
-        ],
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       }),
       {
         status: 200,
         headers: { 'content-type': 'application/json' },
-      },
+      }
     );
   });
 
@@ -413,7 +423,7 @@ describe('GatewayService - records clientId on chat-completion requests', () => 
           // can hang on socket close.
           res.resume();
           res.on('end', () => resolve({ status: res.statusCode ?? 0 }));
-        },
+        }
       );
       req.on('error', reject);
       req.write(payload);
@@ -424,7 +434,7 @@ describe('GatewayService - records clientId on chat-completion requests', () => 
   it('records under the parsed User-Agent (Kilo Code)', async () => {
     const response = await postChat(
       { 'user-agent': 'Kilo Code/1.2.3 (commit abc) node/20.0' },
-      { model: 'model-1', messages: [{ role: 'user', content: 'hi' }] },
+      { model: 'model-1', messages: [{ role: 'user', content: 'hi' }] }
     );
     expect(response.status).toBe(200);
     const snap = service.snapshot();
@@ -440,7 +450,7 @@ describe('GatewayService - records clientId on chat-completion requests', () => 
         'x-aiflowbridge-client': 'Continue/0.9.x',
         'user-agent': 'curl/8.10.1',
       },
-      { model: 'model-1', messages: [{ role: 'user', content: 'hi' }] },
+      { model: 'model-1', messages: [{ role: 'user', content: 'hi' }] }
     );
     expect(response.status).toBe(200);
     const entry = service.snapshot().recent[0];

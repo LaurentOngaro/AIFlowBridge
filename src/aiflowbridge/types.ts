@@ -187,7 +187,7 @@ export interface GatewaySettings {
    * Per-upstream-provider cap on concurrent in-flight requests. The
    * gateway queues any further request for the same provider behind
    * this cap instead of opening more parallel sockets to the same
-   * upstream. Key fix for BUG17: 3 agents in parallel against
+   * upstream. Key fix for 3 agents in parallel against
    * MiniMax-M3 (`reasoning_split: true`) used to send 3 parallel
    * thinking-mode requests + 3 parallel `/input_tokens` pre-counts
    * to the same API key, which MiniMax throttled to 100 s+ tail
@@ -203,7 +203,7 @@ export interface GatewaySettings {
    * Idle timeout (ms) for the upstream `fetch()` call. If no bytes
    * have arrived from the upstream for this many ms, the watchdog
    * aborts the request and surfaces HTTP 504 to the client. Caps the
-   * "agent in standby for minutes" symptom reported in BUG17 when
+   * "agent in standby for minutes" symptom reported when
    * MiniMax queues thinking-mode requests without sending any bytes.
    * Defaults to 90 000 ms (90 s). Set to 0 to disable. Mirrors
    * `aiflowbridge.gateway.upstreamIdleTimeoutMs`. Optional for
@@ -221,13 +221,13 @@ export interface GatewaySettings {
    * backward compatibility.
    */
   streamTotalTimeoutMs?: number;
-/**
+  /**
    * Whether to fire the parallel `fetchMinimaxPromptTokens` POST on
    * every MiniMax request. When `false` (default), the parallel
    * pre-count is only fired for non-streaming requests, because the
    * MiniMax stream endpoint already emits usage on the final chunk
    * and the parallel pre-count doubles the upstream load precisely
-   * when thinking-mode bursts hurt the most (BUG17). Mirrors
+   * when thinking-mode bursts hurt the most. Mirrors
    * `aiflowbridge.gateway.minimaxParallelTokenCount`. Optional for
    * backward compatibility.
    */
@@ -257,6 +257,23 @@ export interface GatewaySettings {
    */
   languageRouting?: Record<string, string>;
   /**
+   * whether an explicit `X-AIFlowBridge-Language` HTTP
+   * header from a loopback client can drive per-language routing.
+   * Default `true` for backward compatibility; hardened
+   * environments can flip it to `false` so the language hint is
+   * sourced only from the request body / workspace context, never
+   * from a header a peer sent.
+   */
+  allowLanguageHeaderOverride?: boolean;
+  /**
+   * settings for the `/v1/events` SSE event stream.
+   * The defaults cap simultaneous SSE connections at 16 and
+   * cap each connection's lifetime at 30 minutes so a
+   * misbehaving client cannot pile up listeners or hold one
+   * open forever. Optional for backward compatibility.
+   */
+  events?: GatewayEventsSettings;
+  /**
    * Action plan item #4. Settings for the zero-conf discovery
    * beacon + `/v1/discovery` HTTP endpoint. Default off so the
    * standalone CLI does not emit UDP packets on shared machines
@@ -265,6 +282,35 @@ export interface GatewaySettings {
    * the feature.
    */
   discovery?: GatewayDiscoverySettings;
+}
+
+export interface GatewayEventsSettings {
+  /**
+   * Maximum number of simultaneous `GET /v1/events` SSE
+   * connections. The N+1th connection is rejected with HTTP
+   * 429 + `Retry-After` so a misbehaving dashboard cannot
+   * exhaust the gateway's file-descriptor budget. Set to
+   * `0` to disable the cap (not recommended on shared
+   * machines). Default 16.
+   */
+  maxConnections?: number;
+  /**
+   * Maximum lifetime (ms) of an SSE connection. After this
+   * many ms the gateway closes the response cleanly so the
+   * client reconnects (the standard `EventSource` auto-
+   * reconnect handles the next leg). Set to `0` to disable.
+   * Default 1 800 000 (30 minutes).
+   */
+  maxLifetimeMs?: number;
+  /**
+   * Whether the SSE event payload carries the
+   * `promptSummary` / `responseSummary` fields. The audit
+   * recommends keeping them OUT of the default event stream
+   * (the replay endpoint remains explicit and authenticated
+   * the same way). Default `false` so a passive SSE listener
+   * never sees prompt / response text in real time.
+   */
+  includeSummariesInEvents?: boolean;
 }
 
 export interface GatewayDiscoverySettings {
@@ -324,6 +370,25 @@ export interface AiFlowBridgeConfig {
    * entries recorded after the flag was flipped).
    */
   captureSessionLog: boolean;
+  /**
+   * Hard cap (bytes) on the serialized size of a single
+   * persisted telemetry entry. Mirrors the
+   * `aiflowbridge.telemetry.maxStoredRequestBytes` setting.
+   * Oversized `promptSummary` / `responseSummary` are truncated in
+   * place so the worst-case on-disk footprint is bounded even when
+   * a request carries an abnormally long user prompt. Set to `0`
+   * to disable the cap. Default = 8192 (8 KiB) per the audit
+   * recommendation.
+   */
+  telemetryMaxStoredRequestBytes: number;
+  /**
+   * Retention window (days). Entries older than this are
+   * pruned from the on-disk telemetry file on every load, so a
+   * long-lived install does not accumulate an unbounded history.
+   * Mirrors `aiflowbridge.telemetry.retentionDays`. Set to `0` to
+   * disable retention entirely. Default = 90 days.
+   */
+  telemetryRetentionDays: number;
   visionProxy: VisionProxySettings;
 }
 

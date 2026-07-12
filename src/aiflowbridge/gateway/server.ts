@@ -11,7 +11,15 @@ import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
 import { buildPromptSummary, buildResponseSummary } from '../telemetry/summary';
 import { fetchMinimaxPromptTokens } from '../token-counter';
-import type { AiFlowBridgeConfig, GatewaySettings, GatewayStatus, ProviderProfile, RequestTelemetry, ReplayResponse, TelemetrySnapshot } from '../types';
+import type {
+  AiFlowBridgeConfig,
+  GatewaySettings,
+  GatewayStatus,
+  ProviderProfile,
+  ReplayResponse,
+  RequestTelemetry,
+  TelemetrySnapshot,
+} from '../types';
 import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
 
@@ -58,7 +66,7 @@ export class GatewayService {
    * emitter; after ~11 requests on the same connection Node
    * prints `MaxListenersExceededWarning: Possible EventEmitter
    * memory leak detected. 11 close listeners added to [Socket]`
-   * (BUG17, fix A). Functionally benign (`Set.delete` is
+   * Functionally benign (`Set.delete` is
    * idempotent) but noisy and correlated with the same workload
    * pattern that triggers MiniMax upstream throttling. WeakSet so
    * the `Socket` can still be GC'd when its refcount drops.
@@ -116,14 +124,24 @@ export class GatewayService {
    */
   private discoveryBeacon: DiscoveryBeacon | null = null;
   /**
-   * Per-instance provider concurrency semaphores (BUG17 fix D,
-   * BUG-02 hardening). Each `GatewayService` keeps its own Map so
+   * Per-instance provider concurrency semaphores (hardening).
+   * Each `GatewayService` keeps its own Map so
    * multiple instances in the same process (test suite, dev
    * reload, multiple standalones) do not share provider caps.
    * Previously a module-level Map, which leaked slots across
    * instances and made the per-test isolation unreliable.
    */
   private readonly providerSemaphores = new Map<string, ProviderSemaphore>();
+  /**
+   * active SSE subscribers. The `streamSseEvents` path
+   * tracks each open response here so we can (a) refuse with HTTP
+   * 429 when a new client would push us past `events.maxConnections`,
+   * and (b) close every socket on `stop()` so a graceful shutdown
+   * does not leave dangling subscribers. The Set is owned per
+   * instance; multiple `GatewayService` instances in the same
+   * process do not share counts.
+   */
+  private readonly activeSseConnections = new Set<ServerResponse>();
 
   constructor(
     config: AiFlowBridgeConfig,
@@ -270,6 +288,20 @@ export class GatewayService {
   }
 
   /**
+   * wipe the captured `promptSummary` / `responseSummary`
+   * fields from every recorded entry (in-memory AND on disk),
+   * without touching the cumulative counters or per-bucket maps.
+   * Used by the `AIFlowBridge: Purge session log` command.
+   * Distinct from `resetMetrics()` (which wipes the counters too).
+   *
+   * Returns the number of entries whose summaries were cleared in
+   * memory; the on-disk wipe resolves to its own count.
+   */
+  purgeSessionLog(): { inMemory: number; onDisk: Promise<number> } {
+    return this.telemetry.purgeSessionLog();
+  }
+
+  /**
    * Record a request driven by VS Code Copilot Chat (the
    * `vscode.lm.registerLanguageModelChatProvider` path). Routed to
    * the same `TelemetryStore` instance that backs the gateway HTTP
@@ -323,7 +355,7 @@ export class GatewayService {
     this.server = createServer((request, response) => {
       const socket = request.socket;
       this.activeSockets.add(socket);
-      // BUG17 fix A: wire the `'close'` cleanup listener at most
+      // wire the `'close'` cleanup listener at most
       // once per PHYSICAL socket, not once per HTTP request. HTTP/1.1
       // keep-alive reuses one TCP socket for N sequential requests;
       // the old code accumulated N listeners on the same emitter and
@@ -439,6 +471,17 @@ export class GatewayService {
         }
       }
       this.activeSockets.clear();
+      // close every active SSE subscriber so a graceful
+      // shutdown does not leave dangling listeners (the heartbeat
+      // would mask this from a passive observer for up to 15 s).
+      for (const res of this.activeSseConnections) {
+        try {
+          res.end();
+        } catch {
+          // ignore
+        }
+      }
+      this.activeSseConnections.clear();
       await new Promise<void>((resolve) => {
         current.close(() => resolve());
       });
@@ -598,7 +641,7 @@ export class GatewayService {
       }
       logger.info(`[Gateway] Shutdown requested by peer on ${request.socket.remoteAddress ?? 'unknown'}`);
       this.writeJson(response, 200, { ok: true });
-      // BUG-01 fix: capture the server handle locally so the deferred
+      // fix: capture the server handle locally so the deferred
       // close targets the socket that was actually serving the request,
       // not whatever `this.server` may have been reassigned to in the
       // 100 ms gap (e.g. by a concurrent `stop()` call from
@@ -857,7 +900,7 @@ export class GatewayService {
       modelName,
       this.config.gateway.defaultModel,
       resolveLanguageHint(request, payload, this.config),
-      this.config.gateway.languageRouting,
+      this.config.gateway.languageRouting
     );
 
     if (!provider) {
@@ -896,17 +939,24 @@ export class GatewayService {
       headers.set('Authorization', `Bearer ${resolvedKey}`);
     }
 
+    // the same AbortController that aborts the upstream
+    // `fetch()` also drives the per-provider semaphore. When the
+    // local client disconnects (or the watchdog fires) while a
+    // request is still queued behind the per-provider cap, the
+    // waiter is removed from the FIFO queue instead of being
+    // stranded. Created here so we can pass its signal into the
+    // slot acquisition below.
     const abortController = new AbortController();
     const abort = (): void => abortController.abort();
     request.once('aborted', abort);
     response.once('close', abort);
-    // BUG17 fix B: hoisted so the `endLocalResponseAfterWatchdog`
+    // hoisted so the `endLocalResponseAfterWatchdog`
     // helper (defined right below) and the watchdog setTimeout
     // callbacks can read the resolved config values. The actual
     // timer handles are still assigned inside the `try` block.
     let idleTimeoutMs = resolveUpstreamIdleTimeoutMs(this.config.gateway);
     let totalTimeoutMs = resolveStreamTotalTimeoutMs(this.config.gateway);
-    // BUG17 fix B: `abortController.abort()` only aborts the
+    // `abortController.abort()` only aborts the
     // upstream `fetch()`. The pipe from the upstream body to the
     // local `response` does not watch the signal, so when the
     // watchdog fires AFTER headers have arrived (the stream-idle
@@ -936,7 +986,7 @@ export class GatewayService {
             details: 'Upstream did not respond within the configured idle or total timeout',
             idleTimeoutMs: idleTimeoutMs || undefined,
             totalTimeoutMs: totalTimeoutMs || undefined,
-          }),
+          })
         );
       } else {
         // Headers already streamed (mid-stream abort). We can
@@ -948,19 +998,40 @@ export class GatewayService {
       }
     };
 
-    // BUG17 fix D: acquire a per-provider concurrency slot before
+    // acquire a per-provider concurrency slot before
     // opening the upstream socket. 3 agents in parallel against
     // MiniMax-M3 (reasoning_split: true) used to send 3 parallel
     // thinking-mode requests + 3 parallel pre-count POSTs against
     // the same API key, which MiniMax throttled to 100 s+ tail
     // latency. A cap of 3 queues the 4th+ parallel request behind
-    // the first three instead of opening more upstream sockets.
+    // the first three instead of opening more parallel sockets.
     // `resolveMaxConcurrentPerProvider` falls back to 3 when the
     // setting is absent (backward compat with older snapshots).
     // `max = 0` disables the cap (used by local dev / tests that
     // want no queueing).
+    //
+    // the slot is acquired against `abortController.signal`
+    // so a client disconnect (or the watchdog firing while we are
+    // still queued) drops the waiter from the FIFO instead of
+    // leaving it stranded until a slot frees.
     const maxPerProvider = resolveMaxConcurrentPerProvider(this.config.gateway);
-    await this.acquireProviderSlot(provider.id, maxPerProvider);
+    try {
+      await this.acquireProviderSlot(provider.id, maxPerProvider, abortController.signal);
+    } catch (err) {
+      if (isAbortError(err)) {
+        // Client went away (or watchdog) before we got a slot.
+        // The in-flight counter was bumped above; release it and
+        // end the local response cleanly. No telemetry entry:
+        // we never opened an upstream socket.
+        this.inFlightRequestsField--;
+        if (!response.headersSent && !response.writableEnded) {
+          response.statusCode = 499; // Client Closed Request (nginx convention)
+          response.end();
+        }
+        return;
+      }
+      throw err;
+    }
     let providerSlotHeld = true;
     // `releaseOnAbort` is called once on every exit path
     // (success, error, timeout) so the slot is never leaked. The
@@ -999,8 +1070,7 @@ export class GatewayService {
       }
     }
 
-    // BUG-fix / action plan item #2: optional workspace-context
-    // injection. When `aiflowbridge.gateway.workspaceContext.enabled`
+    // optional workspace-context injection. When `aiflowbridge.gateway.workspaceContext.enabled`
     // is true AND a workspace root has been resolved, prepend a
     // short system-message describing the languages / package
     // managers / linters / formatters detected at the workspace
@@ -1024,9 +1094,7 @@ export class GatewayService {
       if (prefix) {
         injectedFinalPayload = prependSystemMessage(translatedPayload, prefix);
         if (logger.debug && context.primaryLanguage) {
-          logger.debug(
-            `[Gateway] ${requestId} injected workspace context (languages=${context.languages.join(',')})`,
-          );
+          logger.debug(`[Gateway] ${requestId} injected workspace context (languages=${context.languages.join(',')})`);
         }
       }
     }
@@ -1049,7 +1117,7 @@ export class GatewayService {
     let telemetryRecorded = false;
     let ttfbMs = 0;
 
-    // BUG17 fix C: gate the parallel MiniMax `/input_tokens`
+    // gate the parallel MiniMax `/input_tokens`
     // pre-count on streaming requests. The MiniMax stream endpoint
     // emits usage on the final chunk; firing the pre-count in
     // parallel doubles the upstream load precisely when
@@ -1057,8 +1125,7 @@ export class GatewayService {
     // streaming; the user can re-enable per-config via
     // `aiflowbridge.gateway.minimaxParallelTokenCount`.
     const isStreamingRequest = Boolean(payload?.stream);
-    const parallelTokenCountEnabled =
-      this.config.gateway.minimaxParallelTokenCount ?? false;
+    const parallelTokenCountEnabled = this.config.gateway.minimaxParallelTokenCount ?? false;
     const shouldPreCountTokens = isMinimaxProvider(provider) && (!isStreamingRequest || parallelTokenCountEnabled);
     const tokenCountPromise = shouldPreCountTokens
       ? fetchMinimaxPromptTokens({
@@ -1067,14 +1134,14 @@ export class GatewayService {
           model: provider.model,
           messages: Array.isArray(payload?.messages) ? payload.messages : [],
           // Share the same abort signal as the main upstream call
-          // (BUG17 fix B): if the idle / total watchdog aborts the
+          // if the idle / total watchdog aborts the
           // upstream request, the pre-count is killed cleanly
           // instead of outliving the main request.
           signal: abortController.signal,
         })
       : Promise.resolve(undefined);
 
-    // BUG17 fix B: hoisted timer state so the `catch` and `finally`
+    // hoisted timer state so the `catch` and `finally`
     // blocks below can reach them. The actual timer handles and the
     // `clearTimers` closure are assigned inside the `try` block.
     // `idleTimeoutMs` and `totalTimeoutMs` are hoisted above (just
@@ -1085,7 +1152,7 @@ export class GatewayService {
     let clearTimers: () => void = () => {};
 
     try {
-      // BUG17 fix B: upstream idle + total timeouts. Without these,
+      // upstream idle + total timeouts. Without these,
       // a stalled MiniMax thinking-mode request (the upstream opens
       // the TCP socket but never sends bytes while it queues the
       // request internally) leaves the gateway waiting indefinitely
@@ -1109,18 +1176,14 @@ export class GatewayService {
       };
       if (idleTimeoutMs > 0) {
         idleTimer = setTimeout(() => {
-          logger.warn(
-            `[Gateway] ${requestId} upstream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`
-          );
+          logger.warn(`[Gateway] ${requestId} upstream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`);
           abortController.abort();
           endLocalResponseAfterWatchdog();
         }, idleTimeoutMs);
       }
       if (totalTimeoutMs > 0) {
         totalTimer = setTimeout(() => {
-          logger.warn(
-            `[Gateway] ${requestId} upstream total timeout ${totalTimeoutMs}ms reached, aborting (provider=${provider.id})`
-          );
+          logger.warn(`[Gateway] ${requestId} upstream total timeout ${totalTimeoutMs}ms reached, aborting (provider=${provider.id})`);
           abortController.abort();
           endLocalResponseAfterWatchdog();
         }, totalTimeoutMs);
@@ -1144,7 +1207,7 @@ export class GatewayService {
       ttfbMs = Date.now() - startedAt;
       const contentType = upstreamResponse.headers.get('content-type') ?? '';
       const isStream = Boolean(payload?.stream) || contentType.includes('text/event-stream');
-      // BUG17 Fix E: forward any upstream backoff headers so a
+      // forward any upstream backoff headers so a
       // well-behaved upstream can ask the client to slow down. We
       // propagate on every status (some upstreams use 503 + a
       // Retry-After instead of 429) and expose both `Retry-After`
@@ -1153,20 +1216,14 @@ export class GatewayService {
       // trio used by some providers. The values are passed through
       // verbatim; clients that follow RFC semantics stay
       // RFC-compliant.
-      const upstreamBackoffHeaders = [
-        'retry-after',
-        'x-ratelimit-reset',
-        'x-ratelimit-reset-after',
-        'x-ratelimit-remaining',
-        'x-ratelimit-limit',
-      ];
+      const upstreamBackoffHeaders = ['retry-after', 'x-ratelimit-reset', 'x-ratelimit-reset-after', 'x-ratelimit-remaining', 'x-ratelimit-limit'];
       for (const name of upstreamBackoffHeaders) {
         const value = upstreamResponse.headers.get(name);
         if (value !== null) {
           response.setHeader(name, value);
         }
       }
-      // BUG17 Fix E: when the upstream returns a backoff status
+      // when the upstream returns a backoff status
       // (HTTP 429 or 503 - the typical "slow down" codes) on a
       // streaming request, do NOT pipe the upstream JSON body as
       // an SSE stream. The client requested `stream: true` and
@@ -1195,7 +1252,19 @@ export class GatewayService {
         response.end(backoffBody);
         telemetryRecorded = true;
         const durationMs = Date.now() - startedAt;
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId, promptSummary, this.config.captureSessionLog ? buildResponseSummary(backoffBody) : undefined);
+        this.recordTelemetry(
+          provider,
+          modelName ?? provider.model,
+          statusCode,
+          durationMs,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          estimated,
+          clientId,
+          promptSummary,
+          this.config.captureSessionLog ? buildResponseSummary(backoffBody) : undefined
+        );
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
         }
@@ -1222,7 +1291,7 @@ export class GatewayService {
 
         if (upstreamResponse.body) {
           const node = Readable.fromWeb(upstreamResponse.body as unknown as globalThis.ReadableStream<Uint8Array>);
-          // BUG17 fix B: re-arm the idle watchdog as soon as we
+          // re-arm the idle watchdog as soon as we
           // start piping the stream body. The headers-idle timer
           // was cleared at line ~885 because headers arriving is
           // a sign of life, but the stream itself can still go
@@ -1232,14 +1301,12 @@ export class GatewayService {
           // fires if no `data` event ever arrives.
           if (idleTimeoutMs > 0) {
             idleTimer = setTimeout(() => {
-              logger.warn(
-                `[Gateway] ${requestId} upstream stream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`
-              );
+              logger.warn(`[Gateway] ${requestId} upstream stream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`);
               abortController.abort();
               endLocalResponseAfterWatchdog();
             }, idleTimeoutMs);
           }
-          // BUG17 fix B: explicit error handler on the pipe. Without
+          // explicit error handler on the pipe. Without
           // this, a mid-stream upstream socket error becomes an
           // unhandled error event; `response.once('close', abort)` is
           // the only escape and it waits on TCP keep-alive (5+ min
@@ -1251,7 +1318,7 @@ export class GatewayService {
             logger.warn(`[Gateway] ${requestId} upstream stream error: ${err.message}`);
             abort();
           });
-          // BUG17 fix B: reset the idle watchdog on every chunk
+          // reset the idle watchdog on every chunk
           // received from the upstream. Without this, a slow but
           // trickling upstream (bytes every 60 s) would be aborted by
           // the idle timer even though it is making forward
@@ -1263,9 +1330,7 @@ export class GatewayService {
               }
               clearTimeout(idleTimer);
               idleTimer = setTimeout(() => {
-                logger.warn(
-                  `[Gateway] ${requestId} upstream stream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`
-                );
+                logger.warn(`[Gateway] ${requestId} upstream stream idle for ${idleTimeoutMs}ms, aborting (provider=${provider.id})`);
                 abortController.abort();
                 endLocalResponseAfterWatchdog();
               }, idleTimeoutMs);
@@ -1281,7 +1346,7 @@ export class GatewayService {
         // `pipe()`, which is essentially time-to-first-byte and
         // under-reports total latency on long streams.
         response.once('finish', () => {
-          // BUG17 fix B: the response finished successfully - clear
+          // the response finished successfully - clear
           // the total watchdog so it does not fire on a settled
           // request.
           clearTimers();
@@ -1295,7 +1360,18 @@ export class GatewayService {
           // straight to the client), so there is no response
           // summary to capture here. The prompt summary is still
           // propagated for the Shared Session panel.
-          this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId, promptSummary);
+          this.recordTelemetry(
+            provider,
+            modelName ?? provider.model,
+            statusCode,
+            durationMs,
+            promptTokens,
+            completionTokens,
+            totalTokens,
+            estimated,
+            clientId,
+            promptSummary
+          );
           if (this.config.logRequests) {
             logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
           }
@@ -1326,7 +1402,19 @@ export class GatewayService {
 
         telemetryRecorded = true;
         const durationMs = Date.now() - startedAt;
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, estimated, clientId, promptSummary, this.config.captureSessionLog ? buildResponseSummary(responseText) : undefined);
+        this.recordTelemetry(
+          provider,
+          modelName ?? provider.model,
+          statusCode,
+          durationMs,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          estimated,
+          clientId,
+          promptSummary,
+          this.config.captureSessionLog ? buildResponseSummary(responseText) : undefined
+        );
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
         }
@@ -1336,7 +1424,7 @@ export class GatewayService {
       // the streaming finish handler above).
       void ttfbMs;
     } catch (error) {
-      // BUG17 fix B: always clear both watchdogs on the error
+      // always clear both watchdogs on the error
       // path. The catch block is reached for any non-success
       // outcome (upstream error, watchdog abort, client
       // disconnect, body read failure) and timers MUST NOT leak
@@ -1349,11 +1437,22 @@ export class GatewayService {
         // so the pair can see what was asked; no response summary
         // because the upstream either errored before responding
         // or we never finished reading its body.
-        this.recordTelemetry(provider, modelName ?? provider.model, statusCode, durationMs, promptTokens, completionTokens, totalTokens, true, clientId, promptSummary);
+        this.recordTelemetry(
+          provider,
+          modelName ?? provider.model,
+          statusCode,
+          durationMs,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          true,
+          clientId,
+          promptSummary
+        );
       }
 
       if (!response.headersSent) {
-        // BUG17 fix B: surface 504 (Gateway Timeout) when the
+        // surface 504 (Gateway Timeout) when the
         // abort came from our idle / total watchdog, distinguish
         // from generic 502 (upstream error / unreachable).
         //
@@ -1397,14 +1496,14 @@ export class GatewayService {
         }
       }
     } finally {
-      // BUG17 fix B: belt-and-braces clearTimers. The success /
+      // belt-and-braces clearTimers. The success /
       // streaming paths already clear in `response.once('finish')`,
       // but the non-streaming path and the client-abort path may
       // reach here without going through that listener.
       clearTimers();
       request.off('aborted', abort);
       response.off('close', abort);
-      // release the per-provider slot (BUG17 fix D).
+      // release the per-provider slot.
       releaseOnAbort();
       // release the slot. The decrement is unconditional
       // (we incremented at the start of the method on a non-rejected
@@ -1505,8 +1604,32 @@ export class GatewayService {
    * Heartbeat comment frames (`:`) are emitted every 15 s so
    * intermediaries (curl, browsers, reverse proxies) keep the
    * connection open and do not time it out.
+   *
+   * Hardening:
+   *   - `gateway.events.maxConnections` caps the number of
+   *     simultaneous subscribers (the N+1th is rejected with
+   *     HTTP 429 + `Retry-After`).
+   *   - `gateway.events.maxLifetimeMs` ends the response cleanly
+   *     after the configured wall-clock budget so the standard
+   *     `EventSource` auto-reconnect logic takes over.
+   *   - `gateway.events.includeSummariesInEvents` defaults to
+   *     `false`: the `request.recorded` payload drops the
+   *     `promptSummary` / `responseSummary` fields so a passive
+   *     SSE listener never sees prompt or response text in real
+   *     time. The replay endpoint (`GET /v1/replay/{id}`) stays
+   *     the explicit way to fetch the captured summaries.
    */
   private async streamSseEvents(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const events = this.config.gateway.events ?? {};
+    const maxConnections = events.maxConnections ?? 16;
+    if (maxConnections > 0 && this.activeSseConnections.size >= maxConnections) {
+      response.setHeader('Retry-After', '5');
+      this.writeJson(response, 429, {
+        error: 'Too Many Requests',
+        detail: `SSE connection cap reached (${this.activeSseConnections.size}/${maxConnections}). Retry after closing another subscriber.`,
+      });
+      return;
+    }
     response.statusCode = 200;
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     response.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -1514,6 +1637,7 @@ export class GatewayService {
     response.setHeader('X-Accel-Buffering', 'no');
     // Hint to the client that the stream is open.
     response.write(`event: ready\ndata: {"ok":true}\n\n`);
+    this.activeSseConnections.add(response);
 
     const heartbeat = setInterval(() => {
       try {
@@ -1523,6 +1647,9 @@ export class GatewayService {
         // shortly and clean up.
       }
     }, 15_000);
+    // Don't keep the event loop alive just for this timer (the
+    // response socket keeps it alive while the connection is open).
+    heartbeat.unref?.();
 
     const send = (eventName: string, payload: unknown): void => {
       try {
@@ -1530,6 +1657,19 @@ export class GatewayService {
       } catch {
         // ignore
       }
+    };
+
+    // project the recorded entry down to metadata only
+    // unless the operator opted into summaries. The replay
+    // endpoint (`GET /v1/replay/{id}`) is the explicit way to
+    // fetch the captured prompt / response text.
+    const includeSummaries = events.includeSummariesInEvents === true;
+    const project = (entry: RequestTelemetry): Record<string, unknown> => {
+      if (includeSummaries) {
+        return { ...entry };
+      }
+      const { promptSummary: _p, responseSummary: _r, ...rest } = entry;
+      return rest;
     };
 
     // Subscribe to telemetry updates and emit a `request.recorded`
@@ -1543,31 +1683,83 @@ export class GatewayService {
     const unsubscribe = this.telemetry.subscribe((next) => {
       const top = next.recent[0];
       if (top) {
-        send('request.recorded', top);
+        send('request.recorded', project(top));
       }
     });
 
+    // lifetime cap. When the configured wall-clock budget
+    // elapses, end the response cleanly so the client reconnects.
+    // `setTimeout` keeps a strong ref until it fires; cleanup()
+    // calls `clearTimeout` on every exit path so we never leak.
+    const lifetimeMs = events.maxLifetimeMs ?? 30 * 60 * 1000;
+    let lifetimeTimer: NodeJS.Timeout | undefined;
+    let ended = false;
+    if (lifetimeMs > 0) {
+      lifetimeTimer = setTimeout(() => {
+        if (ended) return;
+        ended = true;
+        cleanup();
+        try {
+          response.write(`event: end\ndata: {"reason":"max-lifetime-reached"}\n\n`);
+          response.end();
+        } catch {
+          // ignore
+        }
+      }, lifetimeMs);
+      // Don't keep the event loop alive just for this timer.
+      lifetimeTimer.unref?.();
+    }
+
     const cleanup = (): void => {
+      if (lifetimeTimer) {
+        clearTimeout(lifetimeTimer);
+        lifetimeTimer = undefined;
+      }
       clearInterval(heartbeat);
       unsubscribe();
+      this.activeSseConnections.delete(response);
     };
-    request.once('close', cleanup);
-    request.once('aborted', cleanup);
+    request.once('close', () => {
+      if (ended) return;
+      ended = true;
+      cleanup();
+    });
+    request.once('aborted', () => {
+      if (ended) return;
+      ended = true;
+      cleanup();
+    });
+    response.once('close', () => {
+      if (ended) return;
+      ended = true;
+      cleanup();
+    });
   }
 
   /**
-   * Acquire a per-provider concurrency slot (BUG17 fix D,
-   * BUG-02 hardening). Per-instance Map (see `providerSemaphores`)
+   * Acquire a per-provider concurrency slot (hardening).
+   * Per-instance Map (see `providerSemaphores`)
    * so multiple `GatewayService` instances in the same process do
    * not share caps.
    *
    * `max = 0` disables the cap (every acquirer resolves
    * immediately). Useful for local development where one process
    * is the only client.
+   *
+   * when `signal` is provided and aborts while the caller
+   * is still queued, the promise rejects with `AbortError` (the
+   * standard DOMException), the waiter entry is removed from the
+   * FIFO queue, and the abort listener is detached so the signal
+   * does not leak a listener.
    */
-  private acquireProviderSlot(providerId: string, max: number): Promise<void> {
+  private acquireProviderSlot(providerId: string, max: number, signal?: AbortSignal): Promise<void> {
     if (max <= 0) {
+      // `max <= 0` is the disabled path; nothing to register on
+      // the abort signal either.
       return Promise.resolve();
+    }
+    if (signal?.aborted) {
+      return Promise.reject(new AbortError());
     }
     let lock = this.providerSemaphores.get(providerId);
     if (!lock) {
@@ -1578,14 +1770,44 @@ export class GatewayService {
       lock.active++;
       return Promise.resolve();
     }
-    return new Promise<void>((resolve) => {
-      lock!.waiters.push(() => {
-        // The slot is transferred to us, NOT released to the pool.
-        // `releaseProviderSlot` will pop the next waiter or decrement
-        // `active` when this caller is done.
-        lock!.active++;
-        resolve();
-      });
+    return new Promise<void>((resolve, reject) => {
+      const entry = {
+        resolve: () => {
+          // The slot is transferred to us, NOT released to the
+          // pool. `releaseProviderSlot` already removed the slot
+          // from the previous holder; we just claim it. `active`
+          // stays at the same value across the transfer.
+          detachAbort();
+          resolve();
+        },
+        reject: (reason: Error) => {
+          detachAbort();
+          reject(reason);
+        },
+        onAbort: undefined as (() => void) | undefined,
+      };
+      const detachAbort = (): void => {
+        if (entry.onAbort && signal) {
+          signal.removeEventListener('abort', entry.onAbort);
+          entry.onAbort = undefined;
+        }
+      };
+      if (signal) {
+        entry.onAbort = (): void => {
+          // Remove our waiter from the FIFO queue. We splice from
+          // the end because the queue is short-lived and the
+          // original enqueue was at `push` time; searching for the
+          // exact entry is safer because a concurrent release
+          // could have shifted the queue.
+          const idx = lock!.waiters.indexOf(entry);
+          if (idx !== -1) {
+            lock!.waiters.splice(idx, 1);
+          }
+          entry.reject(new AbortError());
+        };
+        signal.addEventListener('abort', entry.onAbort, { once: true });
+      }
+      lock!.waiters.push(entry);
     });
   }
 
@@ -1602,16 +1824,19 @@ export class GatewayService {
     }
     const next = lock.waiters.shift();
     if (next) {
-      next();
-    } else {
-      lock.active--;
-      if (lock.active === 0) {
-        // Free the entry so the Map does not grow unbounded with
-        // distinct provider ids. Safe even if a waiter is queued
-        // in the same microtask: the awaiter is in `waiters` and
-        // we only free on empty queue.
-        this.providerSemaphores.delete(providerId);
-      }
+      // The resolver detaches its abort listener; the slot is
+      // transferred to the next waiter (its `resolve` callback
+      // bumps `active`).
+      next.resolve();
+      return;
+    }
+    lock.active--;
+    if (lock.active === 0) {
+      // Free the entry so the Map does not grow unbounded with
+      // distinct provider ids. Safe even if a waiter is queued
+      // in the same microtask: the awaiter is in `waiters` and
+      // we only free on empty queue.
+      this.providerSemaphores.delete(providerId);
     }
   }
 }
@@ -1619,6 +1844,30 @@ export class GatewayService {
 function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
   return new URL(path, baseUrl).toString();
+}
+
+/**
+ * `AbortError` mirrors the DOMException used by the
+ * standard `AbortSignal` API. We cannot rely on the global DOM
+ * type from Node.js without paying the DOM lib cost, so we
+ * define a thin sentinel error and the `isAbortError` helper
+ * for the call sites.
+ */
+export class AbortError extends Error {
+  override readonly name = 'AbortError';
+  constructor(message: string = 'The operation was aborted') {
+    super(message);
+  }
+}
+
+export function isAbortError(err: unknown): err is AbortError {
+  if (err instanceof AbortError) {
+    return true;
+  }
+  if (err instanceof Error) {
+    return err.name === 'AbortError' || err.message.toLowerCase().includes('aborted');
+  }
+  return false;
 }
 
 /**
@@ -1637,15 +1886,9 @@ function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
  * Exported for unit testing - the placement of the prefix (first
  * vs. last slot) is part of the user-visible prompt contract.
  */
-export function prependSystemMessage(
-  payload: Record<string, unknown>,
-  prefix: string,
-): Record<string, unknown> {
+export function prependSystemMessage(payload: Record<string, unknown>, prefix: string): Record<string, unknown> {
   const existing = Array.isArray(payload.messages) ? payload.messages : [];
-  const messages = [
-    { role: 'system', content: prefix },
-    ...existing,
-  ];
+  const messages = [{ role: 'system', content: prefix }, ...existing];
   return {
     ...payload,
     messages,
@@ -1699,28 +1942,43 @@ const CWD_PROJECT_SENTINELS: string[] = [
 export function resolveLanguageHint(
   request: IncomingMessage,
   payload: Record<string, unknown> | undefined,
-  config: AiFlowBridgeConfig,
+  config: AiFlowBridgeConfig
 ): WorkspaceLanguage | string | undefined {
-  const fromHeader = request.headers['x-aiflowbridge-language'];
-  const headerValue = Array.isArray(fromHeader) ? fromHeader[0] : fromHeader;
-  if (typeof headerValue === 'string') {
-    // `/review uncommitted` F4: cap the raw header length BEFORE
-    // any string work. The CR02 B3 fix tried to do this but called
-    // `headerValue.trim()` first, which walks the entire buffer
-    // and allocates a fresh string before the cap rejects the
-    // value. A hostile loopback peer that sends
-    // `X-AIFlowBridge-Language: <whitespace> + 1 MB of trailing
-    // data` would still force V8 to allocate during `trim()`. The
-    // fix is to short-circuit on the raw length first; only the
-    // surviving short values go through `trim()` + `toLowerCase()`.
-    if (headerValue.length === 0 || headerValue.length > MAX_LANGUAGE_HINT_HEADER_LENGTH) {
-      return undefined;
+  // prefer `config.gateway.allowLanguageHeaderOverride`
+  // (default `true`). When the operator has disabled it, the
+  // header is silently ignored and the hint falls through to the
+  // request body / workspace context. The runtime never sends the
+  // header itself, so this only affects loopback clients that
+  // explicitly pin a language.
+  const allowHeader = config.gateway.allowLanguageHeaderOverride !== false;
+  if (allowHeader) {
+    const fromHeader = request.headers['x-aiflowbridge-language'];
+    const headerValue = Array.isArray(fromHeader) ? fromHeader[0] : fromHeader;
+    if (typeof headerValue === 'string') {
+      // `/review uncommitted` F4: cap the raw header length BEFORE
+      // any string work. The CR02 B3 fix tried to do this but called
+      // `headerValue.trim()` first, which walks the entire buffer
+      // and allocates a fresh string before the cap rejects the
+      // value. A hostile loopback peer that sends
+      // `X-AIFlowBridge-Language: <whitespace> + 1 MB of trailing
+      // data` would still force V8 to allocate during `trim()`. The
+      // fix is to short-circuit on the raw length first; only the
+      // surviving short values go through `trim()` + `toLowerCase()`.
+      if (headerValue.length === 0 || headerValue.length > MAX_LANGUAGE_HINT_HEADER_LENGTH) {
+        return undefined;
+      }
+      const trimmed = headerValue.trim();
+      if (trimmed.length === 0) {
+        return undefined;
+      }
+      const hint = trimmed.toLowerCase();
+      // Debug log: record (1) the hint value the loopback
+      // peer is trying to pin, and (2) that the header was honored.
+      // We log only at `debug` so production output stays lean; the
+      // user can opt into the verbosity with `aiflowbridge.debugMode`.
+      logger.debug(`[language-routing] honor header (override allowed, hint=${hint})`);
+      return hint;
     }
-    const trimmed = headerValue.trim();
-    if (trimmed.length === 0) {
-      return undefined;
-    }
-    return trimmed.toLowerCase();
   }
   const fromBody = detectLanguageHintFromPayload(payload);
   if (fromBody) {
@@ -1741,7 +1999,7 @@ export function resolveLanguageHint(
  * standalone CLI prints this line on every `/v1/chat/completions`
  * (when `gateway.telemetry.logRequests = true`) and the line shows
  * up in the user's console without a date / time prefix today, which
- * makes the per-request tail latency (BUG17) hard to correlate with
+ * makes the per-request tail latency hard to correlate with
  * wall-clock spikes. We prepend a local-time `YYYY-MM-DD HH:MM:SS`
  * stamp so the line is directly greppable: the `LogOutputChannel`
  * shim already adds the `[INFO]  ` level prefix (see
@@ -1756,13 +2014,7 @@ export function resolveLanguageHint(
  * log contract (people grep on it), so a regression here is a
  * user-visible regression.
  */
-export function formatRequestLogLine(
-  requestId: string,
-  providerId: string,
-  status: number,
-  durationMs: number,
-  now: Date = new Date(),
-): string {
+export function formatRequestLogLine(requestId: string, providerId: string, status: number, durationMs: number, now: Date = new Date()): string {
   const stamp = formatLocalTimestamp(now);
   return `[${stamp}] [Gateway] ${requestId} ${providerId} ${status} ${durationMs}ms`;
 }
@@ -1788,8 +2040,7 @@ export function formatLocalTimestamp(date: Date): string {
 
 /**
  * Resolved default for `gateway.maxConcurrentPerProvider`. The
- * `GatewaySettings` field is optional (so older snapshots / test
- * fixtures that predate BUG17 still compile); the gateway uses 3
+ * `GatewaySettings` field is optional ; the gateway uses 3
  * by default. `0` means "no cap" (semaphore skipped entirely).
  */
 function resolveMaxConcurrentPerProvider(gateway: GatewaySettings): number {
@@ -1805,7 +2056,7 @@ function resolveStreamTotalTimeoutMs(gateway: GatewaySettings): number {
 }
 
 /**
- * Per-provider concurrency semaphore (BUG17 fix D).
+ * Per-provider concurrency semaphore.
  *
  * Bounded `Map<providerId, Semaphore>` where each `Semaphore`
  * tracks the number of in-flight upstream calls and a FIFO queue
@@ -1828,7 +2079,18 @@ function resolveStreamTotalTimeoutMs(gateway: GatewaySettings): number {
  */
 interface ProviderSemaphore {
   active: number;
-  waiters: Array<() => void>;
+  /**
+   * FIFO queue of pending acquirers. Each entry is the resolver
+   * pair used to (a) hand the slot to the next waiter, (b) reject
+   * the promise when the optional AbortSignal fires while the
+   * waiter is still queued, and (c) detach the abort listener on
+   * both resolution paths so it never leaks.
+   */
+  waiters: Array<{
+    resolve: () => void;
+    reject: (reason: Error) => void;
+    onAbort: (() => void) | undefined;
+  }>;
 }
 
 /**

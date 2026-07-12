@@ -130,7 +130,7 @@ describe('VscodeFileSystemAdapter - UriLike to vscode.Uri conversion', () => {
     // `vscode.Uri.file(fsPath)` which produces a valid file:// URI.
     const readFileSpy = vi.fn(async (_uri: unknown) => new Uint8Array());
     // Replace the mock's readFile with our spy.
-    (vscode.workspace.fs as { readFile: typeof readFileSpy }).readFile = readFileSpy;
+    ((vscode.workspace.fs as unknown) as { readFile: typeof readFileSpy }).readFile = readFileSpy;
 
     const ctx = createVSCodeContext(makeContext());
     expect(ctx.fs).toBeDefined();
@@ -155,7 +155,7 @@ describe('VscodeFileSystemAdapter - UriLike to vscode.Uri conversion', () => {
 
   it('passes a real vscode.Uri through unchanged when one is supplied (VscodeUriAdapter case)', async () => {
     const readFileSpy = vi.fn(async (_uri: unknown) => new Uint8Array());
-    (vscode.workspace.fs as { readFile: typeof readFileSpy }).readFile = readFileSpy;
+    ((vscode.workspace.fs as unknown) as { readFile: typeof readFileSpy }).readFile = readFileSpy;
 
     const ctx = createVSCodeContext(makeContext());
 

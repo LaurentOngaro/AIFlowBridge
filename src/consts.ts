@@ -23,9 +23,9 @@ export const LANGUAGE_MODEL_CHAT_SYSTEM_ROLE = 3;
 
 /** SecretStorage key for provider API keys. */
 export const API_KEY_SECRETS = {
-	deepseek: 'aiflowbridge.providers.deepseek.apiKey',
-	minimax: 'aiflowbridge.providers.minimax.apiKey',
-	xiaomi: 'aiflowbridge.providers.xiaomi.apiKey',
+  deepseek: 'aiflowbridge.providers.deepseek.apiKey',
+  minimax: 'aiflowbridge.providers.minimax.apiKey',
+  xiaomi: 'aiflowbridge.providers.xiaomi.apiKey',
 } as const;
 
 /** memento key tracking whether the welcome walkthrough has been shown. */

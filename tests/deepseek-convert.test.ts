@@ -31,19 +31,22 @@ vi.mock('vscode', () => {
         constructor(public value: string) {}
       },
       LanguageModelDataPart: class MockLanguageModelDataPart {
-        constructor(public mimeType: string, public data: Uint8Array) {}
+        constructor(
+          public mimeType: string,
+          public data: Uint8Array
+        ) {}
       },
       LanguageModelToolCallPart: class MockLanguageModelToolCallPart {
         constructor(
           public callId: string,
           public name: string,
-          public input: Record<string, unknown>,
+          public input: Record<string, unknown>
         ) {}
       },
       LanguageModelToolResultPart: class MockLanguageModelToolResultPart {
         constructor(
           public callId: string,
-          public content: unknown[],
+          public content: unknown[]
         ) {}
       },
     },
@@ -96,35 +99,43 @@ describe('convert.ts - convertMessages', () => {
   });
 
   it('should convert tool calls', () => {
-    const messages = [{
-      role: 1,
-      content: [toolCallPart('call_1', 'get_weather', { city: 'Paris' })],
-    }] as unknown as vscode.LanguageModelChatRequestMessage[];
+    const messages = [
+      {
+        role: 1,
+        content: [toolCallPart('call_1', 'get_weather', { city: 'Paris' })],
+      },
+    ] as unknown as vscode.LanguageModelChatRequestMessage[];
 
     const result = convertMessages(messages, false);
     expect(result[0]).toMatchObject({
       role: 'assistant',
       content: '',
-      tool_calls: [{
-        id: 'call_1',
-        type: 'function',
-        function: { name: 'get_weather' },
-      }],
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'get_weather' },
+        },
+      ],
     });
   });
 
   it('should convert tool results', () => {
-    const messages = [{
-      role: 4,
-      content: [toolResultPart('call_1', 'Sunny')],
-    }] as unknown as vscode.LanguageModelChatRequestMessage[];
+    const messages = [
+      {
+        role: 4,
+        content: [toolResultPart('call_1', 'Sunny')],
+      },
+    ] as unknown as vscode.LanguageModelChatRequestMessage[];
 
     const result = convertMessages(messages, false);
-    expect(result).toEqual([{
-      role: 'tool',
-      content: 'Sunny',
-      tool_call_id: 'call_1',
-    }]);
+    expect(result).toEqual([
+      {
+        role: 'tool',
+        content: 'Sunny',
+        tool_call_id: 'call_1',
+      },
+    ]);
   });
 
   it('should skip empty assistant messages', () => {
@@ -134,10 +145,12 @@ describe('convert.ts - convertMessages', () => {
   });
 
   it('should handle system messages as user', () => {
-    const messages = [{
-      role: LANGUAGE_MODEL_CHAT_SYSTEM_ROLE,
-      content: [textPart('You are helpful')],
-    }] as unknown as vscode.LanguageModelChatRequestMessage[];
+    const messages = [
+      {
+        role: LANGUAGE_MODEL_CHAT_SYSTEM_ROLE,
+        content: [textPart('You are helpful')],
+      },
+    ] as unknown as vscode.LanguageModelChatRequestMessage[];
 
     const result = convertMessages(messages, false);
     expect(result).toEqual([{ role: 'user', content: 'You are helpful' }]);
@@ -154,56 +167,60 @@ describe('convert.ts - convertTools', () => {
   });
 
   it('should convert tools to DeepSeek format', () => {
-    const tools = [{
-      name: 'get_weather',
-      description: 'Get weather',
-      inputSchema: { type: 'object', properties: { city: { type: 'string' } } },
-    }] as unknown as readonly { name: string; description: string; inputSchema: Record<string, unknown> }[];
-
-    const result = convertTools(tools);
-    expect(result).toEqual([{
-      type: 'function',
-      function: {
+    const tools = [
+      {
         name: 'get_weather',
         description: 'Get weather',
-        parameters: { type: 'object', properties: { city: { type: 'string' } } },
+        inputSchema: { type: 'object', properties: { city: { type: 'string' } } },
       },
-    }]);
+    ] as unknown as readonly { name: string; description: string; inputSchema: Record<string, unknown> }[];
+
+    const result = convertTools(tools);
+    expect(result).toEqual([
+      {
+        type: 'function',
+        function: {
+          name: 'get_weather',
+          description: 'Get weather',
+          parameters: { type: 'object', properties: { city: { type: 'string' } } },
+        },
+      },
+    ]);
   });
 });
 
 describe('convert.ts - countMessageChars', () => {
   it('should count content length', () => {
-    const messages = [
-      { role: 'user' as const, content: 'Hello World' },
-    ];
+    const messages = [{ role: 'user' as const, content: 'Hello World' }];
     expect(countMessageChars(messages)).toBe(11);
   });
 
   it('should count reasoning_content length', () => {
-    const messages = [
-      { role: 'assistant' as const, content: 'Answer', reasoning_content: 'Thinking...' },
-    ];
+    const messages = [{ role: 'assistant' as const, content: 'Answer', reasoning_content: 'Thinking...' }];
     expect(countMessageChars(messages)).toBe(17); // 'Answer'.length + 'Thinking...'.length
   });
 
   it('should count tool call name + arguments', () => {
-    const messages = [{
-      role: 'assistant' as const,
-      content: '',
-      tool_calls: [{
-        id: 'call_1',
-        type: 'function' as const,
-        function: { name: 'weather', arguments: '{"city":"Paris"}' },
-      }],
-    }];
+    const messages = [
+      {
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [
+          {
+            id: 'call_1',
+            type: 'function' as const,
+            function: { name: 'weather', arguments: '{"city":"Paris"}' },
+          },
+        ],
+      },
+    ];
     // 'weather'.length (7) + '{"city":"Paris"}'.length (16) = 23
     expect(countMessageChars(messages)).toBe(23);
   });
 
   it('should sum across multiple messages', () => {
     const messages = [
-      { role: 'user' as const, content: 'Hi' },       // 2
+      { role: 'user' as const, content: 'Hi' }, // 2
       { role: 'assistant' as const, content: 'Hello' }, // 5
     ];
     expect(countMessageChars(messages)).toBe(7);

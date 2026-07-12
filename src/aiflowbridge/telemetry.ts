@@ -1,6 +1,6 @@
-import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from './types';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
+import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from './types';
 
 /**
  * Minimal interface required by `TelemetryStore` to schedule a delta
@@ -15,6 +15,13 @@ export interface TelemetryPersisterLike {
   appendDelta(entry: RequestTelemetry, baseline: TelemetrySnapshot): Promise<void>;
   removeEntry(entryId: string): Promise<boolean>;
   clear(): Promise<void>;
+  /**
+   * wipe `promptSummary` + `responseSummary` from every
+   * recorded entry (in-memory AND on-disk) without touching the
+   * cumulative counters or per-bucket maps. Returns the number of
+   * entries whose summaries were cleared.
+   */
+  purgeSessionLog(): Promise<number>;
 }
 
 export function emptyProviderSnapshot(): ProviderSnapshot {
@@ -613,6 +620,49 @@ export class TelemetryStore {
         // Listeners must not break reset.
       }
     }
+  }
+
+  /**
+   * wipe `promptSummary` + `responseSummary` from every
+   * entry in the in-memory `recent` list AND on disk, without
+   * touching the cumulative counters or per-bucket maps. Used by
+   * the "AIFlowBridge: Purge session log" command.
+   *
+   * Distinct from `reset()` which clears everything (counts +
+   * summaries). Purge is the privacy-driven affordance: the user
+   * keeps their usage stats but drops the captured prompts /
+   * responses.
+   *
+   * Returns the number of in-memory entries whose summaries were
+   * cleared. The on-disk wipe is fire-and-forget; the result is
+   * returned via the on-disk `purgeSessionLog()` promise.
+   */
+  purgeSessionLog(): { inMemory: number; onDisk: Promise<number> } {
+    let cleared = 0;
+    for (const entry of this.recent) {
+      if (entry.promptSummary !== undefined || entry.responseSummary !== undefined) {
+        entry.promptSummary = undefined;
+        entry.responseSummary = undefined;
+        cleared += 1;
+      }
+    }
+    const onDisk = this.persister
+      ? this.persister.purgeSessionLog().catch((error: unknown) => {
+          logger.warn(`[Telemetry] Failed to purge session log on disk: ${error instanceof Error ? error.message : String(error)}`);
+          return 0;
+        })
+      : Promise.resolve(0);
+    if (cleared > 0) {
+      this.invalidateP95Cache();
+      for (const listener of this.listeners) {
+        try {
+          listener(this.snapshot());
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return { inMemory: cleared, onDisk };
   }
 
   /**

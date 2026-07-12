@@ -18,8 +18,7 @@ const { mockVscode } = vi.hoisted(() => {
         showErrorMessage: noop,
         showQuickPick: async () => undefined,
         showOpenDialog: async () => undefined,
-        withProgress: async (_opts: unknown, task: (progress: { report: (v: unknown) => void }) => Promise<unknown>) =>
-          task({ report: noop }),
+        withProgress: async (_opts: unknown, task: (progress: { report: (v: unknown) => void }) => Promise<unknown>) => task({ report: noop }),
       },
       commands: {
         executeCommand: async () => undefined,
@@ -187,7 +186,15 @@ describe('zip round-trip (extraction primitive)', () => {
 
 describe('httpsGet error paths (unit-level)', () => {
   it('InstallError is the discriminated union for failure modes', () => {
-    const codes: Array<InstallError['code']> = ['unsupported-platform', 'no-release', 'network', 'extraction', 'permission', 'autostart', 'user-cancelled'];
+    const codes: Array<InstallError['code']> = [
+      'unsupported-platform',
+      'no-release',
+      'network',
+      'extraction',
+      'permission',
+      'autostart',
+      'user-cancelled',
+    ];
     for (const code of codes) {
       const err = new InstallError(code);
       expect(err.code).toBe(code);

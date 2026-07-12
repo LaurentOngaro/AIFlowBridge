@@ -1,5 +1,5 @@
 /**
- * Regression tests for BUG17: gateway standby under concurrent agents
+ * Regression tests for gateway standby under concurrent agents
  * (3 agents in parallel vs MiniMax-M3 / reasoning_split: true).
  *
  * Symptoms from the original report:
@@ -40,8 +40,8 @@
  * 90 s default does not actually run.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { request as httpRequest } from 'node:http';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- VSCode mock (logger.ts uses LogOutputChannel) ---
 vi.mock('vscode', () => {
@@ -113,7 +113,7 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
       defaultModel: '',
       probeTimeoutMs: 500,
       maxConcurrentRequests: 100,
-      // New BUG17 fields are optional; tests opt in explicitly when needed.
+      // fields are optional; tests opt in explicitly when needed.
       maxConcurrentPerProvider: 0, // 0 = disabled by default in tests
       upstreamIdleTimeoutMs: 90_000,
       streamTotalTimeoutMs: 300_000,
@@ -123,6 +123,8 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
     telemetryEnabled: true,
     logRequests: false,
     captureSessionLog: false,
+    telemetryMaxStoredRequestBytes: 8192,
+    telemetryRetentionDays: 90,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
     ...overrides,
   };
@@ -165,15 +167,12 @@ interface PostOptions {
   agent?: unknown;
 }
 
-function postChat(
-  port: number,
-  options: PostOptions
-): Promise<{ status: number; body: string; jsonBody: unknown }> {
+function postChat(port: number, options: PostOptions): Promise<{ status: number; body: string; jsonBody: unknown }> {
   return postChatRaw(port, options).then(({ status, body, jsonBody }) => ({ status, body, jsonBody }));
 }
 
 /**
- * BUG17 Fix E: same as `postChat` but also returns the upstream
+ * same as `postChat` but also returns the upstream
  * response headers, so the test can assert on `Retry-After` /
  * `X-RateLimit-*` propagation.
  */
@@ -215,7 +214,7 @@ function postChatRaw(
         };
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', settle);
-        // BUG17 fix B: server may destroy() the response on a
+        // server may destroy() the response on a
         // watchdog abort without firing `end`. Treat `close` as a
         // terminal event too, but only if the response has not
         // already been settled (i.e. `end` already fired with a
@@ -225,7 +224,7 @@ function postChatRaw(
             settle();
           }
         });
-      },
+      }
     );
     req.on('error', reject);
     req.write(payload);
@@ -234,9 +233,9 @@ function postChatRaw(
 }
 
 // ====================================================================
-// Fix A: socket.once('close', ...) wired at most once per physical socket
+// socket.once('close', ...) wired at most once per physical socket
 // ====================================================================
-describe('BUG17 fix A - MaxListenersExceededWarning on keep-alive sockets', () => {
+describe('MaxListenersExceededWarning on keep-alive sockets', () => {
   let service: GatewayService;
   let port: number;
 
@@ -248,7 +247,7 @@ describe('BUG17 fix A - MaxListenersExceededWarning on keep-alive sockets', () =
       object: 'chat.completion',
       choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
-    }),
+    })
   );
 
   beforeEach(async () => {
@@ -272,7 +271,7 @@ describe('BUG17 fix A - MaxListenersExceededWarning on keep-alive sockets', () =
     const stderrWrite = process.stderr.write.bind(process.stderr);
     const stderrChunks: string[] = [];
     const stderrSpy = vi.fn((chunk: string | Uint8Array): boolean => {
-      stderrChunks.push(typeof chunk === 'string' ? chunk : chunk.toString('utf8'));
+      stderrChunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
       return true;
     });
     process.stderr.write = stderrSpy as never;
@@ -303,9 +302,9 @@ describe('BUG17 fix A - MaxListenersExceededWarning on keep-alive sockets', () =
 });
 
 // ====================================================================
-// Fix B: upstream idle + total stream timeout watchdogs
+// upstream idle + total stream timeout watchdogs
 // ====================================================================
-describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
+describe('upstream idle / total timeout watchdogs', () => {
   let service: GatewayService;
   let port: number;
 
@@ -324,7 +323,7 @@ describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
           streamTotalTimeoutMs: 1_000,
           minimaxParallelTokenCount: false,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -340,7 +339,7 @@ describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
   it('aborts with HTTP 504 when the upstream never returns headers (idle watchdog)', async () => {
     // Fake upstream that never resolves. The headers watchdog (fired
     // before fetch() returns) should kick in after `upstreamIdleTimeoutMs`.
-    // This is the exact BUG17 symptom from the user's report: the
+    // This is the exact symptom from the user's report: the
     // upstream silently queues the request internally, never sends
     // bytes, and the agent UI sits in "standby" for minutes.
     const upstream = vi.fn((_url: unknown, init?: RequestInit): Promise<Response> => {
@@ -386,10 +385,9 @@ describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
   it('aborts with HTTP 504 when the total ceiling is reached even with continuous bytes', async () => {
     // Aggressive 300 ms total ceiling; stream chunks at 50 ms
     // intervals. After ~6 chunks the total timer fires (never reset).
-    const upstream = vi.fn(async () => sseResponse(
-      ['data: a\n\n', 'data: b\n\n', 'data: c\n\n', 'data: d\n\n', 'data: e\n\n', 'data: f\n\n', 'data: g\n\n', 'data: h\n\n'],
-      50,
-    ));
+    const upstream = vi.fn(async () =>
+      sseResponse(['data: a\n\n', 'data: b\n\n', 'data: c\n\n', 'data: d\n\n', 'data: e\n\n', 'data: f\n\n', 'data: g\n\n', 'data: h\n\n'], 50)
+    );
     vi.stubGlobal('fetch', upstream);
 
     const result = await postChat(port, {
@@ -423,7 +421,7 @@ describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
           streamTotalTimeoutMs: 300, // total timer still active
           minimaxParallelTokenCount: false,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -431,9 +429,7 @@ describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
 
     // Stream chunks SLOWLY (every 50 ms) - the idle timer is off, but
     // the total timer is 300 ms. After ~6 chunks the total fires.
-    const upstream = vi.fn(async () =>
-      sseResponse(['data: a\n\n', 'data: b\n\n', 'data: c\n\n', 'data: d\n\n', 'data: e\n\n', 'data: f\n\n'], 50),
-    );
+    const upstream = vi.fn(async () => sseResponse(['data: a\n\n', 'data: b\n\n', 'data: c\n\n', 'data: d\n\n', 'data: e\n\n', 'data: f\n\n'], 50));
     vi.stubGlobal('fetch', upstream);
 
     const result = await postChat(port, {
@@ -471,7 +467,7 @@ describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
         object: 'chat.completion',
         choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-      }),
+      })
     );
     vi.stubGlobal('fetch', healthy);
 
@@ -483,9 +479,9 @@ describe('BUG17 fix B - upstream idle / total timeout watchdogs', () => {
 });
 
 // ====================================================================
-// Fix C: skip parallel fetchMinimaxPromptTokens on streaming requests
+// skip parallel fetchMinimaxPromptTokens on streaming requests
 // ====================================================================
-describe('BUG17 fix C - parallel token pre-count is gated on streaming', () => {
+describe('parallel token pre-count is gated on streaming', () => {
   let service: GatewayService;
   let port: number;
 
@@ -506,7 +502,7 @@ describe('BUG17 fix C - parallel token pre-count is gated on streaming', () => {
           streamTotalTimeoutMs: 300_000,
           minimaxParallelTokenCount: false,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -584,7 +580,7 @@ describe('BUG17 fix C - parallel token pre-count is gated on streaming', () => {
           streamTotalTimeoutMs: 300_000,
           minimaxParallelTokenCount: true,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -614,9 +610,9 @@ describe('BUG17 fix C - parallel token pre-count is gated on streaming', () => {
 });
 
 // ====================================================================
-// Fix D: per-provider concurrency semaphore
+// per-provider concurrency semaphore
 // ====================================================================
-describe('BUG17 fix D - per-provider concurrency semaphore', () => {
+describe('per-provider concurrency semaphore', () => {
   let service: GatewayService;
   let port: number;
 
@@ -636,7 +632,7 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
           streamTotalTimeoutMs: 300_000,
           minimaxParallelTokenCount: false,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -684,7 +680,7 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
     const promises = Array.from({ length: 6 }, (_, i) =>
       postChat(port, {
         body: { model: 'model-1', messages: [{ role: 'user', content: `req ${i}` }] },
-      }),
+      })
     );
     const results = await Promise.all(promises);
     for (const r of results) {
@@ -714,7 +710,7 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
           streamTotalTimeoutMs: 300_000,
           minimaxParallelTokenCount: false,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -739,7 +735,7 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
     const promises = Array.from({ length: 6 }, (_, i) =>
       postChat(port, {
         body: { model: 'model-1', messages: [{ role: 'user', content: `req ${i}` }] },
-      }),
+      })
     );
     const results = await Promise.all(promises);
     for (const r of results) {
@@ -763,9 +759,7 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
     vi.stubGlobal('fetch', failingFetch);
 
     const first = await Promise.all(
-      Array.from({ length: 3 }, (_, i) =>
-        postChat(port, { body: { model: 'model-1', messages: [{ role: 'user', content: `f${i}` }] } }),
-      ),
+      Array.from({ length: 3 }, (_, i) => postChat(port, { body: { model: 'model-1', messages: [{ role: 'user', content: `f${i}` }] } }))
     );
     for (const r of first) {
       expect(r.status).toBe(502);
@@ -781,14 +775,12 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
         object: 'chat.completion',
         choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-      }),
+      })
     );
     vi.stubGlobal('fetch', healthyFetch);
 
     const second = await Promise.all(
-      Array.from({ length: 3 }, (_, i) =>
-        postChat(port, { body: { model: 'model-1', messages: [{ role: 'user', content: `s${i}` }] } }),
-      ),
+      Array.from({ length: 3 }, (_, i) => postChat(port, { body: { model: 'model-1', messages: [{ role: 'user', content: `s${i}` }] } }))
     );
     for (const r of second) {
       expect(r.status).toBe(200);
@@ -809,12 +801,12 @@ describe('BUG17 fix D - per-provider concurrency semaphore', () => {
 });
 
 // ====================================================================
-// BUG17 Fix E - forward HTTP 429 / 503 + Retry-After from the upstream,
+// forward HTTP 429 / 503 + Retry-After from the upstream,
 //                and short-circuit streaming requests that hit a backoff
 //                status (the upstream JSON body would otherwise be
 //                streamed as SSE, which clients cannot consume).
 // ====================================================================
-describe('BUG17 fix E - upstream backoff propagation', () => {
+describe('upstream backoff propagation', () => {
   let service: GatewayService;
   let port: number;
 
@@ -839,20 +831,21 @@ describe('BUG17 fix E - upstream backoff propagation', () => {
     });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(body, {
-          status: 429,
-          headers: {
-            'content-type': 'application/json',
-            'retry-after': '12',
-            'x-ratelimit-remaining': '0',
-            'x-ratelimit-reset': '1735689600',
-          },
-        }),
-      ),
+      vi.fn(
+        async () =>
+          new Response(body, {
+            status: 429,
+            headers: {
+              'content-type': 'application/json',
+              'retry-after': '12',
+              'x-ratelimit-remaining': '0',
+              'x-ratelimit-reset': '1735689600',
+            },
+          })
+      )
     );
 
-    // BUG17 Fix E: the client requested `stream: true`. Without the
+    // the client requested `stream: true`. Without the
     // short-circuit, the gateway would set
     // `text/event-stream; charset=utf-8` and pipe the JSON 429 body
     // as SSE chunks. The fix detects the backoff before piping and
@@ -877,12 +870,13 @@ describe('BUG17 fix E - upstream backoff propagation', () => {
     });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(body, {
-          status: 429,
-          headers: { 'content-type': 'application/json', 'retry-after': '5' },
-        }),
-      ),
+      vi.fn(
+        async () =>
+          new Response(body, {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after': '5' },
+          })
+      )
     );
     const r = await postChatRaw(port, {
       body: { model: 'model-1', messages: [{ role: 'user', content: 'hi' }] },
@@ -895,12 +889,13 @@ describe('BUG17 fix E - upstream backoff propagation', () => {
   it('forwards Retry-After on streaming 503 (service unavailable with backoff)', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(JSON.stringify({ error: { message: 'overloaded, retry later' } }), {
-          status: 503,
-          headers: { 'content-type': 'application/json', 'retry-after': '60' },
-        }),
-      ),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { message: 'overloaded, retry later' } }), {
+            status: 503,
+            headers: { 'content-type': 'application/json', 'retry-after': '60' },
+          })
+      )
     );
     const r = await postChatRaw(port, {
       body: { model: 'model-1', stream: true, messages: [{ role: 'user', content: 'hi' }] },
@@ -915,12 +910,13 @@ describe('BUG17 fix E - upstream backoff propagation', () => {
     // sanity: a 200 response still streams as SSE.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(
-          'data: {"id":"x","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
-          { status: 200, headers: { 'content-type': 'text/event-stream' } },
-        ),
-      ),
+      vi.fn(
+        async () =>
+          new Response(
+            'data: {"id":"x","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+            { status: 200, headers: { 'content-type': 'text/event-stream' } }
+          )
+      )
     );
     const r = await postChatRaw(port, {
       body: { model: 'model-1', stream: true, messages: [{ role: 'user', content: 'hi' }] },

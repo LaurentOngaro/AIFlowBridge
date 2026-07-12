@@ -31,19 +31,22 @@ vi.mock('vscode', () => {
         constructor(public value: string) {}
       },
       LanguageModelDataPart: class MockLanguageModelDataPart {
-        constructor(public mimeType: string, public data: Uint8Array) {}
+        constructor(
+          public mimeType: string,
+          public data: Uint8Array
+        ) {}
       },
       LanguageModelToolCallPart: class MockLanguageModelToolCallPart {
         constructor(
           public callId: string,
           public name: string,
-          public input: Record<string, unknown>,
+          public input: Record<string, unknown>
         ) {}
       },
       LanguageModelToolResultPart: class MockLanguageModelToolResultPart {
         constructor(
           public callId: string,
-          public content: unknown[],
+          public content: unknown[]
         ) {}
       },
     },
@@ -77,10 +80,7 @@ function createUserMessage(content: string) {
   };
 }
 
-function createAssistantMessage(
-  content: string,
-  toolCalls?: { callId: string; name: string; input: Record<string, unknown> }[],
-) {
+function createAssistantMessage(content: string, toolCalls?: { callId: string; name: string; input: Record<string, unknown> }[]) {
   const parts: vscode.LanguageModelTextPart[] = [];
   if (content) {
     parts.push(new vscode.LanguageModelTextPart(content));
@@ -167,7 +167,7 @@ describe('minimax.ts - accumulateToolCalls', () => {
         { index: 0, id: 'call_1', function: { name: 'get_weather', arguments: '{"city": ' } },
         { index: 1, id: 'call_2', function: { name: 'get_time', arguments: '{}' } },
       ],
-      pending,
+      pending
     );
 
     expect(pending.size).toBe(2);
@@ -249,10 +249,7 @@ describe('minimax.ts - convertMiniMaxTools', () => {
 
 describe('minimax.ts - concatToolResultContent', () => {
   it('should concatenate text parts', () => {
-    const parts = [
-      new vscode.LanguageModelTextPart('Hello '),
-      new vscode.LanguageModelTextPart('World'),
-    ];
+    const parts = [new vscode.LanguageModelTextPart('Hello '), new vscode.LanguageModelTextPart('World')];
 
     const result = concatToolResultContent(parts as unknown as readonly unknown[]);
     expect(result).toBe('Hello World');
@@ -325,10 +322,7 @@ describe('minimax.ts - streaming tool call flow', () => {
   it('should accumulate and emit tool calls correctly', () => {
     const pending = new Map<number, { index: number; id?: string; name?: string; arguments: string }>();
 
-    accumulateToolCalls(
-      [{ index: 0, id: 'call_1', function: { name: 'get_weather', arguments: '{"city": ' } }],
-      pending,
-    );
+    accumulateToolCalls([{ index: 0, id: 'call_1', function: { name: 'get_weather', arguments: '{"city": ' } }], pending);
     expect(pending.get(0)?.arguments).toBe('{"city": ');
 
     accumulateToolCalls([{ index: 0, function: { arguments: '"Paris"}' } }], pending);

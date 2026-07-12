@@ -108,29 +108,25 @@ function defaultInstallDir(os: SupportedOs): string {
 function httpsGet(
   url: string,
   headers: Record<string, string> = {},
-  maxRedirects = 5,
+  maxRedirects = 5
 ): Promise<{ statusCode: number; headers: IncomingHttpHeaders; body: NodeJS.ReadableStream }> {
   return new Promise((resolve, reject) => {
-    const req = https.get(
-      url,
-      { timeout: HTTP_TIMEOUT_MS, headers: { 'User-Agent': 'AIFlowBridge-VSCode-Extension/2.3.0', ...headers } },
-      (res) => {
-        const code = res.statusCode ?? 0;
-        if (code >= 300 && code < 400 && res.headers.location && maxRedirects > 0) {
-          res.resume();
-          let nextUrl: string;
-          try {
-            nextUrl = new URL(res.headers.location, url).toString();
-          } catch (err) {
-            reject(new Error(`Invalid redirect target ${res.headers.location} from ${url}: ${(err as Error).message}`));
-            return;
-          }
-          resolve(httpsGet(nextUrl, headers, maxRedirects - 1));
+    const req = https.get(url, { timeout: HTTP_TIMEOUT_MS, headers: { 'User-Agent': 'AIFlowBridge-VSCode-Extension/2.3.0', ...headers } }, (res) => {
+      const code = res.statusCode ?? 0;
+      if (code >= 300 && code < 400 && res.headers.location && maxRedirects > 0) {
+        res.resume();
+        let nextUrl: string;
+        try {
+          nextUrl = new URL(res.headers.location, url).toString();
+        } catch (err) {
+          reject(new Error(`Invalid redirect target ${res.headers.location} from ${url}: ${(err as Error).message}`));
           return;
         }
-        resolve({ statusCode: code, headers: res.headers, body: res });
-      },
-    );
+        resolve(httpsGet(nextUrl, headers, maxRedirects - 1));
+        return;
+      }
+      resolve({ statusCode: code, headers: res.headers, body: res });
+    });
     req.on('timeout', () => {
       req.destroy(new Error(`Request to ${url} timed out after ${HTTP_TIMEOUT_MS} ms`));
     });
@@ -250,7 +246,7 @@ async function askReplaceOrKeep(installDir: string): Promise<'replace' | 'keep' 
       { label: t('installStandalone.keep'), value: 'keep' as const },
       { label: t('installStandalone.cancel'), value: 'cancel' as const },
     ],
-    { title: t('installStandalone.replacePrompt', 'unknown', installDir), placeHolder: installDir },
+    { title: t('installStandalone.replacePrompt', 'unknown', installDir), placeHolder: installDir }
   );
   return pick?.value ?? 'cancel';
 }
@@ -275,7 +271,7 @@ async function askAutostart(): Promise<boolean> {
       { label: t('installStandalone.autostartYes'), value: 'yes' as const },
       { label: t('installStandalone.autostartNo'), value: 'no' as const },
     ],
-    { title: t('installStandalone.autostartPrompt') },
+    { title: t('installStandalone.autostartPrompt') }
   );
   return choice?.value === 'yes';
 }
@@ -301,7 +297,7 @@ async function installLinuxSystemd(installDir: string): Promise<void> {
       '[Install]',
       'WantedBy=default.target',
       '',
-    ].join('\n'),
+    ].join('\n')
   );
   await runProcess('systemctl', ['--user', 'daemon-reload']);
   await runProcess('systemctl', ['--user', 'enable', 'aiflowbridge.service']);
@@ -332,7 +328,7 @@ async function installMacosLaunchd(installDir: string): Promise<void> {
       '  </dict>',
       '</plist>',
       '',
-    ].join('\n'),
+    ].join('\n')
   );
   await runProcess('launchctl', ['load', '-w', plistPath]);
 }
@@ -359,7 +355,7 @@ function runProcess(command: string, args: ReadonlyArray<string>, extra?: { wind
 export class InstallError extends Error {
   constructor(
     public readonly code: 'unsupported-platform' | 'no-release' | 'network' | 'extraction' | 'permission' | 'autostart' | 'user-cancelled',
-    public readonly detail?: string,
+    public readonly detail?: string
   ) {
     super(detail ?? code);
   }
@@ -449,7 +445,7 @@ export async function installStandaloneCommand(_context: vscode.ExtensionContext
         const launcherPath = join(installDir, platform.launcherRelativePath);
         await chmodExecutable(launcherPath);
         return { installDir, launcherPath, startCommand: platform.startCommand, version: release.tag_name };
-      },
+      }
     );
   } catch (err) {
     handleInstallError(err);

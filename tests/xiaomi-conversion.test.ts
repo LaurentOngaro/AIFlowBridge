@@ -16,17 +16,20 @@ vi.mock('vscode', () => {
         constructor(
           public callId: string,
           public name: string,
-          public input: Record<string, unknown>,
+          public input: Record<string, unknown>
         ) {}
       },
       LanguageModelToolResultPart: class MockLanguageModelToolResultPart {
         constructor(
           public callId: string,
-          public content: unknown[],
+          public content: unknown[]
         ) {}
       },
       LanguageModelDataPart: class MockLanguageModelDataPart {
-        constructor(public data: Uint8Array, public mimeType: string) {}
+        constructor(
+          public data: Uint8Array,
+          public mimeType: string
+        ) {}
       },
       LanguageModelChatMessageRole: {
         User: 0,
@@ -71,13 +74,9 @@ vi.mock('../src/config', () => ({
     }
     return id;
   }),
-  getProviderBaseUrl: vi.fn((vendor: string) =>
-    vendor === 'xiaomi' ? 'https://api.xiaomimimo.com/v1' : '',
-  ),
+  getProviderBaseUrl: vi.fn((vendor: string) => (vendor === 'xiaomi' ? 'https://api.xiaomimimo.com/v1' : '')),
   getProviderMaxTokens: vi.fn((vendor: string) => (vendor === 'xiaomi' ? undefined : 0)),
-  getProviderReasoningRequiredForToolCalls: vi.fn((vendor: string) =>
-    vendor === 'xiaomi' ? true : false,
-  ),
+  getProviderReasoningRequiredForToolCalls: vi.fn((vendor: string) => (vendor === 'xiaomi' ? true : false)),
 }));
 
 vi.mock('../src/logger', () => ({
@@ -129,10 +128,7 @@ describe('xiaomi.ts - Message conversion (text + images)', () => {
   it('should convert user message with image (vision-capable)', () => {
     const message = {
       role: vscode.LanguageModelChatMessageRole.User,
-      content: [
-        new vscode.LanguageModelTextPart('Analyze this image'),
-        new vscode.LanguageModelDataPart(new Uint8Array(1000), 'image/png'),
-      ],
+      content: [new vscode.LanguageModelTextPart('Analyze this image'), new vscode.LanguageModelDataPart(new Uint8Array(1000), 'image/png')],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 
     expect(message.content).toHaveLength(2);
@@ -145,16 +141,11 @@ describe('xiaomi.ts - Message conversion (text + images)', () => {
   it('should skip images for non-vision models', () => {
     const message = {
       role: vscode.LanguageModelChatMessageRole.User,
-      content: [
-        new vscode.LanguageModelTextPart('Hello'),
-        new vscode.LanguageModelDataPart(new Uint8Array(100), 'image/png'),
-      ],
+      content: [new vscode.LanguageModelTextPart('Hello'), new vscode.LanguageModelDataPart(new Uint8Array(100), 'image/png')],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 
     // Simulate the filtering logic
-    const filteredContent = message.content.filter(
-      (part) => !(part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')),
-    );
+    const filteredContent = message.content.filter((part) => !(part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')));
 
     expect(filteredContent).toHaveLength(1);
     expect(filteredContent[0]).toBeInstanceOf(vscode.LanguageModelTextPart);
@@ -200,9 +191,7 @@ describe('xiaomi.ts - Reasoning cache for tool calls', () => {
     const mockLogger = vi.mocked(logger);
     mockLogger.warn.mockClear();
 
-    const toolCalls = [
-      { id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{}' } },
-    ];
+    const toolCalls = [{ id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{}' } }];
 
     // Simulate missing cached reasoning
     let cached = undefined;

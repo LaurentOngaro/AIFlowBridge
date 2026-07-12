@@ -112,9 +112,7 @@ function defaultExtensionDir(): string {
       break;
     default: {
       const xdgConfig = process.env.XDG_CONFIG_HOME;
-      base = xdgConfig
-        ? `${xdgConfig}/Code/User/globalStorage`
-        : `${homedir()}/.config/Code/User/globalStorage`;
+      base = xdgConfig ? `${xdgConfig}/Code/User/globalStorage` : `${homedir()}/.config/Code/User/globalStorage`;
       break;
     }
   }
@@ -206,7 +204,13 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat('en-US').format(value);
 }
 
-function reportTelemetry(extPath: string, standalonePath: string, extSnap: TelemetrySnapshot | null, standaloneSnap: TelemetrySnapshot | null, dryRun: boolean): { merged: TelemetrySnapshot; uniqueCount: number; maxSingle: number } | null {
+function reportTelemetry(
+  extPath: string,
+  standalonePath: string,
+  extSnap: TelemetrySnapshot | null,
+  standaloneSnap: TelemetrySnapshot | null,
+  dryRun: boolean
+): { merged: TelemetrySnapshot; uniqueCount: number; maxSingle: number } | null {
   if (!extSnap && !standaloneSnap) {
     console.log('[merge-storage/telemetry] No telemetry files at either path.');
     return null;
@@ -232,7 +236,12 @@ function reportTelemetry(extPath: string, standalonePath: string, extSnap: Telem
   return { merged, uniqueCount, maxSingle };
 }
 
-function reportSecrets(extPath: string, standalonePath: string, extSecrets: Record<string, string> | null, standaloneSecrets: Record<string, string> | null): Record<string, string> | null {
+function reportSecrets(
+  extPath: string,
+  standalonePath: string,
+  extSecrets: Record<string, string> | null,
+  standaloneSecrets: Record<string, string> | null
+): Record<string, string> | null {
   if (!extSecrets && !standaloneSecrets) {
     console.log('[merge-storage/secrets] No secrets files at either path.');
     return null;

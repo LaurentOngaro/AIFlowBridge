@@ -16,17 +16,20 @@ vi.mock('vscode', () => {
         constructor(
           public callId: string,
           public name: string,
-          public input: Record<string, unknown>,
+          public input: Record<string, unknown>
         ) {}
       },
       LanguageModelToolResultPart: class MockLanguageModelToolResultPart {
         constructor(
           public callId: string,
-          public content: unknown[],
+          public content: unknown[]
         ) {}
       },
       LanguageModelDataPart: class MockLanguageModelDataPart {
-        constructor(public data: Uint8Array, public mimeType: string) {}
+        constructor(
+          public data: Uint8Array,
+          public mimeType: string
+        ) {}
       },
     },
   };
@@ -75,9 +78,7 @@ describe('tokens.ts - estimateTokenCount (message)', () => {
 
   it('should estimate token count for tool call message', () => {
     const message = {
-      content: [
-        new vscode.LanguageModelToolCallPart('call_1', 'get_weather', { city: 'Paris' }),
-      ],
+      content: [new vscode.LanguageModelToolCallPart('call_1', 'get_weather', { city: 'Paris' })],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 
     // callId (6) + name (11) + JSON input (19) = 36 chars, ceil(36/4) = 9
@@ -87,11 +88,7 @@ describe('tokens.ts - estimateTokenCount (message)', () => {
 
   it('should estimate token count for tool result message', () => {
     const message = {
-      content: [
-        new vscode.LanguageModelToolResultPart('call_1', [
-          new vscode.LanguageModelTextPart('Sunny'),
-        ]),
-      ],
+      content: [new vscode.LanguageModelToolResultPart('call_1', [new vscode.LanguageModelTextPart('Sunny')])],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 
     // callId (6) + 'Sunny' (5) = 11 chars, ceil(11/4) = 3
@@ -110,9 +107,7 @@ describe('tokens.ts - estimateTokenCount (message)', () => {
 
   it('should handle image data parts', () => {
     const message = {
-      content: [
-        new vscode.LanguageModelDataPart(new Uint8Array(100), 'image/png'),
-      ],
+      content: [new vscode.LanguageModelDataPart(new Uint8Array(100), 'image/png')],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 
     // Image = 1020 chars, ceil(1020/4) = 255
@@ -121,9 +116,7 @@ describe('tokens.ts - estimateTokenCount (message)', () => {
 
   it('should handle replay marker data parts as 0 chars', () => {
     const message = {
-      content: [
-        new vscode.LanguageModelDataPart(new Uint8Array(100), 'application/vnd.deepseek.replay-marker'),
-      ],
+      content: [new vscode.LanguageModelDataPart(new Uint8Array(100), 'application/vnd.deepseek.replay-marker')],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 
     // Replay marker = 0 chars, ceil(0/4) = 0, Math.max(1, 0) = 1
@@ -132,9 +125,7 @@ describe('tokens.ts - estimateTokenCount (message)', () => {
 
   it('should handle PDF data parts with capped heuristic', () => {
     const message = {
-      content: [
-        new vscode.LanguageModelDataPart(new Uint8Array(50000), 'application/pdf'),
-      ],
+      content: [new vscode.LanguageModelDataPart(new Uint8Array(50000), 'application/pdf')],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 
     // PDF = min(50000, 10000) = 10000 chars, ceil(10000/4) = 2500
@@ -144,8 +135,8 @@ describe('tokens.ts - estimateTokenCount (message)', () => {
   it('should sum multiple parts', () => {
     const message = {
       content: [
-        new vscode.LanguageModelTextPart('Hello'),    // 5 chars
-        new vscode.LanguageModelTextPart('World'),    // 5 chars
+        new vscode.LanguageModelTextPart('Hello'), // 5 chars
+        new vscode.LanguageModelTextPart('World'), // 5 chars
       ],
     } as unknown as vscode.LanguageModelChatRequestMessage;
 

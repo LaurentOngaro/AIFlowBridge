@@ -7,6 +7,14 @@
 dist/**
 src/**
 node_modules/**
+# keep the runtime deps pulled in via `bundledDependencies`
+# (`installStandalone` does dynamic `await import("adm-zip")` /
+# `await import("tar")`, so the published VSIX must carry the
+# modules on disk). The default `node_modules/**` rule above
+# would otherwise erase them; the two `!` re-include lines undo
+# it for exactly what is packaged.
+!node_modules/adm-zip/**
+!node_modules/tar/**
 
 # FEAT7: standalone gateway - shipped separately as an npm binary,
 # never bundled in the VSIX.

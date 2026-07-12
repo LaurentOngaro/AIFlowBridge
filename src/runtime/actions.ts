@@ -4,58 +4,58 @@ import { CONFIGURE_API_KEY_URI_PATH, SHOW_LOGS_URI_PATH } from '../consts';
 import { logger } from '../logger';
 
 interface ActionUrlDefinition {
-	key: keyof ErrorActionUrls;
-	path: string;
-	handle: () => void | Thenable<unknown>;
-	resolveFailureMessage: string;
+  key: keyof ErrorActionUrls;
+  path: string;
+  handle: () => void | Thenable<unknown>;
+  resolveFailureMessage: string;
 }
 
 const ACTION_URLS: readonly ActionUrlDefinition[] = [
-	{
-		key: 'configureApiKey',
-		path: CONFIGURE_API_KEY_URI_PATH,
-		handle: () => vscode.commands.executeCommand('aiflowbridge.providers.deepseek.setApiKey'),
-		resolveFailureMessage: 'Failed to resolve AIFlowBridge set API key URI',
-	},
-	{
-		key: 'showLogs',
-		path: SHOW_LOGS_URI_PATH,
-		handle: () => logger.show(),
-		resolveFailureMessage: 'Failed to resolve AIFlowBridge show logs URI',
-	},
+  {
+    key: 'configureApiKey',
+    path: CONFIGURE_API_KEY_URI_PATH,
+    handle: () => vscode.commands.executeCommand('aiflowbridge.providers.deepseek.setApiKey'),
+    resolveFailureMessage: 'Failed to resolve AIFlowBridge set API key URI',
+  },
+  {
+    key: 'showLogs',
+    path: SHOW_LOGS_URI_PATH,
+    handle: () => logger.show(),
+    resolveFailureMessage: 'Failed to resolve AIFlowBridge show logs URI',
+  },
 ];
 
 export function registerActionUrls(context: vscode.ExtensionContext): void {
-	context.subscriptions.push(
-		vscode.window.registerUriHandler({
-			handleUri(uri) {
-				const action = ACTION_URLS.find((item) => item.path === uri.path);
-				if (action) {
-					void Promise.resolve(action.handle()).catch((error) => {
-						logger.warn(`Failed to handle AIFlowBridge URI action: ${uri.path}`, error);
-					});
-					return;
-				}
-				logger.warn(`Unhandled AIFlowBridge URI: ${uri.toString(true)}`);
-			},
-		}),
-	);
+  context.subscriptions.push(
+    vscode.window.registerUriHandler({
+      handleUri(uri) {
+        const action = ACTION_URLS.find((item) => item.path === uri.path);
+        if (action) {
+          void Promise.resolve(action.handle()).catch((error) => {
+            logger.warn(`Failed to handle AIFlowBridge URI action: ${uri.path}`, error);
+          });
+          return;
+        }
+        logger.warn(`Unhandled AIFlowBridge URI: ${uri.toString(true)}`);
+      },
+    })
+  );
 
-	for (const action of ACTION_URLS) {
-		resolveActionUrl(context, action);
-	}
+  for (const action of ACTION_URLS) {
+    resolveActionUrl(context, action);
+  }
 }
 
 function resolveActionUrl(context: vscode.ExtensionContext, action: ActionUrlDefinition): void {
-	const rawUri = vscode.Uri.from({
-		scheme: vscode.env.uriScheme,
-		authority: context.extension.id,
-		path: action.path,
-	});
-	setErrorActionUrl(action.key, rawUri.toString());
+  const rawUri = vscode.Uri.from({
+    scheme: vscode.env.uriScheme,
+    authority: context.extension.id,
+    path: action.path,
+  });
+  setErrorActionUrl(action.key, rawUri.toString());
 
-	void vscode.env.asExternalUri(rawUri).then(
-		(uri) => setErrorActionUrl(action.key, uri.toString()),
-		(error) => logger.warn(action.resolveFailureMessage, error),
-	);
+  void vscode.env.asExternalUri(rawUri).then(
+    (uri) => setErrorActionUrl(action.key, uri.toString()),
+    (error) => logger.warn(action.resolveFailureMessage, error)
+  );
 }

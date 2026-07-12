@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "Multi-provider AI switcher for GitHub Copilot Chat: DeepSeek V4 ($0.27/M in), MiniMax M3, Xiaomi MiMo V2 Omni. 3 problems solved: (1) one Copilot Chat picker for 14 models across 3 vendors, (2) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (3) a built-in OpenAI-compatible local gateway on port 8787 so Kilo Code, Continue, Open WebUI, and curl can all use the same models - with a live metrics dashboard, per-request token counts, and estimated cost. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -79,6 +79,11 @@
         "command": "aiflowbridge.resetMetrics",
         "category": "AIFlowBridge",
         "title": "AIFlowBridge: Reset metrics"
+      },
+      {
+        "command": "aiflowbridge.purgeSessionLog",
+        "category": "AIFlowBridge",
+        "title": "AIFlowBridge: Purge session log"
       },
       {
         "command": "aiflowbridge.showMetrics",
@@ -227,7 +232,7 @@
           "default": 3,
           "minimum": 0,
           "maximum": 100,
-          "description": "Per-upstream-provider cap on concurrent in-flight requests. The gateway queues additional requests for the same provider behind this cap instead of opening more parallel sockets to the same upstream. Set to 0 to disable. Bugfix for BUG17: 3 agents in parallel against the same MiniMax thinking-mode model would otherwise throttle to 100s+ tail latency."
+          "description": "Per-upstream-provider cap on concurrent in-flight requests. The gateway queues additional requests for the same provider behind this cap instead of opening more parallel sockets to the same upstream. Set to 0 to disable."
         },
         "aiflowbridge.gateway.upstreamIdleTimeoutMs": {
           "type": "number",
@@ -292,6 +297,30 @@
             "type": "string",
             "description": "Provider id (e.g. deepseek-flash, deepseek-pro, MiniMax-M3, miniMax, xiaomi)."
           }
+        },
+        "aiflowbridge.gateway.allowLanguageHeaderOverride": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the explicit `X-AIFlowBridge-Language` HTTP request header can pin the per-language routing decision. Default `true` for backward compatibility with loopback clients. Set to `false` on hardened / shared machines so peers can never force a provider via this header - the routing hint is then sourced only from the request body and the workspace context."
+        },
+        "aiflowbridge.gateway.events.maxConnections": {
+          "type": "number",
+          "default": 16,
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Maximum number of simultaneous `GET /v1/events` SSE connections. New connections above the cap receive HTTP 429 + `Retry-After`. Set to `0` to disable. Default 16"
+        },
+        "aiflowbridge.gateway.events.maxLifetimeMs": {
+          "type": "number",
+          "default": 1800000,
+          "minimum": 0,
+          "maximum": 86400000,
+          "description": "Maximum wall-clock lifetime (ms) of an SSE connection before the gateway closes it cleanly so the client reconnects. Set to `0` to disable. Default 1800000 (30 minutes)."
+        },
+        "aiflowbridge.gateway.events.includeSummariesInEvents": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether `request.recorded` SSE events carry the `promptSummary` / `responseSummary` fields. Default `false` (audit-recommended): a passive SSE listener never sees prompt or response text in real time. The `GET /v1/replay/{id}` endpoint stays the explicit, opt-in way to fetch the captured summaries."
         },
         "aiflowbridge.gateway.discovery.enabled": {
           "type": "boolean",
@@ -460,6 +489,20 @@
           "default": true,
           "description": "Capture sanitized + truncated prompt / response summaries on every recorded request so the Shared Session panel + GET /v1/sessions + GET /v1/replay/{id} + GET /v1/events can replay them. Disable to keep the on-disk telemetry file lean. Action plan item #3."
         },
+        "aiflowbridge.telemetry.maxStoredRequestBytes": {
+          "type": "number",
+          "default": 8192,
+          "minimum": 0,
+          "maximum": 1048576,
+          "description": "Hard byte cap on the serialized size of a single persisted telemetry entry (promptSummary + responseSummary inclusive). Entries larger than this have their summaries truncated before being appended to on-disk telemetry. Default 8192 (8 KiB). Set to 0 to disable the cap."
+        },
+        "aiflowbridge.telemetry.retentionDays": {
+          "type": "number",
+          "default": 90,
+          "minimum": 0,
+          "maximum": 3650,
+          "description": "Retention window (days) for the on-disk telemetry snapshot. Entries older than this are pruned on every read and write. Default 90. Set to 0 to disable retention entirely (keep every entry forever)."
+        },
         "aiflowbridge.vision.excludedVendors": {
           "type": "array",
           "default": [
@@ -598,5 +641,9 @@
   "dependencies": {
     "adm-zip": "^0.5.18",
     "tar": "^7.4.3"
-  }
+  },
+  "bundledDependencies": [
+    "adm-zip",
+    "tar"
+  ]
 }

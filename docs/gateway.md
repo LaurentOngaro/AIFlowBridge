@@ -62,6 +62,42 @@ The detector is memoized on the `root + options` key with a 5-second TTL, so con
 
 When the explicit root does not resolve (ENOENT, EACCES, or non-directory file), the gateway logs a one-shot warning and falls back to the env var / cwd.
 
+### Language-based routing (`aiflowbridge.gateway.languageRouting`)
+
+> **Default behavior: OFF.** Out of the box (`languageRouting = {}`), every request goes to the model you (or your client) picked in the model picker. Language-based routing is an **opt-in** feature. It will never silently re-route a request unless you have explicitly added a non-empty entry to the configuration.
+
+If you opt in, the gateway can pick the upstream model automatically based on the detected project language. This is meant for polyglot projects where each language is best served by a different upstream (Python on DeepSeek Flash, Rust on DeepSeek Pro, ...).
+
+**Enable it** by setting a non-empty map in `settings.json` (or the standalone equivalent):
+
+```jsonc
+{
+  "aiflowbridge.gateway.languageRouting": {
+    "python": "deepseek-flash", // routes Python work to DeepSeek Flash
+    "rust": "deepseek-pro", // routes Rust work to DeepSeek Pro
+    "typescript": "MiniMax-M3", // routes TS/JS work to MiniMax M3
+    "*": "MiniMax-M3", // any other language falls back to MiniMax M3
+  },
+}
+```
+
+**Resolution order** for the language hint:
+
+1. **`X-AIFlowBridge-Language` HTTP header** set by the client (60-char cap, BCP-47-tag-shaped values only). This lets an IDE force a specific language regardless of context. Disabled on shared / hardened machines by setting `aiflowbridge.gateway.allowLanguageHeaderOverride = false` (default `true`).
+2. **Workspace context** - the detector above walks the workspace root for language manifests (`pyproject.toml`, `Cargo.toml`, `package.json`, ...) and uses the primary language.
+3. **Payload sniffing** (`detectLanguageHintFromPayload`) - the gateway scans the first 20 messages for a recognisable filename (`.py`, `.rs`, `.go`, `.ts`, `.tsx`, `.kt`, `.swift`, `.cpp`, `.hpp`, ...). Anti-false-positive guards reject URL fragments (`https://.../foo.py`), path-traversal (`../foo.py`), and longer identifiers (`foo.pyy`).
+
+**How the value maps to a provider.** Each routing entry is a `providerId`. The resolver matches it (case-insensitive, locale-aware) against `provider.id`, `provider.model`, or `provider.label` of the enabled providers in `aiflowbridge.providers`. The first enabled match wins; if none match, the request falls back to the normal `selectProvider(model, defaultModel)` chain - the language rule **never** silently drops a request.
+
+**Cost visibility.** Every routing decision is observable:
+
+- The dashboard's **Sessions** panel groups requests by client, provider, and model. Hover any row to see the resolved `providerId` / `providerLabel` - you always see which upstream was used.
+- The dashboard's **Request details** sub-table shows the prompt, the upstream, the token counts, and the estimated cost for each individual request inside a session.
+- The verbose log line `[language-routing] hint=<lang> -> <providerId>` (and `[language-routing] honor header (override allowed, hint=<lang>)`) is emitted on every resolved request. Set `aiflowbridge.gateway.logRequests = true` to see it in the gateway logs (the setting is off by default to keep the log lean).
+- `GET /v1/context` returns the workspace detector result (raw, no upstream call). `GET /v1/sessions?limit=N` returns the most recent routing decisions in the same shape as the dashboard.
+
+**When in doubt, leave it at `{}`.** The default is chosen so a user who has never opened the settings page gets exactly the behavior described in the README: every prompt goes to the model they picked, no surprises. Add entries only when you have a clear cost / quality case for routing a specific language to a specific upstream.
+
 ### Zero-conf discovery (`GET /v1/discovery`)
 
 When `aiflowbridge.gateway.discovery.enabled` is `true`, the gateway exposes a one-paste configuration endpoint on the loopback URL and (optionally) broadcasts its presence over UDP so LAN tools can pick it up without any pre-shared URL.
@@ -90,6 +126,15 @@ curl http://127.0.0.1:8787/v1/discovery
 The UDP beacon (when enabled) broadcasts a tiny JSON payload on `gateway.discovery.broadcastPort` (default `8788`) every `gateway.discovery.broadcastIntervalMs` (default `2000` ms). **Privacy caveat:** the UDP broadcast announces the gateway's existence to every host on the LAN. The payload contains only the loopback host, the TCP port, and the gateway version - no API key, no workspace path, no model. The HTTP `/v1/discovery` endpoint is reachable on the loopback URL only (the gateway binds `127.0.0.1`); the HTTP endpoint and the UDP broadcast are gated on the same `discovery.enabled` flag.
 
 `broadcastPort` is clamped at runtime to the IANA registered-port range `[1024, 65535]`. Values outside that range (e.g. `0`, hand-edited config) fall back to `8788` with a warning. `broadcastIntervalMs` is clamped to `[500, 300_000]` for the same reason.
+
+**Network reachability caveats.** The UDP broadcast is best-effort and depends on the host's network stack. The beacon will not reach:
+
+- **VPNs and corporate networks** that filter limited broadcast (`255.255.255.255`) at the L3 boundary - the packet is dropped before any LAN listener can see it. Configure a static peer URL instead.
+- **WSL 2** with the default virtual switch - WSL 2 runs in a managed VM with its own NAT; the broadcast does not propagate to the Windows host or the LAN. Configure a static peer URL (`http://127.0.0.1:<port>/v1`) or use port forwarding (`netsh interface portproxy add v4tov4 listenport=8787 listenaddress=0.0.0.0 connectport=8787 connectaddress=127.0.0.1`).
+- **Container runtimes** (Docker Desktop, Podman) where the container's network namespace is isolated - the broadcast exits the container but typically never reaches the host's LAN unless `--net=host` is used.
+- **Firewalled segments** - a strict outbound-allow list will drop the destination UDP packet on the way out.
+
+If the broadcast does not reach a peer, the same IDE can still connect by configuring the gateway URL explicitly (`http://127.0.0.1:8787/v1`). The UDP beacon is a convenience, not a requirement.
 
 ### Shared session log + replay + SSE stream (`GET /v1/sessions`, `GET /v1/replay/{id}`, `GET /v1/events`)
 
@@ -241,10 +286,10 @@ The dashboard and the `GET /v1/models` catalog will skip any provider with `"ena
 | `aiflowbridge.gateway.defaultModel`                  | `""`                          | Default model when client doesn't specify one                                                                                                                                        |
 | `aiflowbridge.gateway.probeTimeoutMs`                | `500`                         | Per-call timeout (ms) for `GET /version` when probing a peer gateway on activation                                                                                                   |
 | `aiflowbridge.gateway.maxConcurrentRequests`         | `20`                          | Hard cap on in-flight `/v1/chat/completions` (above the cap the gateway returns `429` + `Retry-After`)                                                                               |
-| `aiflowbridge.gateway.maxConcurrentPerProvider`      | `3`                           | Per-upstream-provider cap on parallel in-flight requests (BUG17 fix; `0` disables the cap)                                                                                           |
-| `aiflowbridge.gateway.upstreamIdleTimeoutMs`         | `90000`                       | Watchdog that aborts the upstream `fetch` after this many ms without bytes (BUG17; `0` disables)                                                                                     |
-| `aiflowbridge.gateway.streamTotalTimeoutMs`          | `300000`                      | Hard ceiling on the upstream call duration in ms (BUG17; `0` disables)                                                                                                               |
-| `aiflowbridge.gateway.minimaxParallelTokenCount`     | `false`                       | When `true`, fires the parallel `/input_tokens` pre-count on streaming MiniMax requests too (BUG17; off by default)                                                                  |
+| `aiflowbridge.gateway.maxConcurrentPerProvider`      | `3`                           | Per-upstream-provider cap on parallel in-flight requests (`0` disables the cap)                                                                                                      |
+| `aiflowbridge.gateway.upstreamIdleTimeoutMs`         | `90000`                       | Watchdog that aborts the upstream `fetch` after this many ms without bytes (`0` disables)                                                                                            |
+| `aiflowbridge.gateway.streamTotalTimeoutMs`          | `300000`                      | Hard ceiling on the upstream call duration in ms (`0` disables)                                                                                                                      |
+| `aiflowbridge.gateway.minimaxParallelTokenCount`     | `false`                       | When `true`, fires the parallel `/input_tokens` pre-count on streaming MiniMax requests too (off by default)                                                                         |
 | `aiflowbridge.gateway.workspaceContext.enabled`      | `true`                        | Inject the detected workspace context as a system message on every chat completion                                                                                                   |
 | `aiflowbridge.gateway.workspaceContext.root`         | `""`                          | Explicit workspace root directory (falls back to `AIFLOWBRIDGE_WORKSPACE`, then `process.cwd()`)                                                                                     |
 | `aiflowbridge.gateway.workspaceContext.maxDepth`     | `2`                           | Max directory depth the detector walks                                                                                                                                               |

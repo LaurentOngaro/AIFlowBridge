@@ -690,15 +690,6 @@ export function buildDashboardHtml(
       <div class="badge" id="gateway-badge">Gateway${gatewayVersionLabel} ${running ? 'running' : 'stopped'} · ${escapeHtml(config.gateway.baseUrl)}</div>
     </div>
 
-    <div class="grid" id="totals">
-      ${metricCard('Requests', formatNumber(snapshot.requests), `${providers.length} enabled provider${providers.length === 1 ? '' : 's'}`, 'totals-requests')}
-      ${metricCard('Tokens', formatNumber(snapshot.totalTokens), `${formatNumber(snapshot.promptTokens)} prompt / ${formatNumber(snapshot.completionTokens)} completion`, 'totals-tokens')}
-      ${metricCard('Duration', snapshot.averageDurationMs ? `${Math.round(snapshot.averageDurationMs)} ms` : '0 ms', `P95 ${Math.round(snapshot.p95DurationMs)} ms`, 'totals-duration')}
-      ${metricCard('Estimated cost', formatCostValue(snapshot.estimatedCost), 'Optional pricing only', 'totals-cost')}
-    </div>
-    ${truncationBanner}
-    <p class="muted totals-scope-note" id="totals-scope-note">Showing all recorded requests (no filter active).</p>
-
     <div class="panel" id="panel-gateway">
       <div class="panel-header">
         <button type="button" class="collapse-btn" data-collapse-target="panel-gateway" aria-expanded="true" title="Toggle section">
@@ -712,13 +703,16 @@ export function buildDashboardHtml(
       </div>
     </div>
 
-    <div class="panel" id="panel-recent">
+    <div class="panel" id="panel-filters">
       <div class="panel-header">
-        <button type="button" class="collapse-btn" data-collapse-target="panel-recent" aria-expanded="true" title="Toggle section">
+        <button type="button" class="collapse-btn" data-collapse-target="panel-filters" aria-expanded="true" title="Toggle section">
           <span class="chevron">&#9662;</span>
-          <h2>Recent requests</h2>
+          <h2>Filters</h2>
         </button>
-        <div class="filters" id="recent-filters">
+        <p class="muted" style="margin:0;font-size:12px;">Filters apply to all sections below.</p>
+      </div>
+      <div class="panel-body">
+        <div class="filters" id="dashboard-filters">
           ${renderPresetSelect('recent-preset')}
           ${renderProviderSelect('recent-provider')}
           <span class="filter-separator" aria-hidden="true"></span>
@@ -728,7 +722,39 @@ export function buildDashboardHtml(
           <input type="date" class="date-input" id="recent-to" />
           <span class="filter-separator" aria-hidden="true"></span>
           <input type="search" class="search-input" id="recent-search" placeholder="Filter requests&hellip;" aria-label="Filter requests" />
+          <span class="filter-separator" aria-hidden="true"></span>
+          <label class="muted" for="session-gap" style="font-size:12px;">Inactivity gap</label>
+          <select class="preset-select" id="session-gap" aria-label="Session inactivity gap">
+            <option value="1">1 min</option>
+            <option value="2">2 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+          <span class="filter-separator" aria-hidden="true"></span>
+          <button type="button" class="banner-btn" id="clear-filters-btn" title="Reset all filters (time range, provider, dates, search, inactivity gap) to their defaults">Clear filters</button>
         </div>
+      </div>
+    </div>
+
+    <div class="grid" id="totals">
+      ${metricCard('Requests', formatNumber(snapshot.requests), `${providers.length} enabled provider${providers.length === 1 ? '' : 's'}`, 'totals-requests')}
+      ${metricCard('Tokens', formatNumber(snapshot.totalTokens), `${formatNumber(snapshot.promptTokens)} prompt / ${formatNumber(snapshot.completionTokens)} completion`, 'totals-tokens')}
+      ${metricCard('Duration', snapshot.averageDurationMs ? `${Math.round(snapshot.averageDurationMs)} ms` : '0 ms', `P95 ${Math.round(snapshot.p95DurationMs)} ms`, 'totals-duration')}
+      ${metricCard('Estimated cost', formatCostValue(snapshot.estimatedCost), 'Optional pricing only', 'totals-cost')}
+    </div>
+    ${truncationBanner}
+    <p class="muted totals-scope-note" id="totals-scope-note">Showing all recorded requests (no filter active).</p>
+
+    <div class="panel" id="panel-recent">
+      <div class="panel-header">
+        <button type="button" class="collapse-btn" data-collapse-target="panel-recent" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>Recent requests</h2>
+        </button>
       </div>
       <div class="panel-body">
         ${snapshot.recent.length === 0 ? '<p class="muted">No request recorded yet.</p>' : renderRecentTable(snapshot, pricingMaps, Boolean(onRemoveEntry))}
@@ -742,19 +768,6 @@ export function buildDashboardHtml(
           <span class="chevron">&#9662;</span>
           <h2>Sessions</h2>
         </button>
-        <div class="filters">
-          <label class="muted" for="session-gap" style="font-size:12px;">Inactivity gap</label>
-          <select class="preset-select" id="session-gap" aria-label="Session inactivity gap">
-            <option value="1">1 min</option>
-            <option value="2">2 min</option>
-            <option value="5">5 min</option>
-            <option value="10">10 min</option>
-            <option value="15">15 min</option>
-            <option value="30" selected>30 min</option>
-            <option value="45">45 min</option>
-            <option value="60">60 min</option>
-          </select>
-        </div>
       </div>
       <div class="panel-body">
         <div id="sessions-container">
@@ -770,9 +783,6 @@ export function buildDashboardHtml(
           <span class="chevron">&#9662;</span>
           <h2>By model</h2>
         </button>
-        <div class="filters" id="model-filters">
-          ${renderPresetSelect('model-preset')}
-        </div>
       </div>
       <div class="panel-body">
         ${entries.length === 0 ? '<p class="muted">No model telemetry yet.</p>' : renderModelSummary(snapshot, pricingMaps)}
@@ -1043,7 +1053,7 @@ export function buildDashboardHtml(
       function filterByRange(entries, range) {
         if (range === "all" || !range) return entries;
         const now = Date.now();
-        // AFF08: extended preset list (15mn, 30mn, 2d, 3d in addition
+        // extended preset list (15mn, 30mn, 2d, 3d in addition
         // to the historical 1h / 24h / 7d / 30d). Values are in ms so
         // the existing filter pipeline can stay arithmetic.
         const thresholds = {
@@ -1613,16 +1623,15 @@ export function buildDashboardHtml(
         return '<code title="' + title + '">' + symbol + formatted + '</code>';
       }
 
-      // Sync the active state of every preset button across BOTH filter
-      // groups (recent and model). Without this, clicking a preset in the
-      // By model panel only updates that panel's visual state while the
-      // Recent panel keeps showing the old preset - confusing because
-      // both panels share the same time filter.
+      // Sync the active state of the canonical preset select. Kept as a
+      // named hook so future filter controls can plug in here without
+      // the call site diverging. After the Filters refactor only one
+      // preset select ships in the markup (in the dedicated Filters
+      // panel at the top of the dashboard), so this function is
+      // effectively a no-op but stays as the single integration point.
       function syncPresetSelects(range) {
-        const selects = document.querySelectorAll("#recent-preset, #model-preset");
-        for (const sel of selects) {
-          sel.value = range;
-        }
+        const sel = document.getElementById("recent-preset");
+        if (sel) sel.value = range;
       }
 
       function bindPresetSelect(selectId, onChange) {
@@ -1630,8 +1639,8 @@ export function buildDashboardHtml(
         if (!sel) return;
         sel.addEventListener("change", () => {
           const range = sel.value || "all";
-          // Sync the value across BOTH preset selects so the Recent
-          // and By model panels visually agree on the active preset.
+          // Sync the value with the canonical preset select so all
+          // sections of the dashboard agree on the active preset.
           syncPresetSelects(range);
           // changing a preset clears the custom date range. The
           // two filter modes are mutually exclusive in the UI: presets
@@ -1679,15 +1688,13 @@ export function buildDashboardHtml(
         }
       }
 
-      // entering a custom date sets the preset selects back to a
-      // neutral state (the date inputs live in the Recent panel but
-      // the By model panel mirrors the same time filter). Called
-      // from the date input change handlers below.
+      // entering a custom date sets the preset select back to a
+      // neutral state. After the Filters refactor there is a single
+      // canonical preset select (in the Filters panel at the top),
+      // so we just reset its value to "all".
       function deactivateAllPresets() {
-        const selects = document.querySelectorAll("#recent-preset, #model-preset");
-        for (const sel of selects) {
-          sel.value = "all";
-        }
+        const sel = document.getElementById("recent-preset");
+        if (sel) sel.value = "all";
       }
 
       function currentFilters() {
@@ -1707,11 +1714,9 @@ export function buildDashboardHtml(
 
       function applyFilters(rangeOverride) {
         const f = currentFilters();
-        // If the caller (a panel-specific preset button) supplied a
-        // range, prefer it over the value read from currentFilters().
-        // Without this, clicking a preset in the By model panel was a
-        // no-op because currentFilters() only reads from the Recent
-        // panel's active button.
+        // If the caller supplied a range override (kept as a hook for
+        // future shortcut bindings), prefer it over the value read
+        // from currentFilters().
         if (rangeOverride) {
           f.range = rangeOverride;
         }
@@ -1855,7 +1860,6 @@ export function buildDashboardHtml(
       }
 
       bindPresetSelect("recent-preset", applyFilters);
-      bindPresetSelect("model-preset", applyFilters);
       bindProviderSelect("recent-provider", applyFilters);
       refreshProviderOptions();
 
@@ -2040,6 +2044,33 @@ export function buildDashboardHtml(
       var sessionGapEl = document.getElementById("session-gap");
       if (sessionGapEl) sessionGapEl.addEventListener("change", applyFilters);
 
+      // "Clear filters" button. Resets every filter control on the
+      // dashboard to its default value: time preset = All, provider =
+      // All providers, From / To dates empty, search empty, inactivity
+      // gap = 30 min. The session-gap <option value="30" selected>
+      // survives a page reload so 30 min stays the default even when
+      // the user previously picked a different value; we force it back
+      // here to keep the Clear action idempotent regardless of prior
+      // history.
+      var clearBtn = document.getElementById("clear-filters-btn");
+      if (clearBtn) {
+        clearBtn.addEventListener("click", function() {
+          var presetSel = document.getElementById("recent-preset");
+          if (presetSel) presetSel.value = "all";
+          var providerSel = document.getElementById("recent-provider");
+          if (providerSel) providerSel.value = "";
+          var fromIn = document.getElementById("recent-from");
+          if (fromIn) fromIn.value = "";
+          var toIn = document.getElementById("recent-to");
+          if (toIn) toIn.value = "";
+          var searchIn = document.getElementById("recent-search");
+          if (searchIn) searchIn.value = "";
+          var gapSel = document.getElementById("session-gap");
+          if (gapSel) gapSel.value = "30";
+          applyFilters();
+        });
+      }
+
       // sortable column headers: click to cycle asc -> desc -> clear.
       // Event delegation on each table's <thead> so re-renders
       // (pagination, filter) do not break the handler.
@@ -2086,10 +2117,10 @@ export function buildDashboardHtml(
 }
 
 /**
- * AFF08: render a `<select>` for the time-range preset (All, Last 15 min,
+ * render a `<select>` for the time-range preset (All, Last 15 min,
  * Last 30 min, Last 1 h, Last 24 h, Last 2 days, Last 3 days, Last 7 days,
  * Last 30 days). The `id` parameter matches the DOM id used by the JS
- * sync logic ("recent-preset" / "model-preset"). Extracted as a
+ * sync logic ("recent-preset" is the canonical source). Extracted as a
  * standalone string-builder so the unit tests assert the option list
  * directly without scraping the full dashboard HTML.
  *
@@ -2109,15 +2140,15 @@ export const PRESET_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
 ];
 
 /**
- * AFF08: render a `<select>` for the provider filter. The options are
+ * render a `<select>` for the provider filter. The options are
  * populated from `snapshot.byProvider` keys at JS-init time (we cannot
  * enumerate providers statically because the list is dynamic). The
  * static markup ships with a single "All providers" option; the JS
  * init pass appends the rest by reading `byProvider` directly.
  */
 function renderPresetSelect(id: string): string {
-  const options = PRESET_OPTIONS.map((opt) =>
-    `<option value="${escapeHtml(opt.value)}"${opt.value === 'all' ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`,
+  const options = PRESET_OPTIONS.map(
+    (opt) => `<option value="${escapeHtml(opt.value)}"${opt.value === 'all' ? ' selected' : ''}>${escapeHtml(opt.label)}</option>`
   ).join('');
   return `<select class="preset-select" id="${escapeHtml(id)}" aria-label="Time range">${options}</select>`;
 }
@@ -2362,9 +2393,7 @@ function sourceRow(source: string, entry: ProviderSnapshot): string {
   // inside a <code> tag so it matches the model / provider / client
   // naming convention elsewhere on the dashboard.
   const isGateway = source === 'gateway';
-  const nameCell = isGateway
-    ? 'gateway'
-    : `<code title="Origin of the request inside the AIFlowBridge process">${escapeHtml(source)}</code>`;
+  const nameCell = isGateway ? 'gateway' : `<code title="Origin of the request inside the AIFlowBridge process">${escapeHtml(source)}</code>`;
   return `<tr>
         <td>${nameCell}</td>
         <td>${formatNumber(entry.requests)}</td>
@@ -2518,11 +2547,12 @@ export function renderSharedSessionList(snapshot: TelemetrySnapshot): string {
   if (recent.length === 0) {
     return '<p class="muted">No recorded sessions yet. Send a chat completion to populate this panel.</p>';
   }
-  const rows = recent.map((entry) => {
-    const prompt = entry.promptSummary ? escapeHtml(entry.promptSummary) : '<span class="muted">(no summary)</span>';
-    const time = new Date(entry.timestamp).toLocaleTimeString();
-    const safeId = escapeHtml(entry.id);
-    return `<li class="shared-session-row" data-id="${safeId}">
+  const rows = recent
+    .map((entry) => {
+      const prompt = entry.promptSummary ? escapeHtml(entry.promptSummary) : '<span class="muted">(no summary)</span>';
+      const time = new Date(entry.timestamp).toLocaleTimeString();
+      const safeId = escapeHtml(entry.id);
+      return `<li class="shared-session-row" data-id="${safeId}">
       <div class="shared-session-meta">
         <span class="shared-session-time">${escapeHtml(time)}</span>
         <span class="shared-session-provider">${escapeHtml(entry.providerLabel)}</span>
@@ -2532,6 +2562,7 @@ export function renderSharedSessionList(snapshot: TelemetrySnapshot): string {
       <div class="shared-session-prompt">${prompt}</div>
       <pre class="shared-session-replay" data-replay-out="${safeId}" hidden></pre>
     </li>`;
-  }).join('');
+    })
+    .join('');
   return `<ul class="shared-session-list">${rows}</ul>`;
 }

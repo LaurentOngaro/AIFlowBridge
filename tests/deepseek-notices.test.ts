@@ -22,7 +22,7 @@ vi.mock('vscode', () => {
 
 // Mock i18n
 vi.mock('../src/i18n', () => ({
-  t: (_key: string,...args: unknown[]) => args.length > 0 ? args.join(' ') : _key,
+  t: (_key: string, ...args: unknown[]) => (args.length > 0 ? args.join(' ') : _key),
 }));
 
 // Mock consts
@@ -55,18 +55,14 @@ describe('notices.ts - filterProviderNotices', () => {
   });
 
   it('should pass through non-assistant messages unchanged', () => {
-    const messages = [
-      { role: 2, content: [new vscode.LanguageModelTextPart('Hello')] },
-    ] as unknown as vscode.LanguageModelChatRequestMessage[];
+    const messages = [{ role: 2, content: [new vscode.LanguageModelTextPart('Hello')] }] as unknown as vscode.LanguageModelChatRequestMessage[];
 
     const result = filterProviderNotices(messages);
     expect(result).toBe(messages); // same reference = no change
   });
 
   it('should pass through assistant messages without notices', () => {
-    const messages = [
-      { role: 1, content: [new vscode.LanguageModelTextPart('Hello there')] },
-    ] as unknown as vscode.LanguageModelChatRequestMessage[];
+    const messages = [{ role: 1, content: [new vscode.LanguageModelTextPart('Hello there')] }] as unknown as vscode.LanguageModelChatRequestMessage[];
 
     const result = filterProviderNotices(messages);
     expect(result).toBe(messages); // same reference = no change
@@ -77,16 +73,14 @@ describe('notices.ts - filterProviderNotices', () => {
     const messages = [
       {
         role: 1,
-        content: [
-          new vscode.LanguageModelTextPart(`Hello\n\n${noticeContent}\n\nGoodbye`),
-        ],
+        content: [new vscode.LanguageModelTextPart(`Hello\n\n${noticeContent}\n\nGoodbye`)],
       },
     ] as unknown as vscode.LanguageModelChatRequestMessage[];
 
     const result = filterProviderNotices(messages);
     expect(result).not.toBe(messages); // different reference = changed
     // The notice should be stripped, leaving "Hello" and "Goodbye"
-    const textParts = (result[0].content as vscode.LanguageModelTextPart[]);
+    const textParts = result[0].content as vscode.LanguageModelTextPart[];
     const combinedText = textParts.map((p: any) => p.value).join('');
     expect(combinedText).not.toContain('[deepseek-copilot-tool-drift-notice-start]');
     expect(combinedText).not.toContain('[deepseek-copilot-tool-drift-notice-end]');
@@ -106,9 +100,7 @@ describe('notices.ts - filterProviderNotices', () => {
   });
 
   it('should handle messages with no text parts', () => {
-    const messages = [
-      { role: 1, content: [] },
-    ] as unknown as vscode.LanguageModelChatRequestMessage[];
+    const messages = [{ role: 1, content: [] }] as unknown as vscode.LanguageModelChatRequestMessage[];
 
     const result = filterProviderNotices(messages);
     expect(result).toBe(messages);

@@ -23,17 +23,11 @@
  *   from disk when no summaries are present.
  */
 
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import { request as httpRequest } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GatewayService, buildReplayResponse } from '../src/aiflowbridge/gateway/server';
-import { TelemetryStore, emptyTelemetrySnapshot } from '../src/aiflowbridge/telemetry';
-import {
-  buildPromptSummary,
-  buildResponseSummary,
-  extractAssistantText,
-  sanitizeSummaryText,
-} from '../src/aiflowbridge/telemetry/summary';
+import { TelemetryStore } from '../src/aiflowbridge/telemetry';
+import { buildPromptSummary, buildResponseSummary, extractAssistantText, sanitizeSummaryText } from '../src/aiflowbridge/telemetry/summary';
 import type { AiFlowBridgeConfig, ProviderProfile, RequestTelemetry } from '../src/aiflowbridge/types';
 
 vi.mock('vscode', () => {
@@ -90,11 +84,15 @@ function makeConfig(overrides: Partial<AiFlowBridgeConfig> = {}): AiFlowBridgeCo
       port: 0,
       baseUrl: 'http://127.0.0.1:0',
       defaultModel: '',
+      probeTimeoutMs: 0,
+      maxConcurrentRequests: 0,
     },
     providers: [makeProvider()],
     telemetryEnabled: true,
     logRequests: false,
     captureSessionLog: true,
+    telemetryMaxStoredRequestBytes: 1024,
+    telemetryRetentionDays: 30,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
     ...overrides,
   };
@@ -122,8 +120,8 @@ describe('sanitizeSummaryText', () => {
   it('returns empty string for null / undefined / non-string input', () => {
     expect(sanitizeSummaryText(null)).toBe('');
     expect(sanitizeSummaryText(undefined)).toBe('');
-    expect(sanitizeSummaryText(42)).toBe('');
-    expect(sanitizeSummaryText({})).toBe('');
+    expect(sanitizeSummaryText('42')).toBe('');
+    expect(sanitizeSummaryText({} as unknown as string)).toBe('');
   });
 
   it('redacts Bearer tokens', () => {
@@ -184,7 +182,7 @@ describe('buildPromptSummary', () => {
     // Word-separated long text so the long-blob sanitizer does not
     // replace it wholesale (the sanitizer targets token-like runs
     // of 60+ chars without whitespace).
-    const longText = ('lorem ipsum dolor sit amet '.repeat(50)).trim();
+    const longText = 'lorem ipsum dolor sit amet '.repeat(50).trim();
     const out = buildPromptSummary({ messages: [{ role: 'user', content: longText }] }, { maxChars: 100 });
     expect(out.length).toBeLessThanOrEqual(100);
     expect(out.endsWith('...')).toBe(true);
@@ -222,11 +220,7 @@ describe('buildResponseSummary', () => {
   });
 
   it('skips malformed JSON chunks without throwing', () => {
-    const sse = [
-      'data: {"choices":[{"delta":{"content":"OK"}}]}',
-      'data: not-json',
-      'data: {"choices":[{"delta":{"content":" again"}}]}',
-    ].join('\n');
+    const sse = ['data: {"choices":[{"delta":{"content":"OK"}}]}', 'data: not-json', 'data: {"choices":[{"delta":{"content":" again"}}]}'].join('\n');
     expect(buildResponseSummary(sse)).toBe('OK again');
   });
 
@@ -234,7 +228,7 @@ describe('buildResponseSummary', () => {
     // Use a long text with spaces so the long-blob sanitizer does
     // NOT replace it wholesale (the sanitizer targets token-like
     // runs of 60+ chars without whitespace).
-    const longText = ('word '.repeat(500)).trim();
+    const longText = 'word '.repeat(500).trim();
     const body = JSON.stringify({ choices: [{ message: { content: longText } }] });
     const out = buildResponseSummary(body, { maxChars: 200 });
     expect(out.length).toBeLessThanOrEqual(200);
@@ -346,6 +340,16 @@ describe('GatewayService - shared session integration', () => {
     await service.stop();
   });
 
+  // `TelemetryStore` is private on `GatewayService`. This thin
+  // accessor is the standard test-side escape hatch (see
+  // `tests/gateway-aud02-aud03.test.ts`). It returns the underlying
+  // store so the suite can drive `record()`, `listSessions()`, and
+  // `getEntry()` without exposing the field publicly on the
+  // production class.
+  function telemetryStore(s: GatewayService): TelemetryStore {
+    return (s as unknown as { telemetry: TelemetryStore }).telemetry;
+  }
+
   it('returns an empty list from GET /v1/sessions when nothing has been recorded', async () => {
     const res = await getJson(service, 'GET', '/v1/sessions');
     expect(res.status).toBe(200);
@@ -354,9 +358,9 @@ describe('GatewayService - shared session integration', () => {
   });
 
   it('clamps the session list limit and returns entries in reverse chronological order', async () => {
-    service.telemetry.record(makeEntry({ id: 'a', timestamp: '2026-01-01T00:00:00.000Z' }));
-    service.telemetry.record(makeEntry({ id: 'b', timestamp: '2026-01-02T00:00:00.000Z' }));
-    service.telemetry.record(makeEntry({ id: 'c', timestamp: '2026-01-03T00:00:00.000Z' }));
+    telemetryStore(service).record(makeEntry({ id: 'a', timestamp: '2026-01-01T00:00:00.000Z' }));
+    telemetryStore(service).record(makeEntry({ id: 'b', timestamp: '2026-01-02T00:00:00.000Z' }));
+    telemetryStore(service).record(makeEntry({ id: 'c', timestamp: '2026-01-03T00:00:00.000Z' }));
     const res = await getJson(service, 'GET', '/v1/sessions?limit=2');
     expect(res.status).toBe(200);
     expect(res.body.sessions.map((entry: { id: string }) => entry.id)).toEqual(['c', 'b']);
@@ -369,12 +373,14 @@ describe('GatewayService - shared session integration', () => {
   });
 
   it('returns the replay payload from GET /v1/replay/{id} for a known entry', async () => {
-    service.telemetry.record(makeEntry({
-      id: 'known-id',
-      promptSummary: 'hello',
-      responseSummary: 'world',
-      timestamp: '2026-01-01T00:00:00.000Z',
-    }));
+    telemetryStore(service).record(
+      makeEntry({
+        id: 'known-id',
+        promptSummary: 'hello',
+        responseSummary: 'world',
+        timestamp: '2026-01-01T00:00:00.000Z',
+      })
+    );
     const res = await getJson(service, 'GET', '/v1/replay/known-id');
     expect(res.status).toBe(200);
     expect(res.body.id).toBe('known-id');
@@ -392,7 +398,7 @@ describe('GatewayService - shared session integration', () => {
     // Capture a few events by opening the SSE connection, recording
     // a new entry, and reading the resulting stream.
     const events = await captureSseEvents(service, 1, async () => {
-      service.telemetry.record(makeEntry({ id: 'live-id', promptSummary: 'live prompt' }));
+      telemetryStore(service).record(makeEntry({ id: 'live-id', promptSummary: 'live prompt' }));
     });
     // The opening 'ready' frame is always present; one or more
     // `request.recorded` events follow.
@@ -414,7 +420,7 @@ interface SseEvent {
 
 function captureSseEvents(service: GatewayService, _count: number, action: () => Promise<void> | void): Promise<SseEvent[]> {
   return new Promise((resolve) => {
-    const port = service.status().port;
+    const port = (service as any).status().port;
     const req = httpRequest(
       {
         host: '127.0.0.1',
@@ -458,7 +464,7 @@ function captureSseEvents(service: GatewayService, _count: number, action: () =>
             setTimeout(finish, 300);
           });
         }, 50);
-      },
+      }
     );
     req.on('error', () => {
       resolve([]);
@@ -488,24 +494,21 @@ function parseSseFrame(frame: string): SseEvent | undefined {
 
 function getJson(service: GatewayService, method: string, path: string): Promise<{ status: number; body: any }> {
   return new Promise((resolve, reject) => {
-    const req = httpRequest(
-      { host: '127.0.0.1', port: service.status().port, path, method },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => {
-          const raw = Buffer.concat(chunks).toString('utf8');
-          let body: any = raw;
-          try {
-            body = raw ? JSON.parse(raw) : null;
-          } catch {
-            // leave as raw
-          }
-          resolve({ status: res.statusCode ?? 0, body });
-        });
-        res.on('error', reject);
-      },
-    );
+    const req = httpRequest({ host: '127.0.0.1', port: (service as any).status().port, path, method }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let body: any = raw;
+        try {
+          body = raw ? JSON.parse(raw) : null;
+        } catch {
+          // leave as raw
+        }
+        resolve({ status: res.statusCode ?? 0, body });
+      });
+      res.on('error', reject);
+    });
     req.on('error', reject);
     req.end();
   });

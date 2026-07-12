@@ -53,6 +53,8 @@ function baseConfig(): AiFlowBridgeConfig {
     telemetryEnabled: true,
     logRequests: true,
     captureSessionLog: false,
+    telemetryMaxStoredRequestBytes: 8192,
+    telemetryRetentionDays: 90,
     visionProxy: { excludedVendors: ['aiflowbridge'], copilotVisionModel: 'oswe-vscode-prime' },
   };
 }
@@ -202,30 +204,99 @@ describe('buildDashboardHtml', () => {
     expect(html).toContain('window.setTimeout');
   });
 
-  it('renders the AFF08 preset combobox + provider filter on both panels', () => {
-    // AFF08: the AFF08 preset row replaced the 5-button row with a
-    // 9-option <select> on each panel (plus a provider <select> on
-    // the recent panel). The new markup uses <select> with the same
-    // value vocabulary (all, 15m, 30m, 1h, 24h, 2d, 3d, 7d, 30d)
-    // and the same id conventions ("recent-preset", "model-preset",
-    // "recent-provider") so the existing JS sync logic still wires
-    // the two panels together.
+  it('renders preset combobox + provider filter in a single dedicated Filters panel', () => {
+    // After the Filters refactor all filter controls (time preset,
+    // provider, From/To dates, text search, session inactivity gap)
+    // live in a single `Filters` panel at the top of the dashboard,
+    // between the hero (Current version line) and the totals grid.
+    // The two legacy panel-local filter containers ("recent-filters"
+    // and "model-filters") are gone.
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('id="recent-preset"');
-    expect(html).toContain('id="model-preset"');
+    expect(html).not.toContain('id="model-preset"');
     expect(html).toContain('id="recent-provider"');
-    expect(html).toContain('id="recent-filters"');
-    expect(html).toContain('id="model-filters"');
-    // All 9 preset options must appear in both panel selects (the
-    // recent panel ALSO ships the provider select). The markup is
-    // duplicated for the two preset selects; we count them with a
-    // regex match.
+    expect(html).toContain('id="dashboard-filters"');
+    expect(html).not.toContain('id="recent-filters"');
+    expect(html).not.toContain('id="model-filters"');
+    // Exactly ONE preset select ships in the markup (in the Filters
+    // panel). The historical second select on the By model panel was
+    // a visual mirror only - the canonical source is #recent-preset,
+    // which is read by currentFilters().
     const presetValues = ['all', '15m', '30m', '1h', '24h', '2d', '3d', '7d', '30d'];
     for (const value of presetValues) {
       const optionPattern = new RegExp(`<option value="${value}"`, 'g');
       const matches = html.match(optionPattern) ?? [];
-      // Two panels -> two selects -> two occurrences per value.
-      expect(matches.length).toBe(2);
+      // One Filters panel -> one preset select -> one occurrence per value.
+      expect(matches.length).toBe(1);
+    }
+  });
+
+  it('places the Filters panel between the Current version line and the totals grid', () => {
+    // The user asked for the filters to move to a dedicated section
+    // at the top of the dashboard, between the hero (Current version)
+    // and the global-value blocks (the totals cards). The DOM order
+    // is enforced by indexOf on the rendered HTML.
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const idxFiltersPanel = html.indexOf('id="panel-filters"');
+    const idxTotalsGrid = html.indexOf('id="totals"');
+    const idxCurrentVersion = html.indexOf('Current version:');
+    expect(idxFiltersPanel).toBeGreaterThan(-1);
+    expect(idxTotalsGrid).toBeGreaterThan(idxFiltersPanel);
+    expect(idxFiltersPanel).toBeGreaterThan(idxCurrentVersion);
+  });
+
+  it('renders the Gateway panel ABOVE the Filters panel', () => {
+    // The Gateway panel carries the running state and the loopback
+    // URL - that context is more useful above the filters (the user
+    // open the dashboard to know "is the gateway up?" first, then
+    // decide which slice of data to look at).
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const idxGateway = html.indexOf('id="panel-gateway"');
+    const idxFilters = html.indexOf('id="panel-filters"');
+    expect(idxGateway).toBeGreaterThan(-1);
+    expect(idxFilters).toBeGreaterThan(idxGateway);
+  });
+
+  it('renders a "Clear filters" button inside the Filters panel', () => {
+    // RAZ action: clicking resets every filter input to its default
+    // (time = All, provider = All providers, dates = empty, search =
+    // empty, inactivity gap = 30 min) and re-runs applyFilters.
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const idxFiltersStart = html.indexOf('<div class="panel" id="panel-filters">');
+    const idxTotalsGrid = html.indexOf('id="totals"');
+    const idxClear = html.indexOf('id="clear-filters-btn"');
+    expect(idxClear).toBeGreaterThan(idxFiltersStart);
+    expect(idxClear).toBeLessThan(idxTotalsGrid);
+    expect(html).toMatch(/id="clear-filters-btn"[^>]*title="[^"]*reset/i);
+  });
+
+  it('wires the Clear filters button to a click handler that calls applyFilters', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(script).toContain('clear-filters-btn');
+    // The handler must reset every filter input back to its default
+    // (preset=All, provider empty, dates empty, search empty, gap=30).
+    expect(script).toContain('presetSel.value = "all"');
+    expect(script).toContain('providerSel.value = ""');
+    expect(script).toContain('fromIn.value = ""');
+    expect(script).toContain('toIn.value = ""');
+    expect(script).toContain('searchIn.value = ""');
+    expect(script).toContain('gapSel.value = "30"');
+    expect(script).toMatch(/clear-filters-btn[\s\S]{0,200}addEventListener\(\s*"click"/);
+  });
+
+  it('groups all filter controls inside the Filters panel-body', () => {
+    // All filter inputs (preset, provider, from, to, search, session-gap)
+    // must appear AFTER the panel-filters marker and BEFORE the totals
+    // grid - never inside the Recent / Sessions / By model panel bodies.
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const idxFiltersStart = html.indexOf('<div class="panel" id="panel-filters">');
+    const idxTotalsGrid = html.indexOf('id="totals"');
+    const filterIds = ['id="recent-preset"', 'id="recent-provider"', 'id="recent-from"', 'id="recent-to"', 'id="recent-search"', 'id="session-gap"'];
+    for (const id of filterIds) {
+      const idx = html.indexOf(id);
+      expect(idx).toBeGreaterThan(idxFiltersStart);
+      expect(idx).toBeLessThan(idxTotalsGrid);
     }
   });
 
@@ -411,6 +482,7 @@ describe('buildDashboardHtml', () => {
   it('renders a collapsible header for every panel section', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const expectedTargets = [
+      'data-collapse-target="panel-filters"',
       'data-collapse-target="panel-gateway"',
       'data-collapse-target="panel-recent"',
       'data-collapse-target="panel-model"',
@@ -431,10 +503,10 @@ describe('buildDashboardHtml', () => {
   it('wraps each panel body in a.panel-body div so the collapse rule can hide it', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const bodies = html.match(/<div class="panel-body">/g) ?? [];
-// Gateway / Recent / Sessions / By model / By client / By source /
-// Provider summary / Shared session = 8 (was 7; "Shared session"
-// panel added by action plan item #3).
-expect(bodies.length).toBe(8);
+// Filters / Gateway / Recent / Sessions / By model / By client / By source /
+// Provider summary / Shared session = 9 (was 8; "Filters" panel added to
+// host all dashboard-wide filter controls at the top of the page).
+expect(bodies.length).toBe(9);
   });
 
   it('contains the collapse toggle JS handler that reads / writes localStorage', () => {
@@ -821,8 +893,8 @@ describe(' plan-compliance: filter pipeline', () => {
     expect(script).toMatch(/toEl\.value = ""/);
   });
 
-  it('entering a custom date calls deactivateAllPresets (AFF08 combobox variant)', () => {
-    // AFF08: with the new <select>-based preset row, the
+  it('entering a custom date calls deactivateAllPresets', () => {
+    // with the new <select>-based preset row, the
     // "deactivate on custom date" helper became `deactivateAllPresets`
     // (sets both preset `<select>`s back to `all`). The mirror
     // helper is `syncPresetSelects` (propagates the chosen value
@@ -950,7 +1022,7 @@ describe(' plan-compliance: filter pipeline', () => {
   // buttons that visually activated on click but did nothing else
   // (currentFilters() only read the Recent panel's active button).
   it('clicking a By model preset synchronizes the Recent panel and applies the filter', () => {
-    // AFF08: the combobox variant uses `syncPresetSelects` to mirror
+    // the combobox variant uses `syncPresetSelects` to mirror
     // the value across both preset `<select>`s, and the change
     // handlers pass the new value through to `applyFilters`.
     const script = extractScript(buildDashboardHtml(baseConfig(), snapshotWithData(), true));
@@ -1123,7 +1195,7 @@ describe('buildDashboardHtml - telemetry truncation detection', () => {
   });
 });
 
-describe('AFF05: column sorting', () => {
+describe('column sorting', () => {
   it('renders data-sort-key attributes on all three tables', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     // Recent table: 8 sortable columns (excluding optional action column)
@@ -1408,9 +1480,9 @@ describe('per-client IDE telemetry (ACTION PLAN item #1)', () => {
 });
 
 // ============================================================================
-// AFF08: preset combobox + provider filter + extended preset list
+// preset combobox + provider filter + extended preset list
 // ============================================================================
-describe('AFF08 - preset combobox and provider filter', () => {
+describe('preset combobox and provider filter', () => {
   it('exports the 9 preset values via PRESET_OPTIONS', async () => {
     // The new presets (15mn, 30mn, 2d, 3d) sit alongside the
     // historical 1h / 24h / 7d / 30d. Ordering is the visual order
@@ -1440,14 +1512,14 @@ describe('AFF08 - preset combobox and provider filter', () => {
     expect(html).toMatch(/<option value="" selected>All providers<\/option>/);
   });
 
-  it('wire: change handlers on the preset selects call applyFilters', () => {
+  it('wire: change handlers on the preset select call applyFilters', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const script = extractScript(html);
     expect(script).toContain('bindPresetSelect');
     expect(script).toContain('bindProviderSelect');
     expect(script).toContain('refreshProviderOptions');
-    // The change handler must re-trigger applyFilters (via the
-    // range override so the model panel also receives the new range).
+    // The change handler must re-trigger applyFilters (the range
+    // argument is kept as a hook for future shortcut bindings).
     expect(script).toMatch(/onChange\(range\)/);
     // The provider select change handler also triggers a re-filter.
     expect(script).toContain('applyFilters');
@@ -1472,7 +1544,7 @@ describe('AFF08 - preset combobox and provider filter', () => {
     expect(script).toMatch(/filterByProvider[\s\S]*?entry\.providerId/);
   });
 
-  // AFF06: session grouping panel
+  // session grouping panel
   it('renders the sessions panel with collapse button', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('id="panel-sessions"');

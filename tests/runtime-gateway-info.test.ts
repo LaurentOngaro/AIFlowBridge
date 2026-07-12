@@ -1,8 +1,7 @@
 /**
  * Regression tests for `AIFlowBridgeRuntime.gatewayInfo`.
  *
- * BUG-03 audit 2026-07-11: `gatewayInfo` used to access
- * `this.gateway.running` and `this.config.gateway.port`
+ * `gatewayInfo` used to access `this.gateway.running` and `this.config.gateway.port`
  * unconditionally, which crashed the standalone CLI with
  * `Cannot read properties of undefined (reading 'running')`
  * when the getter was read before `activate()` had resolved
@@ -164,7 +163,7 @@ afterEach(() => {
   setLoadedRegistry(undefined);
 });
 
-describe('AIFlowBridgeRuntime.gatewayInfo - pre-activation guard (BUG-03)', () => {
+describe('AIFlowBridgeRuntime.gatewayInfo - pre-activation guard', () => {
   it('returns a stable "all disabled" stub right after construction (before activate)', () => {
     // The previous implementation crashed with
     // `Cannot read properties of undefined (reading 'running')`

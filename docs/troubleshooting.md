@@ -33,7 +33,7 @@ The API key is missing, invalid, or for the wrong endpoint. Check:
 
 ## `404 No gateway provider matches model "..."` from the gateway
 
-Since 1.2.0, the gateway no longer silently routes a request for an unknown model to the first enabled provider (which used to label DeepSeek as "mimo-v2.5" in the dashboard, BUG05). If you see a 404, the model name is not registered in `aiflowbridge.providers` or `aiflowbridge.userModels`. Either:
+Since 1.2.0, the gateway no longer silently routes a request for an unknown model to the first enabled provider (which used to label DeepSeek as "mimo-v2.5" in the dashboard). If you see a 404, the model name is not registered in `aiflowbridge.providers` or `aiflowbridge.userModels`. Either:
 
 - Add it via `AIFlowBridge: Add a custom model`
 - Configure a provider in `aiflowbridge.providers` with a matching `id` or `model`

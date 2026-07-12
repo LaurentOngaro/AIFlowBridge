@@ -273,7 +273,7 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // development where one process is the only client; the cap is
     // mainly a protection against misbehaving test scripts.
     maxConcurrentRequests: configuration.get<number>('gateway.maxConcurrentRequests', 20),
-    // BUG17 fix: cap parallel in-flight requests per upstream
+    // cap parallel in-flight requests per upstream
     // provider. 3 agents in parallel against MiniMax-M3 used to send
     // 3 parallel thinking-mode requests + 3 parallel pre-count
     // POSTs against the same API key, which MiniMax throttled to
@@ -281,17 +281,17 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // request behind the first three instead of opening more
     // upstream sockets. Set to 0 to disable (no cap).
     maxConcurrentPerProvider: configuration.get<number>('gateway.maxConcurrentPerProvider', 3),
-    // BUG17 fix: idle-stream watchdog. Aborts the upstream `fetch`
+    // idle-stream watchdog. Aborts the upstream `fetch`
     // when no bytes arrive for this many ms. Caps the "agent in
     // standby for minutes" symptom when MiniMax silently queues a
     // thinking-mode request without sending bytes. Set to 0 to
     // disable.
     upstreamIdleTimeoutMs: configuration.get<number>('gateway.upstreamIdleTimeoutMs', 90_000),
-    // BUG17 fix: total-stream ceiling. Hard upper bound on the
+    // total-stream ceiling. Hard upper bound on the
     // upstream call duration even when bytes keep flowing. Bounded
     // safety net for the idle watchdog. Set to 0 to disable.
     streamTotalTimeoutMs: configuration.get<number>('gateway.streamTotalTimeoutMs', 300_000),
-    // BUG17 fix: gate the parallel `fetchMinimaxPromptTokens`
+    // gate the parallel `fetchMinimaxPromptTokens`
     // pre-count on streaming requests. The MiniMax stream endpoint
     // emits usage on the final chunk; the parallel pre-count
     // doubles upstream load precisely when thinking-mode bursts
@@ -316,8 +316,19 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
       root: configuration.get<string>('gateway.workspaceContext.root', ''),
       maxDepth: configuration.get<number>('gateway.workspaceContext.maxDepth', 2),
       ignoredDirs: configuration.get<string[]>('gateway.workspaceContext.ignoredDirs', [
-        'node_modules', 'target', 'build', 'dist', '.git', '.idea', '.vscode',
-        '__pycache__', '.gradle', 'venv', '.venv', '.next', '.turbo',
+        'node_modules',
+        'target',
+        'build',
+        'dist',
+        '.git',
+        '.idea',
+        '.vscode',
+        '__pycache__',
+        '.gradle',
+        'venv',
+        '.venv',
+        '.next',
+        '.turbo',
       ]),
     },
     // Action plan item #5: language-based routing rules. Optional
@@ -329,6 +340,23 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // defaultModel)` unchanged). Stored as a flat string map so
     // the VS Code settings schema stays simple.
     languageRouting: configuration.get<Record<string, string>>('gateway.languageRouting', {}),
+    // header-driven language routing. Default `true` for
+    // backward compatibility with existing loopback clients that
+    // send the explicit header. Set to `false` on shared /
+    // hardened machines where peers must not be allowed to pin the
+    // routing decision.
+    allowLanguageHeaderOverride: configuration.get<boolean>('gateway.allowLanguageHeaderOverride', true),
+    // SSE event-stream guardrails. `maxConnections`
+    // caps simultaneous subscribers, `maxLifetimeMs` caps the
+    // per-connection wall-clock, and `includeSummariesInEvents`
+    // keeps `promptSummary` / `responseSummary` out of the
+    // default event payload (the replay endpoint remains the
+    // explicit way to fetch them).
+    events: {
+      maxConnections: configuration.get<number>('gateway.events.maxConnections', DEFAULT_EVENTS_MAX_CONNECTIONS),
+      maxLifetimeMs: configuration.get<number>('gateway.events.maxLifetimeMs', DEFAULT_EVENTS_MAX_LIFETIME_MS),
+      includeSummariesInEvents: configuration.get<boolean>('gateway.events.includeSummariesInEvents', false),
+    },
     // Action plan item #4: zero-conf discovery. Default off so the
     // standalone CLI does not emit UDP packets on shared machines
     // unless explicitly opted in. The HTTP `/v1/discovery`
@@ -424,6 +452,16 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // panel + replay + SSE work out of the box. Opt-out is a single
     // setting (`aiflowbridge.telemetry.captureSessionLog = false`).
     captureSessionLog: configuration.get<boolean>('telemetry.captureSessionLog', true),
+    // bounded on-disk footprint for the session-log feature.
+    // `0` disables the cap / retention entirely so a hardened
+    // environment can opt out without changing defaults.
+    telemetryMaxStoredRequestBytes: configuration.get<number>('telemetry.maxStoredRequestBytes', DEFAULT_TELEMETRY_MAX_STORED_BYTES),
+    telemetryRetentionDays: configuration.get<number>('telemetry.retentionDays', DEFAULT_TELEMETRY_RETENTION_DAYS),
     visionProxy,
   };
 }
+
+const DEFAULT_TELEMETRY_MAX_STORED_BYTES = 8192;
+const DEFAULT_TELEMETRY_RETENTION_DAYS = 90;
+const DEFAULT_EVENTS_MAX_CONNECTIONS = 16;
+const DEFAULT_EVENTS_MAX_LIFETIME_MS = 30 * 60 * 1000;

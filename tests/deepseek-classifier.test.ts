@@ -24,12 +24,7 @@ vi.mock('vscode', () => {
 });
 
 import vscode from 'vscode';
-import {
-  formatModelFields,
-  formatRequestLogLine,
-  classifyProviderRequest,
-  classifyDeepSeekRequest,
-} from '../src/provider/debug/classifier';
+import { formatModelFields, formatRequestLogLine, classifyProviderRequest, classifyDeepSeekRequest } from '../src/provider/debug/classifier';
 
 function msg(text: string, role: number = 2, name: string = 'test') {
   return {
@@ -45,15 +40,11 @@ describe('classifier.ts - formatModelFields', () => {
   });
 
   it('should include apiModel when different from vscodeModelId', () => {
-    expect(formatModelFields('deepseek-v4-pro', 'DeepSeek-V4-Pro')).toBe(
-      'model=deepseek-v4-pro apiModel=DeepSeek-V4-Pro',
-    );
+    expect(formatModelFields('deepseek-v4-pro', 'DeepSeek-V4-Pro')).toBe('model=deepseek-v4-pro apiModel=DeepSeek-V4-Pro');
   });
 
   it('should omit apiModel when same as vscodeModelId', () => {
-    expect(formatModelFields('deepseek-v4-pro', 'deepseek-v4-pro')).toBe(
-      'model=deepseek-v4-pro',
-    );
+    expect(formatModelFields('deepseek-v4-pro', 'deepseek-v4-pro')).toBe('model=deepseek-v4-pro');
   });
 });
 

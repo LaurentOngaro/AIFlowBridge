@@ -3,9 +3,9 @@
  * Tests tool call handling, reasoning replay, vision messages, and helper functions.
  */
 
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // --- VSCode mock ---
 const { mockWorkspaceConfig } = vi.hoisted(() => {
@@ -33,19 +33,28 @@ vi.mock('vscode', () => {
         constructor(public value: string) {}
       },
       LanguageModelDataPart: class MockLanguageModelDataPart {
-        constructor(public mimeType: string, public data: Uint8Array) {}
+        // Real VS Code API: constructor(data: Uint8Array, mimeType: string).
+        // The mock must match the production call site
+        // (`new vscode.LanguageModelDataPart(imageData, mimeType)`),
+        // otherwise instance checks in src/provider/xiaomi.ts see the
+        // swapped fields and the `mimeType.startsWith('image/')` branch
+        // crashes with "startsWith is not a function".
+        constructor(
+          public data: Uint8Array,
+          public mimeType: string
+        ) {}
       },
       LanguageModelToolCallPart: class MockLanguageModelToolCallPart {
         constructor(
           public callId: string,
           public name: string,
-          public input: Record<string, unknown>,
+          public input: Record<string, unknown>
         ) {}
       },
       LanguageModelToolResultPart: class MockLanguageModelToolResultPart {
         constructor(
           public callId: string,
-          public content: unknown[],
+          public content: unknown[]
         ) {}
       },
     },
@@ -59,52 +68,48 @@ vi.stubGlobal('fetch', mockFetch);
 // Import after mocking
 import vscode from 'vscode';
 import {
-  resolveXiaomiModelId,
-  parseToolArguments,
   accumulateToolCalls,
-  isToolCallFinish,
-  convertXiaomiTools,
-  convertXiaomiMessages,
   concatToolResultContent,
-  safeJson,
+  convertXiaomiMessages,
+  convertXiaomiTools,
   findReasoningForToolCalls,
+  isToolCallFinish,
+  parseToolArguments,
   pruneReasoningCache,
+  resolveXiaomiModelId,
+  safeJson,
 } from '../src/provider/xiaomi';
 
-import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../src/consts';
 import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
-import {
-	validateRegistryStructure,
-	validateRegistryContent,
-	type ModelRegistry,
-} from '../src/aiflowbridge/modelRegistry.schema';
+import { validateRegistryContent, validateRegistryStructure, type ModelRegistry } from '../src/aiflowbridge/modelRegistry.schema';
+import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../src/consts';
 
 const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json');
 
 let bundledRegistry: ModelRegistry;
 
 beforeAll(() => {
-	const raw = JSON.parse(readFileSync(BUNDLED_REGISTRY_PATH, 'utf8'));
-	validateRegistryStructure(raw);
-	const content = validateRegistryContent(raw);
-	bundledRegistry = {
-		version: 1,
-		vendors: content.vendors,
-		models: content.models,
-		sources: {
-			bundled: { exists: true, path: BUNDLED_REGISTRY_PATH },
-			globalStorage: { exists: false, path: '' },
-			workspace: { exists: false, path: '' },
-		},
-	};
-	setLoadedRegistry(bundledRegistry);
+  const raw = JSON.parse(readFileSync(BUNDLED_REGISTRY_PATH, 'utf8'));
+  validateRegistryStructure(raw);
+  const content = validateRegistryContent(raw, 'strict');
+  bundledRegistry = {
+    version: 1,
+    vendors: content.vendors,
+    models: content.models,
+    sources: {
+      bundled: { exists: true, path: BUNDLED_REGISTRY_PATH },
+      globalStorage: { exists: false, path: '' },
+      workspace: { exists: false, path: '' },
+    },
+  };
+  setLoadedRegistry(bundledRegistry);
 });
 
 // Helper functions to create mock messages
 function createUserMessage(content: string, imageData?: Uint8Array, mimeType = 'image/png') {
   const parts: vscode.LanguageModelTextPart[] = [new vscode.LanguageModelTextPart(content)];
   if (imageData) {
-    parts.push(new vscode.LanguageModelDataPart(mimeType, imageData) as unknown as vscode.LanguageModelTextPart);
+    parts.push(new vscode.LanguageModelDataPart(imageData, mimeType) as unknown as vscode.LanguageModelTextPart);
   }
   return { role: 2 as const, content: parts };
 }
@@ -112,7 +117,7 @@ function createUserMessage(content: string, imageData?: Uint8Array, mimeType = '
 function createAssistantMessage(
   content: string,
   toolCalls?: { callId: string; name: string; input: Record<string, unknown> }[],
-  reasoningContent?: string,
+  reasoningContent?: string
 ) {
   const parts: vscode.LanguageModelTextPart[] = [];
   if (content) {
@@ -195,7 +200,7 @@ describe('xiaomi.ts - accumulateToolCalls', () => {
         { index: 0, id: 'call_1', function: { name: 'get_weather', arguments: '{"city": ' } },
         { index: 1, id: 'call_2', function: { name: 'get_time', arguments: '{}' } },
       ],
-      pending,
+      pending
     );
 
     expect(pending.size).toBe(2);
@@ -270,10 +275,7 @@ describe('xiaomi.ts - convertXiaomiTools', () => {
 
 describe('xiaomi.ts - concatToolResultContent', () => {
   it('should concatenate text parts', () => {
-    const parts = [
-      new vscode.LanguageModelTextPart('The weather is '),
-      new vscode.LanguageModelTextPart('sunny.'),
-    ];
+    const parts = [new vscode.LanguageModelTextPart('The weather is '), new vscode.LanguageModelTextPart('sunny.')];
 
     const result = concatToolResultContent(parts as unknown as readonly unknown[]);
     expect(result).toBe('The weather is sunny.');
@@ -297,9 +299,7 @@ describe('xiaomi.ts - findReasoningForToolCalls', () => {
     const cache = new Map<string, { text: string; timestamp: number }>();
     cache.set('call_1', { text: 'Thinking about weather...', timestamp: Date.now() });
 
-    const toolCalls = [
-      { id: 'call_1', type: 'function' as const, function: { name: 'get_weather', arguments: '{}' } },
-    ];
+    const toolCalls = [{ id: 'call_1', type: 'function' as const, function: { name: 'get_weather', arguments: '{}' } }];
 
     const result = findReasoningForToolCalls(cache, toolCalls);
     expect(result).toBe('Thinking about weather...');
@@ -308,9 +308,7 @@ describe('xiaomi.ts - findReasoningForToolCalls', () => {
   it('should return undefined if no reasoning cached', () => {
     const cache = new Map<string, { text: string; timestamp: number }>();
 
-    const toolCalls = [
-      { id: 'call_1', type: 'function' as const, function: { name: 'get_weather', arguments: '{}' } },
-    ];
+    const toolCalls = [{ id: 'call_1', type: 'function' as const, function: { name: 'get_weather', arguments: '{}' } }];
 
     const result = findReasoningForToolCalls(cache, toolCalls);
     expect(result).toBeUndefined();
@@ -390,9 +388,7 @@ describe('xiaomi.ts - convertXiaomiMessages', () => {
   });
 
   it('should convert assistant message with reasoning_content', () => {
-    const messages = [
-      createAssistantMessage('Final answer', undefined, 'Reasoning process...'),
-    ];
+    const messages = [createAssistantMessage('Final answer', undefined, 'Reasoning process...')];
 
     const result = convertXiaomiMessages(messages as unknown as readonly vscode.LanguageModelChatRequestMessage[], options);
 

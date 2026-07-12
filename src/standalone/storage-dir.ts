@@ -59,9 +59,7 @@ export function resolveExtensionGlobalStorageDir(): string | undefined {
       // Linux and any other Unix-like. Respect XDG_CONFIG_HOME per the
       // XDG Base Directory spec - VS Code on Linux honors it.
       const xdgConfig = process.env.XDG_CONFIG_HOME;
-      base = xdgConfig
-        ? join(xdgConfig, 'Code', 'User', 'globalStorage')
-        : join(homedir(), '.config', 'Code', 'User', 'globalStorage');
+      base = xdgConfig ? join(xdgConfig, 'Code', 'User', 'globalStorage') : join(homedir(), '.config', 'Code', 'User', 'globalStorage');
       break;
     }
   }

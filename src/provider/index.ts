@@ -4,11 +4,7 @@ import { AuthManager } from '../auth';
 import { getStabilizeToolListEnabled } from '../config';
 import { API_KEY_SECRETS } from '../consts';
 import { t } from '../i18n';
-import {
-    classifyProviderRequest,
-    createCacheDiagnosticsRecorder,
-    dumpProviderInput,
-} from './debug';
+import { classifyProviderRequest, createCacheDiagnosticsRecorder, dumpProviderInput } from './debug';
 import { toChatInfo } from './models';
 import { prepareChatRequest } from './request';
 import { resolveConversationSegment } from './segment';
@@ -21,158 +17,159 @@ import { chooseVisionProxyModel, createVisionModelGetter } from './vision/index'
  * DeepSeek Chat Provider.
  */
 export class DeepSeekChatProvider implements vscode.LanguageModelChatProvider {
-	private readonly authManager: AuthManager;
-	private readonly globalStorageUri: vscode.Uri;
-	private readonly onDidChangeLanguageModelChatInformationEmitter = new vscode.EventEmitter<void>();
-	private isActive = true;
+  private readonly authManager: AuthManager;
+  private readonly globalStorageUri: vscode.Uri;
+  private readonly onDidChangeLanguageModelChatInformationEmitter = new vscode.EventEmitter<void>();
+  private isActive = true;
 
-	readonly onDidChangeLanguageModelChatInformation =
-		this.onDidChangeLanguageModelChatInformationEmitter.event;
+  readonly onDidChangeLanguageModelChatInformation = this.onDidChangeLanguageModelChatInformationEmitter.event;
 
-	private readonly cacheDiagnostics = createCacheDiagnosticsRecorder();
-	private readonly vision = createVisionModelGetter();
-	private charsPerToken = 4.0;
+  private readonly cacheDiagnostics = createCacheDiagnosticsRecorder();
+  private readonly vision = createVisionModelGetter();
+  private charsPerToken = 4.0;
 
-	constructor(context: vscode.ExtensionContext) {
-		this.authManager = new AuthManager(context);
-		this.globalStorageUri = context.globalStorageUri;
+  constructor(context: vscode.ExtensionContext) {
+    this.authManager = new AuthManager(context);
+    this.globalStorageUri = context.globalStorageUri;
 
-		context.subscriptions.push(
-			this.onDidChangeLanguageModelChatInformationEmitter,
-			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('aiflowbridge.providers.deepseek') || e.affectsConfiguration('aiflowbridge.userModels')) {
-					this.onDidChangeLanguageModelChatInformationEmitter.fire();
-				}
-				if (e.affectsConfiguration('aiflowbridge.vision')) {
-					this.vision.reset();
-				}
-			}),
-			context.secrets.onDidChange((e) => {
-				if (e.key === API_KEY_SECRETS.deepseek) {
-					this.onDidChangeLanguageModelChatInformationEmitter.fire();
-				}
-			}),
-		);
-	}
+    context.subscriptions.push(
+      this.onDidChangeLanguageModelChatInformationEmitter,
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('aiflowbridge.providers.deepseek') || e.affectsConfiguration('aiflowbridge.userModels')) {
+          this.onDidChangeLanguageModelChatInformationEmitter.fire();
+        }
+        if (e.affectsConfiguration('aiflowbridge.vision')) {
+          this.vision.reset();
+        }
+      }),
+      context.secrets.onDidChange((e) => {
+        if (e.key === API_KEY_SECRETS.deepseek) {
+          this.onDidChangeLanguageModelChatInformationEmitter.fire();
+        }
+      })
+    );
+  }
 
-	async configureApiKey(): Promise<void> {
-		const providerName = t('provider.deepseek.name');
-		const saved = await this.authManager.promptForApiKey(
-			'deepseek',
-			t('command.apiKeyPrompt', providerName),
-			t('command.apiKeyPlaceholder', providerName),
-		);
-		if (saved) {
-			this.onDidChangeLanguageModelChatInformationEmitter.fire();
-		}
-	}
+  async configureApiKey(): Promise<void> {
+    const providerName = t('provider.deepseek.name');
+    const saved = await this.authManager.promptForApiKey(
+      'deepseek',
+      t('command.apiKeyPrompt', providerName),
+      t('command.apiKeyPlaceholder', providerName)
+    );
+    if (saved) {
+      this.onDidChangeLanguageModelChatInformationEmitter.fire();
+    }
+  }
 
-	async clearApiKey(): Promise<void> {
-		await this.authManager.deleteApiKey('deepseek');
-		this.onDidChangeLanguageModelChatInformationEmitter.fire();
-		vscode.window.showInformationMessage(t('command.apiKeyRemoved', t('provider.deepseek.name')));
-	}
+  async clearApiKey(): Promise<void> {
+    await this.authManager.deleteApiKey('deepseek');
+    this.onDidChangeLanguageModelChatInformationEmitter.fire();
+    vscode.window.showInformationMessage(t('command.apiKeyRemoved', t('provider.deepseek.name')));
+  }
 
-	async hasApiKey(): Promise<boolean> {
-		return this.authManager.hasApiKey('deepseek');
-	}
+  async hasApiKey(): Promise<boolean> {
+    return this.authManager.hasApiKey('deepseek');
+  }
 
-	refreshModelPicker(): void {
-		this.onDidChangeLanguageModelChatInformationEmitter.fire();
-	}
+  refreshModelPicker(): void {
+    this.onDidChangeLanguageModelChatInformationEmitter.fire();
+  }
 
-	async prepareForDeactivate(): Promise<void> {
-		this.isActive = false;
-		this.onDidChangeLanguageModelChatInformationEmitter.fire();
-		// No need to call selectChatModels here - it's redundant during shutdown
-		// and causes a Canceled error when the extension host is already terminating.
-	}
+  async prepareForDeactivate(): Promise<void> {
+    this.isActive = false;
+    this.onDidChangeLanguageModelChatInformationEmitter.fire();
+    // No need to call selectChatModels here - it's redundant during shutdown
+    // and causes a Canceled error when the extension host is already terminating.
+  }
 
-	async chooseVisionProxyModel(): Promise<void> {
-		// Vision proxy is a global feature of the extension (one
-		// `aiflowbridge.vision.copilotVisionModel` setting, shared by
-		// every text-only model across all vendors). The picker is
-		// registered globally in the runtime, not as a per-provider
-		// method. This thin wrapper is kept so any leftover caller
-		// (or the future `aiflowbridge.setVisionModel` refactor) can
-		// still delegate to the global picker without duplicating
-		// the import chain in every provider file.
-		await chooseVisionProxyModel();
-	}
+  async chooseVisionProxyModel(): Promise<void> {
+    // Vision proxy is a global feature of the extension (one
+    // `aiflowbridge.vision.copilotVisionModel` setting, shared by
+    // every text-only model across all vendors). The picker is
+    // registered globally in the runtime, not as a per-provider
+    // method. This thin wrapper is kept so any leftover caller
+    // (or the future `aiflowbridge.setVisionModel` refactor) can
+    // still delegate to the global picker without duplicating
+    // the import chain in every provider file.
+    await chooseVisionProxyModel();
+  }
 
-	async provideLanguageModelChatInformation(
-		_options: vscode.PrepareLanguageModelChatModelOptions,
-		_token: vscode.CancellationToken,
-	): Promise<vscode.LanguageModelChatInformation[]> {
-		if (!this.isActive) {
-			return [];
-		}
-		const hasKey = await this.authManager.hasApiKey('deepseek');
-		return getLoadedRegistry().models.filter((m) => m.family === 'deepseek').map((model) => toChatInfo(model, hasKey));
-	}
+  async provideLanguageModelChatInformation(
+    _options: vscode.PrepareLanguageModelChatModelOptions,
+    _token: vscode.CancellationToken
+  ): Promise<vscode.LanguageModelChatInformation[]> {
+    if (!this.isActive) {
+      return [];
+    }
+    const hasKey = await this.authManager.hasApiKey('deepseek');
+    return getLoadedRegistry()
+      .models.filter((m) => m.family === 'deepseek')
+      .map((model) => toChatInfo(model, hasKey));
+  }
 
-	async provideLanguageModelChatResponse(
-		modelInfo: vscode.LanguageModelChatInformation,
-		messages: readonly vscode.LanguageModelChatRequestMessage[],
-		options: vscode.ProvideLanguageModelChatResponseOptions,
-		progress: vscode.Progress<vscode.LanguageModelResponsePart>,
-		token: vscode.CancellationToken,
-	): Promise<void> {
-		const segment = resolveConversationSegment(messages);
-		const requestKind = classifyProviderRequest({
-			messages,
-			tools: options.tools,
-		});
+  async provideLanguageModelChatResponse(
+    modelInfo: vscode.LanguageModelChatInformation,
+    messages: readonly vscode.LanguageModelChatRequestMessage[],
+    options: vscode.ProvideLanguageModelChatResponseOptions,
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+    token: vscode.CancellationToken
+  ): Promise<void> {
+    const segment = resolveConversationSegment(messages);
+    const requestKind = classifyProviderRequest({
+      messages,
+      tools: options.tools,
+    });
 
-		dumpProviderInput({
-			globalStorageUri: this.globalStorageUri,
-			segment,
-			modelInfo,
-			messages,
-			requestOptions: options,
-			requestKind,
-		});
+    dumpProviderInput({
+      globalStorageUri: this.globalStorageUri,
+      segment,
+      modelInfo,
+      messages,
+      requestOptions: options,
+      requestKind,
+    });
 
-		const toolFlow = processToolFlow({
-			stabilizeToolList: getStabilizeToolListEnabled(),
-			messages,
-			tools: options.tools,
-			progress,
-			requestKind,
-		});
-		if (toolFlow.preflightHandled) {
-			return;
-		}
+    const toolFlow = processToolFlow({
+      stabilizeToolList: getStabilizeToolListEnabled(),
+      messages,
+      tools: options.tools,
+      progress,
+      requestKind,
+    });
+    if (toolFlow.preflightHandled) {
+      return;
+    }
 
-		const prepared = await prepareChatRequest({
-			authManager: this.authManager,
-			globalStorageUri: this.globalStorageUri,
-			modelInfo,
-			segment,
-			messages: toolFlow.messages,
-			options,
-			token,
-			cacheDiagnostics: this.cacheDiagnostics,
-			getVisionModel: () => this.vision.get(),
-		});
+    const prepared = await prepareChatRequest({
+      authManager: this.authManager,
+      globalStorageUri: this.globalStorageUri,
+      modelInfo,
+      segment,
+      messages: toolFlow.messages,
+      options,
+      token,
+      cacheDiagnostics: this.cacheDiagnostics,
+      getVisionModel: () => this.vision.get(),
+    });
 
-		return streamChatCompletion({
-			prepared,
-			progress,
-			token,
-			initialResponseNotice: toolFlow.initialResponseNotice,
-			getCharsPerToken: () => this.charsPerToken,
-			setCharsPerToken: (charsPerToken) => {
-				this.charsPerToken = charsPerToken;
-			},
-		});
-	}
+    return streamChatCompletion({
+      prepared,
+      progress,
+      token,
+      initialResponseNotice: toolFlow.initialResponseNotice,
+      getCharsPerToken: () => this.charsPerToken,
+      setCharsPerToken: (charsPerToken) => {
+        this.charsPerToken = charsPerToken;
+      },
+    });
+  }
 
-	async provideTokenCount(
-		_modelInfo: vscode.LanguageModelChatInformation,
-		text: string | vscode.LanguageModelChatRequestMessage,
-		_token: vscode.CancellationToken,
-	): Promise<number> {
-		return estimateTokenCount(text, this.charsPerToken);
-	}
+  async provideTokenCount(
+    _modelInfo: vscode.LanguageModelChatInformation,
+    text: string | vscode.LanguageModelChatRequestMessage,
+    _token: vscode.CancellationToken
+  ): Promise<number> {
+    return estimateTokenCount(text, this.charsPerToken);
+  }
 }

@@ -11,11 +11,7 @@ vi.mock('vscode', () => ({
   },
 }));
 
-import {
-  ProviderRequestError,
-  createHttpProviderError,
-  normalizeProviderError,
-} from '../src/provider/errors';
+import { ProviderRequestError, createHttpProviderError, normalizeProviderError } from '../src/provider/errors';
 
 describe('errors.ts - ProviderRequestError', () => {
   it('should create error with all fields', () => {

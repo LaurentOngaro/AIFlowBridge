@@ -20,9 +20,15 @@
 </p>
 <!-- markdownlint-enable MD033 -->
 
-**Use DeepSeek V4, MiniMax M3, and Xiaomi MiMo in GitHub Copilot Chat - at $0.27/M input tokens, with a free local OpenAI-compatible gateway for Kilo Code, Continue, and JetBrains AI Assistant.**
+**Use DeepSeek V4, MiniMax M3, and Xiaomi MiMo in GitHub Copilot Chat - at $0.27/M input tokens, with a free local OpenAI-compatible gateway for Kilo Code, Continue, and JetBrains AI Assistant.
+Smart routing, shared session replay, and live cost tracking included.**
 
-AIFlowBridge turns Copilot Chat into a multi-model switcher: pick the cheapest model for boilerplate, the smartest for the hard stuff, all from the same chat window - with a per-request cost breakdown in a live dashboard. The OpenAI-compatible gateway can run as a VS Code extension **or** as a standalone Node.js binary, so JetBrains users, Kilo Code on Cursor / Windsurf / VSCodium, Open WebUI, and `curl` can all consume the same models from a single local endpoint.
+**Runs as a VS Code extension **or** as a standalone Node.js binary (~30 MB RAM).**
+
+AIFlowBridge turns Copilot Chat into a multi-model switcher: pick the cheapest model for boilerplate, the smartest for the hard stuff, all from the same chat window.
+The gateway routes every prompt to the model you (or your client) pick in the model picker - no surprises, no hidden re-routing.
+If you opt in via `aiflowbridge.gateway.languageRouting`, polyglot projects can route Python to DeepSeek Flash, Rust to DeepSeek Pro, and everything else to MiniMax M3, all from a single `http://127.0.0.1:8787/v1` endpoint.
+Pair-programming is built in: the dashboard shows sanitized prompt / response summaries of every recorded request, with one-click replay and a live Server-Sent Events stream so you see new requests land in real time.
 
 > ## Standalone gateway (no VS Code required, since 2.0.0)
 >
@@ -54,23 +60,27 @@ AIFlowBridge itself is **free, open-source, ad-free, tracker-free, no data colle
 
 ## Why AIFlowBridge?
 
-- **One place to switch models** in Copilot Chat - no copy-pasting code between vendor sites
-- **Local OpenAI-compatible gateway** on port 8787 - Kilo Code, Continue, Open WebUI, curl, the JetBrains AI Assistant custom endpoint
-- **Two ways to run it**: as a VS Code extension or as a standalone Node.js binary (new in 2.0.0) - see [docs/standalone.md](docs/standalone.md)
-- **Per-request metrics**: token counts, latency, estimated cost - see [docs/dashboard.md](docs/dashboard.md)
-- **Shared session log + replay**: see what the AI just told your pair, replay the original assistant message without re-running upstream, watch new requests land in real time over SSE - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events) (new in 2.10.0)
+- **Smart model routing - opt-in, never surprise you.** Out of the box, the gateway routes every request to the model you (or your client) pick in the model picker. If you opt in via `aiflowbridge.gateway.languageRouting` (`"python": "deepseek-flash"`, `"rust": "deepseek-pro"`, `"*": "MiniMax-M3"`), the gateway auto-detects the project language and routes per request. Costs are visible at all times: every routing decision is logged, the dashboard Sessions panel groups requests by provider / model, and the Request details sub-table shows the per-request cost. See [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting) and [docs/architecture.md](docs/architecture.md#workspace-context)
+- **Workspace context - informational only.** The detected context (languages, package managers, linters, formatters) is injected as a system message so the model knows your toolchain upfront. It never overrides the model picker - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context) and [docs/architecture.md](docs/architecture.md#workspace-context)
+- **Pair-programming visibility** - the gateway captures sanitized prompt + response summaries on every request (Bearer / `sk-...` / `x-api-key` redacted before storage). The dashboard's Shared session panel shows the last 20 Q&A pairs with one-click replay. Three loopback HTTP endpoints expose the same data for IDE integrations: `GET /v1/sessions` (list), `GET /v1/replay/{id}` (OpenAI-shaped body), `GET /v1/events` (live SSE stream) - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events)
+- **Cost control** - per-request token counts, latency, and estimated cost in a live dashboard (`Ctrl+Alt+M`). Sessions grouped automatically (inactivity gap configurable 1-60 min). Filter by provider, date range, client (Kilo Code vs Continue vs curl), or source (gateway vs Copilot Chat). Paginated, with per-row delete - see [docs/dashboard.md](docs/dashboard.md)
+- **Two ways to run it**: as a VS Code extension or as a standalone Node.js binary - see [docs/standalone.md](docs/standalone.md)
 - **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](docs/vision-proxy.md)
 - **Reasoning picker** for MiniMax M3 (None/High/Max) - see [docs/reasoning.md](docs/reasoning.md)
-- **Local-first**: API keys live in your OS keychain, telemetry stays on your machine
+- **Local-first**: API keys in your OS keychain, telemetry on your machine, no remote endpoints
 
 ## Features
 
-- **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2 -> M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). See [docs/providers.md](docs/providers.md).
-- **Transparent vision proxy** - text-only models handle images via another installed Copilot model. Zero configuration.
-- **Built-in OpenAI-compatible gateway** - port 8787, runs as a VS Code extension or a standalone CLI, singleton across processes. See [docs/gateway.md](docs/gateway.md) and [docs/standalone.md](docs/standalone.md).
-- **Pair-programming session log + replay** (new in 2.10.0) - the gateway captures sanitized + truncated prompt / response summaries on every recorded request, exposed as `GET /v1/sessions`, `GET /v1/replay/{id}` (OpenAI-shaped body), and `GET /v1/events` (Server-Sent Events stream). The dashboard's Shared session panel lets you click one button to re-fetch what the AI just told your pair without re-running the upstream call. Bearer / `sk-...` / `x-api-key` credentials are redacted at extraction time.
-- **Copilot Chat integration** - agent mode, tool calling, instructions, MCP, skills. 1M token context on supporting models.
-- **Secure by default** - API keys in VS Code's `SecretStorage` (or env vars / `secrets.json` in standalone), never in `settings.json`. Telemetry is local.
+- **Multi-provider in one place** - DeepSeek (V4 Pro, V4 Flash), MiniMax (M2 -> M3), Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro). 14 models across 3 vendors - see [docs/providers.md](docs/providers.md)
+- **Workspace context injection** - auto-detects your project's languages, package managers, linters, and formatters, and tells the model upfront on every request so completions are context-aware from the first token - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context)
+- **Language-based model routing - opt-in** - off by default (`aiflowbridge.gateway.languageRouting = {}`). When you set a non-empty map (`"python": "deepseek-flash"`, `"rust": "deepseek-pro"`, `"*": "MiniMax-M3"`), the gateway picks the right model for each prompt automatically, or honours an explicit `X-AIFlowBridge-Language` header from the IDE. Disable the header override with `aiflowbridge.gateway.allowLanguageHeaderOverride = false`. Full defaults + cost-visibility notes in [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting)
+- **Pair-programming replay + live stream** - the gateway captures sanitized summaries on every request; `GET /v1/sessions` lists them, `GET /v1/replay/{id}` returns the full OpenAI-shaped body, `GET /v1/events` streams new requests over SSE in real time. The dashboard's Shared session panel surfaces the same data with one-click replay - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events)
+- **Metrics dashboard with sessions** - per-request token counts, latency, and estimated cost. Nine time presets, provider + date-range + text filters, pagination, per-row delete. Requests are auto-grouped into sessions (inactivity gap configurable 1-60 min) so you see your daily workflow at a glance. `Ctrl+Alt+M` from anywhere - see [docs/dashboard.md](docs/dashboard.md)
+- **Built-in OpenAI-compatible gateway** - port 8787, runs as a VS Code extension or a standalone CLI, singleton across processes - see [docs/gateway.md](docs/gateway.md) and [docs/standalone.md](docs/standalone.md)
+- **Zero-conf discovery** - `GET /v1/discovery` returns one-paste config snippets for Continue, Kilo Code, the OpenAI Python SDK, and curl. Optional UDP beacon broadcasts the gateway URL on the LAN (off by default) - see [docs/gateway.md](docs/gateway.md#zero-conf-discovery-get-v1discovery)
+- **Transparent vision proxy** - text-only models handle images via another installed Copilot model. Zero configuration - see [docs/vision-proxy.md](docs/vision-proxy.md)
+- **Reasoning picker** for MiniMax M3 (None/High/Max) - see [docs/reasoning.md](docs/reasoning.md)
+- **Secure by default** - API keys in VS Code's `SecretStorage` (or env vars / `secrets.json` in standalone), never in `settings.json`. Credentials in stored summaries are redacted at extraction time. Telemetry is local, loopback-only. No remote endpoints
 
 ## Quick start
 
@@ -174,6 +184,7 @@ Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK
 - OpenRouter upstream (100+ models via single key)
 - Ollama local upstream
 - auto-routing with failover
+- web-based dashboard at `http://127.0.0.1:8787/dashboard`
 - ...
 
 Full roadmap: [TODO.md](TODO.md#1-versions-roadmap).

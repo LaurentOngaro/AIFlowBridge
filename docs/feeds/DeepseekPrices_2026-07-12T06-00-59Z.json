@@ -1,0 +1,252 @@
+{
+  "report_metadata": {
+    "generated_at": "2026-07-12T06:00:59Z",
+    "currency_normalized": "USD",
+    "blended_cost_formula": "input + 2 * output (USD per 1M tokens, indicative for coding-style workloads with ~1:2 input:output ratio)",
+    "sorting": "providers within each model are sorted by blended cost ascending (cheapest first)",
+    "notes_global": [
+      "All prices are USD per 1,000,000 tokens unless stated otherwise.",
+      "Cache-hit price reflects prompt-cache read discount when documented by the provider; null means either no cache support or not publicly disclosed at the time of check.",
+      "Kilo Code advertises 'no markup over underlying provider rates' but their displayed price for DeepSeek V4 Pro and Grok 4.5 is the underlying OpenRouter / provider list, which can differ from the official creator's price (e.g. post-promo).",
+      "Grok 4.5 was released on 2026-07-08 (4 days before this snapshot) and is not yet listed in the Kilo Code xAI model catalog as of 2026-07-12."
+    ]
+  },
+  "models": [
+    {
+      "model": "DeepSeek V4 Pro",
+      "checked_at": "2026-07-12T06:00:59Z",
+      "model_release_date": "2026-04-24",
+      "providers": [
+        {
+          "provider": "DeepSeek (official)",
+          "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+          "input_price_per_1m": 0.435,
+          "output_price_per_1m": 0.87,
+          "cache_hit_price_per_1m": 0.003625,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "75% launch discount (Apr 26 - May 31 2026 15:59 UTC) was made permanent on 2026-05-31. Listed V4 Pro price is now 1/4 of the original launch list price.",
+          "promotion_end": "2026-05-31T15:59:00Z",
+          "confidence": "high",
+          "notes": "Official creator price. V4-Pro cache-miss input $0.435, output $0.87, cache-hit $0.003625 (per 1M). Confirmed via api-docs.deepseek.com on 2026-07-12."
+        },
+        {
+          "provider": "OpenRouter",
+          "source_url": "https://openrouter.ai/deepseek/deepseek-v4-pro",
+          "input_price_per_1m": 0.435,
+          "output_price_per_1m": 0.87,
+          "cache_hit_price_per_1m": null,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No active promo on listing page; cache pricing indicated via 'effective pricing' after prompt caching but no specific cache-hit rate published.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Slug: deepseek/deepseek-v4-pro. Released 2026-04-24. Effective pricing shown after average prompt caching."
+        },
+        {
+          "provider": "OpenCode Zen",
+          "source_url": "https://opencode.ai/docs/zen",
+          "input_price_per_1m": 1.74,
+          "output_price_per_1m": 3.48,
+          "cache_hit_price_per_1m": 0.145,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo. OpenCode Zen still lists the pre-permanent-cut launch list price for DeepSeek V4 Pro (the $1.74/$3.48 tier), not the official $0.435/$0.87 permanent rate.",
+          "promotion_end": null,
+          "confidence": "medium",
+          "notes": "OpenCode Zen catalog lag: their table reflects the original $1.74/$3.48 list, while the official DeepSeek price was cut to 1/4 of that on 2026-05-31. The $0.435/$0.87 figure is the current DeepSeek first-party price."
+        },
+        {
+          "provider": "Kilo Gateway",
+          "source_url": "https://kilo.ai/models/deepseek-deepseek-v4-pro",
+          "input_price_per_1m": 2.40,
+          "output_price_per_1m": 4.80,
+          "cache_hit_price_per_1m": 0.20,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo. Kilo states 'no markup over underlying provider rates' but their displayed $2.40/$4.80 corresponds to OpenRouter's higher tier, not DeepSeek's $0.435/$0.87 first-party rate.",
+          "promotion_end": null,
+          "confidence": "medium",
+          "notes": "Kilo model page says 'Pricing via OpenRouter'. The Kilo by/deepseek listing also shows 'V4-Pro is $1.60 per million input and $3.38 per million output' in body copy - inconsistent with the model page ($2.40/$4.80); figure on the dedicated model page is used here. DeepSeek V4 Pro on Kilo ranked 43.5 coding index, $15.91/attempt, 44% Kilo Bench completion."
+        }
+      ]
+    },
+    {
+      "model": "GLM 5.2",
+      "checked_at": "2026-07-12T06:00:59Z",
+      "model_release_date": "2026-06-16",
+      "providers": [
+        {
+          "provider": "OpenRouter",
+          "source_url": "https://openrouter.ai/z-ai/glm-5.2",
+          "input_price_per_1m": 0.35,
+          "output_price_per_1m": 1.10,
+          "cache_hit_price_per_1m": null,
+          "currency": "USD",
+          "promotion_active": true,
+          "promotion_details": "OpenRouter listing shows current input $0.35 / output $1.10 with a 70%-off tag relative to the $1.40/$4.40 reference list. Route-dependent, some providers serve at $0.95/$3.00 (DeepInfra) to $1.40/$4.40 (Z.ai/Fireworks/Novita).",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Slug: z-ai/glm-5.2. Released 2026-06-16. 1M context, fp8. 'Effective pricing' can be 60-80% lower than list after prompt caching."
+        },
+        {
+          "provider": "Kilo Gateway",
+          "source_url": "https://kilo.ai/models/z-ai-glm-5-2",
+          "input_price_per_1m": 1.40,
+          "output_price_per_1m": 4.40,
+          "cache_hit_price_per_1m": 0.26,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo. Kilo shows the Z.ai first-party reference list ($1.40/$4.40, cache $0.26), not OpenRouter's currently-discounted $0.35/$1.10.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Kilo Bench 53.0% completion, $26.21/attempt. 'Pricing via OpenRouter' per Kilo but the value shown matches Z.ai first-party. GLM-5.2 bundled in the GLM Coding Plan subscription tiers (Lite/Pro/Max/Team)."
+        },
+        {
+          "provider": "OpenCode Zen",
+          "source_url": "https://opencode.ai/docs/zen",
+          "input_price_per_1m": 1.40,
+          "output_price_per_1m": 4.40,
+          "cache_hit_price_per_1m": 0.26,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo. Matches Z.ai first-party reference price.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Included in OpenCode Go subscription ($5 first month, then $10/mo) which bundles GLM-5.2, MiMo-V2.5-Pro, DeepSeek V4 Pro/Flash, Qwen3.7 Max, etc. Source: https://opencode.ai/go"
+        },
+        {
+          "provider": "DeepSeek (official)",
+          "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+          "input_price_per_1m": null,
+          "output_price_per_1m": null,
+          "cache_hit_price_per_1m": null,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "DeepSeek does not host or resell GLM 5.2; this row is included only because the provider is mandatory in the comparison.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "GLM 5.2 is a Z.ai model (not DeepSeek). Not available on the DeepSeek first-party API. Z.ai first-party standalone API (not in the required-provider list) is $1.40 / $4.40 / $0.26 cache (https://docs.z.ai/guides/overview/pricing)."
+        }
+      ]
+    },
+    {
+      "model": "MiMo V2.5-Pro",
+      "checked_at": "2026-07-12T06:00:59Z",
+      "model_release_date": "2026-04-22",
+      "providers": [
+        {
+          "provider": "OpenRouter",
+          "source_url": "https://openrouter.ai/xiaomi/mimo-v2.5-pro",
+          "input_price_per_1m": 0.435,
+          "output_price_per_1m": 0.87,
+          "cache_hit_price_per_1m": null,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo on listing. Slug: xiaomi/mimo-v2.5-pro. Matches Xiaomi first-party after the 2026-05-27 permanent price cut.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Released 2026-04-22. 1M context. 'Effective pricing' lower after prompt caching; no explicit cache-hit rate published."
+        },
+        {
+          "provider": "Kilo Gateway",
+          "source_url": "https://kilo.ai/models/xiaomi-mimo-v2-5-pro",
+          "input_price_per_1m": 0.43,
+          "output_price_per_1m": 0.87,
+          "cache_hit_price_per_1m": 0.0036,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo. Rounded to 2 decimals on the Kilo model page ($0.43 vs the canonical $0.435). Cache read price 0.0036 corresponds to Xiaomi's official cache-hit rate; Kilo page initially showed $0.00 in extraction but the page also lists cache read in the pricing block.",
+          "promotion_end": null,
+          "confidence": "medium",
+          "notes": "Kilo Bench 47.6% completion, $4.92/attempt. Kilo also offers MiMo-V2.5 (non-Pro) at $0.14/$0.28."
+        },
+        {
+          "provider": "OpenCode Go (low-cost gateway)",
+          "source_url": "https://opencode.ai/go",
+          "input_price_per_1m": 1.00,
+          "output_price_per_1m": 3.00,
+          "cache_hit_price_per_1m": 0.20,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "OpenCode Go subscription ($5 first month, then $10/mo) bundles mimo-v2.5-pro with other open-weight models.",
+          "promotion_end": null,
+          "confidence": "medium",
+          "notes": "Listed on https://modelcompare.dev/fr/models/opencode-go/mimo-v2-5-pro with $1.00/$3.00/$0.20. The standard OpenCode Zen (https://opencode.ai/docs/zen) does NOT list MiMo-V2.5-Pro as a paid SKU (only MiMo-V2.5 Free is offered), so this row refers to the OpenCode Go gateway specifically. pi.dev lists a higher $1.74/$3.48/$0.0145 rate for the same slug, indicating a possible tier discrepancy."
+        },
+        {
+          "provider": "DeepSeek (official)",
+          "source_url": "https://api-docs.deepseek.com/quick_start/pricing",
+          "input_price_per_1m": null,
+          "output_price_per_1m": null,
+          "cache_hit_price_per_1m": null,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "DeepSeek does not host or resell MiMo V2.5-Pro; this row is included only because the provider is mandatory in the comparison.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "MiMo V2.5-Pro is a Xiaomi model. Xiaomi first-party pricing (https://mimo.mi.com/docs/en-US/price/pay-as-you-go) is $0.435 / $0.87 / $0.0036 (overseas, USD) - same as OpenRouter after the 2026-05-27 permanent price cut."
+        }
+      ]
+    },
+    {
+      "model": "Grok 4.5",
+      "checked_at": "2026-07-12T06:00:59Z",
+      "model_release_date": "2026-07-08",
+      "providers": [
+        {
+          "provider": "xAI (official)",
+          "source_url": "https://docs.x.ai/developers/pricing",
+          "input_price_per_1m": 2.00,
+          "output_price_per_1m": 6.00,
+          "cache_hit_price_per_1m": 0.50,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo at official list. Cache-input discount is 75% off standard input rate.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Released 2026-07-08 (4 days before this snapshot). 500K context. Configurable reasoning. Up to $175/month in free API credits for new developers through the data-sharing program."
+        },
+        {
+          "provider": "OpenRouter",
+          "source_url": "https://openrouter.ai/x-ai/grok-4.5",
+          "input_price_per_1m": 2.00,
+          "output_price_per_1m": 6.00,
+          "cache_hit_price_per_1m": null,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo. Matches xAI first-party. Effective pricing lower after prompt caching.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Slug: x-ai/grok-4.5. 500K context. Released 2026-07-08. No explicit cache-hit rate published on the listing page."
+        },
+        {
+          "provider": "OpenCode Zen",
+          "source_url": "https://opencode.ai/docs/zen",
+          "input_price_per_1m": 2.00,
+          "output_price_per_1m": 6.00,
+          "cache_hit_price_per_1m": 0.50,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "No promo. Two tiers: <=200K tokens at the base rate; >200K tokens doubles to $4.00/$12.00/$1.00.",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Tiered pricing on OpenCode Zen: <=200K and >200K. The >200K tier doubles all rates."
+        },
+        {
+          "provider": "Kilo Gateway",
+          "source_url": "https://kilo.ai/models/by/x-ai",
+          "input_price_per_1m": null,
+          "output_price_per_1m": null,
+          "cache_hit_price_per_1m": null,
+          "currency": "USD",
+          "promotion_active": false,
+          "promotion_details": "Grok 4.5 is not yet listed in the Kilo Code xAI catalog as of 2026-07-12. Kilo currently exposes Grok 4.3 ($1.25/$2.50), Grok Build 0.1 ($1.00/$2.00, cache $0.20), and Grok Code Fast 1 ($0.20/$1.50).",
+          "promotion_end": null,
+          "confidence": "high",
+          "notes": "Model released 2026-07-08; Kilo catalog likely to be updated shortly. Kilo's xAI provider supports BYOK connection to a user's xAI subscription, which is a workaround for accessing Grok 4.5 today at official rates."
+        }
+      ]
+    }
+  ]
+}

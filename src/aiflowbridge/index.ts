@@ -37,8 +37,8 @@ class AIFlowBridgeRuntime implements Disposable {
    * **Always safe to call.** Before `activate()` resolves (or after
    * it threw), `config` and `gateway` are still undefined; this
    * getter returns a sensible "all disabled" stub instead of
-   * crashing on the missing fields. BUG-03 fix: a previous version
-   * reached straight into `this.gateway.running` and crashed the
+   * crashing on the missing fields.
+   * fix: a previous version reached straight into `this.gateway.running` and crashed the
    * standalone CLI when the getter was hit before activation. The
    * standalone binary (see `src/standalone/main.ts`) currently
    * reads this after `activate()`, but the public getter is also
@@ -175,7 +175,15 @@ class AIFlowBridgeRuntime implements Disposable {
     // and shared across every VS Code window / standalone instance the user
     // opens.
     const telemetryPaths = defaultTelemetryPaths(this.ctx.globalStorageDir);
-    this.persister = new TelemetryPersister(telemetryPaths);
+    this.persister = new TelemetryPersister({
+      ...telemetryPaths,
+      // forward the user-configured byte cap (8 KiB by
+      // default) and retention window (90 days by default). Both
+      // settings accept `0` to disable; the persister also defaults
+      // to 8 KiB / 90 days when `undefined`.
+      capBytes: this.config.telemetryMaxStoredRequestBytes,
+      retentionMs: this.config.telemetryRetentionDays > 0 ? this.config.telemetryRetentionDays * 24 * 60 * 60 * 1000 : 0,
+    });
     this.telemetryFallback = new TelemetryStore(this.persister);
 
     // No `saveState` callback is wired here: persistence is handled
@@ -301,6 +309,30 @@ class AIFlowBridgeRuntime implements Disposable {
         this.gateway.resetMetrics();
         this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
         this.ctx.showInformation?.('AIFlowBridge: metrics reset.');
+      })
+    );
+
+    // dedicated command for privacy-driven purge. Distinct
+    // from `resetMetrics` (which wipes everything including the
+    // request counts): the user keeps their usage stats but drops
+    // every captured prompt / response summary. A typical use case
+    // is "I'm done with this project, I want the totals to stay
+    // but I don't want the prompts on disk anymore."
+    this.ctx.subscriptions.push(
+      register('aiflowbridge.purgeSessionLog', async () => {
+        const confirmed = await this.ctx.confirm?.(
+          'Purge all captured prompt / response summaries? Usage totals (requests, tokens, cost) are kept; only the replay text is wiped. This cannot be undone.',
+          'Purge',
+          'Cancel'
+        );
+        if (confirmed !== 'Purge') {
+          return;
+        }
+        const { inMemory, onDisk } = this.gateway.purgeSessionLog();
+        const onDiskCleared = await onDisk;
+        this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
+        const total = inMemory + onDiskCleared;
+        this.ctx.showInformation?.(`AIFlowBridge: ${total} session log entr${total === 1 ? 'y' : 'ies'} purged.`);
       })
     );
 
@@ -452,7 +484,7 @@ class AIFlowBridgeRuntime implements Disposable {
       // port refused to shut down within the timeout. Surface a
       // targeted warning so the user knows what to do (stop the peer
       // manually, or wait for TIME_WAIT to clear on Windows).
-      // BUG-04 fix: distinguish "first-time start" (wasRunning was
+      // fix: distinguish "first-time start" (wasRunning was
       // false) from "restart" (wasRunning was true) in the user-
       // facing message. The two paths have different remediations
       // and the previous generic message was misleading in the
@@ -508,7 +540,7 @@ class AIFlowBridgeRuntime implements Disposable {
     // gateway is currently running. The previous implementation
     // fell back to the persisted snapshot whenever `requests === 0`,
     // which made a freshly-started gateway appear to display data
-    // from the previous session as if it were live (BUG 2.1).
+    // from the previous session as if it were live.
     // // The persisted snapshot is now only consulted when the gateway
     // is NOT running AND has not processed any request - i.e. the
     // dashboard is being shown immediately after activation, before

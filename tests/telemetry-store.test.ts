@@ -276,6 +276,7 @@ describe('TelemetryStore - reset', () => {
       appendDelta: vi.fn(async () => undefined),
       removeEntry: vi.fn(async () => false),
       clear: vi.fn(async () => undefined),
+      purgeSessionLog: vi.fn(async () => 0),
     };
     const store = new TelemetryStore(fakePersister);
     store.record(makeEntry({ id: 'r1', totalTokens: 100 }));
@@ -301,6 +302,7 @@ describe('TelemetryStore - reset', () => {
       appendDelta: vi.fn(async () => undefined),
       removeEntry: vi.fn(async () => false),
       clear: vi.fn(async () => undefined),
+      purgeSessionLog: vi.fn(async () => 0),
     };
     const store = new TelemetryStore(fakePersister);
     const listener = vi.fn();

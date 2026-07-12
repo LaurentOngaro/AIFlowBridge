@@ -7,6 +7,7 @@ The metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or 
 ## What the dashboard shows
 
 - **Top cards** - Total requests, prompt/completion tokens, average duration, and total **Estimated cost**. With no filter active the cards show **cumulative** totals since you started using the gateway; with a filter active they recompute from the filtered subset.
+- **Filters panel** - All dashboard-wide filter controls grouped in a single collapsible section at the top of the page, between the hero (`Current version`) and the totals grid: time-range preset, provider, From/To dates, free-text search, and session inactivity gap. Because every section of the dashboard (Recent requests / Sessions / By model / totals) reads from the same filter state, narrowing the view from one place updates everything else in lockstep.
 - **Gateway panel** - Running state (or stopped / error), port, default model.
 - **Recent requests table** - Timestamp, model, tokens, latency, status (200/4xx/5xx as a colored pill), **Est. cost** (with the per-rate tooltip), and per-row delete button.
 - **Sessions panel** - Recorded requests grouped into sessions by an inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min). Each session is rendered as a collapsible card showing the start time, request count, and a header summary (total tokens, average duration, total estimated cost, session span in minutes); expanding reveals per-request details.
@@ -27,23 +28,23 @@ A "Current version: v1.6.0" subtitle displays the installed extension version.
 
 ## Collapsible panels
 
-Each of the eight panel sections (Gateway / Recent / Sessions / By model / By client / By source / Shared session / Provider) can be collapsed by clicking the chevron in its header. The collapsed state is persisted per-panel in `localStorage`.
+Each of the nine panel sections (Filters / Gateway / Recent / Sessions / By model / By client / By source / Shared session / Provider) can be collapsed by clicking the chevron in its header. The collapsed state is persisted per-panel in `localStorage`.
 
 ## Time filters
 
-Nine presets are available on both the Recent and By model panels, exposed as a single `<select>` per panel: **All / Last 15 min / Last 30 min / Last 1 h / Last 24 h / Last 2 days / Last 3 days / Last 7 days / Last 30 days**. The two selects stay synchronised: changing one reflects on the other (mirroring the previous button behaviour where the Recent and By model panels shared a single active preset).
+Nine presets are exposed in the Filters panel at the top of the dashboard: **All / Last 15 min / Last 30 min / Last 1 h / Last 24 h / Last 2 days / Last 3 days / Last 7 days / Last 30 days**. Because the same select feeds the Recent requests, By model, and Sessions panels (and the totals cards), there is a single source of truth: no per-panel duplicates to keep in sync.
 
 ## Provider filter
 
-A second `<select>` on the Recent requests panel, alongside the time preset, lets the user narrow the recent table + by-model aggregation to a single provider. The options are **All providers** + one entry per provider id seen in the snapshot's `byProvider` map; the list refreshes on every dashboard snapshot reload so newly-enabled providers appear automatically.
+A `<select>` in the Filters panel, alongside the time preset, narrows the recent table + by-model aggregation to a single provider. The options are **All providers** + one entry per provider id seen in the snapshot's `byProvider` map; the list refreshes on every dashboard snapshot reload so newly-enabled providers appear automatically.
 
 ## Custom date range
 
-Two `<input type="date">` controls (From / To) on the Recent requests panel filter by absolute dates on top of the preset. Entering a date resets the preset selects back to **All**; changing the preset clears the From / To inputs. Changing the date a second time in a row works as expected (`input` + `change` events are both wired).
+Two `<input type="date">` controls (From / To) in the Filters panel filter by absolute dates on top of the preset. Entering a date resets the preset select back to **All**; changing the preset clears the From / To inputs. Changing the date a second time in a row works as expected (`input` + `change` events are both wired).
 
 ## Text search
 
-A single search box ("Filter requests…") on the Recent panel matches case-insensitively across **model / provider / status / timestamp / duration / tokens / estimated cost**. The By model panel additionally matches the **model name itself** (a model whose name contains the needle is included even if no individual entry matches).
+A single search box ("Filter requests…") in the Filters panel matches case-insensitively across **model / provider / status / timestamp / duration / tokens / estimated cost**. The By model panel additionally matches the **model name itself** (a model whose name contains the needle is included even if no individual entry matches).
 
 ## Pagination
 
@@ -125,4 +126,4 @@ The status bar reflects the same source: it shows the gateway state, not Copilot
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | ![Kilo Code picker](resources/screenshots_v1.1.1/02_AIFB_kiloCode%20LLM%20picker.png) | ![Gateway metrics](resources/screenshots_v1.4.0/06a_AIFB_API_metrics_1.png) |
 
-The screenshots are captured against the v1.1.1 / v1.4.0 dashboard (preset buttons, no provider filter). New screenshots should land in `resources/screenshots_v2.7.0/` once captured; drop them into this table to refresh the visual references for the AFF08 combobox + provider filter.
+The screenshots are captured against the v1.1.1 / v1.4.0 dashboard (preset buttons, no provider filter). New screenshots should land in `resources/screenshots_v2.7.0/` once captured; drop them into this table to refresh the visual references for the combobox + provider filter.

@@ -145,9 +145,9 @@ beforeEach(() => {
   // once in the constructor). The stub providers have a known
   // `family` so a single registry entry per vendor is enough.
   const stubModels: ModelDefinition[] = [
-    { id: 'm-minimax', name: 'M', family: 'minimax', capabilities: { toolCalling: false, imageInput: false, thinking: false }, maxInputTokens: 8192, maxOutputTokens: 4096 },
-    { id: 'm-deepseek', name: 'D', family: 'deepseek', capabilities: { toolCalling: false, imageInput: false, thinking: false }, maxInputTokens: 8192, maxOutputTokens: 4096 },
-    { id: 'm-xiaomi', name: 'X', family: 'xiaomi', capabilities: { toolCalling: false, imageInput: false, thinking: false }, maxInputTokens: 8192, maxOutputTokens: 4096 },
+    { id: 'm-minimax', name: 'M', family: 'minimax', version: '', detail: '', requiresThinkingParam: false, capabilities: { toolCalling: false, imageInput: false, thinking: false }, maxInputTokens: 8192, maxOutputTokens: 4096 } as ModelDefinition,
+    { id: 'm-deepseek', name: 'D', family: 'deepseek', version: '', detail: '', requiresThinkingParam: false, capabilities: { toolCalling: false, imageInput: false, thinking: false }, maxInputTokens: 8192, maxOutputTokens: 4096 },
+    { id: 'm-xiaomi', name: 'X', family: 'xiaomi', version: '', detail: '', requiresThinkingParam: false, capabilities: { toolCalling: false, imageInput: false, thinking: false }, maxInputTokens: 8192, maxOutputTokens: 4096 },
   ];
   setLoadedRegistry({
     version: 1,

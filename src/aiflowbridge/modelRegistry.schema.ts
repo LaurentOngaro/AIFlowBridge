@@ -177,7 +177,7 @@ export function validateRegistryContent(raw: RegistryFile, mode: 'strict'): Vali
 export function validateRegistryContent(raw: RegistryFile, mode: 'partial'): ValidatedContent<Partial<RegistryModelDefinition>>;
 export function validateRegistryContent(
   raw: RegistryFile,
-  mode: 'strict' | 'partial'
+  mode?: 'strict' | 'partial'
 ): ValidatedContent<RegistryModelDefinition> | ValidatedContent<Partial<RegistryModelDefinition>>;
 export function validateRegistryContent(
   raw: RegistryFile,

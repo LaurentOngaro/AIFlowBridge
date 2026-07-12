@@ -98,9 +98,7 @@ export function buildSSEStream(lines: string[]): ReadableStream<Uint8Array> {
 }
 
 /** Build a fake SSE stream that yields chunks incrementally */
-export function buildChunkedSSEStream(
-  chunks: Array<{ lines: string[]; delayMs?: number }>,
-): ReadableStream<Uint8Array> {
+export function buildChunkedSSEStream(chunks: Array<{ lines: string[]; delayMs?: number }>): ReadableStream<Uint8Array> {
   let chunkIndex = 0;
 
   return new ReadableStream<Uint8Array>({
@@ -122,11 +120,7 @@ export function buildChunkedSSEStream(
 }
 
 /** Create a mock Response for fetch with streaming body */
-export function createMockFetchResponse(
-  body: ReadableStream<Uint8Array>,
-  status = 200,
-  statusText = 'OK',
-): Response {
+export function createMockFetchResponse(body: ReadableStream<Uint8Array>, status = 200, statusText = 'OK'): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
@@ -142,7 +136,7 @@ export function createToolCallStream(
     reasoning_content?: string;
     tool_calls?: unknown[];
     finish_reason?: string;
-  }>,
+  }>
 ): ReadableStream<Uint8Array> {
   let index = 0;
 
@@ -218,7 +212,7 @@ export class MockLanguageModelToolCallPart {
   constructor(
     public readonly callId: string,
     public readonly name: string,
-    public readonly input: Record<string, unknown>,
+    public readonly input: Record<string, unknown>
   ) {}
 }
 
@@ -226,7 +220,7 @@ export class MockLanguageModelToolCallPart {
 export class MockLanguageModelToolResultPart {
   constructor(
     public readonly callId: string,
-    public readonly content: unknown[],
+    public readonly content: unknown[]
   ) {}
 }
 
@@ -234,7 +228,7 @@ export class MockLanguageModelToolResultPart {
 export class MockLanguageModelDataPart {
   constructor(
     public readonly mimeType: string,
-    public readonly data: Uint8Array,
+    public readonly data: Uint8Array
   ) {}
 }
 
@@ -252,7 +246,7 @@ export function createMockUserMessage(content: string): {
 /** Create a mock assistant message with tool calls */
 export function createMockAssistantMessage(
   content: string,
-  toolCalls?: Array<{ callId: string; name: string; input: Record<string, unknown> }>,
+  toolCalls?: Array<{ callId: string; name: string; input: Record<string, unknown> }>
 ): { role: number; content: unknown[] } {
   const parts: unknown[] = [];
   if (content) {
@@ -265,10 +259,7 @@ export function createMockAssistantMessage(
 }
 
 /** Create a mock tool result message */
-export function createMockToolResultMessage(
-  callId: string,
-  content: string,
-): { role: number; content: unknown[] } {
+export function createMockToolResultMessage(callId: string, content: string): { role: number; content: unknown[] } {
   return {
     role: 3,
     content: [new MockLanguageModelToolResultPart(callId, [new MockLanguageModelTextPart(content)])],
@@ -276,11 +267,7 @@ export function createMockToolResultMessage(
 }
 
 /** Create a mock tool result message with data */
-export function createMockToolResultMessageWithData(
-  callId: string,
-  mimeType: string,
-  data: Uint8Array,
-): { role: number; content: unknown[] } {
+export function createMockToolResultMessageWithData(callId: string, mimeType: string, data: Uint8Array): { role: number; content: unknown[] } {
   return {
     role: 3,
     content: [new MockLanguageModelToolResultPart(callId, [new MockLanguageModelDataPart(mimeType, data)])],

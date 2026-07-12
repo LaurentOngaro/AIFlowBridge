@@ -21,10 +21,10 @@
  *   segment behaves like `root[key]`.
  */
 export function getNestedValue(root: Record<string, unknown>, key: string): unknown {
-  const segments = key.split(".");
+  const segments = key.split('.');
   let current: unknown = root;
   for (const segment of segments) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
       return undefined;
     }
     current = (current as Record<string, unknown>)[segment];

@@ -33,6 +33,31 @@ AIFlowBridge is designed with a local-first security model:
 - **No third-party tracking** - the extension does not phone home, load remote scripts, or embed analytics SDKs.
 - **Outbound requests** only go to the API endpoints you configure (`api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, or your custom upstream).
 
+## Session-log privacy (action plan item #3, hardened 2.10.x)
+
+When `aiflowbridge.telemetry.captureSessionLog` is `true` (the default), every recorded request carries a sanitized + truncated `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars). Both are persisted to the on-disk telemetry file (`<globalStorageUri>/telemetry.json`) so the Shared Session panel + `GET /v1/sessions` + `GET /v1/replay/{id}` can replay them.
+
+**Stored shape (post-sanitization):**
+
+- `promptSummary` - sanitized `messages[]` user-side text, max 500 chars.
+- `responseSummary` - sanitized upstream response (or assembled SSE `delta.content` for streaming), max 1000 chars.
+- Both fields are run through `sanitizeSummaryText()` which strips `Bearer ...`, `sk-...`, `x-api-key=...` and any 60+-char token-like blob without whitespace. The cap is applied AFTER sanitization so a redacted credential that survives truncation is no longer reachable.
+
+**On-disk location:** `<globalStorageUri>/telemetry.json` (path is per-OS-user, per-machine). The file is JSON, written atomically (`.tmp` + `rename`) under a cross-process lock (`telemetry.lock`, stale-mtime reaper at 30 s).
+
+**Hard caps:**
+
+- `aiflowbridge.telemetry.maxStoredRequestBytes` (default 8192 / 8 KiB) - hard cap on the serialized size of every entry appended to the on-disk file. Oversized `promptSummary` / `responseSummary` are truncated in place; when the entry's static overhead already exceeds the cap, both summaries are dropped. Set to `0` to disable.
+- `aiflowbridge.telemetry.retentionDays` (default 90) - on every read AND write, entries older than `now - retentionDays * 86_400_000 ms` are pruned from the on-disk snapshot. The cumulative counters are re-derived from the survivors so the dashboard stays consistent. Set to `0` to keep every entry forever.
+
+**Privacy affordances:**
+
+- `AIFlowBridge: Reset metrics` - wipes every recorded entry (counters + summaries) both in memory and on disk. Modal confirmation required.
+- `AIFlowBridge: Purge session log` - wipes ONLY the captured `promptSummary` / `responseSummary` fields; usage totals (requests, tokens, cost, per-provider / per-model breakdowns) are kept. Modal confirmation required. This is the privacy-driven affordance: keep the analytics, drop the replay text.
+- Disable entirely: set `aiflowbridge.telemetry.captureSessionLog = false`. The replay / session / SSE endpoints stay available; new entries are stored without summaries.
+
+**Limits of the redaction.** `sanitizeSummaryText` is best-effort. The threat model is "accidental disclosure" (a developer pasting a `curl` one-liner that includes their upstream key) - the gateway runs loopback-only. A determined adversary could craft a payload that leaks through, but that is out of scope: it requires the same loopback access that would let them read `~/.aiflowbridge/secrets.json` directly.
+
 ## Hardening Highlights
 
 - **Cooperative shutdown requires a per-instance auth token (1.7.0).** `POST /shutdown` requires the `X-AIFlowBridge-Shutdown-Token` header to match the `randomUUID()` returned by `GET /version`. Requests without the header or with a wrong token get a 403. Pre-1.7.0 peers do not gate shutdown (backward compat).

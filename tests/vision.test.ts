@@ -28,7 +28,7 @@ const { mockConfiguration, mockSelectChatModels, mockShowQuickPick, mockShowWarn
       }),
     },
     mockSelectChatModels: vi.fn(async (_selector?: { id?: string }) => []),
-    mockShowQuickPick: vi.fn(async () => undefined),
+    mockShowQuickPick: vi.fn(async (_items?: unknown, _options?: unknown) => undefined),
     mockShowWarning: vi.fn(),
   };
 });
@@ -97,9 +97,7 @@ afterEach(() => {
 describe('createVisionModelGetter - copilotVisionModel length cap', () => {
   it('returns the configured id when it is short', async () => {
     mockConfiguration.values.set('vision.copilotVisionModel', 'oswe-vscode-prime');
-    mockSelectChatModels.mockResolvedValue([
-      { id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never,
-    ]);
+    mockSelectChatModels.mockResolvedValue([{ id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never]);
 
     const getter = createVisionModelGetter();
     const model = await getter.get();
@@ -133,9 +131,7 @@ describe('createVisionModelGetter - copilotVisionModel length cap', () => {
     expect(model?.id).toBe('oswe-vscode-prime');
     // The oversized id must have been short-circuited: the
     // configured-id branch should not have been called with it.
-    const calledWithOversized = mockSelectChatModels.mock.calls.some(
-      (call) => (call[0] as { id?: string } | undefined)?.id === oversized,
-    );
+    const calledWithOversized = mockSelectChatModels.mock.calls.some((call) => (call[0] as { id?: string } | undefined)?.id === oversized);
     expect(calledWithOversized).toBe(false);
   });
 
@@ -181,9 +177,7 @@ describe('createVisionModelGetter - copilotVisionModel length cap', () => {
 
   it('caches the resolved model and reuses it across get() calls', async () => {
     mockConfiguration.values.set('vision.copilotVisionModel', 'oswe-vscode-prime');
-    mockSelectChatModels.mockResolvedValue([
-      { id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never,
-    ]);
+    mockSelectChatModels.mockResolvedValue([{ id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never]);
 
     const getter = createVisionModelGetter();
     const first = await getter.get();
@@ -197,9 +191,7 @@ describe('createVisionModelGetter - copilotVisionModel length cap', () => {
 
   it('reset() forces a fresh lookup on the next get()', async () => {
     mockConfiguration.values.set('vision.copilotVisionModel', 'oswe-vscode-prime');
-    mockSelectChatModels.mockResolvedValue([
-      { id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never,
-    ]);
+    mockSelectChatModels.mockResolvedValue([{ id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never]);
 
     const getter = createVisionModelGetter();
     await getter.get();
@@ -221,7 +213,7 @@ describe('chooseVisionProxyModel', () => {
     await chooseVisionProxyModel();
 
     expect(mockShowQuickPick).toHaveBeenCalledTimes(1);
-    const items = mockShowQuickPick.mock.calls[0][0] as Array<{ label: string; description: string; detail?: string }>;
+    const items = (mockShowQuickPick.mock.calls[0]?.[0] ?? []) as Array<{ label: string; description: string; detail?: string }>;
     // The "missing" row is prepended.
     expect(items[0].label).toContain('gpt-99-missing');
     expect(items[0].label).toContain('$(warning)');
@@ -232,16 +224,14 @@ describe('chooseVisionProxyModel', () => {
 
   it('does not save when the user clicks the "(missing)" row', async () => {
     mockConfiguration.values.set('vision.copilotVisionModel', 'gpt-99-missing');
-    mockSelectChatModels.mockResolvedValue([
-      { id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never,
-    ]);
+    mockSelectChatModels.mockResolvedValue([{ id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never]);
     // The user clicks the informational row. Its label starts with
     // the warning codicon.
     mockShowQuickPick.mockResolvedValue({
       label: '$(warning) gpt-99-missing',
       description: 'configured',
       detail: 'Currently configured but no longer available',
-    });
+    } as never);
     const updateSpy = vi.fn(async () => undefined);
     // Replace the `update` method on the mock configuration for the
     // duration of this test. The previous tests did not exercise
@@ -270,7 +260,7 @@ describe('chooseVisionProxyModel', () => {
     mockShowQuickPick.mockResolvedValue({
       label: 'claude-3.5-sonnet',
       description: 'vendor: copilot',
-    });
+    } as never);
 
     let updatedValue: unknown = undefined;
     const updateMock = vi.fn(async (_key: string, value: unknown) => {
@@ -297,16 +287,14 @@ describe('chooseVisionProxyModel', () => {
 
     await chooseVisionProxyModel();
 
-    const items = mockShowQuickPick.mock.calls[0][0] as Array<{ label: string }>;
+    const items = (mockShowQuickPick.mock.calls[0]?.[0] ?? []) as unknown as Array<{ label: string }>;
     // Only the openai model survives the filter.
     expect(items.map((i) => i.label)).toEqual(['gpt-4o']);
   });
 
   it('shows an informational message when no candidate survives the exclusion filter', async () => {
     mockConfiguration.values.set('vision.excludedVendors', ['copilot', 'openai']);
-    mockSelectChatModels.mockResolvedValue([
-      { id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never,
-    ]);
+    mockSelectChatModels.mockResolvedValue([{ id: 'oswe-vscode-prime', vendor: 'copilot', name: 'Prime' } as never]);
     const showInfoSpy = vi.fn();
     (await import('vscode')).default.window.showInformationMessage = showInfoSpy;
 

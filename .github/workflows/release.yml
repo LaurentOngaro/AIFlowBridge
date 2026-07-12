@@ -45,13 +45,13 @@ jobs:
           echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to VS Code Marketplace
-        if: vars.PUBLISH_VSCODE_MARKETPLACE != 'false'
+        if: ${{ vars.PUBLISH_VSCODE_MARKETPLACE != 'false' }}
         run: npm exec -- vsce publish --packagePath "${{ steps.vsix.outputs.path }}" --skip-duplicate
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: Publish to Open VSX
-        if: vars.PUBLISH_OPEN_VSCODE != 'false'
+        if: ${{ vars.PUBLISH_OPEN_VSCODE != 'false' }}
         run: npm exec -- ovsx publish --skip-duplicate "${{ steps.vsix.outputs.path }}"
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -116,7 +116,7 @@ jobs:
       - name: Build standalone CLI
         run: npm ci && npm run build:standalone
 
-      # FEAT7 + Option 2 of standalone distribution: package the
+      # standalone distribution: package the
       # `dist/standalone/` directory plus production-only deps into a
       # platform-specific archive attached to the GitHub Release.
       # End users extract the archive and run `./aiflowbridge-server`

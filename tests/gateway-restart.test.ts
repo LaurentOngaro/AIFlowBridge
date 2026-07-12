@@ -61,11 +61,13 @@ function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile
 
 function makeConfig(port: number, baseUrl: string): AiFlowBridgeConfig {
 	return {
-		gateway: { enabled: true, port, baseUrl, defaultModel: '' },
+		gateway: { enabled: true, port, baseUrl, defaultModel: '', probeTimeoutMs: 5000, maxConcurrentRequests: 10 },
 		providers: [makeProvider()],
 		telemetryEnabled: false,
 		logRequests: false,
     captureSessionLog: false,
+		telemetryMaxStoredRequestBytes: 8192,
+		telemetryRetentionDays: 90,
 		visionProxy: { excludedVendors: [], copilotVisionModel: '' },
 	};
 }

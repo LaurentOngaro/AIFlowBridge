@@ -46,23 +46,19 @@ vi.mock('vscode', () => ({
 // workspace-context module is first evaluated (it transitively
 // imports `../logger` which reaches for `vscode.window`).
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { detectLanguageHintFromPayload, selectProviderByLanguage, selectProviderWithLanguage } from '../src/aiflowbridge/context/language-routing';
 import {
+  clearWorkspaceContextCache,
   detectWorkspaceContext,
   detectWorkspaceContextCached,
-  clearWorkspaceContextCache,
-  resolveContextRoot,
   renderWorkspaceContext,
+  resolveContextRoot,
 } from '../src/aiflowbridge/context/workspace-context';
-import {
-  detectLanguageHintFromPayload,
-  selectProviderByLanguage,
-  selectProviderWithLanguage,
-} from '../src/aiflowbridge/context/language-routing';
-import type { ProviderProfile } from '../src/aiflowbridge/types';
-import { GatewayService, MAX_LANGUAGE_HINT_HEADER_LENGTH, prependSystemMessage, resolveLanguageHint } from '../src/aiflowbridge/gateway/server';
 import { buildClientConfigSnippets, DiscoveryBeacon } from '../src/aiflowbridge/gateway/discovery';
+import { GatewayService, MAX_LANGUAGE_HINT_HEADER_LENGTH, prependSystemMessage, resolveLanguageHint } from '../src/aiflowbridge/gateway/server';
+import type { ProviderProfile } from '../src/aiflowbridge/types';
 
 // ============================================================================
 // Item #2: workspace context detection
@@ -165,19 +161,13 @@ function makeProvider(overrides: Partial<ProviderProfile> = {}): ProviderProfile
 
 describe('language-based routing rules', () => {
   it('honors explicit language mapping over the model picker', () => {
-    const providers: ProviderProfile[] = [
-      makeProvider({ id: 'a', model: 'model-a' }),
-      makeProvider({ id: 'b', model: 'model-b' }),
-    ];
+    const providers: ProviderProfile[] = [makeProvider({ id: 'a', model: 'model-a' }), makeProvider({ id: 'b', model: 'model-b' })];
     const match = selectProviderByLanguage(providers, 'rust', { rust: 'b' });
     expect(match?.id).toBe('b');
   });
 
   it('falls back to "*" when the language has no explicit rule', () => {
-    const providers: ProviderProfile[] = [
-      makeProvider({ id: 'a', model: 'model-a' }),
-      makeProvider({ id: 'fallback', model: 'fallback-model' }),
-    ];
+    const providers: ProviderProfile[] = [makeProvider({ id: 'a', model: 'model-a' }), makeProvider({ id: 'fallback', model: 'fallback-model' })];
     const match = selectProviderByLanguage(providers, 'typescript', {
       rust: 'a',
       '*': 'fallback',
@@ -202,48 +192,43 @@ describe('language-based routing rules', () => {
   });
 
   it('falls back to selectProvider() when no language match is found', () => {
-    const providers: ProviderProfile[] = [
-      makeProvider({ id: 'a', model: 'model-a' }),
-      makeProvider({ id: 'b', model: 'model-b' }),
-    ];
+    const providers: ProviderProfile[] = [makeProvider({ id: 'a', model: 'model-a' }), makeProvider({ id: 'b', model: 'model-b' })];
     const match = selectProviderWithLanguage(providers, 'model-a', undefined, 'rust', { rust: 'no-such-id' });
     expect(match?.id).toBe('a');
   });
 
   it('language-routed provider wins over the model-picker when both could match', () => {
-    const providers: ProviderProfile[] = [
-      makeProvider({ id: 'a', model: 'model-a' }),
-      makeProvider({ id: 'b', model: 'model-b' }),
-    ];
+    const providers: ProviderProfile[] = [makeProvider({ id: 'a', model: 'model-a' }), makeProvider({ id: 'b', model: 'model-b' })];
     const match = selectProviderWithLanguage(providers, 'model-a', undefined, 'python', { python: 'b' });
     expect(match?.id).toBe('b');
   });
 
   it('skips disabled providers in the language-routed match', () => {
-    const providers: ProviderProfile[] = [
-      makeProvider({ id: 'a' }),
-      makeProvider({ id: 'b', enabled: false }),
-    ];
+    const providers: ProviderProfile[] = [makeProvider({ id: 'a' }), makeProvider({ id: 'b', enabled: false })];
     const match = selectProviderByLanguage(providers, 'rust', { rust: 'b' });
     expect(match).toBeUndefined();
+  });
+
+  it('schema default `languageRouting = {}` keeps the model-picker selection (opt-in contract)', () => {
+    const providers: ProviderProfile[] = [makeProvider({ id: 'a', model: 'model-a' }), makeProvider({ id: 'b', model: 'model-b' })];
+    const fromPicker = selectProviderWithLanguage(providers, 'model-b', undefined, undefined, {});
+    expect(fromPicker?.id).toBe('b');
+    const fromPickerWithHint = selectProviderWithLanguage(providers, 'model-b', undefined, 'python', {});
+    expect(fromPickerWithHint?.id).toBe('b');
   });
 });
 
 describe('detectLanguageHintFromPayload (request body filename scan)', () => {
   it('detects python from a fenced ```python path/to/file.py``` snippet', () => {
     const payload = {
-      messages: [
-        { role: 'user', content: 'Fix this bug:\n```python\n# /home/me/proj/src/foo.py\nimport x\n```' },
-      ],
+      messages: [{ role: 'user', content: 'Fix this bug:\n```python\n# /home/me/proj/src/foo.py\nimport x\n```' }],
     };
     expect(detectLanguageHintFromPayload(payload)).toBe('python');
   });
 
   it('detects rust from a `path/to/file.rs` reference in plain text', () => {
     const payload = {
-      messages: [
-        { role: 'user', content: 'Look at src/main.rs and tell me why this fails.' },
-      ],
+      messages: [{ role: 'user', content: 'Look at src/main.rs and tell me why this fails.' }],
     };
     expect(detectLanguageHintFromPayload(payload)).toBe('rust');
   });
@@ -317,7 +302,7 @@ describe('GatewayService - /v1/discovery endpoint', () => {
           broadcastPort: 18_787,
           broadcastIntervalMs: 60_000,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -347,7 +332,7 @@ describe('GatewayService - /v1/discovery endpoint', () => {
           broadcastPort: 18_787,
           broadcastIntervalMs: 60_000,
         },
-      }),
+      })
     );
     const status = await service.start();
     const parsed = new URL(status.baseUrl);
@@ -362,7 +347,9 @@ describe('GatewayService - /v1/discovery endpoint', () => {
 
 // helpers ----------------------------------------------------------
 
-function makeBaseConfig(overrides: { discovery?: { enabled: boolean; broadcastPort: number; broadcastIntervalMs: number } } = {}): import('../src/aiflowbridge/types').AiFlowBridgeConfig {
+function makeBaseConfig(
+  overrides: { discovery?: { enabled: boolean; broadcastPort: number; broadcastIntervalMs: number } } = {}
+): import('../src/aiflowbridge/types').AiFlowBridgeConfig {
   return {
     gateway: {
       enabled: true,
@@ -372,8 +359,8 @@ function makeBaseConfig(overrides: { discovery?: { enabled: boolean; broadcastPo
       probeTimeoutMs: 500,
       maxConcurrentRequests: 100,
       maxConcurrentPerProvider: 0,
-      upstreamIdleTimeoutMs: 90_000,
-      streamTotalTimeoutMs: 300_000,
+      upstreamIdleTimeoutMs: 90000,
+      streamTotalTimeoutMs: 300000,
       minimaxParallelTokenCount: false,
       workspaceContext: {
         enabled: false,
@@ -384,8 +371,8 @@ function makeBaseConfig(overrides: { discovery?: { enabled: boolean; broadcastPo
       languageRouting: {},
       discovery: {
         enabled: false,
-        broadcastPort: 18_787,
-        broadcastIntervalMs: 2_000,
+        broadcastPort: 18787,
+        broadcastIntervalMs: 2000,
       },
       ...overrides,
     },
@@ -403,13 +390,15 @@ function makeBaseConfig(overrides: { discovery?: { enabled: boolean; broadcastPo
     telemetryEnabled: false,
     logRequests: false,
     captureSessionLog: false,
+    // Production defaults (8 KiB cap, 90-day retention) so the gateway
+    // SSE / persistence tests exercise the real wiring instead of the
+    // disabled path. Override per-test when the suite needs to assert
+    // the disabled (zero) branches.
+    telemetryMaxStoredRequestBytes: 8192,
+    telemetryRetentionDays: 90,
     visionProxy: { excludedVendors: [], copilotVisionModel: '' },
   };
 }
-
-// ============================================================================
-// CR02 A2: prependSystemMessage helper (placement is part of the
-// user-visible prompt contract).
 // ============================================================================
 describe('prependSystemMessage', () => {
   it('inserts the prefix as the first system message', () => {
@@ -433,12 +422,10 @@ describe('prependSystemMessage', () => {
   });
 
   it('preserves array-typed content on existing messages', () => {
-    const out = prependSystemMessage(
-      { messages: [{ role: 'user', content: [{ type: 'text', text: 'multi' }] }] },
-      'CTX'
-    );
-    expect(out.messages[0]).toEqual({ role: 'system', content: 'CTX' });
-    expect(out.messages[1]).toEqual({ role: 'user', content: [{ type: 'text', text: 'multi' }] });
+    const out = prependSystemMessage({ messages: [{ role: 'user', content: [{ type: 'text', text: 'multi' }] }] }, 'CTX');
+    const messages = out.messages as Array<Record<string, unknown>>;
+    expect(messages[0]).toEqual({ role: 'system', content: 'CTX' });
+    expect(messages[1]).toEqual({ role: 'user', content: [{ type: 'text', text: 'multi' }] });
   });
 });
 
@@ -539,6 +526,37 @@ describe('resolveLanguageHint (CR02 B3 header cap)', () => {
     const exactHeader = 'a'.repeat(MAX_LANGUAGE_HINT_HEADER_LENGTH);
     const result = resolveLanguageHint(fakeRequest(exactHeader) as never, undefined, baseConfig);
     expect(result).toBe(exactHeader);
+  });
+
+  it('ignores the header when allowLanguageHeaderOverride=false', () => {
+    const overriddenConfig = {
+      ...baseConfig,
+      gateway: {
+        ...baseConfig.gateway,
+        allowLanguageHeaderOverride: false,
+      },
+    } as unknown as Parameters<typeof resolveLanguageHint>[2];
+    expect(resolveLanguageHint(fakeRequest('python') as never, undefined, overriddenConfig)).toBeUndefined();
+  });
+
+  it('still honors the header by default (allowLanguageHeaderOverride undefined)', () => {
+    // `baseConfig` does not set `allowLanguageHeaderOverride`; the
+    // default is `true`, so a header should still drive the hint.
+    expect(resolveLanguageHint(fakeRequest('python') as never, undefined, baseConfig)).toBe('python');
+  });
+
+  it('with override off, falls through to the request-body hint', () => {
+    const overriddenConfig = {
+      ...baseConfig,
+      gateway: {
+        ...baseConfig.gateway,
+        allowLanguageHeaderOverride: false,
+      },
+    } as unknown as Parameters<typeof resolveLanguageHint>[2];
+    const payload = { messages: [{ role: 'user', content: 'Look at src/agent/foo.py' }] };
+    // The body hint should be picked up even though we set a
+    // different language in the header (which the override ignores).
+    expect(resolveLanguageHint(fakeRequest('rust') as never, payload, overriddenConfig)).toBe('python');
   });
 });
 
@@ -645,27 +663,21 @@ describe('resolveLanguageHint header cap is applied before trim (review F4)', ()
 describe('detectLanguageHintFromPayload excludes URLs (review F6)', () => {
   it('does not match a .py path inside a URL', () => {
     const payload = {
-      messages: [
-        { role: 'user', content: 'See https://docs.example.com/api/foo.py for details.' },
-      ],
+      messages: [{ role: 'user', content: 'See https://docs.example.com/api/foo.py for details.' }],
     };
     expect(detectLanguageHintFromPayload(payload)).toBeUndefined();
   });
 
   it('does not match a path-traversal reference', () => {
     const payload = {
-      messages: [
-        { role: 'user', content: 'Look at ../foo.py for the previous version.' },
-      ],
+      messages: [{ role: 'user', content: 'Look at ../foo.py for the previous version.' }],
     };
     expect(detectLanguageHintFromPayload(payload)).toBeUndefined();
   });
 
   it('still matches a bare filename in plain prose', () => {
     const payload = {
-      messages: [
-        { role: 'user', content: 'Look at src/main.rs and tell me why this fails.' },
-      ],
+      messages: [{ role: 'user', content: 'Look at src/main.rs and tell me why this fails.' }],
     };
     expect(detectLanguageHintFromPayload(payload)).toBe('rust');
   });
@@ -714,9 +726,7 @@ describe('resolveContextRoot cwd sentinel + install-dir guard (review F8)', () =
     const dir = mkdtempSync(join(tmpdir(), 'aiflowbridge-empty-cwd-'));
     try {
       process.chdir(dir);
-      expect(
-        resolveContextRoot(baseSettings, ['package.json', 'pyproject.toml', '.git']),
-      ).toBeUndefined();
+      expect(resolveContextRoot(baseSettings, ['package.json', 'pyproject.toml', '.git'])).toBeUndefined();
     } finally {
       process.chdir(previousCwd);
       rmSync(dir, { recursive: true, force: true });
@@ -736,10 +746,7 @@ describe('resolveContextRoot cwd sentinel + install-dir guard (review F8)', () =
       // AIFlowBridge repo root is the cwd and carries
       // package.json, so the cwd fallback is allowed.
       process.chdir(previousCwd);
-      const result = resolveContextRoot(
-        { ...baseSettings, root: filePath },
-        ['package.json'],
-      );
+      const result = resolveContextRoot({ ...baseSettings, root: filePath }, ['package.json']);
       // The explicit root was rejected; the cwd fallback kicked in
       // and (because the cwd carries package.json) returned the cwd.
       expect(result).toBe(previousCwd);
@@ -788,5 +795,65 @@ describe('DiscoveryBeacon start/stop race (review F5)', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
     expect(beacon.isRunning()).toBe(true);
     beacon.stop();
+  });
+});
+
+// ============================================================================
+// discovery UDP broadcast payload schema is non-sensitive.
+// ============================================================================
+// The audit (GPT 5.6) flagged that the UDP broadcast payload
+// must NOT carry sensitive material: no shutdown token, no
+// workspace paths, no API key, no provider label. We bind a
+// throwaway UDP listener on the configured `broadcastPort`,
+// capture the first packet, and assert the JSON shape is
+// EXACTLY the documented contract.
+describe('iscoveryBeacon broadcast payload non-disclosure', () => {
+  it('emits ONLY { host, port, version, protocol, path } (no tokens / paths / keys)', async () => {
+    const { createSocket } = await import('node:dgram');
+    const listener = createSocket('udp4');
+    const broadcastPort = 19_999;
+    const captured = await new Promise<Buffer>((resolve, reject) => {
+      listener.on('error', reject);
+      listener.bind(broadcastPort, () => {
+        const beacon = new DiscoveryBeacon({
+          host: '127.0.0.1',
+          port: 8787,
+          version: '2.10.1',
+          broadcastPort,
+          broadcastIntervalMs: 60_000,
+        });
+        beacon.start();
+        listener.once('message', (msg) => {
+          beacon.stop();
+          listener.close();
+          resolve(msg);
+        });
+        setTimeout(() => {
+          beacon.stop();
+          try {
+            listener.close();
+          } catch {
+            // ignore
+          }
+          reject(new Error('timed out waiting for the discovery broadcast'));
+        }, 2_000);
+      });
+    });
+    const payload = JSON.parse(captured.toString('utf8')) as Record<string, unknown>;
+    // Exact key set.
+    expect(Object.keys(payload).sort()).toEqual(['host', 'path', 'port', 'protocol', 'version'].sort());
+    expect(payload.protocol).toBe('openai');
+    expect(payload.path).toBe('/v1');
+    expect(payload.host).toBe('127.0.0.1');
+    expect(payload.port).toBe(8787);
+    expect(payload.version).toBe('2.10.1');
+    // Defensive: no field whose name suggests sensitive content.
+    const bannedKeys = ['shutdownToken', 'apiKey', 'token', 'workspace', 'path', 'config'];
+    for (const banned of bannedKeys) {
+      // `path` is the OpenAI-compatible mount path (`/v1`); it is
+      // safe to expose and is part of the documented schema.
+      if (banned === 'path') continue;
+      expect(payload).not.toHaveProperty(banned);
+    }
   });
 });
