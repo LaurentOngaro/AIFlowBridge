@@ -365,6 +365,53 @@ describe('GatewayService - shared session integration', () => {
     expect(res.body.sessions.map((entry: { id: string }) => entry.id)).toEqual(['c', 'b']);
   });
 
+  it('clamps an over-large session list limit to the 50-entry ceiling', async () => {
+    // Regression: the audit flagged the previous 200-entry cap as
+    // too generous for the default dashboard view (which paginates
+    // sessions 5 at a time). A loopback caller asking for the full
+    // 10 000-entry in-memory list used to inflate the SSE payload
+    // on a reconnect. The cap is now 50; we record 60 entries and
+    // assert the response returns exactly 50, regardless of how
+    // high `limit` was.
+    const store = telemetryStore(service);
+    for (let i = 0; i < 60; i++) {
+      store.record(
+        makeEntry({
+          id: `entry-${String(i).padStart(2, '0')}`,
+          // Bump the timestamp by 1 ms per entry so the reverse-
+          // chronological projection is deterministic.
+          timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, 0, i)).toISOString(),
+        })
+      );
+    }
+    const res = await getJson(service, 'GET', '/v1/sessions?limit=10000');
+    expect(res.status).toBe(200);
+    expect(res.body.sessions).toHaveLength(50);
+    // The 50 returned entries must be the 50 most recent ones
+    // (reverse-chronological: highest timestamp first).
+    expect(res.body.sessions[0].id).toBe('entry-59');
+    expect(res.body.sessions[49].id).toBe('entry-10');
+  });
+
+  it('rejects a non-positive session list limit and falls back to the 20-entry default', async () => {
+    const store = telemetryStore(service);
+    for (let i = 0; i < 5; i++) {
+      store.record(makeEntry({ id: `n-${i}`, timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, 0, i)).toISOString() }));
+    }
+    const zeroRes = await getJson(service, 'GET', '/v1/sessions?limit=0');
+    expect(zeroRes.status).toBe(200);
+    // `limit=0` is non-positive, so the helper returns the 20-entry
+    // default; we only recorded 5 entries, so the response carries
+    // exactly 5 (not 20, not 0).
+    expect(zeroRes.body.sessions).toHaveLength(5);
+
+    const negativeRes = await getJson(service, 'GET', '/v1/sessions?limit=-7');
+    expect(negativeRes.body.sessions).toHaveLength(5);
+
+    const garbageRes = await getJson(service, 'GET', '/v1/sessions?limit=notanumber');
+    expect(garbageRes.body.sessions).toHaveLength(5);
+  });
+
   it('returns 404 from GET /v1/replay/{id} for an unknown id', async () => {
     const res = await getJson(service, 'GET', '/v1/replay/unknown-id');
     expect(res.status).toBe(404);

@@ -23,6 +23,7 @@ import type {
 import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
 import { applyOpenRouterAttributionHeaders } from './openrouter-headers';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
+import { isValidBearerKey } from './bearer-key';
 
 interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;
@@ -929,6 +930,28 @@ export class GatewayService {
       }
     }
 
+    // Defense-in-depth: refuse to inject a key whose shape is not
+    // a printable ASCII string of bounded length. The audit flagged
+    // that the previous code spliced `resolvedKey` into the
+    // `Authorization` header without any check, which let a local
+    // attacker with write access to `SecretStorage` forge arbitrary
+    // header bytes. A `CRLF` injection or a multi-MB string is
+    // rejected here before it ever reaches the upstream socket. The
+    // empty string falls through to "no auth header" (the upstream
+    // returns its own 401/403).
+    if (resolvedKey && !isValidBearerKey(resolvedKey)) {
+      logger.warn(
+        `[Gateway] ${requestId} refused to inject Authorization header for provider=${provider.id}: resolved key failed the printable-ASCII shape check (length=${resolvedKey.length})`
+      );
+      this.writeJson(response, 502, {
+        error: 'Upstream credential rejected',
+        requestId,
+        providerId: provider.id,
+        details: 'The resolved API key is not a printable ASCII string of bounded length. Re-run "Set API Key" to overwrite the stored credential.',
+      });
+      return;
+    }
+
     const headers = new Headers({
       'Content-Type': 'application/json',
       Accept: 'application/json, text/event-stream',
@@ -1126,7 +1149,6 @@ export class GatewayService {
     // streaming `'finish'` listener AND the catch block both trying to
     // record the same entry when an error interrupts the stream.
     let telemetryRecorded = false;
-    let ttfbMs = 0;
 
     // gate the parallel MiniMax `/input_tokens`
     // pre-count on streaming requests. The MiniMax stream endpoint
@@ -1215,7 +1237,6 @@ export class GatewayService {
       }
 
       statusCode = upstreamResponse.status;
-      ttfbMs = Date.now() - startedAt;
       const contentType = upstreamResponse.headers.get('content-type') ?? '';
       const isStream = Boolean(payload?.stream) || contentType.includes('text/event-stream');
       // forward any upstream backoff headers so a
@@ -1430,10 +1451,6 @@ export class GatewayService {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
         }
       }
-      // Avoid the unused-binding lint: ttfbMs is captured here purely
-      // for diagnostic parity with the pre-fix logs (still logged by
-      // the streaming finish handler above).
-      void ttfbMs;
     } catch (error) {
       // always clear both watchdogs on the error
       // path. The catch block is reached for any non-success
@@ -1590,9 +1607,13 @@ export class GatewayService {
 
   /**
    * Action plan item #3. Resolve the `?limit=N` query parameter for
-   * `GET /v1/sessions`. Clamps to `[1, 200]` so a malicious loopback
-   * caller cannot ask for the entire in-memory `recent` list (10 000+
-   * entries by default) and inflate the SSE payload.
+   * `GET /v1/sessions`. Clamps to `[1, 50]` so a loopback client
+   * cannot ask for the entire in-memory `recent` list (10 000+
+   * entries by default) and inflate the SSE payload. The previous
+   * cap of 200 was documented in the audit as too generous for a
+   * 50-entry default page size; the dashboard already paginates
+   * sessions in chunks of 5 so the 50-entry ceiling is 10 pages
+   * of headroom above the dashboard's default view.
    */
   private resolveSessionListLimit(searchParams: URLSearchParams): number {
     const raw = searchParams.get('limit');
@@ -1603,7 +1624,7 @@ export class GatewayService {
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return 20;
     }
-    return Math.min(200, parsed);
+    return Math.min(50, parsed);
   }
 
   /**
@@ -1705,11 +1726,36 @@ export class GatewayService {
     const lifetimeMs = events.maxLifetimeMs ?? 30 * 60 * 1000;
     let lifetimeTimer: NodeJS.Timeout | undefined;
     let ended = false;
+    const cleanup = (): void => {
+      if (lifetimeTimer) {
+        clearTimeout(lifetimeTimer);
+        lifetimeTimer = undefined;
+      }
+      clearInterval(heartbeat);
+      unsubscribe();
+      this.activeSseConnections.delete(response);
+    };
+    // Single end-handler called from every termination path
+    // (request close, request aborted, response close, lifetime
+    // cap). The `ended` guard makes the call idempotent: the first
+    // event to fire wins, the others short-circuit. Centralizing
+    // the logic here avoids the maintenance hazard of three
+    // near-identical listeners that each set `ended`, call
+    // `cleanup()`, and could drift apart over time.
+    const endStream = (): void => {
+      if (ended) return;
+      ended = true;
+      cleanup();
+    };
     if (lifetimeMs > 0) {
       lifetimeTimer = setTimeout(() => {
-        if (ended) return;
-        ended = true;
-        cleanup();
+        // The lifetime cap is a graceful shutdown path: the
+        // standard EventSource auto-reconnect kicks in on the
+        // client side. We run the same `endStream()` helper the
+        // network-close paths use (so the `ended` guard + cleanup
+        // stay in one place), then write the documented `end`
+        // event before closing the response.
+        endStream();
         try {
           response.write(`event: end\ndata: {"reason":"max-lifetime-reached"}\n\n`);
           response.end();
@@ -1720,31 +1766,9 @@ export class GatewayService {
       // Don't keep the event loop alive just for this timer.
       lifetimeTimer.unref?.();
     }
-
-    const cleanup = (): void => {
-      if (lifetimeTimer) {
-        clearTimeout(lifetimeTimer);
-        lifetimeTimer = undefined;
-      }
-      clearInterval(heartbeat);
-      unsubscribe();
-      this.activeSseConnections.delete(response);
-    };
-    request.once('close', () => {
-      if (ended) return;
-      ended = true;
-      cleanup();
-    });
-    request.once('aborted', () => {
-      if (ended) return;
-      ended = true;
-      cleanup();
-    });
-    response.once('close', () => {
-      if (ended) return;
-      ended = true;
-      cleanup();
-    });
+    request.once('close', endStream);
+    request.once('aborted', endStream);
+    response.once('close', endStream);
   }
 
   /**

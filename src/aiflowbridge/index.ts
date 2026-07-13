@@ -36,14 +36,9 @@ class AIFlowBridgeRuntime implements Disposable {
    *
    * **Always safe to call.** Before `activate()` resolves (or after
    * it threw), `config` and `gateway` are still undefined; this
-   * getter returns a sensible "all disabled" stub instead of
-   * crashing on the missing fields.
-   * fix: a previous version reached straight into `this.gateway.running` and crashed the
-   * standalone CLI when the getter was hit before activation. The
-   * standalone binary (see `src/standalone/main.ts`) currently
-   * reads this after `activate()`, but the public getter is also
-   * exposed to test harnesses and any future early-startup consumer
-   * that may want to peek at the state.
+   * getter returns a sensible "all disabled" stub so test harnesses
+   * and any future early-startup consumer can peek at the state
+   * without crashing on missing fields.
    */
   public get gatewayInfo(): {
     running: boolean;
@@ -263,6 +258,18 @@ class AIFlowBridgeRuntime implements Disposable {
   }
 
   async deactivate(): Promise<void> {
+    // The runtime may be disposed before `activate()` resolves
+    // (e.g. an immediate deactivation right after install, a test
+    // harness that never awaits the activation promise, or a
+    // hot-reload race). `this.gateway` is declared with the
+    // definite-assignment operator because the construction site
+    // lives inside `activate()`, so the field is genuinely
+    // `undefined` in that window. Calling `stop()` on
+    // `undefined` would throw `TypeError: Cannot read properties
+    // of undefined (reading 'stop')`. Guard at the boundary.
+    if (!this.gateway) {
+      return;
+    }
     await this.gateway.stop();
   }
 
@@ -484,17 +491,17 @@ class AIFlowBridgeRuntime implements Disposable {
       // port refused to shut down within the timeout. Surface a
       // targeted warning so the user knows what to do (stop the peer
       // manually, or wait for TIME_WAIT to clear on Windows).
-      // fix: distinguish "first-time start" (wasRunning was
-      // false) from "restart" (wasRunning was true) in the user-
-      // facing message. The two paths have different remediations
-      // and the previous generic message was misleading in the
-      // first-time case (the user did not "restart" anything).
       try {
         await this.gateway.start();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const code = (error as NodeJS.ErrnoException).code;
         const peerPid = (error as { peerPid?: number }).peerPid;
+        // The user-facing message differs between a first-time start
+        // (wasRunning was false; nothing was "restarted") and a real
+        // restart (wasRunning was true; the user reloaded the config
+        // over a running gateway). The two paths have different
+        // remediations so we surface the right label.
         const actionLabel = wasRunning ? 'restart' : 'start';
         logger.error(`[AIFlowBridge] Gateway failed to ${actionLabel} after config reload: ${message}`);
         if (code === 'EPEERSTALLED' && typeof peerPid === 'number') {

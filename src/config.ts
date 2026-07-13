@@ -97,10 +97,6 @@ export function getProviderReasoningRequiredForToolCalls(vendor: string): boolea
   return config.get<boolean>(key, true);
 }
 
-export function getMaxTokens(): number | undefined {
-  return getProviderMaxTokens('deepseek');
-}
-
 export function getDebugMode(): DebugMode {
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   const mode = config.inspect<unknown>('debugMode');

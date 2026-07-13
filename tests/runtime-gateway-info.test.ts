@@ -213,3 +213,46 @@ describe('AIFlowBridgeRuntime.gatewayInfo - pre-activation guard', () => {
     }
   });
 });
+
+describe('AIFlowBridgeRuntime.dispose / deactivate - pre-activation guard', () => {
+  it('deactivate() is a safe no-op when called before activate() resolves', async () => {
+    // Regression for the dispose-before-activate race: the runtime
+    // declares `this.gateway` with the definite-assignment operator
+    // (the field is built inside `activate()`), so it is genuinely
+    // `undefined` between construction and `activate()` resolving.
+    // Calling `deactivate()` in that window used to crash with
+    // `TypeError: Cannot read properties of undefined (reading
+    // 'stop')`. The guard at the top of `deactivate()` makes it a
+    // safe no-op so a peer activation / hot reload / immediate
+    // deactivation never throws.
+    const host = makeMockHost();
+    const runtime = new AIFlowBridgeRuntime(host.ctx);
+
+    await expect(runtime.deactivate()).resolves.toBeUndefined();
+  });
+
+  it('dispose() does not throw when called before activate()', () => {
+    // `dispose()` is fire-and-forget by contract (mirrors VS Code's
+    // synchronous `Disposable.dispose()` signature). It must not
+    // throw when the runtime was never activated - VS Code calls
+    // `dispose()` synchronously during extension shutdown even if
+    // `activate()` was rejected or short-circuited.
+    const host = makeMockHost();
+    const runtime = new AIFlowBridgeRuntime(host.ctx);
+
+    expect(() => runtime.dispose()).not.toThrow();
+  });
+
+  it('deactivate() after a successful activate() but before any work still calls gateway.stop()', async () => {
+    // The post-activation case (the deactivate() path the standalone
+    // CLI takes on SIGINT/SIGTERM): the gateway IS built, so the
+    // guard does NOT short-circuit, and the real `stop()` runs.
+    // `gateway.enabled` is false in the test config, so `start()`
+    // was never called and `stop()` is a safe no-op on the gateway
+    // side.
+    const host = makeMockHost();
+    const runtime = new AIFlowBridgeRuntime(host.ctx);
+    await runtime.activate();
+    await expect(runtime.deactivate()).resolves.toBeUndefined();
+  });
+});
