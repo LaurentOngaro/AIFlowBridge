@@ -12,8 +12,6 @@
  *
  * Scope: covers the upstream-header injection layer (`applyOpenRouterAttributionHeaders`)
  * and the bundled registry entry. End-to-end live testing with a real
- * OpenRouter key is left to the manual check described in
- * `_Private/ACTION PLAN.md` (item 4.4.6).
  */
 
 import { describe, expect, it } from 'vitest';

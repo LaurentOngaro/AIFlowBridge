@@ -1,6 +1,6 @@
 # TODOs
 
-Track open bugs, improvements, and active tickets. For the detailled implementation plan, see `_Private/ACTION PLAN.md`.
+Track open bugs, improvements, and active tickets. For the detailled implementation plan, see `_Private/docs/ACTION_PLAN.md`.
 
 ## priorities
 
@@ -8,7 +8,7 @@ Implementation order is not strictly defined, but the general priority is:
 
 ## Project Improvements
 
-See `_Private/ACTION PLAN.md` for implementation details, if required for some items bellow.
+See `_Private/docs/ACTION_PLAN.md` for implementation details, if required for some items bellow.
 
 ### Studies (last: STU02)
 
@@ -64,7 +64,7 @@ Next up:
 
 - [ ] More Agentic coding extension adapters (e.g., Claude Code)
 - [ ] More openAI-compatible providers - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
-- [x] OpenRouter upstream - 100+ models (GPT, Claude, Gemini, Llama, Mistral) through a single API key, synthesized into the gateway catalog like the existing 3 vendors (shipped in Unreleased; see `_Private/ACTION PLAN.md` section 4 for the Action #4 implementation)
+- [x] OpenRouter upstream - 100+ models (GPT, Claude, Gemini, Llama, Mistral) through a single API key, synthesized into the gateway catalog like the existing 3 vendors (shipped in Unreleased; see `_Private/docs/ACTION_PLAN.md` section 4 for the Action #4 implementation)
 - [ ] Ollama upstream - local LLMs (Llama, Mistral, Qwen, DeepSeek-R1) routed through the same gateway; no cloud cost, no data leaving the machine
 - [ ] Auto-routing with failover - ordered provider fallback list (e.g. DeepSeek -> MiniMax -> Ollama local) for resilience
 - [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway
@@ -80,7 +80,7 @@ Backlog (value to confirm):
 
 ### 2.12.0
 
-- STU01 / action #4: OpenRouter upstream shipped (see `_Private/ACTION PLAN.md` section 4 + `resources/models.json` `vendors.openrouter` entry). 100+ model ids reachable through `family: "openrouter"` in `aiflowbridge.userModels` or via the bundled 7 flagships. Attribution headers (`HTTP-Referer`, `X-Title`) injected by the gateway. New smoke test in `tests/integration/openrouter.smoke.test.ts`.
+- STU01 / action #4: OpenRouter upstream shipped (see `_Private/docs/ACTION_PLAN.md` section 4 + `resources/models.json` `vendors.openrouter` entry). 100+ model ids reachable through `family: "openrouter"` in `aiflowbridge.userModels` or via the bundled 7 flagships. Attribution headers (`HTTP-Referer`, `X-Title`) injected by the gateway. New smoke test in `tests/integration/openrouter.smoke.test.ts`.
 
 ### 2.11.0
 
@@ -88,7 +88,7 @@ Backlog (value to confirm):
 
 ### 2.10.0
 
-- FEAT10: Pair programming / multi-IDE / multi-language improvements (see `_Private/ACTION PLAN.md`)
+- FEAT10: Pair programming / multi-IDE / multi-language improvements (see `_Private/docs/ACTION_PLAN.md`)
   - Per-client IDE telemetry (multi-IDE visibility) - shipped in 2.5.0 (item 1)
   - Bridge Copilot Chat path into TelemetryStore (pair-prog visibility) - shipped in 2.6.0 (item 6)
   - Workspace context injection (multi-language quality) - shipped in 2.7.0 (item 2)
@@ -105,7 +105,7 @@ Backlog (value to confirm):
 
 ### 2.7.0 - `/review uncommitted` follow-ups (post-CR02 hardening)
 
-- BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.5.1 (A+B+C+D scope). Fix A silences the `MaxListenersExceededWarning`; B adds upstream idle + total stream timeouts (HTTP 504 instead of indefinite standby); C removes the self-inflicted parallel pre-count on streaming MiniMax requests; D adds the per-provider concurrency semaphore. See `_Private/ACTION PLAN.md` for the full implementation summary.
+- BUG17: [gateway agents stuck in standby for minutes when 3 agents run in parallel against MiniMax-M3 (reasoning_split: true)](https://github.com/LaurentOngaro/AIFlowBridge/issues/) - shipped in 2.5.1 (A+B+C+D scope). Fix A silences the `MaxListenersExceededWarning`; B adds upstream idle + total stream timeouts (HTTP 504 instead of indefinite standby); C removes the self-inflicted parallel pre-count on streaming MiniMax requests; D adds the per-provider concurrency semaphore. See `_Private/docs/ACTION_PLAN.md` for the full implementation summary.
   - Fix A: silence `MaxListenersExceededWarning` (one `socket.once('close', ...)` per physical socket via `WeakSet<Socket>`, not per request) at `src/aiflowbridge/gateway/server.ts:262-280`
   - Fix B: upstream idle-stream watchdog (default 90 s, `gateway.upstreamIdleTimeoutMs`) + total stream ceiling (default 300 s, `gateway.streamTotalTimeoutMs`) on the upstream `fetch()`; surfaces HTTP 504 to the client instead of indefinite standby
   - Fix C: skip the unconditional parallel `fetchMinimaxPromptTokens` pre-count on streaming MiniMax requests (opt-in via `gateway.minimaxParallelTokenCount`, default `false`); share the abort signal with the main request
@@ -137,7 +137,7 @@ Backlog (value to confirm):
 
 ### 2.4.0 (Install Standalone Gateway)
 
-- FEAT8: Install standalone gateway (Option 3 of the V2 distribution plan, see `_Private/ACTION PLAN.md`) - one-click command in the VS Code extension that downloads the platform-matched standalone CLI binary from the latest GitHub Release, extracts it to a user-chosen directory, makes the launcher executable (POSIX), and offers to add an autostart unit (systemd / launchd / Task Scheduler). Removes the "clone the repo, run npm ci, run npm run build:standalone" friction for the majority of users who do not have the dev toolchain installed. Idempotent (detects existing install, prompts Replace / Keep / Cancel), atomic extraction (cleanup in `finally`), redirect-following (HTTP 301-308, max 5 hops). New runtime deps: `adm-zip` (Windows), `tar` (POSIX). New file `src/runtime/installStandalone.ts` + 13 unit tests in `tests/install-standalone.test.ts`.
+- FEAT8: Install standalone gateway (Option 3 of the V2 distribution plan, see `_Private/docs/ACTION_PLAN.md`) - one-click command in the VS Code extension that downloads the platform-matched standalone CLI binary from the latest GitHub Release, extracts it to a user-chosen directory, makes the launcher executable (POSIX), and offers to add an autostart unit (systemd / launchd / Task Scheduler). Removes the "clone the repo, run npm ci, run npm run build:standalone" friction for the majority of users who do not have the dev toolchain installed. Idempotent (detects existing install, prompts Replace / Keep / Cancel), atomic extraction (cleanup in `finally`), redirect-following (HTTP 301-308, max 5 hops). New runtime deps: `adm-zip` (Windows), `tar` (POSIX). New file `src/runtime/installStandalone.ts` + 13 unit tests in `tests/install-standalone.test.ts`.
 
 ### 2.0.0 (Standalone Gateway)
 

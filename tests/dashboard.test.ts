@@ -1327,7 +1327,7 @@ describe('formatCostCell', () => {
   });
 });
 
-describe('per-client IDE telemetry (ACTION PLAN item #1)', () => {
+describe('per-client IDE telemetry', () => {
   function snapshotWithClients(): TelemetrySnapshot {
     const snap = emptySnapshot();
     snap.requests = 4;
