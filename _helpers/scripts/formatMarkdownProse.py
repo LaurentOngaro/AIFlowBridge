@@ -15,9 +15,9 @@ Usage
 -----
 ::
 
-    python3 _helpers/scripts/format-prose.py <file-or-dir> [more ...]
-    python3 _helpers/scripts/format-prose.py --check <file-or-dir>   # dry run, exit 1 on diff
-    MAX=200 python3 _helpers/scripts/format-prose.py path/to/dir
+    python3 _helpers/scripts/formatMarkdownProse.py <file-or-dir> [more ...]
+    python3 _helpers/scripts/formatMarkdownProse.py --check <file-or-dir>   # dry run, exit 1 on diff
+    MAX=200 python3 _helpers/scripts/formatMarkdownProse.py path/to/dir
 
 A directory target is walked recursively for ``*.md`` files. Hidden directories (names starting with ``.``) and the common build / dependency / personal trees (``node_modules``, ``dist``, ``out``, ``__pycache__``,0 ``.venv``, ``venv``, ``_Private``) are skipped automatically.
 """
@@ -32,7 +32,7 @@ from pathlib import Path
 MAX = int(os.environ.get("MAX", "180"))
 if MAX < 40:
     print(
-        f'[format-prose] invalid MAX={os.environ.get("MAX")} (must be >= 40)',
+        f'[formatMarkdownProse] invalid MAX={os.environ.get("MAX")} (must be >= 40)',
         file=sys.stderr,
     )
     sys.exit(2)
@@ -233,7 +233,7 @@ def main(argv: list[str]) -> int:
 
     if not raw_targets:
         print(
-            "Usage: python3 _helpers/scripts/format-prose.py [--check] <file-or-dir> [...]",
+            "Usage: python3 _helpers/scripts/formatMarkdownProse.py [--check] <file-or-dir> [...]",
             file=sys.stderr,
         )
         return 2
