@@ -43,4 +43,5 @@ The gateway also runs as a standalone Node.js CLI (`aiflowbridge-server`) withou
 
 ## User-facing documentation
 
-The end-user documentation lives under `docs/` (architecture, gateway, vision, reasoning, providers, dashboard, standalone, troubleshooting, cost, development, kilocode, jetbrains). It has a different audience and update cadence than the agent instructions above.
+The end-user documentation lives under `docs/` (architecture, gateway, vision, reasoning, providers, dashboard, standalone, troubleshooting, cost, development, kilocode, jetbrains).
+It has a different audience and update cadence than the agent instructions above.

@@ -4,7 +4,8 @@
 
 ## Overview
 
-The gateway records every request with token counts, latency, status, and estimated cost. Telemetry is persisted in a real file (`<globalStorageUri>/telemetry.json` on VS Code, `~/.aiflowbridge/telemetry.json` on standalone), shared across all VS Code windows and the standalone CLI via a file lock.
+The gateway records every request with token counts, latency, status, and estimated cost.
+Telemetry is persisted in a real file (`<globalStorageUri>/telemetry.json` on VS Code, `~/.aiflowbridge/telemetry.json` on standalone), shared across all VS Code windows and the standalone CLI via a file lock.
 
 ## Architecture
 
@@ -25,7 +26,8 @@ API:
 - `removeEntry(id)` - reverse-delta an entry (used by the per-row delete button on the dashboard).
 - `clear()` - empty the snapshot.
 
-The on-disk file is always written atomically: a crash mid-write leaves the previous snapshot intact, and a read observed during a write returns the old or new content, never a truncated JSON. Concurrent writers are tested with 50 parallel `appendDelta` calls: zero lost updates.
+The on-disk file is always written atomically: a crash mid-write leaves the previous snapshot intact, and a read observed during a write returns the old or new content, never a truncated JSON.
+Concurrent writers are tested with 50 parallel `appendDelta` calls: zero lost updates.
 
 ## TelemetryStore
 
@@ -42,30 +44,38 @@ In-memory store. Public API:
 - `getEntry(id)` - lookup a recorded entry by id (powers `GET /v1/replay/{id}` and the dashboard Shared Session panel).
 - `listSessions(limit)` - lightweight projection for the session list view, reverse chronological, limit clamped to `[1, 200]`.
 
-`TelemetryStore.MAX_RECENT` cap was removed in 1.6.0; every recorded request is appended with no eviction. The configurable `memoryCap` (default 10000) caps the in-memory `recent` array to bound memory under high throughput; the on-disk persister still receives every entry.
+`TelemetryStore.MAX_RECENT` cap was removed in 1.6.0; every recorded request is appended with no eviction.
+The configurable `memoryCap` (default 10000) caps the in-memory `recent` array to bound memory under high throughput; the on-disk persister still receives every entry.
 
 ### Session log sanitization (action plan item #3, 2.10.0+)
 
-`RequestTelemetry` carries optional `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars), captured at recording time by the gateway (`src/aiflowbridge/telemetry/summary.ts`). Both are sanitized at extraction time:
+`RequestTelemetry` carries optional `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars), captured at recording time by the gateway (`src/aiflowbridge/telemetry/summary.ts`).
+Both are sanitized at extraction time:
 
 - `Bearer <token>` strings (12+ chars after the prefix) become `Bearer [REDACTED]`.
 - `sk-<token>` strings (20+ chars after the prefix) become `sk-[REDACTED]`.
 - `x-api-key=<token>` / `x-api-key: <token>` strings (16+ chars) become `x-api-key=[REDACTED]`.
 - Any 60+-char run of `A-Za-z0-9+/=_-` without whitespace becomes `[REDACTED]` (catches base64-looking blobs and unquoted API keys).
 
-The sanitization is idempotent (running it twice on the same input returns the same output) and happens **before** the truncation cap, so a redacted credential that survives the cap is no longer reachable. The whole pipeline is gated on `aiflowbridge.telemetry.captureSessionLog` (default `true`).
+The sanitization is idempotent (running it twice on the same input returns the same output) and happens **before** the truncation cap, so a redacted credential that survives the cap is no longer reachable.
+The whole pipeline is gated on `aiflowbridge.telemetry.captureSessionLog` (default `true`).
 
-The `RequestTelemetry.promptSummary` / `responseSummary` fields are **optional** in the schema, so older on-disk snapshots load unchanged and the next `record()` call repopulates the new fields as requests come in. No migration is required.
+The `RequestTelemetry.promptSummary` / `responseSummary` fields are **optional** in the schema, so older on-disk snapshots load unchanged and the next `record()` call repopulates the new fields as requests come in.
+No migration is required.
 
 ## Cost estimation
 
-Per-request `estimatedCost` is computed at request time using the matched `ProviderProfile.pricing`. Historical costs are frozen (a fait historique) - they are never recomputed when a pricing override changes. To start over with a new rate, use `AIFlowBridge: Reset metrics`.
+Per-request `estimatedCost` is computed at request time using the matched `ProviderProfile.pricing`.
+Historical costs are frozen (a fait historique) - they are never recomputed when a pricing override changes.
+To start over with a new rate, use `AIFlowBridge: Reset metrics`.
 
-Errored requests (`status >= 400`) record `estimatedCost = 0` - the user is never billed for a request that never produced a billable completion. The request is still recorded (error count, per-provider / per-model usage, duration averages, per-row delete affordance) - it just does not contribute to the "Estimated cost" totals.
+Errored requests (`status >= 400`) record `estimatedCost = 0` - the user is never billed for a request that never produced a billable completion.
+The request is still recorded (error count, per-provider / per-model usage, duration averages, per-row delete affordance) - it just does not contribute to the "Estimated cost" totals.
 
 ## Migration
 
-On first activation after upgrading from a pre-1.5.0 install, if the legacy `aiflowbridge.telemetry.v1` globalState slot has data and the new file does not, the snapshot is moved over and the legacy slot is cleared (logged at INFO with the request/token counts). One-shot, idempotent.
+On first activation after upgrading from a pre-1.5.0 install, if the legacy `aiflowbridge.telemetry.v1` globalState slot has data and the new file does not, the snapshot is moved over and the legacy slot is cleared (logged at INFO with the request/token counts).
+One-shot, idempotent.
 
 ## Dashboard
 

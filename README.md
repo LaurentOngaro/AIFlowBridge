@@ -20,9 +20,10 @@
 </p>
 <!-- markdownlint-enable MD033 -->
 
-**100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant. Smart routing, shared session replay, and live cost tracking included.
+**100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
+Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.12.1** - data snapshot **2026-07-13**. Model ids and pricing throughout this README are pinned to this snapshot. Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
+> **AIFlowBridge 2.13.0** - data snapshot **2026-07-13**. Model ids and pricing throughout this README are pinned to this snapshot. Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
 **Runs as a VS Code extension **or** as a standalone Node.js binary (~30 MB RAM).**
 
@@ -45,7 +46,10 @@
 >
 > Swap the `model` field for any id at [openrouter.ai/models](https://openrouter.ai/models) - the gateway forwards it verbatim. No AIFlowBridge update needed for new models.
 
-AIFlowBridge is the **OpenRouter equivalent you can run yourself**, plus three direct vendors (DeepSeek, MiniMax, Xiaomi MiMo) for when going direct is cheaper. The gateway forwards every prompt to the model you (or your client) pick - no surprises, no hidden re-routing. One OpenRouter key unlocks 100+ frontier models behind a single endpoint; one direct key per vendor unlocks the cheapest available rate. Mix both worlds in the same Copilot Chat picker, the same `http://127.0.0.1:8787/v1` gateway, the same dashboard.
+AIFlowBridge is the **OpenRouter equivalent you can run yourself**, plus three direct vendors (DeepSeek, MiniMax, Xiaomi MiMo) for when going direct is cheaper.
+The gateway forwards every prompt to the model you (or your client) pick - no surprises, no hidden re-routing.
+One OpenRouter key unlocks 100+ frontier models behind a single endpoint; one direct key per vendor unlocks the cheapest available rate.
+Mix both worlds in the same Copilot Chat picker, the same `http://127.0.0.1:8787/v1` gateway, the same dashboard.
 If you opt in via `aiflowbridge.gateway.languageRouting`, polyglot projects can route Python to DeepSeek Flash, Rust to DeepSeek Pro, free-tier OpenRouter models to everything else, all from a single endpoint.
 Pair-programming is built in: the dashboard shows sanitized prompt / response summaries of every recorded request, with one-click replay and a live Server-Sent Events stream so you see new requests land in real time.
 
@@ -63,22 +67,26 @@ Pair-programming is built in: the dashboard shows sanitized prompt / response su
 
 ## Pick your cost point
 
-> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: `https://openrouter.ai/api/v1/models` for OpenRouter entries, per-vendor pricing pages for direct vendors. Refresh per release; verify before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness).
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.13.0).** Source: `https://openrouter.ai/api/v1/models` for OpenRouter entries, per-vendor pricing pages for direct vendors. Refresh per release; verify before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness).
 
-One extension, three pricing tiers - choose what fits your workload. The OpenRouter path trades a small upstream markup for access to 100+ frontier models (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, Qwen 3.7 Max, etc.) behind a single API key. The direct-vendor path squeezes the last cents out of token cost. The local path is free forever.
+One extension, three pricing tiers - choose what fits your workload.
+The OpenRouter path trades a small upstream markup for access to 100+ frontier models (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, Qwen 3.7 Max, etc.) behind a single API key.
+The direct-vendor path squeezes the last cents out of token cost.
+The local path is free forever.
 
-| Stack                                           | Monthly cost (heavy use) |
-| ----------------------------------------------- | ------------------------ |
-| GitHub Copilot Pro                              | $19 / month              |
-| Cursor Pro                                      | $20 / month              |
-| Kilo Code + OpenAI direct                       | ~$15-30 / month          |
-| **Kilo Code + AIFlowBridge + OpenRouter free tier** (Llama 3.3 70B, Mistral Small, Qwen 3, etc.) | **~$0-5 / month** |
-| **Kilo Code + AIFlowBridge + Xiaomi MiMo V2.5** | **~$11 / month**         |
-| **Kilo Code + AIFlowBridge + Ollama local**     | **$0 / month**           |
+| Stack                                                                                            | Monthly cost (heavy use) |
+| ------------------------------------------------------------------------------------------------ | ------------------------ |
+| GitHub Copilot Pro                                                                               | $10 / month              |
+| Cursor Pro                                                                                       | $20 / month              |
+| Kilo Code + OpenAI direct                                                                        | ~$15-30 / month          |
+| **Kilo Code + AIFlowBridge + OpenRouter free tier** (Llama 3.3 70B, Mistral Small, Qwen 3, etc.) | **~$0-5 / month**        |
+| **Kilo Code + AIFlowBridge + Xiaomi MiMo V2.5**                                                  | **~$11 / month**         |
+| **Kilo Code + AIFlowBridge + Ollama local**                                                      | **$0 / month**           |
 
 For occasional use, the cheapest stacks (MiMo, Ollama, OpenRouter free tier) cut your AI bill by 40-100% vs Copilot. The full breakdown lives in [docs/cost.md](docs/cost.md).
 
-AIFlowBridge itself is **free, open-source, ad-free, tracker-free, no data collection**. You pay only the upstream providers you actually use - OpenRouter, DeepSeek, MiniMax, Xiaomi MiMo, or your own local runtime.
+AIFlowBridge itself is **free, open-source, ad-free, tracker-free, no data collection**.
+You pay only the upstream providers you actually use - OpenRouter, DeepSeek, MiniMax, Xiaomi MiMo, or your own local runtime.
 
 ## Why AIFlowBridge?
 
@@ -130,7 +138,8 @@ Full setup including autostart systemd / launchd / Task Scheduler templates: **[
 
 ### 2. Set your API keys
 
-**Start with one OpenRouter key** to unlock 100+ models - that's usually enough for most setups. Add direct vendor keys later if you want to bypass the OpenRouter markup for heavy workloads on DeepSeek / MiniMax / Xiaomi MiMo.
+**Start with one OpenRouter key** to unlock 100+ models - that's usually enough for most setups.
+Add direct vendor keys later if you want to bypass the OpenRouter markup for heavy workloads on DeepSeek / MiniMax / Xiaomi MiMo.
 
 **VS Code extension** (keys go to your OS keychain):
 
@@ -158,7 +167,8 @@ export AIFLOWBRIDGE_XIAOMI_API_KEY=...
 
 ### 3. Use it
 
-**Copilot Chat (VS Code):** open Copilot Chat (`Ctrl+Shift+I`), pick a model in the chat header (DeepSeek V4 Pro / Flash, MiniMax M2 -> M3, Xiaomi MiMo V2 Omni / Pro / V2.5 / V2.5 Pro). OpenRouter models reach Copilot Chat via Kilo Code or Continue, not the Copilot picker.
+**Copilot Chat (VS Code):** open Copilot Chat (`Ctrl+Shift+I`), pick a model in the chat header (DeepSeek V4 Pro / Flash, MiniMax M2 -> M3, Xiaomi MiMo V2 Omni / Pro / V2.5 / V2.5 Pro).
+OpenRouter models reach Copilot Chat via Kilo Code or Continue, not the Copilot picker.
 
 **Any OpenAI-compatible client (gateway), 100+ models via OpenRouter:**
 
@@ -168,9 +178,12 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model": "openai/gpt-5.6-sol", "messages": [{"role": "user", "content": "ping"}]}'
 ```
 
-Swap the `model` field for any of the OpenRouter ids at [openrouter.ai/models](https://openrouter.ai/models) - the gateway forwards verbatim. Direct vendors work the same way: `MiniMax-M3`, `deepseek-v4-pro`, `mimo-v2.5`, etc. See [docs/providers.md](docs/providers.md) for the full list.
+Swap the `model` field for any of the OpenRouter ids at [openrouter.ai/models](https://openrouter.ai/models) - the gateway forwards verbatim.
+Direct vendors work the same way: `MiniMax-M3`, `deepseek-v4-pro`, `mimo-v2.5`, etc.
+See [docs/providers.md](docs/providers.md) for the full list.
 
-Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK at `http://127.0.0.1:8787/v1` with any non-empty `apiKey` (the gateway validates credentials upstream, not in the local header). See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste client configs.
+Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK at `http://127.0.0.1:8787/v1` with any non-empty `apiKey` (the gateway validates credentials upstream, not in the local header).
+See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste client configs.
 
 ## Documentation
 
@@ -214,7 +227,8 @@ Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK
 | `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                               |
 | `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                           |
 
-Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by design - it is exposed through the gateway path only (works from Kilo Code, Continue, Open WebUI, curl). Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is listed first), or via the registry override file, or via the `AIFLOWBRIDGE_OPENROUTER_API_KEY` env var on the standalone CLI.
+Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by design - it is exposed through the gateway path only (works from Kilo Code, Continue, Open WebUI, curl).
+Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is listed first), or via the registry override file, or via the `AIFLOWBRIDGE_OPENROUTER_API_KEY` env var on the standalone CLI.
 
 ## Roadmap (extract)
 
@@ -224,13 +238,14 @@ Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by d
 - web-based dashboard at `http://127.0.0.1:8787/dashboard`
 - ...
 
-Just shipped in 2.12.1: **OpenRouter upstream** (100+ models via single key) - see [CHANGELOG.md](CHANGELOG.md#2121).
+Just shipped in 2.13.0: **OpenRouter upstream** (100+ models via single key) - see [CHANGELOG.md](CHANGELOG.md#2121).
 
 Full roadmap: [TODO.md](TODO.md#1-versions-roadmap).
 
 ## Sponsoring
 
-AIFlowBridge is **free, open-source, ad-free, tracker-free**. It will never ask you to pay for a feature, show you ads, or phone home. Sponsorship funds the whole body of work, not just this extension.
+AIFlowBridge is **free, open-source, ad-free, tracker-free**. It will never ask you to pay for a feature, show you ads, or phone home.
+Sponsorship funds the whole body of work, not just this extension.
 
 <!-- markdownlint-disable MD033 -->
 <p align="center">

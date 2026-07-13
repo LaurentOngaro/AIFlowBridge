@@ -35,7 +35,8 @@ AIFlowBridge is designed with a local-first security model:
 
 ## Session-log privacy (action plan item #3, hardened 2.10.x)
 
-When `aiflowbridge.telemetry.captureSessionLog` is `true` (the default), every recorded request carries a sanitized + truncated `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars). Both are persisted to the on-disk telemetry file (`<globalStorageUri>/telemetry.json`) so the Shared Session panel + `GET /v1/sessions` + `GET /v1/replay/{id}` can replay them.
+When `aiflowbridge.telemetry.captureSessionLog` is `true` (the default), every recorded request carries a sanitized + truncated `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars).
+Both are persisted to the on-disk telemetry file (`<globalStorageUri>/telemetry.json`) so the Shared Session panel + `GET /v1/sessions` + `GET /v1/replay/{id}` can replay them.
 
 **Stored shape (post-sanitization):**
 
@@ -43,7 +44,8 @@ When `aiflowbridge.telemetry.captureSessionLog` is `true` (the default), every r
 - `responseSummary` - sanitized upstream response (or assembled SSE `delta.content` for streaming), max 1000 chars.
 - Both fields are run through `sanitizeSummaryText()` which strips `Bearer ...`, `sk-...`, `x-api-key=...` and any 60+-char token-like blob without whitespace. The cap is applied AFTER sanitization so a redacted credential that survives truncation is no longer reachable.
 
-**On-disk location:** `<globalStorageUri>/telemetry.json` (path is per-OS-user, per-machine). The file is JSON, written atomically (`.tmp` + `rename`) under a cross-process lock (`telemetry.lock`, stale-mtime reaper at 30 s).
+**On-disk location:** `<globalStorageUri>/telemetry.json` (path is per-OS-user, per-machine).
+The file is JSON, written atomically (`.tmp` + `rename`) under a cross-process lock (`telemetry.lock`, stale-mtime reaper at 30 s).
 
 **Hard caps:**
 
@@ -56,7 +58,9 @@ When `aiflowbridge.telemetry.captureSessionLog` is `true` (the default), every r
 - `AIFlowBridge: Purge session log` - wipes ONLY the captured `promptSummary` / `responseSummary` fields; usage totals (requests, tokens, cost, per-provider / per-model breakdowns) are kept. Modal confirmation required. This is the privacy-driven affordance: keep the analytics, drop the replay text.
 - Disable entirely: set `aiflowbridge.telemetry.captureSessionLog = false`. The replay / session / SSE endpoints stay available; new entries are stored without summaries.
 
-**Limits of the redaction.** `sanitizeSummaryText` is best-effort. The threat model is "accidental disclosure" (a developer pasting a `curl` one-liner that includes their upstream key) - the gateway runs loopback-only. A determined adversary could craft a payload that leaks through, but that is out of scope: it requires the same loopback access that would let them read `~/.aiflowbridge/secrets.json` directly.
+**Limits of the redaction.** `sanitizeSummaryText` is best-effort.
+The threat model is "accidental disclosure" (a developer pasting a `curl` one-liner that includes their upstream key) - the gateway runs loopback-only.
+A determined adversary could craft a payload that leaks through, but that is out of scope: it requires the same loopback access that would let them read `~/.aiflowbridge/secrets.json` directly.
 
 ## Hardening Highlights
 

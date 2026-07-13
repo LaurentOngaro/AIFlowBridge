@@ -6,11 +6,11 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
-## 2.12.1
+## 2.13.0
 
 ### Fixed
 
-- **Gateway catalog exposed fake model ids for MiniMax and Xiaomi.** The hand-curated `DEFAULT_GATEWAY_PROFILES` entries in `src/aiflowbridge/host-config.ts` had `id: 'minimax'` and `id: 'xiaomi'` (vendor names) instead of real upstream model ids. `GET /v1/models` then surfaced these strings as model names to Kilo Code / Continue / Open WebUI, making the picker show fake model ids that no upstream API recognises. Functionally the gateway still forwarded the correct upstream model via `profile.model`, but the catalog was inconsistent and misleading. Fixed by aligning the `id` field with the upstream model id: `id: 'MiniMax-M2.7'` (was `'minimax'`) and `id: 'mimo-v2.5-pro'` (was `'xiaomi'`). Four new regression tests in `tests/host-config.test.ts` (`hand-curated gateway profiles use real upstream model ids as catalog ids` describe block) pin the invariant: no `KNOWN_VENDOR_NAMES` leak into the catalog, no lowercase-only-vendor-shape id is accepted, and the end-to-end `buildModelCatalog` output contains only real upstream ids. The recipe for adding a new vendor in `docs/agent-instructions/tasks.md` (Path B, step 9) now encodes the invariant explicitly.
+- **Gateway catalog exposed fake model ids for MiniMax and Xiaomi.** The hand-curated `DEFAULT_GATEWAY_PROFILES` entries in `src/aiflowbridge/host-config.ts` had `id: 'minimax'` and `id: 'xiaomi'` (vendor names) instead of real upstream model ids. `GET /v1/models` then surfaced these strings as model names to Kilo Code / Continue / Open WebUI, making the picker show fake model ids that no upstream API recognizes. Functionally the gateway still forwarded the correct upstream model via `profile.model`, but the catalog was inconsistent and misleading. Fixed by aligning the `id` field with the upstream model id: `id: 'MiniMax-M2.7'` (was `'minimax'`) and `id: 'mimo-v2.5-pro'` (was `'xiaomi'`). Four new regression tests in `tests/host-config.test.ts` (`hand-curated gateway profiles use real upstream model ids as catalog ids` describe block) pin the invariant: no `KNOWN_VENDOR_NAMES` leak into the catalog, no lowercase-only-vendor-shape id is accepted, and the end-to-end `buildModelCatalog` output contains only real upstream ids. The recipe for adding a new vendor in `docs/agent-instructions/tasks.md` (Path B, step 9) now encodes the invariant explicitly.
 
 ### Changed
 
@@ -26,7 +26,7 @@
 
 ### Fixed
 
-- **Gateway catalog exposed fake model ids for MiniMax and Xiaomi.** The hand-curated `DEFAULT_GATEWAY_PROFILES` entries in `src/aiflowbridge/host-config.ts` had `id: 'minimax'` and `id: 'xiaomi'` (vendor names) instead of real upstream model ids. `GET /v1/models` then surfaced these strings as model names to Kilo Code / Continue / Open WebUI, making the picker show fake model ids that no upstream API recognises. Functionally the gateway still forwarded the correct upstream model via `profile.model`, but the catalog was inconsistent and misleading. Fixed by aligning the `id` field with the upstream model id: `id: 'MiniMax-M2.7'` (was `'minimax'`) and `id: 'mimo-v2.5-pro'` (was `'xiaomi'`). Four new regression tests in `tests/host-config.test.ts` (`hand-curated gateway profiles use real upstream model ids as catalog ids` describe block) pin the invariant: no `KNOWN_VENDOR_NAMES` leak into the catalog, no lowercase-only-vendor-shape id is accepted, and the end-to-end `buildModelCatalog` output contains only real upstream ids. The recipe for adding a new vendor in `docs/agent-instructions/tasks.md` (Path B, step 9) now encodes the invariant explicitly.
+- **Gateway catalog exposed fake model ids for MiniMax and Xiaomi.** The hand-curated `DEFAULT_GATEWAY_PROFILES` entries in `src/aiflowbridge/host-config.ts` had `id: 'minimax'` and `id: 'xiaomi'` (vendor names) instead of real upstream model ids. `GET /v1/models` then surfaced these strings as model names to Kilo Code / Continue / Open WebUI, making the picker show fake model ids that no upstream API recognizes. Functionally the gateway still forwarded the correct upstream model via `profile.model`, but the catalog was inconsistent and misleading. Fixed by aligning the `id` field with the upstream model id: `id: 'MiniMax-M2.7'` (was `'minimax'`) and `id: 'mimo-v2.5-pro'` (was `'xiaomi'`). Four new regression tests in `tests/host-config.test.ts` (`hand-curated gateway profiles use real upstream model ids as catalog ids` describe block) pin the invariant: no `KNOWN_VENDOR_NAMES` leak into the catalog, no lowercase-only-vendor-shape id is accepted, and the end-to-end `buildModelCatalog` output contains only real upstream ids. The recipe for adding a new vendor in `docs/agent-instructions/tasks.md` (Path B, step 9) now encodes the invariant explicitly.
 
 ### Changed
 
@@ -35,7 +35,9 @@
 
 ## 2.11.0
 
-Privacy, safety, and shipping-quality hardening pass. The release closes the install path for end users (`installStandalone` failed on the published 2.10.0 VSIX because the runtime ZIP/tar modules were not packaged), bounds the on-disk footprint of the session-log feature, and tightens the loopback-only event stream so a passive listener cannot see prompt or response text without an explicit opt-in. No behaviour change for callers on default settings.
+Privacy, safety, and shipping-quality hardening pass.
+The release closes the install path for end users (`installStandalone` failed on the published 2.10.0 VSIX because the runtime ZIP/tar modules were not packaged), bounds the on-disk footprint of the session-log feature, and tightens the loopback-only event stream so a passive listener cannot see prompt or response text without an explicit opt-in.
+No behaviour change for callers on default settings.
 
 ### Fixed
 
@@ -66,7 +68,8 @@ Privacy, safety, and shipping-quality hardening pass. The release closes the ins
 
 ## 2.10.0
 
-Pair-programming headline feature. Shared session log + replay endpoint + Server-Sent Events stream let a pair see what the AI just told their partner, re-fetch the original assistant message without re-forwarding upstream, and watch new requests land in real time.
+Pair-programming headline feature.
+Shared session log + replay endpoint + Server-Sent Events stream let a pair see what the AI just told their partner, re-fetch the original assistant message without re-forwarding upstream, and watch new requests land in real time.
 
 ### Added
 
@@ -85,7 +88,8 @@ Pair-programming headline feature. Shared session log + replay endpoint + Server
 
 ## 2.9.0
 
-Dashboard grouping + UX refinements. One new panel (`Sessions`) and eight preset options for the inactivity gap, with no behaviour change to existing panels or to the telemetry capture path.
+Dashboard grouping + UX refinements.
+One new panel (`Sessions`) and eight preset options for the inactivity gap, with no behaviour change to existing panels or to the telemetry capture path.
 
 ### Added
 
@@ -93,7 +97,8 @@ Dashboard grouping + UX refinements. One new panel (`Sessions`) and eight preset
 
 ## 2.8.1
 
-Bugfix release addressing two regressions introduced in 2.8.0's storage layout change. Both shipped for the standalone CLI; the VS Code extension's telemetry and dashboard are unchanged on default settings.
+Bugfix release addressing two regressions introduced in 2.8.0's storage layout change.
+Both shipped for the standalone CLI; the VS Code extension's telemetry and dashboard are unchanged on default settings.
 
 ### Fixed
 
@@ -104,7 +109,8 @@ Bugfix release addressing two regressions introduced in 2.8.0's storage layout c
 
 ## 2.8.0
 
-Architecture & quality hardening pass driven by the static analysis of the 2.7.0 codebase (audit archived in `_Private/archives/2026_07_11_code-review-architecture.md`). 11 of 12 recommendations addressed in this release; the 12th (refactor of `forwardChatCompletion()` into discrete handlers) is documented as a follow-up with a recommended incremental decomposition. No behaviour change for callers on default settings.
+Architecture & quality hardening pass driven by the static analysis of the 2.7.0 codebase (audit archived in `_Private/archives/2026_07_11_code-review-architecture.md`). 11 of 12 recommendations addressed in this release; the 12th (refactor of `forwardChatCompletion()` into discrete handlers) is documented as a follow-up with a recommended incremental decomposition.
+No behaviour change for callers on default settings.
 
 ### Fixed
 
@@ -129,7 +135,8 @@ Architecture & quality hardening pass driven by the static analysis of the 2.7.0
 
 ## 2.7.0
 
-Multi-language quality lift + zero-conf discovery. Ships three action-plan items in one release: workspace context injection (o every chat completion carries a one-paragraph system message describing the project's languages / package managers / linters / formatters; language-based model routing rules (o a polyglot project automatically routes to the right model per language; zero-conf discovery (o IDEs find the local gateway via a UDP beacon + `GET /v1/discovery` HTTP endpoint without any pre-shared URL.
+Multi-language quality lift + zero-conf discovery.
+Ships three action-plan items in one release: workspace context injection (o every chat completion carries a one-paragraph system message describing the project's languages / package managers / linters / formatters; language-based model routing rules (o a polyglot project automatically routes to the right model per language; zero-conf discovery (o IDEs find the local gateway via a UDP beacon + `GET /v1/discovery` HTTP endpoint without any pre-shared URL.
 
 ### Added
 
@@ -167,7 +174,9 @@ Multi-language quality lift + zero-conf discovery. Ships three action-plan items
 
 ## 2.6.1
 
-Hotfix for BUG18: upgrading from a version pre-2.5.0 (where `byClient` did not exist) to 2.6.0 (where `bySource` was added) made the on-disk telemetry file fail the schema validator. The user's cumulative counters were silently wiped (the dashboard opened empty, with a single `[Telemetry] Telemetry file at <path> does not match the expected shape, ignoring.` warning in the logs). Treats the per-bucket maps as optional in the validator and adds `bySource` to the `normalizeSnapshot()` defaulting pass so any pre-2.5.0 file loads cleanly and historical counters survive every schema extension.
+Hotfix for BUG18: upgrading from a version pre-2.5.0 (where `byClient` did not exist) to 2.6.0 (where `bySource` was added) made the on-disk telemetry file fail the schema validator.
+The user's cumulative counters were silently wiped (the dashboard opened empty, with a single `[Telemetry] Telemetry file at <path> does not match the expected shape, ignoring.` warning in the logs).
+Treats the per-bucket maps as optional in the validator and adds `bySource` to the `normalizeSnapshot()` defaulting pass so any pre-2.5.0 file loads cleanly and historical counters survive every schema extension.
 
 ### Fixed
 
@@ -175,7 +184,9 @@ Hotfix for BUG18: upgrading from a version pre-2.5.0 (where `byClient` did not e
 
 ## 2.6.0
 
-Bridges the VS Code Copilot Chat path into the metrics dashboard - ships item 6 of the action plan. Closes the historical blind spot where ~50% of usage (Copilot Chat traffic through `vscode.lm`) was invisible because the gateway only ever saw its own traffic. Adds a `By source` summary panel (gateway vs copilot-chat) and a sortable `Path` column on the Recent requests table.
+Bridges the VS Code Copilot Chat path into the metrics dashboard - ships item 6 of the action plan.
+Closes the historical blind spot where ~50% of usage (Copilot Chat traffic through `vscode.lm`) was invisible because the gateway only ever saw its own traffic.
+Adds a `By source` summary panel (gateway vs copilot-chat) and a sortable `Path` column on the Recent requests table.
 
 ### Added
 
@@ -185,7 +196,8 @@ Bridges the VS Code Copilot Chat path into the metrics dashboard - ships item 6 
 
 ## 2.5.1
 
-Hotfix for BUG17: gateway standby under concurrent agents (3 agents in parallel vs MiniMax-M3 / `reasoning_split: true`). Adds upstream idle / total timeouts so a stalled MiniMax request aborts with HTTP 504 instead of leaving the agent UI in standby for minutes, silences the `MaxListenersExceededWarning` on long-lived keep-alive sockets, and bounds parallel in-flight requests per upstream provider to address the root cause at the gateway layer.
+Hotfix for BUG17: gateway standby under concurrent agents (3 agents in parallel vs MiniMax-M3 / `reasoning_split: true`).
+Adds upstream idle / total timeouts so a stalled MiniMax request aborts with HTTP 504 instead of leaving the agent UI in standby for minutes, silences the `MaxListenersExceededWarning` on long-lived keep-alive sockets, and bounds parallel in-flight requests per upstream provider to address the root cause at the gateway layer.
 
 ### Fixed
 
@@ -311,7 +323,8 @@ Post-2.0.0 hardening + small features from the audit follow-up 2.0.0; only new o
 
 ## 2.0.0
 
-Standalone gateway + audit-driven hardening. The gateway can now run as a pure Node.js CLI (`aiflowbridge-server`) without VS Code, while the VS Code extension itself was hardened against a batch of regressions and pre-existing security findings.
+Standalone gateway + audit-driven hardening.
+The gateway can now run as a pure Node.js CLI (`aiflowbridge-server`) without VS Code, while the VS Code extension itself was hardened against a batch of regressions and pre-existing security findings.
 
 ### Added
 
@@ -369,7 +382,8 @@ Standalone gateway + audit-driven hardening. The gateway can now run as a pure N
 
 ## 1.7.0
 
-Hardening release: security, bug-fixes, and refactoring from external audit (STU02 - 8 items). Shutdown auth, SSRF protection for provider baseUrls, race-condition fixes, dead-code removal.
+Hardening release: security, bug-fixes, and refactoring from external audit (STU02 - 8 items).
+Shutdown auth, SSRF protection for provider baseUrls, race-condition fixes, dead-code removal.
 
 ### Security
 
@@ -441,7 +455,8 @@ Patch release: README polish
 
 ## 1.5.4
 
-Patch release: fix the Open VSX publication step in the release workflow. No code change in the extension, no user-facing change for any install channel (VS Code Marketplace, Open VSX, manual install).
+Patch release: fix the Open VSX publication step in the release workflow.
+No code change in the extension, no user-facing change for any install channel (VS Code Marketplace, Open VSX, manual install).
 
 ### Fixed
 
@@ -569,7 +584,8 @@ Patch release: closes BUG10 and BUG08
 
 ## 1.4.0
 
-Minor release: version-aware cooperative restart for the local gateway. Fixes a long-standing dev-experience issue where reloading the extension while a previous gateway was still running would silently reuse the stale instance.
+Minor release: version-aware cooperative restart for the local gateway.
+Fixes a long-standing dev-experience issue where reloading the extension while a previous gateway was still running would silently reuse the stale instance.
 
 ### Fixed
 
@@ -633,9 +649,12 @@ Minor release: the canonical list of models and vendors is now an external JSON 
   - **globalStorage override** (`<globalStorageUri>/models.json`) - per-user
   - **workspace override** (`<workspaceFolder>/.vscode/aiflowbridge.models.json`) - per-project
 
-  The three tiers are deep-merged in priority order bundled < globalStorage < workspace, per `model.id` and per `vendor` key. A field absent from a higher tier falls through to the lower tier, so a workspace override that only sets `pricing` keeps every other field from the bundled entry. A `model.id` or `vendor` key present only in workspace is preserved (lets you add a new model without touching the bundled file).
+  The three tiers are deep-merged in priority order bundled < globalStorage < workspace, per `model.id` and per `vendor` key.
+A field absent from a higher tier falls through to the lower tier, so a workspace override that only sets `pricing` keeps every other field from the bundled entry.
+A `model.id` or `vendor` key present only in workspace is preserved (lets you add a new model without touching the bundled file).
 
-  The bundled file is the source of truth for what shows in the Copilot Chat picker (`vscode.lm` model list) and what gets auto-synthesized into the gateway catalog. Per-model `pricing` blocks (USD per 1M tokens) live alongside the model definition - the family-level indicative rates that used to be hardcoded in `src/aiflowbridge/config.ts` are now derived from the registry.
+  The bundled file is the source of truth for what shows in the Copilot Chat picker (`vscode.lm` model list) and what gets auto-synthesized into the gateway catalog.
+Per-model `pricing` blocks (USD per 1M tokens) live alongside the model definition - the family-level indicative rates that used to be hardcoded in `src/aiflowbridge/config.ts` are now derived from the registry.
 
 - **`resources/models.schema.json`**: JSON Schema Draft 2020-12 description of the registry file, referenced from `models.json` via `$schema`. VS Code's built-in JSON language server uses it to provide autocompletion, hover help, and inline validation while editing. Covers the root shape, the `vendors` map, the `models` array, capability flags (`toolCalling` accepting `boolean | non-negative integer`), and the `pricing` block (USD only).
 
@@ -787,7 +806,8 @@ Patch release: documentation only, no code changes.
 
 ## 1.0.0
 
-First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo into GitHub Copilot Chat with a local OpenAI-compatible gateway, transparent vision proxy, and usage metrics.
+First stable release.
+AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo into GitHub Copilot Chat with a local OpenAI-compatible gateway, transparent vision proxy, and usage metrics.
 
 ### Highlights
 
@@ -819,7 +839,8 @@ First stable release. AIFlowBridge brings DeepSeek, MiniMax, and Xiaomi MiMo int
 
 ### Upgrading from 0.x
 
-**No breaking changes.** All settings, commands, and APIs from 0.x remain available. Internal renames (`setVisionProxyModel` → `chooseVisionProxyModel`, `TODO_TRACKER_PREFIX` → `BACKGROUND_TRACKER_PREFIX`) are not user-facing.
+**No breaking changes.** All settings, commands, and APIs from 0.x remain available.
+Internal renames (`setVisionProxyModel` → `chooseVisionProxyModel`, `TODO_TRACKER_PREFIX` → `BACKGROUND_TRACKER_PREFIX`) are not user-facing.
 
 ### Notes
 

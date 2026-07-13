@@ -30,7 +30,8 @@ resources/models.json               (bundled with the extension)
 
 ## Validation
 
-Hand-rolled, no `ajv` dependency. The schema module (`src/aiflowbridge/modelRegistry.schema.ts`) is intentionally VS Code-free (imports nothing from `vscode`) so it can be unit-tested directly with vitest.
+Hand-rolled, no `ajv` dependency.
+The schema module (`src/aiflowbridge/modelRegistry.schema.ts`) is intentionally VS Code-free (imports nothing from `vscode`) so it can be unit-tested directly with vitest.
 
 Validators accumulate skip reasons in a `ValidationLog` object that the loader turns into `logger.warn()` calls - validators themselves never log, which keeps them pure and easy to test.
 
@@ -41,7 +42,8 @@ The loader caches the merged result in a module-level variable. Consumer modules
 - `getLoadedRegistry()` - throws if not loaded.
 - `tryGetLoadedRegistry()` - returns `undefined` if not loaded.
 
-`loadModelRegistry()` is idempotent: a second call returns the same cached object instead of re-reading the bundled file. The cache is invalidated by a window reload. For tests, `setLoadedRegistry(registry)` seeds the cache; the unit tests in `tests/modelRegistry.test.ts` instead inject a fake `vscode.workspace.fs` through the loader's `options.fs` parameter to keep the test isolated from any real file system.
+`loadModelRegistry()` is idempotent: a second call returns the same cached object instead of re-reading the bundled file. The cache is invalidated by a window reload.
+For tests, `setLoadedRegistry(registry)` seeds the cache; the unit tests in `tests/modelRegistry.test.ts` instead inject a fake `vscode.workspace.fs` through the loader's `options.fs` parameter to keep the test isolated from any real file system.
 
 ## User-defined models (3 mechanisms)
 
@@ -51,10 +53,15 @@ Users can extend the registry without an extension update via three complementar
 2. **`aiflowbridge.userModels` setting** - array of `RegistryModelDefinition`-shaped objects in `settings.json`. Lightweight per-user/per-workspace model additions that don't need a registry file. Same merge semantics as the registry overrides.
 3. **`AIFlowBridge: Add a custom model` command** - walks through the Command Palette to fetch a vendor's `/v1/models`, pick a model, declare capabilities, and save to `aiflowbridge.userModels`.
 
-`BaseChatProvider.getModelsForVendor()` reads from the registry cache (`getLoadedRegistry().models`) and merges with `getUserModels()` on every read. The Copilot Chat picker refreshes automatically when either source changes.
+`BaseChatProvider.getModelsForVendor()` reads from the registry cache (`getLoadedRegistry().models`) and merges with `getUserModels()` on every read.
+The Copilot Chat picker refreshes automatically when either source changes.
 
 ## Model id convention
 
-**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`), NOT a kebab-case alias. The human-readable name shows in the Copilot Chat picker (or, for gateway-only models like OpenRouter, in `GET /v1/models` responses). This removes the need for any id translation map between VS Code and upstream.
+**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`), NOT a kebab-case alias.
+The human-readable name shows in the Copilot Chat picker (or, for gateway-only models like OpenRouter, in `GET /v1/models` responses).
+This removes the need for any id translation map between VS Code and upstream.
 
-The valid `family` values are the vendor config keys declared in `vendors`: `deepseek`, `minimax`, `xiaomi`, `openrouter`. Adding a new vendor means (1) one entry in `resources/models.json` under `vendors`, (2) one entry in `API_KEY_SECRETS` (`src/consts.ts`) if the new vendor needs a SecretStorage slot, (3) one entry in `KNOWN_FAMILIES` (`src/aiflowbridge/modelRegistry.schema.ts`), (4) one entry in the JSON Schema enum in `resources/models.schema.json`. Adding any of: per-vendor `OpenRouterChatProvider` (only for Copilot Chat picker integration), `setApiKey`/`clearApiKey` commands (only for VS Code UX parity), or HTTP-Referer injection (already shipped for OpenRouter in `src/aiflowbridge/gateway/openrouter-headers.ts`) - all are optional.
+The valid `family` values are the vendor config keys declared in `vendors`: `deepseek`, `minimax`, `xiaomi`, `openrouter`.
+Adding a new vendor means (1) one entry in `resources/models.json` under `vendors`, (2) one entry in `API_KEY_SECRETS` (`src/consts.ts`) if the new vendor needs a SecretStorage slot, (3) one entry in `KNOWN_FAMILIES` (`src/aiflowbridge/modelRegistry.schema.ts`), (4) one entry in the JSON Schema enum in `resources/models.schema.json`.
+Adding any of: per-vendor `OpenRouterChatProvider` (only for Copilot Chat picker integration), `setApiKey`/`clearApiKey` commands (only for VS Code UX parity), or HTTP-Referer injection (already shipped for OpenRouter in `src/aiflowbridge/gateway/openrouter-headers.ts`) - all are optional.

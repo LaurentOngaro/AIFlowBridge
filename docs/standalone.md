@@ -27,7 +27,8 @@ If you have the AIFlowBridge VS Code extension installed, run:
 4. Wait for the download + extraction to complete (one notification, ~30s)
 5. Optional: confirm the autostart prompt to register a systemd / launchd / Task Scheduler service so the gateway starts at login
 
-The command downloads the platform-matched archive from the latest GitHub Release, extracts it, makes the launcher executable (POSIX), and writes the autostart unit if requested. It is **idempotent**: if an existing install is found at the chosen path, you are prompted to replace it, install alongside, or cancel.
+The command downloads the platform-matched archive from the latest GitHub Release, extracts it, makes the launcher executable (POSIX), and writes the autostart unit if requested.
+It is **idempotent**: if an existing install is found at the chosen path, you are prompted to replace it, install alongside, or cancel.
 
 ### Option B - Manual download from GitHub Releases
 
@@ -107,7 +108,8 @@ The gateway binds `127.0.0.1:8787` (configurable via `gateway.port` / `gateway.b
 curl http://127.0.0.1:8787/v1/models
 ```
 
-The standalone process and the VS Code extension share the same `gateway.lock` file - if VS Code is already running with the gateway on, the standalone process **joins** the existing gateway instead of starting a second one. See [`./lock-and-restart.md`](./lock-and-restart.md).
+The standalone process and the VS Code extension share the same `gateway.lock` file - if VS Code is already running with the gateway on, the standalone process **joins** the existing gateway instead of starting a second one.
+See [`./lock-and-restart.md`](./lock-and-restart.md).
 
 ## Auto-start at boot
 
@@ -134,7 +136,9 @@ The standalone gateway exposes the same OpenAI-compatible surface as the VS Code
 - `GET /v1/replay/{requestId}` - re-hydrates the stored prompt + response summaries into an OpenAI `chat.completion.replay`-shaped body. Pure read from the in-memory store, no upstream re-forward. Powered by `TelemetryStore.getEntry()`.
 - `GET /v1/events` - long-lived Server-Sent Events stream (15 s heartbeat comment frames, `ready` / `snapshot` / `request.recorded` event types). Powered by `TelemetryStore.subscribe()`.
 
-All three endpoints bind on `127.0.0.1` only (same posture as the rest of the gateway). The sanitization step on capture is identical to the VS Code extension's (Bearer / `sk-...` / `x-api-key` / 60+-char token-like blobs redacted to `[REDACTED]`), so the on-disk telemetry file is safe to share via Git or backup. See [gateway.md](gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events) for the full request / response shapes.
+All three endpoints bind on `127.0.0.1` only (same posture as the rest of the gateway).
+The sanitization step on capture is identical to the VS Code extension's (Bearer / `sk-...` / `x-api-key` / 60+-char token-like blobs redacted to `[REDACTED]`), so the on-disk telemetry file is safe to share via Git or backup.
+See [gateway.md](gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events) for the full request / response shapes.
 
 ## Security
 
@@ -151,7 +155,8 @@ The gateway reads both lazily via `src/standalone/context.ts` and never logs the
 
 The file is written with mode `0600` (`chmodSync(path, 0o600)`) so only the owning user can read it on POSIX systems (Linux, macOS, WSL).
 
-**Windows limitation.** Windows does not honor POSIX mode bits, so the `chmodSync(0o600)` call is a no-op there. NTFS ACLs apply, and by default `secrets.json` inherits the user's profile ACL (other local users on the same machine could read it).
+**Windows limitation.** Windows does not honor POSIX mode bits, so the `chmodSync(0o600)` call is a no-op there.
+NTFS ACLs apply, and by default `secrets.json` inherits the user's profile ACL (other local users on the same machine could read it).
 This is an accepted limitation of the current implementation: a future hardening pass could shell out to `icacls` on first write to lock the file down to the current user only.
 For now, the recommendation on Windows is to prefer the env-var resolution path (1) for any multi-user host.
 

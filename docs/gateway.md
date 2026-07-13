@@ -2,7 +2,8 @@
 
 > Part of the [AIFlowBridge documentation](../README.md).
 
-The local gateway provides an OpenAI-compatible proxy that can be used by external tools. It starts automatically on port 8787 when the extension activates (if `aiflowbridge.gateway.enabled` is `true`).
+The local gateway provides an OpenAI-compatible proxy that can be used by external tools.
+It starts automatically on port 8787 when the extension activates (if `aiflowbridge.gateway.enabled` is `true`).
 
 ## Endpoints
 
@@ -54,7 +55,8 @@ curl http://127.0.0.1:8787/v1/context
 # }
 ```
 
-The detector is memoized on the `root + options` key with a 5-second TTL, so concurrent chat-completion requests against the same workspace share a single `readdirSync` walk (CR02 fix B1). The resolution order for the workspace root is:
+The detector is memoized on the `root + options` key with a 5-second TTL, so concurrent chat-completion requests against the same workspace share a single `readdirSync` walk (CR02 fix B1).
+The resolution order for the workspace root is:
 
 1. `aiflowbridge.gateway.workspaceContext.root` (explicit)
 2. `AIFLOWBRIDGE_WORKSPACE` environment variable (lets a service manager point the standalone CLI at the user's project)
@@ -66,7 +68,8 @@ When the explicit root does not resolve (ENOENT, EACCES, or non-directory file),
 
 > **Default behavior: OFF.** Out of the box (`languageRouting = {}`), every request goes to the model you (or your client) picked in the model picker. Language-based routing is an **opt-in** feature. It will never silently re-route a request unless you have explicitly added a non-empty entry to the configuration.
 
-If you opt in, the gateway can pick the upstream model automatically based on the detected project language. This is meant for polyglot projects where each language is best served by a different upstream (Python on DeepSeek Flash, Rust on DeepSeek Pro, ...).
+If you opt in, the gateway can pick the upstream model automatically based on the detected project language.
+This is meant for polyglot projects where each language is best served by a different upstream (Python on DeepSeek Flash, Rust on DeepSeek Pro, ...).
 
 **Enable it** by setting a non-empty map in `settings.json` (or the standalone equivalent):
 
@@ -87,7 +90,9 @@ If you opt in, the gateway can pick the upstream model automatically based on th
 2. **Workspace context** - the detector above walks the workspace root for language manifests (`pyproject.toml`, `Cargo.toml`, `package.json`, ...) and uses the primary language.
 3. **Payload sniffing** (`detectLanguageHintFromPayload`) - the gateway scans the first 20 messages for a recognisable filename (`.py`, `.rs`, `.go`, `.ts`, `.tsx`, `.kt`, `.swift`, `.cpp`, `.hpp`, ...). Anti-false-positive guards reject URL fragments (`https://.../foo.py`), path-traversal (`../foo.py`), and longer identifiers (`foo.pyy`).
 
-**How the value maps to a provider.** Each routing entry is a `providerId`. The resolver matches it (case-insensitive, locale-aware) against `provider.id`, `provider.model`, or `provider.label` of the enabled providers in `aiflowbridge.providers`. The first enabled match wins; if none match, the request falls back to the normal `selectProvider(model, defaultModel)` chain - the language rule **never** silently drops a request.
+**How the value maps to a provider.** Each routing entry is a `providerId`.
+The resolver matches it (case-insensitive, locale-aware) against `provider.id`, `provider.model`, or `provider.label` of the enabled providers in `aiflowbridge.providers`.
+The first enabled match wins; if none match, the request falls back to the normal `selectProvider(model, defaultModel)` chain - the language rule **never** silently drops a request.
 
 **Cost visibility.** Every routing decision is observable:
 
@@ -96,7 +101,8 @@ If you opt in, the gateway can pick the upstream model automatically based on th
 - The verbose log line `[language-routing] hint=<lang> -> <providerId>` (and `[language-routing] honor header (override allowed, hint=<lang>)`) is emitted on every resolved request. Set `aiflowbridge.gateway.logRequests = true` to see it in the gateway logs (the setting is off by default to keep the log lean).
 - `GET /v1/context` returns the workspace detector result (raw, no upstream call). `GET /v1/sessions?limit=N` returns the most recent routing decisions in the same shape as the dashboard.
 
-**When in doubt, leave it at `{}`.** The default is chosen so a user who has never opened the settings page gets exactly the behavior described in the README: every prompt goes to the model they picked, no surprises. Add entries only when you have a clear cost / quality case for routing a specific language to a specific upstream.
+**When in doubt, leave it at `{}`.** The default is chosen so a user who has never opened the settings page gets exactly the behavior described in the README: every prompt goes to the model they picked, no surprises.
+Add entries only when you have a clear cost / quality case for routing a specific language to a specific upstream.
 
 ### Zero-conf discovery (`GET /v1/discovery`)
 
@@ -123,9 +129,12 @@ curl http://127.0.0.1:8787/v1/discovery
 # }
 ```
 
-The UDP beacon (when enabled) broadcasts a tiny JSON payload on `gateway.discovery.broadcastPort` (default `8788`) every `gateway.discovery.broadcastIntervalMs` (default `2000` ms). **Privacy caveat:** the UDP broadcast announces the gateway's existence to every host on the LAN. The payload contains only the loopback host, the TCP port, and the gateway version - no API key, no workspace path, no model. The HTTP `/v1/discovery` endpoint is reachable on the loopback URL only (the gateway binds `127.0.0.1`); the HTTP endpoint and the UDP broadcast are gated on the same `discovery.enabled` flag.
+The UDP beacon (when enabled) broadcasts a tiny JSON payload on `gateway.discovery.broadcastPort` (default `8788`) every `gateway.discovery.broadcastIntervalMs` (default `2000` ms). **Privacy caveat:** the UDP broadcast announces the gateway's existence to every host on the LAN.
+The payload contains only the loopback host, the TCP port, and the gateway version - no API key, no workspace path, no model.
+The HTTP `/v1/discovery` endpoint is reachable on the loopback URL only (the gateway binds `127.0.0.1`); the HTTP endpoint and the UDP broadcast are gated on the same `discovery.enabled` flag.
 
-`broadcastPort` is clamped at runtime to the IANA registered-port range `[1024, 65535]`. Values outside that range (e.g. `0`, hand-edited config) fall back to `8788` with a warning. `broadcastIntervalMs` is clamped to `[500, 300_000]` for the same reason.
+`broadcastPort` is clamped at runtime to the IANA registered-port range `[1024, 65535]`.
+Values outside that range (e.g. `0`, hand-edited config) fall back to `8788` with a warning. `broadcastIntervalMs` is clamped to `[500, 300_000]` for the same reason.
 
 **Network reachability caveats.** The UDP broadcast is best-effort and depends on the host's network stack. The beacon will not reach:
 
@@ -134,13 +143,15 @@ The UDP beacon (when enabled) broadcasts a tiny JSON payload on `gateway.discove
 - **Container runtimes** (Docker Desktop, Podman) where the container's network namespace is isolated - the broadcast exits the container but typically never reaches the host's LAN unless `--net=host` is used.
 - **Firewalled segments** - a strict outbound-allow list will drop the destination UDP packet on the way out.
 
-If the broadcast does not reach a peer, the same IDE can still connect by configuring the gateway URL explicitly (`http://127.0.0.1:8787/v1`). The UDP beacon is a convenience, not a requirement.
+If the broadcast does not reach a peer, the same IDE can still connect by configuring the gateway URL explicitly (`http://127.0.0.1:8787/v1`).
+The UDP beacon is a convenience, not a requirement.
 
 ### Shared session log + replay + SSE stream (`GET /v1/sessions`, `GET /v1/replay/{id}`, `GET /v1/events`)
 
 These three endpoints (added in 2.10.0) close the pair-programming loop: a developer can see what the AI just told their pair, replay the original assistant message without re-running the upstream call, and watch new requests land in real time.
 
-When `aiflowbridge.telemetry.captureSessionLog` is `true` (default), every recorded `RequestTelemetry` carries a sanitized + truncated `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars). Both are stored in memory and on disk alongside the regular counters; both are redacted at extraction time so a `Bearer ...`, `sk-...`, or `x-api-key: ...` value (and any 60+-char token-like blob without whitespace) never reaches the on-disk telemetry file.
+When `aiflowbridge.telemetry.captureSessionLog` is `true` (default), every recorded `RequestTelemetry` carries a sanitized + truncated `promptSummary` (max 500 chars) and `responseSummary` (max 1000 chars).
+Both are stored in memory and on disk alongside the regular counters; both are redacted at extraction time so a `Bearer ...`, `sk-...`, or `x-api-key: ...` value (and any 60+-char token-like blob without whitespace) never reaches the on-disk telemetry file.
 
 The three endpoints:
 
@@ -202,11 +213,14 @@ Notes:
 - The three endpoints are loopback-only (the gateway binds `127.0.0.1`), same posture as `/health`, `/version`, `/v1/models`. The `/v1/events` SSE endpoint is **not** behind the discovery flag: it is always reachable on the loopback URL so a dashboard running on the same machine can subscribe.
 - Set `aiflowbridge.telemetry.captureSessionLog = false` to keep the on-disk telemetry file lean. The endpoints still respond but the `promptSummary` / `responseSummary` fields are empty for entries recorded after the flag was flipped (the dashboard Shared Session panel renders those rows as a muted `(no summary)` placeholder).
 
-The corresponding dashboard panel ("Shared session") sits between "By model" and "By client". Each row shows the local time, provider, model, and sanitized prompt snippet; a per-row "Replay" button posts to the extension host, which re-hydrates the entry from the in-memory store and renders the body inline in a `<pre>` block.
+The corresponding dashboard panel ("Shared session") sits between "By model" and "By client".
+Each row shows the local time, provider, model, and sanitized prompt snippet; a per-row "Replay" button posts to the extension host, which re-hydrates the entry from the in-memory store and renders the body inline in a `<pre>` block.
 
 ## Singleton behavior
 
-The gateway runs as a single instance shared across all VS Code windows. If an AIFlowBridge gateway is already running when you open a new VS Code window, that window will automatically detect and use the existing gateway on port 8787 instead of starting a second instance. This ensures the gateway is always available at the same URL.
+The gateway runs as a single instance shared across all VS Code windows.
+If an AIFlowBridge gateway is already running when you open a new VS Code window, that window will automatically detect and use the existing gateway on port 8787 instead of starting a second instance.
+This ensures the gateway is always available at the same URL.
 
 ## Version-aware restart
 
@@ -225,11 +239,13 @@ When the extension activates, it probes this endpoint on the configured port. Th
   - Dismiss (close the toast) → same as **Keep**. This is the default behaviour for users who do not interact with the toast: no surprise behaviour change.
 - **Port occupied by something else** (e.g. `python -m http.server 8787`, or a process from another tool) → the extension logs a warning and lets the bind fail with `EADDRINUSE`. **No** shutdown request is sent, because the peer identifies itself as something other than `aiflowbridge-gateway` and we never touch foreign processes.
 
-A stale-lock guard (`<globalStorageUri>/gateway.lock`, acquired with `fs.openSync(path, 'wx')`) prevents the ping-pong loop when two debug sessions try to restart the gateway at the same time. It is best-effort: if the lock cannot be acquired, the new activation logs a warning and lets the holding activation make the restart decision.
+A stale-lock guard (`<globalStorageUri>/gateway.lock`, acquired with `fs.openSync(path, 'wx')`) prevents the ping-pong loop when two debug sessions try to restart the gateway at the same time.
+It is best-effort: if the lock cannot be acquired, the new activation logs a warning and lets the holding activation make the restart decision.
 
 ## Using with Kilo Code or other OpenAI-compatible clients
 
-Any tool that supports the OpenAI API can use AIFlowBridge as a backend via the gateway. This lets you access DeepSeek, MiniMax, and Xiaomi MiMo models from clients other than Copilot Chat.
+Any tool that supports the OpenAI API can use AIFlowBridge as a backend via the gateway.
+This lets you access DeepSeek, MiniMax, and Xiaomi MiMo models from clients other than Copilot Chat.
 
 **Kilo Code configuration example:**
 
@@ -244,16 +260,20 @@ The gateway routes requests to the correct upstream provider based on the model 
 
 ## Configuring gateway providers
 
-The gateway catalog is built from the [model registry](architecture.md#model-registry) and a few optional `settings.json` overrides. No need to maintain a long list of provider entries by hand - the registry already lists all 14 supported models, and the gateway synthesizes one catalog entry per registry model on activation.
+The gateway catalog is built from the [model registry](architecture.md#model-registry) and a few optional `settings.json` overrides.
+No need to maintain a long list of provider entries by hand - the registry already lists all 14 supported models, and the gateway synthesizes one catalog entry per registry model on activation.
 
-**Auto-synthesized entries** - for every model in the registry, the gateway creates a provider entry using the vendor defaults (from `registry.vendors[<family>].baseUrl`) and the model's per-token pricing. The synthesized `id` matches the registry model `id` exactly, so `GET /v1/models` returns the same set you see in the Copilot Chat picker.
+**Auto-synthesized entries** - for every model in the registry, the gateway creates a provider entry using the vendor defaults (from `registry.vendors[<family>].baseUrl`) and the model's per-token pricing.
+The synthesized `id` matches the registry model `id` exactly, so `GET /v1/models` returns the same set you see in the Copilot Chat picker.
 
 **Overriding the catalog** - the priority order is:
 
 1. **Your overrides** in `aiflowbridge.providers` (highest priority - you take full control and replace the synthesized entry). Use this to point a specific model at a different region/cluster, or to disable it.
 2. **Auto-synthesized** entries from the [model registry](architecture.md#model-registry) - one per `registry.models` entry, with the vendor default `baseUrl` and the per-model `pricing` block.
 
-To override the rate or endpoint for a single model (e.g. Xiaomi on the Singapore cluster, billed in EUR), add an entry to `aiflowbridge.providers` with the matching `model` field. The first entry that matches the model wins.
+To override the rate or endpoint for a single model (e.g.
+Xiaomi on the Singapore cluster, billed in EUR), add an entry to `aiflowbridge.providers` with the matching `model` field.
+The first entry that matches the model wins.
 
 **Disabling a model from the dashboard catalog** while keeping the others:
 
@@ -272,9 +292,11 @@ To override the rate or endpoint for a single model (e.g. Xiaomi on the Singapor
 }
 ```
 
-The dashboard and the `GET /v1/models` catalog will skip any provider with `"enabled": false`. Removing an entry from the array does **not** disable the corresponding model - use `"enabled": false` instead, or override it in the [model registry](architecture.md#model-registry).
+The dashboard and the `GET /v1/models` catalog will skip any provider with `"enabled": false`.
+Removing an entry from the array does **not** disable the corresponding model - use `"enabled": false` instead, or override it in the [model registry](architecture.md#model-registry).
 
-**For pricing-only changes** that should apply to all your workspaces (e.g. you have a custom MiniMax rate that you pay via a reseller), prefer editing the registry instead of `aiflowbridge.providers`. See [architecture.md](architecture.md#model-registry) for the full schema and override rules.
+**For pricing-only changes** that should apply to all your workspaces (e.g. you have a custom MiniMax rate that you pay via a reseller), prefer editing the registry instead of `aiflowbridge.providers`.
+See [architecture.md](architecture.md#model-registry) for the full schema and override rules.
 
 ## Settings
 
@@ -300,8 +322,15 @@ The dashboard and the `GET /v1/models` catalog will skip any provider with `"ena
 | `aiflowbridge.gateway.discovery.broadcastIntervalMs` | `2000`                        | Beacon emission interval in ms (clamped to `[500, 300_000]` at runtime)                                                                                                              |
 | `aiflowbridge.telemetry.captureSessionLog`           | `true`                        | Capture sanitized + truncated prompt / response summaries on every recorded request (powers `/v1/sessions`, `/v1/replay/{id}`, `/v1/events`, and the dashboard Shared session panel) |
 
-`AIFLOWBRIDGE_WORKSPACE` (environment variable) overrides `aiflowbridge.gateway.workspaceContext.root` for service-manager launches of the standalone CLI (`systemd`, `launchd`, Task Scheduler, ...). When the explicit `root` setting does not resolve to a directory, the gateway logs a warning and falls back to the env var / `cwd`.
+`AIFLOWBRIDGE_WORKSPACE` (environment variable) overrides `aiflowbridge.gateway.workspaceContext.root` for service-manager launches of the standalone CLI (`systemd`, `launchd`, Task Scheduler, ...).
+When the explicit `root` setting does not resolve to a directory, the gateway logs a warning and falls back to the env var / `cwd`.
 
 ## Privacy
 
-The gateway binds to `127.0.0.1` only - it is not reachable from other machines on your network. Outbound requests go only to the upstream API endpoints you configure. The `/v1/context` endpoint exposes the workspace root as an absolute path; the `/v1/discovery` endpoint exposes the bundled gateway version plus one-paste client config snippets; the `/v1/replay/{id}` endpoint returns the stored prompt + response summaries (already redacted for credentials). All three are loopback-only (the bind on `127.0.0.1` is the gate), so the same info is already reachable through `/health`, `/version`, `/v1/models`. When `aiflowbridge.gateway.discovery.enabled` is `true`, the UDP broadcast announces the gateway's existence to every host on the LAN. The payload is intentionally tiny (host, port, version) and contains no API key, no workspace path, no model name. The `promptSummary` / `responseSummary` captured for the Shared Session feature are redacted for Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob before being persisted, so a developer pasting a `curl` one-liner with their upstream key does not leak it via `/v1/replay/{id}` or the dashboard. See [development.md](development.md#privacy--security) for the full privacy posture.
+The gateway binds to `127.0.0.1` only - it is not reachable from other machines on your network. Outbound requests go only to the upstream API endpoints you configure.
+The `/v1/context` endpoint exposes the workspace root as an absolute path; the `/v1/discovery` endpoint exposes the bundled gateway version plus one-paste client config snippets; the `/v1/replay/{id}` endpoint returns the stored prompt + response summaries (already redacted for credentials).
+All three are loopback-only (the bind on `127.0.0.1` is the gate), so the same info is already reachable through `/health`, `/version`, `/v1/models`.
+When `aiflowbridge.gateway.discovery.enabled` is `true`, the UDP broadcast announces the gateway's existence to every host on the LAN.
+The payload is intentionally tiny (host, port, version) and contains no API key, no workspace path, no model name.
+The `promptSummary` / `responseSummary` captured for the Shared Session feature are redacted for Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob before being persisted, so a developer pasting a `curl` one-liner with their upstream key does not leak it via `/v1/replay/{id}` or the dashboard.
+See [development.md](development.md#privacy--security) for the full privacy posture.

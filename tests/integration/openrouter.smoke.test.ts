@@ -17,12 +17,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { applyOpenRouterAttributionHeaders } from '../../src/aiflowbridge/gateway/openrouter-headers';
-import { isValidProviderBaseUrl } from '../../src/aiflowbridge/providers';
-import { validateRegistryStructure } from '../../src/aiflowbridge/modelRegistry.schema';
 import bundled from '../../resources/models.json' with { type: 'json' };
-import { API_KEY_SECRETS } from '../../src/consts';
 import { resolveVendorApiKey } from '../../src/aiflowbridge/api-key-resolver';
+import { applyOpenRouterAttributionHeaders } from '../../src/aiflowbridge/gateway/openrouter-headers';
+import { validateRegistryStructure } from '../../src/aiflowbridge/modelRegistry.schema';
+import { isValidProviderBaseUrl } from '../../src/aiflowbridge/providers';
+import { API_KEY_SECRETS } from '../../src/consts';
 
 describe('OpenRouter smoke - registry shape', () => {
   it('bundled resources/models.json is structurally valid', () => {

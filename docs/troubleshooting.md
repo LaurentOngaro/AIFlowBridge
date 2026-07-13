@@ -33,7 +33,9 @@ The API key is missing, invalid, or for the wrong endpoint. Check:
 
 ## `404 No gateway provider matches model "..."` from the gateway
 
-Since 1.2.0, the gateway no longer silently routes a request for an unknown model to the first enabled provider (which used to label DeepSeek as "mimo-v2.5" in the dashboard). If you see a 404, the model name is not registered in `aiflowbridge.providers` or `aiflowbridge.userModels`. Either:
+Since 1.2.0, the gateway no longer silently routes a request for an unknown model to the first enabled provider (which used to label DeepSeek as "mimo-v2.5" in the dashboard).
+If you see a 404, the model name is not registered in `aiflowbridge.providers` or `aiflowbridge.userModels`.
+Either:
 
 - Add it via `AIFlowBridge: Add a custom model`
 - Configure a provider in `aiflowbridge.providers` with a matching `id` or `model`
@@ -57,16 +59,24 @@ Since 1.5.0, metrics are persisted in `<globalStorageUri>/telemetry.json` and sh
 
 ## Dashboard pagination (FIXED in 1.6.0)
 
-The in-memory `recent` list is no longer capped. Every recorded request is kept in `recent` (both in the in-memory `TelemetryStore` and the on-disk `<globalStorageUri>/telemetry.json`), and the Recent panel paginates the full history (set `pageSize` up to 500 via the "Per page" input).
+The in-memory `recent` list is no longer capped.
+Every recorded request is kept in `recent` (both in the in-memory `TelemetryStore` and the on-disk `<globalStorageUri>/telemetry.json`), and the Recent panel paginates the full history (set `pageSize` up to 500 via the "Per page" input).
 
-If your on-disk telemetry file was written under an older release (before 1.6.0), it only contains the last 20 or 100 entries in the `recent` tail. The cumulative totals (Requests / Tokens / Estimated cost) always reflect the full history regardless of the recent tail length. New requests recorded after upgrading are appended with no eviction, so the recent tail grows over time.
+If your on-disk telemetry file was written under an older release (before 1.6.0), it only contains the last 20 or 100 entries in the `recent` tail.
+The cumulative totals (Requests / Tokens / Estimated cost) always reflect the full history regardless of the recent tail length.
+New requests recorded after upgrading are appended with no eviction, so the recent tail grows over time.
 
 ## `Shared session` panel shows "(no summary)" for every row
 
-Either `aiflowbridge.telemetry.captureSessionLog` is set to `false` (opt-out), or the on-disk telemetry file was written by an extension older than 2.10.0 and the existing entries pre-date the `promptSummary` / `responseSummary` fields. Both cases are expected: the panel degrades gracefully, and new requests recorded after enabling the flag (or after upgrading to 2.10.0) get the summary. To start fresh with all summaries populated, run `AIFlowBridge: Reset metrics` after enabling the flag.
+Either `aiflowbridge.telemetry.captureSessionLog` is set to `false` (opt-out), or the on-disk telemetry file was written by an extension older than 2.10.0 and the existing entries pre-date the `promptSummary` / `responseSummary` fields.
+Both cases are expected: the panel degrades gracefully, and new requests recorded after enabling the flag (or after upgrading to 2.10.0) get the summary.
+To start fresh with all summaries populated, run `AIFlowBridge: Reset metrics` after enabling the flag.
 
 ## `curl http://127.0.0.1:8787/v1/replay/<id>` returns 404
 
-The recorded entry is no longer in the in-memory `recent` list. The list is bounded by `memoryCap` (default 10 000); the on-disk persister still receives every entry, but the replay endpoint reads from memory only. Either raise `memoryCap` via the gateway's telemetry store options, or use a `requestId` recorded in the most recent 10 000 requests. The `/v1/sessions?limit=N` endpoint returns the available request ids in reverse chronological order so you can pick one that is still in memory.
+The recorded entry is no longer in the in-memory `recent` list.
+The list is bounded by `memoryCap` (default 10 000); the on-disk persister still receives every entry, but the replay endpoint reads from memory only.
+Either raise `memoryCap` via the gateway's telemetry store options, or use a `requestId` recorded in the most recent 10 000 requests.
+The `/v1/sessions?limit=N` endpoint returns the available request ids in reverse chronological order so you can pick one that is still in memory.
 
 **For more details**, run `AIFlowBridge: Show Logs` from the Command Palette.

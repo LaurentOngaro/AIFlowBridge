@@ -1,6 +1,7 @@
 # Contributing to AIFlowBridge
 
-Thanks for your interest in contributing! AIFlowBridge is an open-source VS Code extension that brings DeepSeek, MiniMax, and Xiaomi MiMo into GitHub Copilot Chat. Every contribution is welcome.
+Thanks for your interest in contributing! AIFlowBridge is an open-source VS Code extension that brings DeepSeek, MiniMax, and Xiaomi MiMo into GitHub Copilot Chat.
+Every contribution is welcome.
 
 ## Quick Start
 
@@ -66,14 +67,16 @@ See [`AGENTS.md`](AGENTS.md) for the high-level overview, and [`docs/agent-instr
 
 ## Standalone Gateway
 
-If your change touches `src/aiflowbridge/`, `src/standalone/`, or `src/client/`, also run `npm run compile:standalone`. The standalone binary shares the gateway / telemetry / registry code with the VS Code extension (it is NOT a separate codebase), so the same quality gates apply:
+If your change touches `src/aiflowbridge/`, `src/standalone/`, or `src/client/`, also run `npm run compile:standalone`.
+The standalone binary shares the gateway / telemetry / registry code with the VS Code extension (it is NOT a separate codebase), so the same quality gates apply:
 
 ```bash
 npm run compile:standalone   # Compiles dist/standalone/main.js
 npm run start:standalone     # Smoke-tests the CLI (Ctrl+C to stop)
 ```
 
-`tsconfig.standalone.json` path-maps `vscode` to `src/standalone/vscode-shim.ts` so the same source files typecheck without `@types/vscode`. Any change that adds a new `vscode.*` import must either go through `IGatewayContext` (preferred) or be added to the shim.
+`tsconfig.standalone.json` path-maps `vscode` to `src/standalone/vscode-shim.ts` so the same source files typecheck without `@types/vscode`.
+Any change that adds a new `vscode.*` import must either go through `IGatewayContext` (preferred) or be added to the shim.
 
 ## Pull Requests
 

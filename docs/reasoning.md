@@ -2,7 +2,8 @@
 
 > Part of the [AIFlowBridge documentation](../README.md).
 
-MiniMax M3 supports an optional reasoning mode. AIFlowBridge exposes a **"Thinking Effort"** selector in the Copilot Chat model picker for M3 only (None / High / Max). The selection is translated to the upstream `reasoning_split` boolean:
+MiniMax M3 supports an optional reasoning mode. AIFlowBridge exposes a **"Thinking Effort"** selector in the Copilot Chat model picker for M3 only (None / High / Max).
+The selection is translated to the upstream `reasoning_split` boolean:
 
 | Picker | `reasoning_split` | Effect                                                   |
 | ------ | ----------------- | -------------------------------------------------------- |
@@ -14,7 +15,8 @@ If you do not touch the selector, the global `aiflowbridge.providers.minimax.rea
 
 ## For OpenAI-compatible clients (Kilo Code, Continue) using the local gateway
 
-The gateway translates Kilo Code's `reasoning: true/false` checkbox field into the upstream `reasoning_split` boolean on the fly (`src/aiflowbridge/gateway/server.ts`, `translatePayloadForUpstream`). No configuration needed - toggle the reasoning checkbox in the AIFlowBridge provider settings and the change is reflected on the wire.
+The gateway translates Kilo Code's `reasoning: true/false` checkbox field into the upstream `reasoning_split` boolean on the fly (`src/aiflowbridge/gateway/server.ts`, `translatePayloadForUpstream`).
+No configuration needed - toggle the reasoning checkbox in the AIFlowBridge provider settings and the change is reflected on the wire.
 
 ```ts
 // Kilo Code sends:

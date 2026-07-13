@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
 """Wrap long markdown prose paragraphs at sentence boundaries.
 
-Honors the "one sentence per line, no line break inside a sentence" rule
-from ``docs/agent-instructions/style.md`` and adds a soft ceiling: any
-prose line longer than ``MAX`` characters (default 250) is split at the
-last safe sentence boundary that keeps each chunk under ``MAX``.
+Honors the "one sentence per line, no line break inside a sentence" rule from ``docs/agent-instructions/style.md`` and adds a soft ceiling: any prose line longer than ``MAX`` characters (default 180) is split at the last safe sentence boundary that keeps each chunk under ``MAX``.
 
-Safe boundaries: ``[.!?]`` + space + uppercase ASCII letter. Lines that
-contain no safe boundary (long URL, hash reference, fenced code, ...) are
-left untouched so we never break a sentence in the middle of a word.
+Safe boundaries: ``[.!?]`` + space + uppercase ASCII letter. Lines that contain no safe boundary (long URL, hash reference, fenced code, ...) are left untouched so we never break a sentence in the middle of a word.
 
 Non-prose lines are passed through verbatim:
 
-* blank lines, ATX headings, list items, table rows, blockquotes,
-  code fences (`` ``` `` and indented), and YAML frontmatter (``---``
-  blocks).
+* blank lines, ATX headings, list items, table rows, blockquotes, code fences (`` ``` `` and indented), and YAML frontmatter (``---`` blocks).
 
-Line endings (CRLF vs LF) and the trailing newline of the input are
-preserved so the formatter does not rewrite the file's encoding.
+Line endings (CRLF vs LF) and the trailing newline of the input are preserved so the formatter does not rewrite the file's encoding.
 
 Usage
 -----
@@ -27,10 +19,7 @@ Usage
     python3 _helpers/scripts/format-prose.py --check <file-or-dir>   # dry run, exit 1 on diff
     MAX=200 python3 _helpers/scripts/format-prose.py path/to/dir
 
-A directory target is walked recursively for ``*.md`` files. Hidden
-directories (names starting with ``.``) and the common build / dependency /
-personal trees (``node_modules``, ``dist``, ``out``, ``__pycache__``,0
-``.venv``, ``venv``, ``_Private``) are skipped automatically.
+A directory target is walked recursively for ``*.md`` files. Hidden directories (names starting with ``.``) and the common build / dependency / personal trees (``node_modules``, ``dist``, ``out``, ``__pycache__``,0 ``.venv``, ``venv``, ``_Private``) are skipped automatically.
 """
 
 from __future__ import annotations
@@ -40,7 +29,7 @@ import re
 import sys
 from pathlib import Path
 
-MAX = int(os.environ.get("MAX", "250"))
+MAX = int(os.environ.get("MAX", "180"))
 if MAX < 40:
     print(
         f'[format-prose] invalid MAX={os.environ.get("MAX")} (must be >= 40)',

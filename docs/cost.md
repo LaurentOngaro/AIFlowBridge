@@ -2,9 +2,10 @@
 
 > Part of the [AIFlowBridge documentation](../README.md).
 >
-> **Data freshness policy.** Every number in this document is a snapshot, not a live feed. Pricing reflects the upstream catalogs as of the **2026-07-13** snapshot, shipped with **AIFlowBridge 2.12.1**. Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries. Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
+> **Data freshness policy.** Every number in this document is a snapshot, not a live feed. Pricing reflects the upstream catalogs as of the **2026-07-13** snapshot, shipped with **AIFlowBridge 2.13.0**. Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries. Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
 
-AIFlowBridge is **local glue** around paid upstream APIs. It does not replace those APIs and it does not magically lower their per-token prices. Anything that says otherwise is marketing.
+AIFlowBridge is **local glue** around paid upstream APIs. It does not replace those APIs and it does not magically lower their per-token prices.
+Anything that says otherwise is marketing.
 
 ## What AIFlowBridge affects
 
@@ -22,7 +23,7 @@ AIFlowBridge is **local glue** around paid upstream APIs. It does not replace th
 
 ## Typical monthly spend
 
-> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: per-vendor pricing pages for Xiaomi MiMo V2.5 / MiniMax M3 / DeepSeek V4 Flash.
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.13.0).** Source: per-vendor pricing pages for Xiaomi MiMo V2.5 / MiniMax M3 / DeepSeek V4 Flash.
 
 For a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 20 M output tokens):
 
@@ -47,7 +48,7 @@ The cheapest AI stack that still gives you Copilot Chat with image paste is AIFl
 
 ## Indicative rates per family
 
-> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: bundled registry ([`resources/models.json`](../resources/models.json)) and per-vendor pricing pages.
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.13.0).** Source: bundled registry ([`resources/models.json`](../resources/models.json)) and per-vendor pricing pages.
 
 AIFlowBridge ships with indicative per-million-token rates baked into the bundled model registry ([`resources/models.json`](../resources/models.json)) so the dashboard shows non-zero costs out of the box:
 
@@ -57,7 +58,9 @@ AIFlowBridge ships with indicative per-million-token rates baked into the bundle
 | MiniMax     | $0.30         | $1.20         | USD      | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 |
 | Xiaomi MiMo | $0.10         | $0.30         | USD      | V2 Omni, V2 Pro, V2.5, V2.5 Pro                                          |
 
-These are **estimates**, not a quote. The actual tariff depends on your plan tier, region (Xiaomi ships separate plans per cluster: `token-plan-ams`, `token-plan-sgp`, `token-plan-cn`), and whether you use token-plan keys (`tp-*`) or pay-as-you-go. The per-row tooltip on each Est. cost cell shows the rate that was used to compute it.
+These are **estimates**, not a quote.
+The actual tariff depends on your plan tier, region (Xiaomi ships separate plans per cluster: `token-plan-ams`, `token-plan-sgp`, `token-plan-cn`), and whether you use token-plan keys (`tp-*`) or pay-as-you-go.
+The per-row tooltip on each Est. cost cell shows the rate that was used to compute it.
 
 ## Computing the cost per row
 
@@ -78,17 +81,20 @@ There are three layers, from most permanent to most local:
 2. **Per-user override** (`<globalStorageUri>/models.json`) - opened via `AIFlowBridge: Edit model registry`, affects all workspaces for the current OS user, picks up on the next VS Code window reload.
 3. **Provider override** (`aiflowbridge.providers[].pricing` in `settings.json`) - the most surgical option, lets you change the rate of a single gateway entry without touching the registry. Useful for one-off experiments or per-region billing.
 
-To override the rate for one model only (e.g. Xiaomi on the Singapore cluster, billed in EUR), the easiest path is a globalStorage override of the registry. See [docs/architecture.md](architecture.md#model-registry) for the full schema and override rules.
+To override the rate for one model only (e.g. Xiaomi on the Singapore cluster, billed in EUR), the easiest path is a globalStorage override of the registry.
+See [docs/architecture.md](architecture.md#model-registry) for the full schema and override rules.
 
-User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge: Add a custom model** command) inherit the family-level default pricing automatically - so a custom MiniMax-M3 model gets the same indicative rate as the built-in MiniMax M2.7 profile. Override it the same way by adding a `pricing` block to the synthesized provider entry.
+User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge: Add a custom model** command) inherit the family-level default pricing automatically - so a custom MiniMax-M3 model gets the same indicative rate as the built-in MiniMax M2.7 profile.
+Override it the same way by adding a `pricing` block to the synthesized provider entry.
 
 Providers without a `pricing` block show `-` in the Est. cost column, and requests routed through them contribute `0` to the total.
 
 ## Vision-heavy workload saves more
 
-> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: indicative figures; the +$15-30/month range for vision-capable upstream models is a rough bracket across GPT-4o / Claude Sonnet / Gemini Pro at 50 calls/day, not a quoted number.
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.13.0).** Source: indicative figures; the +$15-30/month range for vision-capable upstream models is a rough bracket across GPT-4o / Claude Sonnet / Gemini Pro at 50 calls/day, not a quoted number.
 
-If you paste images frequently, the vision-proxy saves you **the cost of a vision-capable upstream model**. The Copilot-bundled `oswe-vscode-prime` is included in your Copilot subscription, so image pass-through is free on top of the upstream token cost.
+If you paste images frequently, the vision-proxy saves you **the cost of a vision-capable upstream model**.
+The Copilot-bundled `oswe-vscode-prime` is included in your Copilot subscription, so image pass-through is free on top of the upstream token cost.
 
 | Workload (with images)                          | Without AIFB (vision-capable upstream) | With AIFB + Copilot vision proxy |
 | ----------------------------------------------- | -------------------------------------- | -------------------------------- |

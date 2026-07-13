@@ -14,12 +14,14 @@ The full source layout lives in [`docs/architecture.md`](../architecture.md) (us
 
 ## Host-agnostic core
 
-The gateway + telemetry + UI logic lives in `src/aiflowbridge/` and is **independent of `vscode`**. The decoupling uses an `IGatewayContext` interface (`src/aiflowbridge/types.ts`):
+The gateway + telemetry + UI logic lives in `src/aiflowbridge/` and is **independent of `vscode`**.
+The decoupling uses an `IGatewayContext` interface (`src/aiflowbridge/types.ts`):
 
 - **VS Code side:** `createVSCodeContext()` in `src/aiflowbridge/vscode-context-adapter.ts` wraps `vscode.ExtensionContext`. The lifecycle entry point (`src/runtime/lifecycle.ts`) calls `createVSCodeContext(context)` before `activateAIFlowBridge()`.
 - **Standalone side:** `createStandaloneContext()` in `src/standalone/context.ts` reads API keys from env vars (`AIFLOWBRIDGE_<VENDOR>_API_KEY`) or `~/.aiflowbridge/secrets.json` (chmod 600). Hot-reload of `~/.aiflowbridge/config.json` via `fs.watch` + 5s `fs.watchFile` polling fallback (Windows).
 
-Both hosts share the same `gateway.lock` file (in `<globalStorageUri>` on VS Code, in `~/.aiflowbridge/` on standalone), so only one process owns the gateway. The version-aware probe / cooperative shutdown flow lives in `src/aiflowbridge/gateway/{probe,lock,server}.ts` and is reused as-is.
+Both hosts share the same `gateway.lock` file (in `<globalStorageUri>` on VS Code, in `~/.aiflowbridge/` on standalone), so only one process owns the gateway.
+The version-aware probe / cooperative shutdown flow lives in `src/aiflowbridge/gateway/{probe,lock,server}.ts` and is reused as-is.
 
 ## Logging
 
@@ -36,4 +38,5 @@ Each AI provider is registered via VS Code's `languageModelChatProviders` contri
 - `xiaomi` (Xiaomi MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro) - HTTP streaming client.
 - `openrouter` is **gateway-only** - the bundled registry declares seven free-tier flagships (`nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`, `google/gemma-4-31b-it:free`, `meta-llama/llama-3.3-70b-instruct:free`, `qwen/qwen3-coder:free`, `qwen/qwen3-next-80b-a3b-instruct:free`, `nvidia/nemotron-3-super-120b-a12b:free`) but they are NOT surfaced in the Copilot Chat picker. They reach the bundled gateway through the OpenAI-compatible `/v1/chat/completions` endpoint on port 8787 and the gateway picks them up via the generic per-vendor provider profile synthesis (no per-vendor `OpenRouterChatProvider` class). The 100+ other OpenRouter model ids are reachable by name verbatim through `curl` / Kilo Code / Continue. Attribution headers (`HTTP-Referer`, `X-Title`) are injected by `src/aiflowbridge/gateway/openrouter-headers.ts`.
 
-Model id convention: the `id` field in the registry IS the upstream API id (`MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`). No kebab-case alias, no id translation map.
+Model id convention: the `id` field in the registry IS the upstream API id (`MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`).
+No kebab-case alias, no id translation map.

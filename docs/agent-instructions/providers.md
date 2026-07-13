@@ -14,7 +14,8 @@ Each AI provider is registered via VS Code's `languageModelChatProviders` contri
 
 `src/provider/unified.ts` exports `UnifiedChatProvider` - a single `vscode.LanguageModelChatProvider` implementation that delegates each model id to the correct per-vendor sub-provider, so the registry's mixed-vendor model list is exposed under one vendor label.
 
-DeepSeek-specific helpers live next to the DeepSeek provider (`src/provider/{models,convert,stream,segment,errors,tokens,request}.ts`): message conversion to / from `vscode.LanguageModelChatMessage`, SSE stream parsing, stream segmentation around replay markers, upstream error normalization, token estimation for image parts, and the outgoing HTTP request setup. MiniMax and Xiaomi providers reuse what is reusable and implement vendor-specific behavior in their own files.
+DeepSeek-specific helpers live next to the DeepSeek provider (`src/provider/{models,convert,stream,segment,errors,tokens,request}.ts`): message conversion to / from `vscode.LanguageModelChatMessage`, SSE stream parsing, stream segmentation around replay markers, upstream error normalization, token estimation for image parts, and the outgoing HTTP request setup.
+MiniMax and Xiaomi providers reuse what is reusable and implement vendor-specific behavior in their own files.
 
 The abstract base class is `src/provider/base.ts`, which reads from the registry cache (`getLoadedRegistry()`).
 
@@ -34,7 +35,8 @@ The gateway upstream profile normalization lives in `src/aiflowbridge/providers.
 - `selectProvider()` - case-insensitive model id lookup via `localeCompare(..., { sensitivity: 'base' })`.
 - `synthesizeProvidersFromBuiltInModels()` / `synthesizeProvidersFromUserModels()` - auto-generate one catalog entry per registry / user model. The synthesis path is how the bundled `openrouter` vendor and its 7 flagship entries (plus any user-declared OpenRouter models on `family: "openrouter"`) reach the gateway without writing a dedicated `OpenRouterChatProvider` class.
 
-For OpenRouter-specific upstream attributes (`HTTP-Referer`, `X-Title` attribution headers required by OpenRouter's reliability track), see the pure helper in `src/aiflowbridge/gateway/openrouter-headers.ts`. The helper is wired into `forwardChatCompletion()` in `src/aiflowbridge/gateway/server.ts` and is no-op for any non-OpenRouter upstream.
+For OpenRouter-specific upstream attributes (`HTTP-Referer`, `X-Title` attribution headers required by OpenRouter's reliability track), see the pure helper in `src/aiflowbridge/gateway/openrouter-headers.ts`.
+The helper is wired into `forwardChatCompletion()` in `src/aiflowbridge/gateway/server.ts` and is no-op for any non-OpenRouter upstream.
 
 SSRF protection (`isValidProviderBaseUrl()`) rejects:
 

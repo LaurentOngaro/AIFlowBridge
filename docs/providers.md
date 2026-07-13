@@ -23,7 +23,9 @@ Notes:
 
 ## OpenRouter (100+ models via a single OpenAI-compatible endpoint)
 
-[OpenRouter](https://openrouter.ai/) is a meta-provider that fronts 100+ models from OpenAI, Anthropic, Google, Meta, Mistral, DeepSeek, Alibaba, and others behind one OpenAI-compatible endpoint (`https://openrouter.ai/api/v1`). It honours the Chat Completions spec, accepts a standard `Authorization: Bearer <key>` header, and streams SSE the same way every other OpenAI-compatible vendor does. No protocol adapter is required - it plugs into AIFlowBridge the same way DeepSeek or MiniMax do.
+[OpenRouter](https://openrouter.ai/) is a meta-provider that fronts 100+ models from OpenAI, Anthropic, Google, Meta, Mistral, DeepSeek, Alibaba, and others behind one OpenAI-compatible endpoint (`https://openrouter.ai/api/v1`).
+It honours the Chat Completions spec, accepts a standard `Authorization: Bearer <key>` header, and streams SSE the same way every other OpenAI-compatible vendor does.
+No protocol adapter is required - it plugs into AIFlowBridge the same way DeepSeek or MiniMax do.
 
 ### Setup
 
@@ -40,9 +42,11 @@ Notes:
 
 ### Bundled flagship subset (7 of 100+, all free tier)
 
-> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: `https://openrouter.ai/api/v1/models` (live catalog query, July 2026). The 7 free-tier ids below are pinned to this snapshot; a new release of AIFlowBridge may refresh the list. The 100+ non-bundled OpenRouter model ids reachable through `aiflowbridge.userModels` are queried against the live OpenRouter catalog at call time, so they always reflect the current upstream state.
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.13.0).** Source: `https://openrouter.ai/api/v1/models` (live catalog query, July 2026). The 7 free-tier ids below are pinned to this snapshot; a new release of AIFlowBridge may refresh the list. The 100+ non-bundled OpenRouter model ids reachable through `aiflowbridge.userModels` are queried against the live OpenRouter catalog at call time, so they always reflect the current upstream state.
 
-The bundled registry ships seven recent flagships - chosen to maximise coverage of the top labs (NVIDIA, OpenAI, Google, Meta, Alibaba) and to ship on the OpenRouter **free tier** (pricing = $0 / $0 per 1M tokens for all seven). They appear in `GET /v1/models` and the dashboard reads their `pricing` block to compute "Est. cost" - in their case, the dashboard always shows $0. **Capabilities shown below apply only to these seven entries** - the full 100+ catalog at [openrouter.ai/models](https://openrouter.ai/models) handles them per its own documentation; consult the upstream listings for any model id not in this table. All data below was pulled from `https://openrouter.ai/api/v1/models` (July 2026 snapshot).
+The bundled registry ships seven recent flagships - chosen to maximise coverage of the top labs (NVIDIA, OpenAI, Google, Meta, Alibaba) and to ship on the OpenRouter **free tier** (pricing = $0 / $0 per 1M tokens for all seven).
+They appear in `GET /v1/models` and the dashboard reads their `pricing` block to compute "Est. cost" - in their case, the dashboard always shows $0. **Capabilities shown below apply only to these seven entries** - the full 100+ catalog at [openrouter.ai/models](https://openrouter.ai/models) handles them per its own documentation; consult the upstream listings for any model id not in this table.
+All data below was pulled from `https://openrouter.ai/api/v1/models` (July 2026 snapshot).
 
 | Model id (use verbatim in `model` field)                        | Context window | Output cap | Vision | Reasoning | Tool calling |
 | --------------------------------------------------------------- | -------------- | ---------- | ------ | --------- | ------------ |
@@ -73,13 +77,17 @@ In all three cases, the gateway forwards the model id verbatim to `openrouter.ai
 
 ### Pricing
 
-> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: `https://openrouter.ai/api/v1/models` for the free-tier `pricing.prompt` / `pricing.completion` fields. Pricing for non-bundled model ids must be sourced from the OpenRouter model page (linked from the catalog response).
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.13.0).** Source: `https://openrouter.ai/api/v1/models` for the free-tier `pricing.prompt` / `pricing.completion` fields. Pricing for non-bundled model ids must be sourced from the OpenRouter model page (linked from the catalog response).
 
-All 7 bundled flagships are **free** on OpenRouter's free tier (USD 0.00 / USD 0.00 per 1M tokens, per the OpenRouter `/v1/models` snapshot of July 2026). The dashboard's "Est. cost" column therefore always shows $0 for these entries. For non-bundled model ids, the dashboard does not show a tariff unless you supply a `pricing` block in the `aiflowbridge.userModels` entry. Override per-profile via `aiflowbridge.providers[].pricing` if you have a custom OpenRouter plan or want to budget against a paid upstream model.
+All 7 bundled flagships are **free** on OpenRouter's free tier (USD 0.00 / USD 0.00 per 1M tokens, per the OpenRouter `/v1/models` snapshot of July 2026).
+The dashboard's "Est. cost" column therefore always shows $0 for these entries.
+For non-bundled model ids, the dashboard does not show a tariff unless you supply a `pricing` block in the `aiflowbridge.userModels` entry.
+Override per-profile via `aiflowbridge.providers[].pricing` if you have a custom OpenRouter plan or want to budget against a paid upstream model.
 
 ## Why is the model list hardcoded?
 
-The list of officially supported models lives in [`resources/models.json`](../resources/models.json) (with its JSON Schema in [`resources/models.schema.json`](../resources/models.schema.json)) and is **not auto-discovered** from the upstream APIs. This is a deliberate design choice driven by VS Code's `vscode.lm.registerLanguageModelChatProvider` API.
+The list of officially supported models lives in [`resources/models.json`](../resources/models.json) (with its JSON Schema in [`resources/models.schema.json`](../resources/models.schema.json)) and is **not auto-discovered** from the upstream APIs.
+This is a deliberate design choice driven by VS Code's `vscode.lm.registerLanguageModelChatProvider` API.
 
 VS Code requires each model to declare its capabilities at registration time:
 
@@ -89,16 +97,21 @@ VS Code requires each model to declare its capabilities at registration time:
 - `thinking` - whether the thinking-effort selector is exposed
 - `requiresThinkingParam` - provider-specific quirks (e.g. DeepSeek's `thinking: { type: "enabled" }`)
 
-The upstream APIs (`GET /v1/models`) only return `{ id, owned_by, created }`. They do not expose context window, tool limits, vision support, or thinking support in a usable format. Without explicit capabilities, VS Code would:
+The upstream APIs (`GET /v1/models`) only return `{ id, owned_by, created }`.
+They do not expose context window, tool limits, vision support, or thinking support in a usable format.
+Without explicit capabilities, VS Code would:
 
 - Hide the image-paste button for vision-capable models
 - Expose tool calling for models that don't support it (broken UX)
 - Skip the thinking-effort selector for reasoning models
 - Allow context overflow with no warning
 
-A bad capability is a worse user experience than a missing model. A hardcoded registry ensures every supported model works end-to-end on day one. See [architecture.md](architecture.md#model-registry) for how to override individual entries.
+A bad capability is a worse user experience than a missing model. A hardcoded registry ensures every supported model works end-to-end on day one.
+See [architecture.md](architecture.md#model-registry) for how to override individual entries.
 
-**Convention** : the `id` field in `resources/models.json` is the **upstream API id** itself (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`), not a kebab-case VS Code alias. The picker shows the human-readable `name` field. This avoids any id translation layer between VS Code and the upstream API.
+**Convention** : the `id` field in `resources/models.json` is the **upstream API id** itself (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`), not a kebab-case VS Code alias.
+The picker shows the human-readable `name` field.
+This avoids any id translation layer between VS Code and the upstream API.
 
 ## Adding a model without waiting for a release
 
@@ -141,15 +154,21 @@ Add an entry to `settings.json` under `aiflowbridge.userModels`:
 }
 ```
 
-**Trade-off** : user-declared models are your responsibility. If you mark `imageInput: true` for a model that does not accept images, the Copilot Chat paste button will appear but the model will fail on upload. Capabilities are not validated against the upstream API.
+**Trade-off** : user-declared models are your responsibility.
+If you mark `imageInput: true` for a model that does not accept images, the Copilot Chat paste button will appear but the model will fail on upload.
+Capabilities are not validated against the upstream API.
 
 ### Option 3 - Registry override (workspace or per-user)
 
-For a more permanent, structured change (pricing, vendor defaults, full schema validation in the editor), use the **model registry** instead of `aiflowbridge.userModels`. Run **`AIFlowBridge: Edit model registry`** - it opens `<globalStorageUri>/models.json` in the editor (creating it from the bundled file if needed). See [architecture.md](architecture.md#model-registry) for the full schema and override rules. Changes apply to the **next VS Code window reload**.
+For a more permanent, structured change (pricing, vendor defaults, full schema validation in the editor), use the **model registry** instead of `aiflowbridge.userModels`.
+Run **`AIFlowBridge: Edit model registry`** - it opens `<globalStorageUri>/models.json` in the editor (creating it from the bundled file if needed).
+See [architecture.md](architecture.md#model-registry) for the full schema and override rules.
+Changes apply to the **next VS Code window reload**.
 
 ## Promoting a user model to the official registry
 
-If a user-defined model is widely useful, the recommended path is to add it to the official bundled registry in [`resources/models.json`](../resources/models.json) via a pull request. The PR will be reviewed for:
+If a user-defined model is widely useful, the recommended path is to add it to the official bundled registry in [`resources/models.json`](../resources/models.json) via a pull request.
+The PR will be reviewed for:
 
 - Correct `id` matching the upstream API exactly (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm)
 - Correct capabilities (especially image input and thinking)
@@ -163,33 +182,34 @@ The release cadence is opportunistic - no fixed schedule. Tag `v1.x.y` when a me
 
 ## Data freshness
 
-Every pricing number and model id mentioned in this document is a **snapshot**, not a live feed. The data was pulled at release time of the bundled `resources/models.json` and **does not auto-refresh**.
+Every pricing number and model id mentioned in this document is a **snapshot**, not a live feed.
+The data was pulled at release time of the bundled `resources/models.json` and **does not auto-refresh**.
 
-**Snapshot metadata**
+### Snapshot metadata
 
 - Current snapshot date: **2026-07-13**
-- Current snapshot version: **AIFlowBridge 2.12.1**
+- Current snapshot version: **AIFlowBridge 2.13.0**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 
-**Refresh cadence**
+### Refresh cadence
 
 - Snapshot is regenerated when `resources/models.json` ships a new revision (i.e. on every AIFlowBridge release that touches the model registry).
 - Snapshot metadata is stamped next to each affected table or block - look for the `> Data snapshot: YYYY-MM-DD (AIFlowBridge X.Y.Z).` line above the block.
 - The `description`, `displayName`, and `keywords` fields in `package.json` also carry this metadata.
 
-**What does NOT auto-refresh**
+### What does NOT auto-refresh
 
 - The 7 bundled OpenRouter flagships (table above). Picking a new free flagship requires an explicit registry edit + release.
 - The `pricing` block of each bundled model (pricing is hardcoded; we do NOT re-fetch on every gateway start to keep the cold-start path zero-network).
 - The "Pick your cost point" table in `README.md` and the "Indicative rates per family" table in `docs/cost.md`.
 
-**What DOES auto-refresh at runtime**
+### What DOES auto-refresh at runtime
 
 - The 100+ non-bundled OpenRouter model ids reachable through `aiflowbridge.userModels`. Those are forwarded verbatim to OpenRouter by id - no AIFlowBridge-managed pricing for them.
 - Discovery payloads (`GET /v1/discovery`) - built dynamically from the live registry cache.
 
-**Verifying a number before quoting it**
+### Verifying a number before quoting it
 
 1. Find the `> Data snapshot: ...` line above the block you want to quote.
 2. If the snapshot date is older than ~3 months, treat the number as indicative only.

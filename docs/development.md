@@ -72,7 +72,8 @@ For repeatable local updates, use the helper script in `_helpers/scripts/Publish
 
 ### Interactive mode
 
-If you run the helper without `-Profiles` or `-AllProfiles`, the script will detect available local profiles and prompt you to pick which profiles should receive the VSIX (you can type indices like `1,3` or `a` for all). This makes it easier to push local builds into selected profiles during development.
+If you run the helper without `-Profiles` or `-AllProfiles`, the script will detect available local profiles and prompt you to pick which profiles should receive the VSIX (you can type indices like `1,3` or `a` for all).
+This makes it easier to push local builds into selected profiles during development.
 
 ## Publish
 
@@ -87,7 +88,8 @@ npm run publish:openvsx
 npm run publish:all
 ```
 
-The release workflow (`.github/workflows/release-please.yml`) drives marketplace publication from version tags. `release-please` opens/updates the release PR; merging it creates a `vx.y.z` tag and triggers the publishing workflow. The Open VSX counterpart (`.github/workflows/publish.yml`) requires an `OPENVSX_TOKEN` repository secret.
+The release workflow (`.github/workflows/release-please.yml`) drives marketplace publication from version tags. `release-please` opens/updates the release PR; merging it creates a `vx.y.z` tag and triggers the publishing workflow.
+The Open VSX counterpart (`.github/workflows/publish.yml`) requires an `OPENVSX_TOKEN` repository secret.
 
 ## Privacy & Security
 

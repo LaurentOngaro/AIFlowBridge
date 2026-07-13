@@ -36,17 +36,25 @@ When the configured port is already in use, the gateway probes `GET /version`:
   - Dismiss the toast → same as Keep. Default behavior for users who do not interact.
 - **Foreign service on the port** (e.g. `python -m http.server 8787`) → logs a warning, no prompt, no shutdown. Never touches non-AIFlowBridge processes.
 
-The `/shutdown` endpoint requires a per-instance random token (`randomUUID()` generated at `GatewayService` construction). The token is returned in `GET /version` and must be echoed in the `X-AIFlowBridge-Shutdown-Token` header. Requests without the header or with a wrong token get a 403. Pre-1.7.0 peers do not gate shutdown (backward compat).
+The `/shutdown` endpoint requires a per-instance random token (`randomUUID()` generated at `GatewayService` construction).
+The token is returned in `GET /version` and must be echoed in the `X-AIFlowBridge-Shutdown-Token` header.
+Requests without the header or with a wrong token get a 403.
+Pre-1.7.0 peers do not gate shutdown (backward compat).
 
 ## Lock
 
-`src/aiflowbridge/gateway/lock.ts` - `acquireGatewayLock` / `releaseGatewayLock` using `fs.openSync(path, 'wx')`. Acquired in `lifecycle.ts:activate()` and released in `deactivate()`. Best-effort guard against the ping-pong loop when two debug sessions restart the gateway simultaneously. Stale-lock reaper at 30s.
+`src/aiflowbridge/gateway/lock.ts` - `acquireGatewayLock` / `releaseGatewayLock` using `fs.openSync(path, 'wx')`.
+Acquired in `lifecycle.ts:activate()` and released in `deactivate()`.
+Best-effort guard against the ping-pong loop when two debug sessions restart the gateway simultaneously.
+Stale-lock reaper at 30s.
 
 The lock file lives in `<globalStorageUri>/gateway.lock` on VS Code and in `~/.aiflowbridge/gateway.lock` on standalone.
 
 ## Telemetry persistence
 
-Every gateway request is recorded with token counts, latency, status, and estimated cost. Persistence is in `<globalStorageUri>/telemetry.json` on VS Code and `~/.aiflowbridge/telemetry.json` on standalone. The persister (`src/aiflowbridge/telemetry/persistence.ts`) uses a sibling `telemetry.lock` file to serialize writers across VS Code windows and the standalone CLI, with atomic `write-tmp` + `rename`.
+Every gateway request is recorded with token counts, latency, status, and estimated cost.
+Persistence is in `<globalStorageUri>/telemetry.json` on VS Code and `~/.aiflowbridge/telemetry.json` on standalone.
+The persister (`src/aiflowbridge/telemetry/persistence.ts`) uses a sibling `telemetry.lock` file to serialize writers across VS Code windows and the standalone CLI, with atomic `write-tmp` + `rename`.
 
 See [telemetry.md](telemetry.md) for the full telemetry architecture.
 
@@ -60,7 +68,8 @@ The gateway can run as a pure-Node.js CLI (`aiflowbridge-server` npm bin, `dist/
 - `src/standalone/util.ts` - shared `getNestedValue` helper (extracted from the duplicate copies that previously lived in `context.ts` and `config-loader.ts`).
 - `src/standalone/vscode-shim.ts` - `vscode` module shim so the gateway code typechecks without `@types/vscode`.
 
-Build with `npm run build:standalone` (driven by `tsconfig.standalone.json`). Run with `node dist/standalone/main.js` or `npm run start:standalone`. The VSIX excludes `dist/standalone/`, `src/standalone/`, and `tsconfig.standalone.json` (see `.vscodeignore`).
+Build with `npm run build:standalone` (driven by `tsconfig.standalone.json`). Run with `node dist/standalone/main.js` or `npm run start:standalone`.
+The VSIX excludes `dist/standalone/`, `src/standalone/`, and `tsconfig.standalone.json` (see `.vscodeignore`).
 
 Shared `gateway.lock` path means only one process owns the gateway - VS Code and standalone cooperate via the existing `lock.ts` + `probe.ts` flow.
 

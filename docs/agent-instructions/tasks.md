@@ -55,7 +55,8 @@ The full recipe - the vendor shows up in the Copilot Chat picker AND in the Open
 
 ### Path B - Gateway-only vendor (OpenRouter since 2.12.0)
 
-The vendor is exposed through the OpenAI-compatible gateway (`http://127.0.0.1:8787/v1`) but **NOT** in the Copilot Chat picker. This is the right path for a meta-provider that fronts many models behind a single OpenAI-compatible endpoint, where writing a per-model `vscode.LanguageModelChatProvider` does not buy the user anything (the gateway already forwards the call verbatim).
+The vendor is exposed through the OpenAI-compatible gateway (`http://127.0.0.1:8787/v1`) but **NOT** in the Copilot Chat picker.
+This is the right path for a meta-provider that fronts many models behind a single OpenAI-compatible endpoint, where writing a per-model `vscode.LanguageModelChatProvider` does not buy the user anything (the gateway already forwards the call verbatim).
 
 1. **Vendor entry** in `resources/models.json` under `vendors` (`baseUrl`, `apiKeySecret`, `externalUrls`).
 2. **Bundled model entries** in `resources/models.json` under `models` - optional but recommended for the flagship set so they appear in `GET /v1/models` with dashboard-side pricing. Any other model id from the upstream is reachable verbatim through the gateway via `aiflowbridge.userModels` or registry overrides, no extension update needed.
@@ -88,10 +89,10 @@ See [testing.md](testing.md#adding-a-test).
 
 ## Debugging
 
-| Symptom                    | Where to look                                                                             |
-| -------------------------- | ----------------------------------------------------------------------------------------- |
-| Gateway won't start        | `AIFlowBridge: Show logs` (`[Gateway]` lines)                                             |
+| Symptom                    | Where to look                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Gateway won't start        | `AIFlowBridge: Show logs` (`[Gateway]` lines)                                                              |
 | Provider returns errors    | `[MiniMax]` / `[Xiaomi]` / `[DeepSeek]` / `[OpenRouter]` lines + `AIFlowBridge: Open request dumps folder` |
-| Dashboard shows stale data | `AIFlowBridge: Refresh metrics` (reads from disk)                                         |
-| Vision proxy not invoked   | `[Vision]` lines + `aiflowbridge.vision.excludedVendors`                                  |
-| Standalone CLI won't bind  | stderr output + `~/.aiflowbridge/gateway.log`                                             |
+| Dashboard shows stale data | `AIFlowBridge: Refresh metrics` (reads from disk)                                                          |
+| Vision proxy not invoked   | `[Vision]` lines + `aiflowbridge.vision.excludedVendors`                                                   |
+| Standalone CLI won't bind  | stderr output + `~/.aiflowbridge/gateway.log`                                                              |

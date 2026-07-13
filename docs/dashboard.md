@@ -28,23 +28,29 @@ A "Current version: v1.6.0" subtitle displays the installed extension version.
 
 ## Collapsible panels
 
-Each of the nine panel sections (Filters / Gateway / Recent / Sessions / By model / By client / By source / Shared session / Provider) can be collapsed by clicking the chevron in its header. The collapsed state is persisted per-panel in `localStorage`.
+Each of the nine panel sections (Filters / Gateway / Recent / Sessions / By model / By client / By source / Shared session / Provider) can be collapsed by clicking the chevron in its header.
+The collapsed state is persisted per-panel in `localStorage`.
 
 ## Time filters
 
-Nine presets are exposed in the Filters panel at the top of the dashboard: **All / Last 15 min / Last 30 min / Last 1 h / Last 24 h / Last 2 days / Last 3 days / Last 7 days / Last 30 days**. Because the same select feeds the Recent requests, By model, and Sessions panels (and the totals cards), there is a single source of truth: no per-panel duplicates to keep in sync.
+Nine presets are exposed in the Filters panel at the top of the dashboard: **All / Last 15 min / Last 30 min / Last 1 h / Last 24 h / Last 2 days / Last 3 days / Last 7 days / Last 30 days**.
+Because the same select feeds the Recent requests, By model, and Sessions panels (and the totals cards), there is a single source of truth: no per-panel duplicates to keep in sync.
 
 ## Provider filter
 
-A `<select>` in the Filters panel, alongside the time preset, narrows the recent table + by-model aggregation to a single provider. The options are **All providers** + one entry per provider id seen in the snapshot's `byProvider` map; the list refreshes on every dashboard snapshot reload so newly-enabled providers appear automatically.
+A `<select>` in the Filters panel, alongside the time preset, narrows the recent table + by-model aggregation to a single provider.
+The options are **All providers** + one entry per provider id seen in the snapshot's `byProvider` map; the list refreshes on every dashboard snapshot reload so newly-enabled providers appear automatically.
 
 ## Custom date range
 
-Two `<input type="date">` controls (From / To) in the Filters panel filter by absolute dates on top of the preset. Entering a date resets the preset select back to **All**; changing the preset clears the From / To inputs. Changing the date a second time in a row works as expected (`input` + `change` events are both wired).
+Two `<input type="date">` controls (From / To) in the Filters panel filter by absolute dates on top of the preset.
+Entering a date resets the preset select back to **All**; changing the preset clears the From / To inputs.
+Changing the date a second time in a row works as expected (`input` + `change` events are both wired).
 
 ## Text search
 
-A single search box ("Filter requests…") in the Filters panel matches case-insensitively across **model / provider / status / timestamp / duration / tokens / estimated cost**. The By model panel additionally matches the **model name itself** (a model whose name contains the needle is included even if no individual entry matches).
+A single search box ("Filter requests…") in the Filters panel matches case-insensitively across **model / provider / status / timestamp / duration / tokens / estimated cost**.
+The By model panel additionally matches the **model name itself** (a model whose name contains the needle is included even if no individual entry matches).
 
 ## Pagination
 
@@ -65,23 +71,32 @@ Each row in the "Recent requests" table has a leading trash-icon column. Clickin
 2. Recomputes p95 from the now-shrunk durations array.
 3. Re-renders the panel with the updated cumulative counters and the updated recent list.
 
-The action column is only rendered when the dashboard is opened from the extension host (which wires an `onRemoveEntry` hook). Backward-compat callers that pass no hook see neither the action column nor the trash button. `AIFlowBridge: Refresh metrics` in any window picks up the deletion because the persister writes through to the on-disk file, which is the source of truth.
+The action column is only rendered when the dashboard is opened from the extension host (which wires an `onRemoveEntry` hook).
+Backward-compat callers that pass no hook see neither the action column nor the trash button. `AIFlowBridge: Refresh metrics` in any window picks up the deletion because the persister writes through to the on-disk file, which is the source of truth.
 
 ## Shared session panel (pair programming)
 
-The "Shared session" panel (added in 2.10.0) lists the 20 most recent recorded requests in reverse chronological order. Each row carries the local time, provider, model, and a sanitized `promptSummary` snippet (max 500 chars). Clicking **Replay** posts a message to the extension host, which re-hydrates the matching entry from the in-memory `TelemetryStore` (same source the HTTP `/v1/replay/{id}` endpoint reads) and renders the body inline in a `<pre>` block. The replay is a pure read - no upstream re-forward, safe to fire as many times as needed.
+The "Shared session" panel (added in 2.10.0) lists the 20 most recent recorded requests in reverse chronological order.
+Each row carries the local time, provider, model, and a sanitized `promptSummary` snippet (max 500 chars).
+Clicking **Replay** posts a message to the extension host, which re-hydrates the matching entry from the in-memory `TelemetryStore` (same source the HTTP `/v1/replay/{id}` endpoint reads) and renders the body inline in a `<pre>` block.
+The replay is a pure read - no upstream re-forward, safe to fire as many times as needed.
 
-The sanitization is non-negotiable: Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob without whitespace are redacted to `[REDACTED]` before the snippet ever reaches the dashboard HTML. A developer pasting a `curl` one-liner that includes their upstream key will not see it in the dashboard or via `GET /v1/replay/{id}`.
+The sanitization is non-negotiable: Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob without whitespace are redacted to `[REDACTED]` before the snippet ever reaches the dashboard HTML.
+A developer pasting a `curl` one-liner that includes their upstream key will not see it in the dashboard or via `GET /v1/replay/{id}`.
 
-The panel degrades gracefully on entries recorded before the feature shipped (pre-2.10.0 snapshots have no `promptSummary` - the row renders as a muted `(no summary)` placeholder and the Replay button is hidden for that entry). The button stays functional even when the gateway is unreachable from the webview (the host process brokers the read).
+The panel degrades gracefully on entries recorded before the feature shipped (pre-2.10.0 snapshots have no `promptSummary` - the row renders as a muted `(no summary)` placeholder and the Replay button is hidden for that entry).
+The button stays functional even when the gateway is unreachable from the webview (the host process brokers the read).
 
 Set `aiflowbridge.telemetry.captureSessionLog = false` to keep the on-disk telemetry file lean - the panel still appears but shows `(no summary)` placeholders for entries recorded after the flag was flipped.
 
 ## Cross-window shared metrics
 
-Metrics live in `<globalStorageUri>/telemetry.json` (a sibling `<globalStorageUri>/telemetry.lock` serializes writers across processes). The data is shared across all VS Code windows: every `record()` goes through a file lock, the in-process write chain guarantees sequential file access, and a `Refresh metrics` in any window reloads from disk. This means the totals you see in a non-leader window are the same as the ones the leader just wrote, without needing a window reload.
+Metrics live in `<globalStorageUri>/telemetry.json` (a sibling `<globalStorageUri>/telemetry.lock` serializes writers across processes).
+The data is shared across all VS Code windows: every `record()` goes through a file lock, the in-process write chain guarantees sequential file access, and a `Refresh metrics` in any window reloads from disk.
+This means the totals you see in a non-leader window are the same as the ones the leader just wrote, without needing a window reload.
 
-The file is plain JSON. The Output channel (`AIFlowBridge: Show logs`) prints the path under `[Telemetry]` debug lines, which is the easiest way to find it on Windows / macOS / Linux.
+The file is plain JSON.
+The Output channel (`AIFlowBridge: Show logs`) prints the path under `[Telemetry]` debug lines, which is the easiest way to find it on Windows / macOS / Linux.
 
 ## What the dashboard tracks and what it doesn't
 
@@ -96,9 +111,12 @@ AIFlowBridge ships two complementary integrations. They share models and API key
 | **Upstream call**           | Direct `fetch` to the vendor                      | Direct `fetch` to the vendor                     |
 | **Telemetry recorded?**     | No                                                | Yes (gateway's `TelemetryStore`)                 |
 
-The reason is structural: VS Code's language model API is a push-only interface - the extension returns a stream of tokens, but the framework owns the request lifecycle. AIFlowBridge does not see a "request started / request ended" event it can hook into. The gateway, in contrast, is a regular HTTP server, so it has full request/response metadata (status, duration, prompt/completion token counts from the upstream `usage` field) at the right granularity for per-request metrics.
+The reason is structural: VS Code's language model API is a push-only interface - the extension returns a stream of tokens, but the framework owns the request lifecycle.
+AIFlowBridge does not see a "request started / request ended" event it can hook into.
+The gateway, in contrast, is a regular HTTP server, so it has full request/response metadata (status, duration, prompt/completion token counts from the upstream `usage` field) at the right granularity for per-request metrics.
 
-**Practical implication** - if you want to populate the dashboard, point an OpenAI-compatible client at the gateway. The [gateway.md](gateway.md) section has the full config. Sending a single `curl` is enough to verify the pipeline:
+**Practical implication** - if you want to populate the dashboard, point an OpenAI-compatible client at the gateway. The [gateway.md](gateway.md) section has the full config.
+Sending a single `curl` is enough to verify the pipeline:
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
@@ -106,7 +124,8 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model": "deepseek-v4-flash", "messages": [{"role": "user", "content": "ping"}]}'
 ```
 
-The status bar reflects the same source: it shows the gateway state, not Copilot Chat activity. The "requests" counter in the status bar increments only when the gateway handles a request.
+The status bar reflects the same source: it shows the gateway state, not Copilot Chat activity.
+The "requests" counter in the status bar increments only when the gateway handles a request.
 
 ## Example workflow
 
@@ -126,4 +145,5 @@ The status bar reflects the same source: it shows the gateway state, not Copilot
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | ![Kilo Code picker](resources/screenshots_v1.1.1/02_AIFB_kiloCode%20LLM%20picker.png) | ![Gateway metrics](resources/screenshots_v1.4.0/06a_AIFB_API_metrics_1.png) |
 
-The screenshots are captured against the v1.1.1 / v1.4.0 dashboard (preset buttons, no provider filter). New screenshots should land in `resources/screenshots_v2.7.0/` once captured; drop them into this table to refresh the visual references for the combobox + provider filter.
+The screenshots are captured against the v1.1.1 / v1.4.0 dashboard (preset buttons, no provider filter).
+New screenshots should land in `resources/screenshots_v2.7.0/` once captured; drop them into this table to refresh the visual references for the combobox + provider filter.

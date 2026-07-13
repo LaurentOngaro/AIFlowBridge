@@ -40,17 +40,20 @@ Or set the value directly in `settings.json`:
 }
 ```
 
-The configured model must be **already registered** with VS Code. If VS Code cannot find it, the vision call fails with `Vision model not found` (see [troubleshooting.md](troubleshooting.md#vision-model-not-found)).
+The configured model must be **already registered** with VS Code.
+If VS Code cannot find it, the vision call fails with `Vision model not found` (see [troubleshooting.md](troubleshooting.md#vision-model-not-found)).
 
 ## Vendor exclusion
 
-Some vendors handle images natively (MiniMax M3, Xiaomi MiMo V2 Omni, Xiaomi MiMo V2.5). For these models, the vision proxy is skipped entirely - the upstream provider receives the image directly.
+Some vendors handle images natively (MiniMax M3, Xiaomi MiMo V2 Omni, Xiaomi MiMo V2.5).
+For these models, the vision proxy is skipped entirely - the upstream provider receives the image directly.
 
 | Setting                               | Default            | Description                                                 |
 | ------------------------------------- | ------------------ | ----------------------------------------------------------- |
 | `aiflowbridge.vision.excludedVendors` | `["aiflowbridge"]` | Vendors whose models should NOT go through the vision proxy |
 
-The default `["aiflowbridge"]` is a no-op safety: the bundled registry already marks each model's vision capability, so the proxy only runs when needed. The setting only matters when you register user-defined models via `AIFlowBridge: Add a custom model` with a `family` you want to exclude.
+The default `["aiflowbridge"]` is a no-op safety: the bundled registry already marks each model's vision capability, so the proxy only runs when needed.
+The setting only matters when you register user-defined models via `AIFlowBridge: Add a custom model` with a `family` you want to exclude.
 
 ## Custom prompt
 
@@ -66,7 +69,8 @@ Markdown rendering is automatic; the result is appended to the user message.
 
 ## Why not just use a vision model directly?
 
-For models that _do_ support vision natively, AIFlowBridge passes images straight to the upstream - no extra round-trip. The proxy only kicks in for the models that don't. This means:
+For models that _do_ support vision natively, AIFlowBridge passes images straight to the upstream - no extra round-trip. The proxy only kicks in for the models that don't.
+This means:
 
 - Native-vision models (MiniMax M3, Xiaomi MiMo V2 Omni/V2.5) get **full image detail** end-to-end
 - Text-only models get a **text description** that the model can reason about (slower but workable)
@@ -74,6 +78,7 @@ For models that _do_ support vision natively, AIFlowBridge passes images straigh
 
 ## Cost impact
 
-The vision proxy's text description is appended to the upstream prompt, adding to the request's prompt-token count. The proxy step itself runs against `aiflowbridge.vision.copilotVisionModel`, which under the default configuration is **free** for Copilot subscribers.
+The vision proxy's text description is appended to the upstream prompt, adding to the request's prompt-token count.
+The proxy step itself runs against `aiflowbridge.vision.copilotVisionModel`, which under the default configuration is **free** for Copilot subscribers.
 
 If `aiflowbridge.vision.copilotVisionModel` is changed to a paid model, that model bills the description-generation call. See [cost.md](cost.md#vision-heavy-workload-saves-more).
