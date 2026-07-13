@@ -19,11 +19,11 @@
     Path to the git repository. Defaults to the parent of the script folder.
 
 .EXAMPLE
-    pwsh -File _helpers/RerunLastCIWorkflow.ps1
+    pwsh -File _helpers/scripts/RerunLastCIWorkflow.ps1
     Recreate and re-push the most recent tag.
 
 .EXAMPLE
-    pwsh -File _helpers/RerunLastCIWorkflow.ps1 -TagName v2.11.0
+    pwsh -File _helpers/scripts/RerunLastCIWorkflow.ps1 -TagName v2.11.0
     Recreate and re-push the v2.11.0 tag.
 
 .NOTES
@@ -36,7 +36,7 @@ param(
 
   [string]$Remote = "origin",
 
-  [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+  [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 )
 
 $ErrorActionPreference = "Stop"

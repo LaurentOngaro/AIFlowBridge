@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-const SCRIPT = resolve(__dirname, '..', 'scripts', 'check-standalone-bundle.js');
+const SCRIPT = resolve(__dirname, '..', '_helpers', 'scripts', 'check-standalone-bundle.js');
 const ENTRY = resolve(__dirname, '..', 'dist', 'standalone', 'main.js');
 
 function runScript(entryPath: string): { status: number; stdout: string; stderr: string } {
@@ -25,7 +25,7 @@ function runScript(entryPath: string): { status: number; stdout: string; stderr:
 }
 
 describe('standalone bundle completeness', () => {
-  it('script exists at scripts/check-standalone-bundle.js', () => {
+  it('script exists at _helpers/scripts/check-standalone-bundle.js', () => {
     expect(existsSync(SCRIPT)).toBe(true);
   });
 

@@ -26,6 +26,7 @@ export const API_KEY_SECRETS = {
   deepseek: 'aiflowbridge.providers.deepseek.apiKey',
   minimax: 'aiflowbridge.providers.minimax.apiKey',
   xiaomi: 'aiflowbridge.providers.xiaomi.apiKey',
+  openrouter: 'aiflowbridge.providers.openrouter.apiKey',
 } as const;
 
 /** memento key tracking whether the welcome walkthrough has been shown. */

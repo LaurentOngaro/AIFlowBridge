@@ -132,7 +132,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/_helpers/PublishAIFlowBridge.ps1",
+        "${workspaceFolder}/_helpers/scripts/PublishAIFlowBridge.ps1",
         "-Quality",
         "stable",
         "-AllProfiles"
@@ -153,7 +153,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/_helpers/PublishAIFlowBridge.ps1",
+        "${workspaceFolder}/_helpers/scripts/PublishAIFlowBridge.ps1",
         "-Quality",
         "insiders",
         "-AllProfiles"
@@ -174,7 +174,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/_helpers/UpdateStandAloneServer.ps1"
+        "${workspaceFolder}/_helpers/scripts/UpdateStandAloneServer.ps1"
       ],
       "group": "none",
       "presentation": {

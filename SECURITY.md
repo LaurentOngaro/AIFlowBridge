@@ -31,7 +31,7 @@ AIFlowBridge is designed with a local-first security model:
 - **The local gateway** binds to `127.0.0.1` only - it is not reachable from other machines on your network.
 - **Telemetry is local** - request counts, tokens, and cost estimates stay on your machine. There is no remote analytics endpoint.
 - **No third-party tracking** - the extension does not phone home, load remote scripts, or embed analytics SDKs.
-- **Outbound requests** only go to the API endpoints you configure (`api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, or your custom upstream).
+- **Outbound requests** only go to the API endpoints you configure (`api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, `openrouter.ai`, or your custom upstream).
 
 ## Session-log privacy (action plan item #3, hardened 2.10.x)
 

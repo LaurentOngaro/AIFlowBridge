@@ -17,15 +17,15 @@
     Explicit list of profile folder paths to install into.
 
 .EXAMPLE
-    pwsh -File _helpers/PublishAIFlowBridge.ps1
+    pwsh -File _helpers/scripts/PublishAIFlowBridge.ps1
     Interactive: pick profile indices, build, install.
 
 .EXAMPLE
-    pwsh -File _helpers/PublishAIFlowBridge.ps1 -AllProfiles
+    pwsh -File _helpers/scripts/PublishAIFlowBridge.ps1 -AllProfiles
     Install into every profile without prompting.
 
 .EXAMPLE
-    pwsh -File _helpers/PublishAIFlowBridge.ps1 -Quality insiders -Profiles 'C:\Users\me\AppData\Roaming\Code\User\profiles\work'
+    pwsh -File _helpers/scripts/PublishAIFlowBridge.ps1 -Quality insiders -Profiles 'C:\Users\me\AppData\Roaming\Code\User\profiles\work'
     Build the insiders VSIX and install into a specific profile.
 
 .NOTES
@@ -45,7 +45,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $distDir = Join-Path $workspaceRoot "dist"
 
 switch ($Quality) {

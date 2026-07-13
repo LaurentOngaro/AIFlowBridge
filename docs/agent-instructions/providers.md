@@ -32,7 +32,9 @@ The gateway upstream profile normalization lives in `src/aiflowbridge/providers.
 - `normalizeProviderProfiles()` - validates `aiflowbridge.providers[]` from settings, applies SSRF protection (`isValidProviderBaseUrl()`), and dedupes by id.
 - `redactProviderForLog()` / `redactProvidersForLog()` - strip `apiKey` from any log line.
 - `selectProvider()` - case-insensitive model id lookup via `localeCompare(..., { sensitivity: 'base' })`.
-- `synthesizeProvidersFromBuiltInModels()` / `synthesizeProvidersFromUserModels()` - auto-generate one catalog entry per registry / user model.
+- `synthesizeProvidersFromBuiltInModels()` / `synthesizeProvidersFromUserModels()` - auto-generate one catalog entry per registry / user model. The synthesis path is how the bundled `openrouter` vendor and its 7 flagship entries (plus any user-declared OpenRouter models on `family: "openrouter"`) reach the gateway without writing a dedicated `OpenRouterChatProvider` class.
+
+For OpenRouter-specific upstream attributes (`HTTP-Referer`, `X-Title` attribution headers required by OpenRouter's reliability track), see the pure helper in `src/aiflowbridge/gateway/openrouter-headers.ts`. The helper is wired into `forwardChatCompletion()` in `src/aiflowbridge/gateway/server.ts` and is no-op for any non-OpenRouter upstream.
 
 SSRF protection (`isValidProviderBaseUrl()`) rejects:
 

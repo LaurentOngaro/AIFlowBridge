@@ -11,7 +11,7 @@
     -Destination for any other layout.
 
 .PARAMETER Source
-    Path to the repo root. Defaults to the parent of this script's folder.
+    Path to the repo root. Defaults to the directory two levels above this script.
 
 .PARAMETER Destination
     Install root for the standalone server. Default: D:\Projets_Perso\03_Code\_Extensions\vsCode\aiflowbridge-server-win-x64.
@@ -23,15 +23,15 @@
     Skip the npm ci + build:standalone step (use the existing dist/ output).
 
 .EXAMPLE
-    pwsh -File _helpers/UpdateStandAloneServer.ps1
+    pwsh -File _helpers/scripts/UpdateStandAloneServer.ps1
     Rebuild and redeploy the standalone server to the default destination.
 
 .EXAMPLE
-    pwsh -File _helpers/UpdateStandAloneServer.ps1 -SkipBuild
+    pwsh -File _helpers/scripts/UpdateStandAloneServer.ps1 -SkipBuild
     Redeploy without rebuilding (use the existing dist/ output).
 
 .EXAMPLE
-    pwsh -File _helpers/UpdateStandAloneServer.ps1 -Destination 'D:\servers\aifb' -TaskName 'AIFB'
+    pwsh -File _helpers/scripts/UpdateStandAloneServer.ps1 -Destination 'D:\servers\aifb' -TaskName 'AIFB'
     Deploy to a custom location under a custom task name.
 
 .NOTES
@@ -40,7 +40,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Source = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+  [string]$Source = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
 
   [string]$Destination = "D:\Projets_Perso\03_Code\_Extensions\vsCode\aiflowbridge-server-win-x64",
 

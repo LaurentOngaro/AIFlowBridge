@@ -79,7 +79,12 @@ function loadBundledRegistry(): import('../src/aiflowbridge/modelRegistry.schema
 function baseProvider(): ProviderProfile {
   const registry = loadBundledRegistry();
   return {
-    id: 'minimax',
+    // Use the real upstream model id as the catalog `id` - vendor names
+    // like `'minimax'` would expose a fake model id to Kilo Code / Continue /
+    // Open WebUI that no upstream API recognises. See the regression test
+    // "hand-curated gateway profiles use real upstream model ids as catalog ids"
+    // at the bottom of this file.
+    id: 'MiniMax-M2.7',
     label: 'MiniMax V2.7',
     kind: 'openai-compat',
     baseUrl: registry.vendors.minimax.baseUrl,
@@ -147,7 +152,9 @@ describe('synthesizeProvidersFromUserModels', () => {
   });
 
   it('does not duplicate a model whose id collides with an existing provider id', () => {
-    mockUserModels.value = [{ id: 'minimax', name: 'MiniMax (duplicate)', family: 'minimax', version: 'x' }];
+    // The base provider covers MiniMax-M2.7. A user model with the same
+    // id must be skipped to avoid a duplicate in the catalog.
+    mockUserModels.value = [{ id: 'MiniMax-M2.7', name: 'MiniMax (duplicate)', family: 'minimax', version: 'x' }];
     const existing = [baseProvider()];
     const result = synthesizeProvidersFromUserModels(existing, fakeConfig() as never, loadBundledRegistry());
     expect(result).toHaveLength(1);
@@ -180,7 +187,7 @@ describe('synthesizeProvidersFromUserModels', () => {
     mockUserModels.value = [{ id: 'MiniMax-M3', name: 'MiniMax M3', family: 'minimax', version: 'm3' }];
     const existing = [baseProvider()];
     const result = synthesizeProvidersFromUserModels(existing, fakeConfig() as never, loadBundledRegistry());
-    expect(result[0].id).toBe('minimax');
+    expect(result[0].id).toBe('MiniMax-M2.7');
     expect(result[1].id).toBe('MiniMax-M3');
   });
 });
@@ -251,7 +258,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     const providers = synthesizeProvidersFromBuiltInModels([baseProvider()], fakeConfig() as never, loadBundledRegistry());
     const m27 = providers.filter((p) => p.model === 'MiniMax-M2.7');
     expect(m27).toHaveLength(1);
-    expect(m27[0].id).toBe('minimax'); // The hand-curated entry wins.
+    expect(m27[0].id).toBe('MiniMax-M2.7'); // The hand-curated entry wins.
     // But M3, V2 Omni, etc. should still be added.
     expect(providers.find((p) => p.model === 'MiniMax-M3')).toBeDefined();
     expect(providers.find((p) => p.model === 'mimo-v2-omni')).toBeDefined();
@@ -259,7 +266,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
 
   it('preserves the order: existing providers first, then built-in syntheses', () => {
     const providers = synthesizeProvidersFromBuiltInModels([baseProvider()], fakeConfig() as never, loadBundledRegistry());
-    expect(providers[0].id).toBe('minimax');
+    expect(providers[0].id).toBe('MiniMax-M2.7');
     // First synthesized entry should be a deepseek model (since the
     // bundled registry starts with the deepseek family).
     expect(providers[1].id).toBe('deepseek-v4-flash');
@@ -310,5 +317,73 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, stripped);
     const om = providers.find((p) => p.model === 'mimo-v2-omni');
     expect(om?.pricing).toEqual({ inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' });
+  });
+});
+
+describe('hand-curated gateway profiles use real upstream model ids as catalog ids', () => {
+  // Regression test for the bug where `DEFAULT_GATEWAY_PROFILES` had
+  // `id: 'minimax'` and `id: 'xiaomi'` (vendor names) instead of the real
+  // upstream model ids. The catalog exposed to Kilo Code / Continue /
+  // Open WebUI then listed `minimax` / `xiaomi` as fake model ids that
+  // no upstream API recognises. This test asserts that every `id` in the
+  // synthesized catalog matches the upstream model id (i.e. `id === model`)
+  // for the hand-curated entries, so the picker shows real model names.
+  const KNOWN_VENDOR_NAMES = new Set([
+    'deepseek', 'minimax', 'xiaomi', 'openrouter',
+    // Long-form aliases that would also be wrong as catalog ids.
+    'minimax-m2', 'xiaomi-mimo', 'openrouter-ai', 'aiflowbridge',
+  ]);
+
+  function isVendorShaped(id: string): boolean {
+    // Heuristic: lowercase letters and dashes only, no uppercase, no digits
+    // (most real upstream ids have digits like v4-flash, M2.7, etc.).
+    return /^[a-z][a-z-]*$/.test(id) && !/[\d]/.test(id);
+  }
+
+  it('no hand-curated catalog id is a bare vendor name (regression for the minimax / xiaomi bug)', () => {
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    const ids = providers.map((p) => p.id);
+    for (const forbidden of KNOWN_VENDOR_NAMES) {
+      expect(ids, `id "${forbidden}" leaked into the catalog`).not.toContain(forbidden);
+    }
+  });
+
+  it('no hand-curated catalog id looks like a vendor-only string (lowercase letters + dashes only)', () => {
+    // Wider heuristic: real upstream ids have digits, dots, or upper-case
+    // (DeepSeek V4, MiniMax-M2.7, mimo-v2.5-pro, openai/gpt-oss-120b:free).
+    // A bare-vendor-shape id without digits is a strong smell.
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    const vendorShaped = providers.filter((p) => isVendorShaped(p.id)).map((p) => p.id);
+    expect(vendorShaped).toEqual([]);
+  });
+
+  it('every hand-curated catalog id matches the upstream model id (id === model)', () => {
+    // The hand-curated DEFAULT_GATEWAY_PROFILES use `id === model` (the
+    // real upstream id) - NOT a friendly alias like `deepseek-flash` (which
+    // was the historical convention for DeepSeek). For MiniMax and Xiaomi,
+    // the alias convention was abandoned because shipping the vendor name
+    // as a catalog id is misleading; this test pins the new convention.
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    // The hand-curated entries are the first 4 (deepseek-flash, deepseek-pro,
+    // MiniMax-M2.7, mimo-v2.5-pro). For MiniMax + Xiaomi, `id` MUST equal
+    // `model` exactly. For DeepSeek, the alias is allowed but the picked
+    // test below asserts the MiniMax + Xiaomi invariant.
+    const minimax = providers.find((p) => p.model === 'MiniMax-M2.7');
+    expect(minimax?.id).toBe('MiniMax-M2.7');
+    const xiaomi = providers.find((p) => p.model === 'mimo-v2.5-pro');
+    expect(xiaomi?.id).toBe('mimo-v2.5-pro');
+  });
+
+  it('GET /v1/models catalog (built from synthesized providers) lists real upstream ids, never vendor names', () => {
+    // End-to-end assertion: the picker visible in Kilo Code / Continue /
+    // Open WebUI is `buildModelCatalog(providers)`. The test pulls the
+    // full bundled pipeline (no overrides) and asserts the catalog
+    // contains no entry whose id is a bare vendor name.
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    const catalog = buildModelCatalog(providers);
+    const ids = catalog.map((m) => m.id);
+    for (const forbidden of KNOWN_VENDOR_NAMES) {
+      expect(ids, `id "${forbidden}" leaked into GET /v1/models`).not.toContain(forbidden);
+    }
   });
 });

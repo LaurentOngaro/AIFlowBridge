@@ -1,6 +1,8 @@
 # Vision proxy
 
 > Part of the [AIFlowBridge documentation](../README.md).
+>
+> **Data freshness.** Cost claims in this document (the $0 vision claim, the comparison with paid vision models) are pinned to the **2026-07-13** snapshot shipped with **AIFlowBridge 2.12.0**. The Copilot subscription policy is owned by GitHub and may change independently - verify against the current Copilot plan page before relying on the $0 claim.
 
 Text-only models (DeepSeek, MiniMax, Xiaomi text-only) handle images via a transparent proxy through another installed Copilot model.
 

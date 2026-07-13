@@ -28,6 +28,16 @@
         "tokenPlanSgp": "https://token-plan-sgp.xiaomimimo.com/v1",
         "tokenPlanCn": "https://token-plan-cn.xiaomimimo.com/v1"
       }
+    },
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKeySecret": "aiflowbridge.providers.openrouter.apiKey",
+      "externalUrls": {
+        "apiKeys": "https://openrouter.ai/settings/keys",
+        "usage": "https://openrouter.ai/activity",
+        "models": "https://openrouter.ai/models",
+        "status": "https://status.openrouter.ai"
+      }
     }
   },
   "models": [
@@ -308,6 +318,146 @@
       "pricing": {
         "inputPerMillion": 0.1,
         "outputPerMillion": 0.3,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "name": "NVIDIA Nemotron 3 Ultra 550B A55B (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "nemotron-3-ultra",
+      "detail": "NVIDIA flagship 550B-parameter hybrid Transformer-Mamba MoE (55B active) - frontier reasoning and orchestration, free tier",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "openai/gpt-oss-120b:free",
+      "name": "OpenAI gpt-oss-120b (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "gpt-oss-120b",
+      "detail": "OpenAI open-weight 117B-parameter MoE (5.1B active) - high-reasoning, agentic, general-purpose, free tier",
+      "maxInputTokens": 131072,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "google/gemma-4-31b-it:free",
+      "name": "Google Gemma 4 31B Instruct (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "gemma-4-31b",
+      "detail": "Google DeepMind 30.7B dense multimodal model (text + image input), configurable thinking, free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "meta-llama/llama-3.3-70b-instruct:free",
+      "name": "Meta Llama 3.3 70B Instruct (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "llama-3.3-70b",
+      "detail": "Meta's reference open-weights 70B instruction-tuned model, free tier (kept for ecosystem compatibility)",
+      "maxInputTokens": 131072,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": false
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "qwen/qwen3-coder:free",
+      "name": "Qwen3 Coder 480B A35B (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "qwen3-coder-480b",
+      "detail": "Alibaba flagship 480B MoE coding agent (35B active) - function calling, tool use, repository-scale reasoning, free tier",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 262000,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": false
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "qwen/qwen3-next-80b-a3b-instruct:free",
+      "name": "Qwen3 Next 80B A3B Instruct (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "qwen3-next-80b",
+      "detail": "Alibaba Qwen3-Next 80B MoE (3B active) - fast stable responses, no thinking traces, free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 16384,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": false
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "name": "NVIDIA Nemotron 3 Super 120B A12B (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "nemotron-3-super",
+      "detail": "NVIDIA 120B-parameter hybrid Mamba-Transformer MoE (12B active) - multi-agent orchestration, free tier",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
         "currency": "USD"
       }
     }

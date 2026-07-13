@@ -12,9 +12,7 @@ See `_Private/ACTION PLAN.md` for implementation details, if required for some i
 
 ### Studies (last: STU02)
 
-- [-] STU01: external audit: commercial and marketshare (see internal doc `_Private\Docs\2026_06_09_Synthese_Strategique.md`)
-  - [x] actions #1, #2, #3 delivered (1.5.3 / 1.7.0);
-  - [ ] actions #4-#13 remaining (OpenRouter, Ollama, CSV/JSON export, sponsors, failover, videos, Kilo/Continue contact, awesome-lists, articles, Reddit posts)
+_None for now._
 
 ### Bugs (last: BUG19)
 
@@ -66,7 +64,7 @@ Next up:
 
 - [ ] More Agentic coding extension adapters (e.g., Claude Code)
 - [ ] More openAI-compatible providers - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
-- [ ] OpenRouter upstream - 100+ models (GPT, Claude, Gemini, Llama, Mistral) through a single API key, synthesized into the gateway catalog like the existing 3 vendors
+- [x] OpenRouter upstream - 100+ models (GPT, Claude, Gemini, Llama, Mistral) through a single API key, synthesized into the gateway catalog like the existing 3 vendors (shipped in Unreleased; see `_Private/ACTION PLAN.md` section 4 for the Action #4 implementation)
 - [ ] Ollama upstream - local LLMs (Llama, Mistral, Qwen, DeepSeek-R1) routed through the same gateway; no cloud cost, no data leaving the machine
 - [ ] Auto-routing with failover - ordered provider fallback list (e.g. DeepSeek -> MiniMax -> Ollama local) for resilience
 - [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway
@@ -79,6 +77,10 @@ Backlog (value to confirm):
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 
 ## Completed
+
+### 2.12.0
+
+- STU01 / action #4: OpenRouter upstream shipped (see `_Private/ACTION PLAN.md` section 4 + `resources/models.json` `vendors.openrouter` entry). 100+ model ids reachable through `family: "openrouter"` in `aiflowbridge.userModels` or via the bundled 7 flagships. Attribution headers (`HTTP-Referer`, `X-Title`) injected by the gateway. New smoke test in `tests/integration/openrouter.smoke.test.ts`.
 
 ### 2.11.0
 

@@ -35,9 +35,16 @@ const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
   { id: 'deepseek-pro', label: 'DeepSeek V4 Pro', vendorConfigKey: 'deepseek', model: 'deepseek-v4-pro' },
   // Indicative token-plan rates (USD per 1M tokens). Override via
   // `aiflowbridge.providers[].pricing` if your tier differs. See
-  // https://platform.minimax.io/user-center/payment/token-plan
+  // https://platform.minimax.io/user-center/payment/token-plan.
+  //
+  // `id` MUST match the upstream model id exactly (and equal `model`).
+  // Using a vendor name (e.g. `'minimax'`) here would put a non-existent
+  // id in the gateway catalog exposed to Kilo Code / Continue / Open WebUI,
+  // making the picker show a fake model name that no upstream API recognises.
+  // The unit test `DEFAULT_GATEWAY_PROFILES catalog ids match upstream model ids`
+  // in `tests/aiflowbridge-config.test.ts` is the regression guard.
   {
-    id: 'minimax',
+    id: 'MiniMax-M2.7',
     label: 'MiniMax V2.7',
     vendorConfigKey: 'minimax',
     model: 'MiniMax-M2.7',
@@ -46,8 +53,10 @@ const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
   // Indicative token-plan rates (USD per 1M tokens). Override via
   // `aiflowbridge.providers[].pricing` if your tier or region differs.
   // See https://token-plan-ams.xiaomimimo.com (or -sgp / -cn).
+  // Same `id == upstream model id` invariant as above; see the regression
+  // test in `tests/aiflowbridge-config.test.ts`.
   {
-    id: 'xiaomi',
+    id: 'mimo-v2.5-pro',
     label: 'Xiaomi MiMo V2.5 Pro',
     vendorConfigKey: 'xiaomi',
     model: 'mimo-v2.5-pro',

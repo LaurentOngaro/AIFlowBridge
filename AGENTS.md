@@ -2,7 +2,8 @@
 
 ## Project
 
-AIFlowBridge is a VS Code extension providing multi-provider AI coding assistance through Copilot Chat and an OpenAI-compatible local gateway (DeepSeek, MiniMax, Xiaomi MiMo). The gateway also runs as a standalone Node.js CLI (`aiflowbridge-server`) without VS Code.
+AIFlowBridge is a VS Code extension providing multi-provider AI coding assistance through Copilot Chat and an OpenAI-compatible local gateway (DeepSeek, MiniMax, Xiaomi MiMo, plus OpenRouter's 100+ model catalog through a single OpenAI-compatible endpoint).
+The gateway also runs as a standalone Node.js CLI (`aiflowbridge-server`) without VS Code.
 
 ## Quick reference
 
@@ -11,8 +12,8 @@ AIFlowBridge is a VS Code extension providing multi-provider AI coding assistanc
 - **Test:** `npm test` (vitest)
 - **Package:** `npm run package` (VSIX in `dist/`)
 - **Dev loop:** `npm run watch` + F5 in VS Code
-- **Local install helper:** `pwsh -File _helpers/PublishAIFlowBridge.ps1`
-- **Private working notes setup:** `pwsh -File _helpers/SetupPrivateRepo.ps1`
+- **Local install helper:** `pwsh -File _helpers/scripts/PublishAIFlowBridge.ps1`
+- **Private working notes setup:** `pwsh -File _helpers/scripts/SetupPrivateRepo.ps1`
 
 ## Style rules (apply to every task)
 

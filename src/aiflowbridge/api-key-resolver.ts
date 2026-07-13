@@ -45,6 +45,7 @@ const VENDOR_ALIASES: Record<KnownVendor, readonly string[]> = {
   deepseek: ['deepseek'],
   minimax: ['minimax'],
   xiaomi: ['xiaomi', 'mimo'],
+  openrouter: ['openrouter'],
 };
 
 /**

@@ -21,6 +21,7 @@ import type {
   TelemetrySnapshot,
 } from '../types';
 import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
+import { applyOpenRouterAttributionHeaders } from './openrouter-headers';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
 
 interface GatewaySnapshotListener {
@@ -938,6 +939,16 @@ export class GatewayService {
     if (resolvedKey) {
       headers.set('Authorization', `Bearer ${resolvedKey}`);
     }
+
+    // OpenRouter-specific attribution header. The OpenRouter docs
+    // (https://openrouter.ai/docs/api-reference/listing) ask every
+    // client to set `HTTP-Referer` so the request can be attributed
+    // back to AIFlowBridge on the OpenRouter dashboard and so the
+    // request is eligible for free-tier reliability. Only added when
+    // the upstream URL host is openrouter.ai; other vendors are
+    // untouched. The pure helper below is exported for the smoke
+    // test in `tests/integration/openrouter.smoke.test.ts`.
+    applyOpenRouterAttributionHeaders(headers, upstreamUrl, this.bundledVersion);
 
     // the same AbortController that aborts the upstream
     // `fetch()` also drives the per-provider semaphore. When the

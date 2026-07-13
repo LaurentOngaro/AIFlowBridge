@@ -28,6 +28,7 @@ const VENDOR_CHOICES = [
   { id: 'minimax', label: 'MiniMax' },
   { id: 'deepseek', label: 'DeepSeek' },
   { id: 'xiaomi', label: 'Xiaomi MiMo' },
+  { id: 'openrouter', label: 'OpenRouter' },
 ] as const;
 
 type VendorId = (typeof VENDOR_CHOICES)[number]['id'];
@@ -36,6 +37,7 @@ const VENDOR_LABELS: Record<VendorId, string> = {
   minimax: 'MiniMax',
   deepseek: 'DeepSeek',
   xiaomi: 'Xiaomi MiMo',
+  openrouter: 'OpenRouter',
 };
 
 export async function addCustomModelCommand(context: vscode.ExtensionContext): Promise<void> {

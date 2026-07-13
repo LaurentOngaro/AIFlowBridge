@@ -60,7 +60,7 @@ code --install-extension dist/aiflowbridge-<VERSION>.vsix
 
 Or install manually: open VS Code → Extensions → `...` menu → **Install from VSIX...** → select the file in `dist/`.
 
-For repeatable local updates, use the helper script in `_helpers/PublishAIFlowBridge.ps1`:
+For repeatable local updates, use the helper script in `_helpers/scripts/PublishAIFlowBridge.ps1`:
 
 ```powershell
 # Build, package, and install into the active profile
@@ -97,7 +97,7 @@ AIFlowBridge is **local-first** by design:
 - **The gateway binds to `127.0.0.1` only** - it is not reachable from other machines on your network.
 - **Telemetry is local**: request counts, token usage, and cost estimates stay on your machine at `<globalStorageUri>/telemetry.json` (VS Code) or `~/.aiflowbridge/telemetry.json` (standalone). The two files are shared so the dashboard stays in sync across both hosts. There is no remote analytics endpoint.
 - **No third-party tracking**: the extension does not phone home, load remote scripts, or embed analytics SDKs.
-- **Outbound requests** only go to the API endpoints you configure: `api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, or your custom upstream URLs.
+- **Outbound requests** only go to the API endpoints you configure: `api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, `openrouter.ai`, or your custom upstream URLs.
 - **Provider `baseUrl` SSRF validation (1.7.0+)**: non-http(s) schemes and cloud metadata endpoints (`169.254.x.x`, `100.100.100.200`, `fd00:ec2::254`) are rejected.
 - **Cooperative shutdown auth (1.7.0+)**: `POST /shutdown` requires a per-instance token returned by `GET /version`.
 - **API key redaction in logs** (2.1.0): every diagnostic line that would surface a `ProviderProfile` strips the `apiKey` field.

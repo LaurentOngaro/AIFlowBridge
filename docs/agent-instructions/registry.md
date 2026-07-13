@@ -14,7 +14,7 @@ The canonical list of models, vendors, capabilities, and per-model pricing is an
 resources/models.json               (bundled with the extension)
 ```
 
-- **Bundled** (`resources/models.json`) - ships with the extension, lists the 14 supported models and the 3 vendor defaults (baseUrl, apiKeySecret, externalUrls, indicative token-plan rates).
+- **Bundled** (`resources/models.json`) - ships with the extension, lists the 21 bundled models and the 4 vendor defaults (`deepseek`, `minimax`, `xiaomi`, `openrouter`; each with `baseUrl`, `apiKeySecret`, `externalUrls`, indicative token-plan rates). The 21 bundled entries drive the Copilot Chat picker and the gateway catalog; **the OpenRouter vendor makes all 100+ models reachable** - any model id not in the bundled registry works the moment it is declared in `aiflowbridge.userModels` with `family: "openrouter"` (or via a `globalStorage` / `workspace` registry override). No recompile needed.
 - **globalStorage override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user.
 - **workspace override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
 
@@ -55,4 +55,6 @@ Users can extend the registry without an extension update via three complementar
 
 ## Model id convention
 
-**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`), NOT a kebab-case alias. The human-readable name shows in the Copilot Chat picker. This removes the need for any id translation map between VS Code and upstream.
+**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`), NOT a kebab-case alias. The human-readable name shows in the Copilot Chat picker (or, for gateway-only models like OpenRouter, in `GET /v1/models` responses). This removes the need for any id translation map between VS Code and upstream.
+
+The valid `family` values are the vendor config keys declared in `vendors`: `deepseek`, `minimax`, `xiaomi`, `openrouter`. Adding a new vendor means (1) one entry in `resources/models.json` under `vendors`, (2) one entry in `API_KEY_SECRETS` (`src/consts.ts`) if the new vendor needs a SecretStorage slot, (3) one entry in `KNOWN_FAMILIES` (`src/aiflowbridge/modelRegistry.schema.ts`), (4) one entry in the JSON Schema enum in `resources/models.schema.json`. Adding any of: per-vendor `OpenRouterChatProvider` (only for Copilot Chat picker integration), `setApiKey`/`clearApiKey` commands (only for VS Code UX parity), or HTTP-Referer injection (already shipped for OpenRouter in `src/aiflowbridge/gateway/openrouter-headers.ts`) - all are optional.

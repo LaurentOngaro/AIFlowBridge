@@ -1,13 +1,15 @@
 # Cost
 
 > Part of the [AIFlowBridge documentation](../README.md).
+>
+> **Data freshness policy.** Every number in this document is a snapshot, not a live feed. Pricing reflects the upstream catalogs as of the **2026-07-13** snapshot, shipped with **AIFlowBridge 2.12.1**. Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries. Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
 
 AIFlowBridge is **local glue** around paid upstream APIs. It does not replace those APIs and it does not magically lower their per-token prices. Anything that says otherwise is marketing.
 
 ## What AIFlowBridge affects
 
 - **Free vision for Copilot subscribers.** Models that do not accept images (DeepSeek, MiniMax, Xiaomi text-only) handle them via a _vision proxy_. The default vision model is `oswe-vscode-prime`, which is bundled with a GitHub Copilot subscription. If you already pay for Copilot, vision calls cost **$0** through AIFlowBridge instead of paying a vision-capable upstream model.
-- **No markup on token prices.** Other OpenAI-compatible proxies (OpenRouter, Portkey, Together, etc.) add 5–15% on top of the catalog price. AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay.
+- **No AIFlowBridge-side markup on token prices.** For the three direct vendors (DeepSeek, MiniMax, Xiaomi MiMo), AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay. For **OpenRouter** (which itself fronts 100+ models through a single endpoint), pricing reflects OpenRouter's published rates including their small markup over direct provider prices - this is an upstream-side pricing choice, not an AIFlowBridge fee. The "Est. cost" column in the dashboard uses the bundled indicative tariff for each model and is overridable per-profile via `aiflowbridge.providers[].pricing`.
 - **One bill per task, not per provider.** Switching between DeepSeek V4 Flash ($0.27/M input) for boilerplate and MiniMax M3 ($0.30/M input) for the hard stuff happens inside the same Copilot Chat window, with per-request token counts. You avoid paying a single premium model for every interaction.
 - **Accurate token counting (v1.2+).** The dashboard and the cost estimate for MiniMax (and future models that exposes tokens count through their API) use the upstream endpoint instead of a `length/4` heuristic. No end-of-month surprise.
 - **No subscription, no per-seat fee.** AIFlowBridge itself is free; you only pay the upstream APIs you actually use.
@@ -19,6 +21,8 @@ AIFlowBridge is **local glue** around paid upstream APIs. It does not replace th
 - Bundled inference
 
 ## Typical monthly spend
+
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: per-vendor pricing pages for Xiaomi MiMo V2.5 / MiniMax M3 / DeepSeek V4 Flash.
 
 For a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 20 M output tokens):
 
@@ -42,6 +46,8 @@ For a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 
 The cheapest AI stack that still gives you Copilot Chat with image paste is AIFlowBridge + Xiaomi MiMo + the bundled Copilot vision model: at $11/month for heavy use, that's about 60% the price of a Copilot Pro subscription on its own.
 
 ## Indicative rates per family
+
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: bundled registry ([`resources/models.json`](../resources/models.json)) and per-vendor pricing pages.
 
 AIFlowBridge ships with indicative per-million-token rates baked into the bundled model registry ([`resources/models.json`](../resources/models.json)) so the dashboard shows non-zero costs out of the box:
 
@@ -79,6 +85,8 @@ User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge:
 Providers without a `pricing` block show `-` in the Est. cost column, and requests routed through them contribute `0` to the total.
 
 ## Vision-heavy workload saves more
+
+> **Data snapshot: 2026-07-13 (AIFlowBridge 2.12.1).** Source: indicative figures; the +$15-30/month range for vision-capable upstream models is a rough bracket across GPT-4o / Claude Sonnet / Gemini Pro at 50 calls/day, not a quoted number.
 
 If you paste images frequently, the vision-proxy saves you **the cost of a vision-capable upstream model**. The Copilot-bundled `oswe-vscode-prime` is included in your Copilot subscription, so image pass-through is free on top of the upstream token cost.
 

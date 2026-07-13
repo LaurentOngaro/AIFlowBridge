@@ -79,8 +79,8 @@
 				},
 				"family": {
 					"type": "string",
-					"description": "Vendor config key. Must match a key in the `vendors` map of this registry (deepseek, minimax, or xiaomi).",
-					"enum": ["deepseek", "minimax", "xiaomi"]
+					"description": "Vendor config key. Must match a key in the `vendors` map of this registry (deepseek, minimax, xiaomi, or openrouter).",
+					"enum": ["deepseek", "minimax", "xiaomi", "openrouter"]
 				},
 				"version": {
 					"type": "string",

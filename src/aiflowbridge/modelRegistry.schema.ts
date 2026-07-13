@@ -101,7 +101,7 @@ export function emptyValidationLog(): ValidationLog {
 // ---- Fail-hard structure validator ----
 
 const SUPPORTED_VERSIONS = new Set<number>([1]);
-const KNOWN_FAMILIES = new Set<string>(['deepseek', 'minimax', 'xiaomi']);
+const KNOWN_FAMILIES = new Set<string>(['deepseek', 'minimax', 'xiaomi', 'openrouter']);
 const KNOWN_CURRENCIES = new Set<string>(['USD']);
 
 export class RegistryStructureError extends Error {

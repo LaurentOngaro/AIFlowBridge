@@ -210,7 +210,7 @@ jobs:
         run: |
           set -euo pipefail
           DEST="release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}"
-          node scripts/check-standalone-bundle.js "$DEST/dist/standalone/main.js"
+          node _helpers/scripts/check-standalone-bundle.js "$DEST/dist/standalone/main.js"
 
       - name: Write launcher script (POSIX)
         if: matrix.os != 'windows-latest'

@@ -1,8 +1,8 @@
 {
   "name": "aiflowbridge",
-  "displayName": "AIFlowBridge - DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
-  "description": "Multi-provider AI switcher for GitHub Copilot Chat: DeepSeek V4 ($0.27/M in), MiniMax M3, Xiaomi MiMo V2 Omni. 3 problems solved: (1) one Copilot Chat picker for 14 models across 3 vendors, (2) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (3) a built-in OpenAI-compatible local gateway on port 8787 so Kilo Code, Continue, Open WebUI, and curl can all use the same models - with a live metrics dashboard, per-request token counts, and estimated cost. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.11.0",
+  "displayName": "AIFlowBridge - 100+ AI models via OpenRouter, plus DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
+  "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5, Claude Sonnet 4.5, Gemini 2.5 Pro, Llama 3.3, Qwen 3) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1. Three direct vendors (DeepSeek V4 at $0.27/M in, MiniMax M3 at $0.30/M in, Xiaomi MiMo V2 at $0.10/M in) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) three direct vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, and pair-programming session replay. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
+  "version": "2.12.1",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -25,6 +25,12 @@
   "keywords": [
     "ai",
     "chat",
+    "openrouter",
+    "gpt-5",
+    "claude-sonnet",
+    "gemini",
+    "llama",
+    "qwen",
     "deepseek",
     "deepseek-v4",
     "minimax",
@@ -474,6 +480,11 @@
           "default": true,
           "description": "Replay reasoning_content in tool-call followups to satisfy MiMo API requirements"
         },
+        "aiflowbridge.providers.openrouter.baseUrl": {
+          "type": "string",
+          "default": "https://openrouter.ai/api/v1",
+          "description": "OpenRouter API base URL (100+ models via single OpenAI-compatible endpoint)"
+        },
         "aiflowbridge.telemetry.enabled": {
           "type": "boolean",
           "default": true,
@@ -636,13 +647,17 @@
     "ovsx": "^1.0.1",
     "tsc-alias": "^1.9.0",
     "typescript": "^6.0.3",
-    "vitest": "^2.0.5"
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "adm-zip": "^0.5.18",
     "tar": "^7.4.3"
   },
   "bundledDependencies": [
+    "adm-zip",
+    "tar"
+  ],
+  "bundleDependencies": [
     "adm-zip",
     "tar"
   ]

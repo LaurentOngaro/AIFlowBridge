@@ -24,11 +24,11 @@
     Name of the working tree directory at the project root. Default: _Private
 
 .EXAMPLE
-    pwsh -File _helpers/setup-private.ps1
+    pwsh -File _helpers/scripts/SetupPrivateRepo.ps1
     Interactive setup with confirmation prompt.
 
 .EXAMPLE
-    pwsh -File _helpers/setup-private.ps1 -Force
+    pwsh -File _helpers/scripts/SetupPrivateRepo.ps1 -Force
     Non-interactive setup (for CI or automation).
 
 .NOTES
@@ -68,7 +68,7 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     throw "git is not in PATH. Install git or open a terminal that has it available."
 }
 
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $workingPath = Join-Path $projectRoot $WorkingDir
 $bareExists = Test-Path $BareRepoPath
 
@@ -196,7 +196,7 @@ Use a **private** GitHub repo or an external drive. The `_Private/` folder is lo
 
 $gitignorePath = Join-Path $projectRoot ".gitignore"
 $gitignoreContent = Get-Content $gitignorePath -Raw
-$ignoreMarker = "# Personal private notes (local-only, see _helpers/setup-private.ps1)"
+$ignoreMarker = "# Personal private notes (local-only, see _helpers/scripts/SetupPrivateRepo.ps1)"
 if ($gitignoreContent -match [regex]::Escape($WorkingDir)) {
     Write-Step "$WorkingDir already in .gitignore"
 } else {

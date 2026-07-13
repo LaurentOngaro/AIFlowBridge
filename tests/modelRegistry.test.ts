@@ -180,6 +180,89 @@ describe('loadModelRegistry - 3-tier merge', () => {
     expect(result.sources.workspace.exists).toBe(false);
   });
 
+  it('recognises "openrouter" as a valid family in the bundled tier', async () => {
+    // The bundled tier ships seven OpenRouter models (one entry per
+    // flagship id). The KNOWN_FAMILIES Set in
+    // src/aiflowbridge/modelRegistry.schema.ts MUST contain
+    // "openrouter", otherwise every OpenRouter entry would be
+    // rejected at validateModelEntry() and silently dropped from the
+    // picker. This test exercises the full validateRegistryContent
+    // path against a fixture that mirrors the real bundled registry.
+    const files: Record<string, unknown> = {};
+    files[`${BUNDLED_PATH.replace('/resources/models.json', '')}/resources/models.json`] = {
+      version: 1,
+      vendors: {
+        openrouter: { baseUrl: 'https://openrouter.ai/api/v1', apiKeySecret: 'aiflowbridge.providers.openrouter.apiKey' },
+      },
+      models: [
+        {
+          id: 'openai/gpt-5',
+          name: 'GPT-5',
+          family: 'openrouter',
+          version: 'gpt-5',
+          detail: 'd',
+          maxInputTokens: 400000,
+          maxOutputTokens: 32768,
+          capabilities: { toolCalling: true, imageInput: true, thinking: false },
+          requiresThinkingParam: false,
+        },
+        {
+          id: 'anthropic/claude-sonnet-4.5',
+          name: 'Claude Sonnet 4.5',
+          family: 'openrouter',
+          version: 'claude-sonnet-4.5',
+          detail: 'd',
+          maxInputTokens: 200000,
+          maxOutputTokens: 64000,
+          capabilities: { toolCalling: true, imageInput: true, thinking: false },
+          requiresThinkingParam: false,
+        },
+      ],
+    };
+
+    const fs = makeFs(files);
+    const result = await loadModelRegistry(makeContext(), { fs });
+
+    expect(result.models.map((m) => m.id).sort()).toEqual(['anthropic/claude-sonnet-4.5', 'openai/gpt-5']);
+    expect(result.vendors.openrouter?.baseUrl).toBe('https://openrouter.ai/api/v1');
+  });
+
+  it('resolves an unknown OpenRouter model added through a workspace override (100+ models reachable)', async () => {
+    // OpenRouter exposes 100+ models; the bundled registry only lists
+    // seven flagships. A user adding an OpenRouter-only model to their
+    // .vscode/aiflowbridge.models.json must see the entry preserved
+    // verbatim (id, family, capabilities all deep-merged from the
+    // bundled tier where applicable). This is the T3 user scenario
+    // for Action #4.
+    const files: Record<string, unknown> = {};
+    files[`${BUNDLED_PATH.replace('/resources/models.json', '')}/resources/models.json`] = bundledRegistry();
+    files[`${WORKSPACE_PATH}/.vscode/aiflowbridge.models.json`] = {
+      version: 1,
+      models: [
+        {
+          id: 'openai/gpt-5',
+          name: 'GPT-5 (Workspace override)',
+          family: 'openrouter',
+          version: 'gpt-5',
+          detail: 'd-ws',
+          maxInputTokens: 400000,
+          maxOutputTokens: 32768,
+          capabilities: { toolCalling: true, imageInput: true, thinking: false },
+          requiresThinkingParam: false,
+        },
+      ],
+    };
+
+    const fs = makeFs(files);
+    const result = await loadModelRegistry(makeContext(), { fs, workspaceFolder: makeWorkspaceFolder() });
+
+    const gpt5 = result.models.find((m) => m.id === 'openai/gpt-5');
+    expect(gpt5).toBeDefined();
+    expect(gpt5?.family).toBe('openrouter');
+    expect(gpt5?.name).toBe('GPT-5 (Workspace override)');
+    expect(gpt5?.detail).toBe('d-ws');
+  });
+
   it('merges globalStorage override on top of bundled', async () => {
     const bundled = bundledRegistry();
     const override: Record<string, unknown> = {};

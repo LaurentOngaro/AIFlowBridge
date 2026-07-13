@@ -319,6 +319,13 @@ describe('isValidProviderBaseUrl (SSRF protection)', () => {
     expect(isValidProviderBaseUrl('http://api.example.com/v1')).toBe(true);
   });
 
+  it('accepts the OpenRouter baseUrl (public https, non-loopback, non-metadata)', () => {
+    // Sanity check that the SSRF filter does not accidentally reject
+    // the OpenRouter baseUrl shipped in resources/models.json.
+    // Regression-tested in tests/integration/openrouter.smoke.test.ts.
+    expect(isValidProviderBaseUrl('https://openrouter.ai/api/v1')).toBe(true);
+  });
+
   it('accepts http on loopback (Ollama use case)', () => {
     expect(isValidProviderBaseUrl('http://127.0.0.1:11434/v1')).toBe(true);
     expect(isValidProviderBaseUrl('http://localhost:11434/v1')).toBe(true);
