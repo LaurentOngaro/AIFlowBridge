@@ -36,10 +36,17 @@ param(
 
   [string]$Remote = "origin",
 
-  [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+  [string]$RepoRoot
 )
 
 $ErrorActionPreference = "Stop"
+
+# Resolve -RepoRoot relative to this script AFTER the param block: $PSScriptRoot is
+# not yet populated when param default-value expressions run, so computing it here
+# (in the script body) avoids an empty-string failure on Join-Path.
+if (-not $RepoRoot) {
+  $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+}
 Set-StrictMode -Version Latest
 
 Set-Location -LiteralPath $RepoRoot

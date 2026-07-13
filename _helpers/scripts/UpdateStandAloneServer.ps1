@@ -40,7 +40,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Source = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+  [string]$Source,
 
   [string]$Destination = "D:\Projets_Perso\03_Code\_Extensions\vsCode\aiflowbridge-server-win-x64",
 
@@ -51,6 +51,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+# Resolve -Source relative to this script AFTER the param block: $PSScriptRoot is
+# not yet populated when param default-value expressions run, so computing it here
+# (in the script body) avoids an empty-string failure on Join-Path.
+if (-not $Source) {
+  $Source = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+}
 
 function Write-Step {
   param([string]$Message)
