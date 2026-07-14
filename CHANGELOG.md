@@ -6,6 +6,14 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.15.1
+
+Patch release. Same data snapshot as 2.15.0 (`resources/pricing.json` is identical aside from the `aiflowbridgeVersion` field, bumped to `2.15.1`). No new features, no behaviour change for callers.
+
+### Fixed
+
+- **Release CI was blocked by `tsc` overload disambiguation in `defaultUserPrompt.showModalMessage()`.** The modal `vscode.window.showWarningMessage(message, { modal: true }, ...items)` call in `src/aiflowbridge/gateway/server.ts` failed `tsc` with `TS2345: Argument of type '{ modal: boolean; }' is not assignable to parameter of type 'string'` because TypeScript could not pick the `(message, options, ...items)` overload when `items` was itself a rest `string[]` and fell back to the `(message, ...items)` overload that expects a `string` as the second argument. The release workflow runs `npm run compile` and was aborting with exit code 2 on every release tag. Fix: cast `showWarningMessage` through `unknown` to a function signature that pins `{ modal: boolean }` as the second parameter, exactly the same workaround already used in `src/aiflowbridge/vscode-context-adapter.ts`. No behaviour change at runtime; the local build used a lazy `await import('vscode')` that hid the overload-resolution bug from the editor, but the CI compile path type-checks the module top-to-bottom and caught it.
+
 ## 2.15.0
 
 ### Added

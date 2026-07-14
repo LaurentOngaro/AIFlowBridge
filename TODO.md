@@ -78,6 +78,10 @@ Backlog (value to confirm):
 
 ## Completed
 
+### 2.15.1
+
+- BUG (release-CI TS2345): modal `vscode.window.showWarningMessage(message, { modal: true }, ...items)` in `src/aiflowbridge/gateway/server.ts` failed `tsc` and aborted the release workflow with exit code 2. Cast through `unknown` to disambiguate the VS Code overloads - same workaround already in use in `src/aiflowbridge/vscode-context-adapter.ts` (see 2.15.1 CHANGELOG entry below for the full surface)
+
 ### 2.15.0
 
 - FEAT10: dynamic prices and cost estimation (see 2.15.0 CHANGELOG entry above for the full surface - bundled JSON, 4-tier merge, commands, dashboard button, release-time script, doc)

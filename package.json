@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - 100+ AI models via OpenRouter, plus DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1. Three direct vendors (DeepSeek V4 at $0.27/M in, MiniMax M3 at $0.30/M in, Xiaomi MiMo V2 at $0.10/M in) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) three direct vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.15.0",
+  "version": "2.15.1",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"

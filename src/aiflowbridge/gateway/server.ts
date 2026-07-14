@@ -2540,7 +2540,16 @@ const defaultUserPrompt: UserPrompt = {
     // picks one (consistent with the existing `ctx.confirm` impl in
     // `vscode-context-adapter.ts`). The warning icon signals that
     // this is a blocking decision, not just an FYI notification.
-    return vscode.window.showWarningMessage(message, { modal: true }, ...items);
+    // Cast through `unknown` to disambiguate the VS Code API overload:
+    // `showWarningMessage` ships with both `(message, options, ...items)`
+    // and `(message, ...items)` signatures, and TypeScript cannot pick
+    // the right one when `items` is itself a rest `string[]`. Same
+    // workaround is already used in `vscode-context-adapter.ts`.
+    return (vscode.window.showWarningMessage as unknown as (
+      m: string,
+      o: { modal: boolean },
+      ...b: string[]
+    ) => Promise<string | undefined>)(message, { modal: true }, ...items);
   },
 };
 

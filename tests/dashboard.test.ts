@@ -1750,7 +1750,7 @@ describe('AFF07 telemetry export helpers', () => {
     const entries = [toExportedEntry(makeEntry({ id: 'a' }))];
     const meta = {
       generatedAt: '2026-07-13T20:00:00.000Z',
-      extensionVersion: '2.15.0',
+      extensionVersion: '2.15.1',
       filters: { preset: '24h', provider: '', fromDate: '', toDate: '', search: '' },
       totals: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0 },
     };
@@ -1863,7 +1863,7 @@ function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry 
 
 describe('formatPricingBundleVersion', () => {
   it('renders a real semver with the canonical v prefix', () => {
-    expect(formatPricingBundleVersion('2.15.0')).toBe('AIFlowBridge v2.15.0');
+    expect(formatPricingBundleVersion('2.15.1')).toBe('AIFlowBridge v2.15.1');
     expect(formatPricingBundleVersion('2.14.0-rc.1')).toBe('AIFlowBridge v2.14.0-rc.1');
   });
 
@@ -1909,7 +1909,7 @@ describe('dashboard renders the pricing snapshot header safely', () => {
   });
 
   it('renders the canonical "vX.Y.Z" label for a real semver', () => {
-    const html = buildDashboardHtml(buildConfigWithPricing('2.15.0'), snapshotWithData(), true);
-    expect(html).toContain('AIFlowBridge v2.15.0');
+    const html = buildDashboardHtml(buildConfigWithPricing('2.15.1'), snapshotWithData(), true);
+    expect(html).toContain('AIFlowBridge v2.15.1');
   });
 });

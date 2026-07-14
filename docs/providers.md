@@ -42,7 +42,7 @@ No protocol adapter is required - it plugs into AIFlowBridge the same way DeepSe
 
 ### Bundled flagship subset (7 of 100+, all free tier)
 
-> **Data snapshot: 2026-07-14 (AIFlowBridge 2.15.0).** Source: `https://openrouter.ai/api/v1/models` (live catalog query, July 2026) + `resources/pricing.json` bundled at release time. The 7 free-tier ids below are pinned to this snapshot; a new release of AIFlowBridge may refresh the list. The 100+ non-bundled OpenRouter model ids reachable through `aiflowbridge.userModels` are queried against the live OpenRouter catalog at call time, so they always reflect the current upstream state.
+> **Data snapshot: 2026-07-14 (AIFlowBridge 2.15.1).** Source: `https://openrouter.ai/api/v1/models` (live catalog query, July 2026) + `resources/pricing.json` bundled at release time. The 7 free-tier ids below are pinned to this snapshot; a new release of AIFlowBridge may refresh the list. The 100+ non-bundled OpenRouter model ids reachable through `aiflowbridge.userModels` are queried against the live OpenRouter catalog at call time, so they always reflect the current upstream state.
 
 The bundled registry ships seven recent flagships - chosen to maximise coverage of the top labs (NVIDIA, OpenAI, Google, Meta, Alibaba) and to ship on the OpenRouter **free tier** (pricing = $0 / $0 per 1M tokens for all seven).
 They appear in `GET /v1/models` and the dashboard reads their `pricing` block to compute "Est. cost" - in their case, the dashboard always shows $0. **Capabilities shown below apply only to these seven entries** - the full 100+ catalog at [openrouter.ai/models](https://openrouter.ai/models) handles them per its own documentation; consult the upstream listings for any model id not in this table.
@@ -77,7 +77,7 @@ In all three cases, the gateway forwards the model id verbatim to `openrouter.ai
 
 ### Pricing
 
-> **Data snapshot: 2026-07-14 (AIFlowBridge 2.15.0).** Source: `https://openrouter.ai/api/v1/models` for the free-tier `pricing.prompt` / `pricing.completion` fields (bundled into `resources/pricing.json` at release time). Pricing for non-bundled model ids must be sourced from the OpenRouter model page (linked from the catalog response).
+> **Data snapshot: 2026-07-14 (AIFlowBridge 2.15.1).** Source: `https://openrouter.ai/api/v1/models` for the free-tier `pricing.prompt` / `pricing.completion` fields (bundled into `resources/pricing.json` at release time). Pricing for non-bundled model ids must be sourced from the OpenRouter model page (linked from the catalog response).
 
 All 7 bundled flagships are **free** on OpenRouter's free tier (USD 0.00 / USD 0.00 per 1M tokens, per the OpenRouter `/v1/models` snapshot of July 2026).
 The dashboard's "Est. cost" column therefore always shows $0 for these entries.
@@ -188,7 +188,7 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 ### Snapshot metadata
 
 - Current snapshot date: **2026-07-13**
-- Current snapshot version: **AIFlowBridge 2.15.0**
+- Current snapshot version: **AIFlowBridge 2.15.1**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 
