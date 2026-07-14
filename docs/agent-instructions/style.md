@@ -17,7 +17,7 @@
 - **No Chinese localization files** (`package.nls.zh-cn.json`, `README.zh-cn.md`, ...). Project is English-only by design.
 - **No em-dash (U+2014) or en-dash (U+2013).** Use plain ASCII hyphen-minus (`-`, U+002D). Reason: these characters are almost exclusively used by AI assistants in French/English prose, not by humans in their daily writing. Their presence in a tracked file is a strong signal of AI-generated content.
 - **No smart quotes / ellipsis.** ASCII `'` `"` `...` instead of curly variants. Mostly enforced automatically by `MD026` in `markdownlint`.
-- **French diacritics are required, not optional** (é è ê à â ç ô ù û ï î ë ÿ, plus uppercase É È Ê À Â Ç Ô Ù Û Ï Î Ë Ÿ, plus ë, æ, œ). Keep them in every French word. ASCII-only output is a violation of the project style — the source-of-truth file is UTF-8.
+- **French diacritics are required, not optional** (é è ê à â ç ô ù û ï î ë ÿ, plus uppercase É È Ê À Â Ç Ô Ù Û Ï Î Ë Ÿ, plus ë, æ, œ). Keep them in every French word. ASCII-only output is a violation of the project style - the source-of-truth file is UTF-8.
 - **Box-drawing characters and arrow symbols** (`->` `=>` `<-`) are OK for diagrams and table separators.
 
 ## Markdown conventions
@@ -40,15 +40,15 @@
 
 Prefix log messages by area:
 
-| Prefix           | Source                                       |
-| ---------------- | -------------------------------------------- |
-| `[AIFlowBridge]` | `src/aiflowbridge/index.ts`, `src/runtime/*` |
-| `[Gateway]`      | `src/aiflowbridge/gateway/*`                 |
-| `[Telemetry]`    | `src/aiflowbridge/telemetry*`                |
-| `[Vision]`       | `src/provider/vision/*`                      |
-| `[MiniMax]`      | `src/provider/minimax.ts`, related           |
-| `[Xiaomi]`       | `src/provider/xiaomi.ts`, related            |
-| `[DeepSeek]`     | `src/provider/index.ts`, related             |
+| Prefix           | Source                                                                        |
+| ---------------- | ----------------------------------------------------------------------------- |
+| `[AIFlowBridge]` | `src/aiflowbridge/index.ts`, `src/runtime/*`                                  |
+| `[Gateway]`      | `src/aiflowbridge/gateway/*`                                                  |
+| `[Telemetry]`    | `src/aiflowbridge/telemetry*`                                                 |
+| `[Vision]`       | `src/provider/vision/*`                                                       |
+| `[MiniMax]`      | `src/provider/minimax.ts`, related                                            |
+| `[Xiaomi]`       | `src/provider/xiaomi.ts`, related                                             |
+| `[DeepSeek]`     | `src/provider/index.ts`, related                                              |
 | `[OpenRouter]`   | `src/aiflowbridge/gateway/openrouter-headers.ts`, related (gateway-only path) |
 
 All logs go through `src/logger.ts` (`vscode.LogOutputChannel`). Inspect via `AIFlowBridge: Show logs`.

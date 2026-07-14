@@ -358,6 +358,16 @@ export type TelemetrySource = 'gateway' | 'copilot-chat';
 export interface AiFlowBridgeConfig {
   gateway: GatewaySettings;
   providers: ProviderProfile[];
+  /**
+   * Action plan item #1 (FEAT10). Snapshot of the merged pricing
+   * registry, exposed to the dashboard so the `Est. cost` tooltips
+   * can carry a `source: bundled (generatedAt YYYY-MM-DD vX.Y.Z)`
+   * tag and the user knows how fresh the rate they are looking at is.
+   * Optional for backward compatibility (older snapshots pre-date
+   * the pricing registry): the dashboard coalesces missing to an
+   * empty object.
+   */
+  pricing?: PricingConfig;
   telemetryEnabled: boolean;
   logRequests: boolean;
   /**
@@ -391,6 +401,36 @@ export interface AiFlowBridgeConfig {
   telemetryRetentionDays: number;
   visionProxy: VisionProxySettings;
 }
+
+/**
+ * Pricing registry shape consumed by the dashboard. Mirrors the runtime
+ * `PricingRegistry` but trimmed to the fields the UI needs.
+ */
+export interface PricingConfig {
+  /** Map of upstream model id -> per-million-token pricing entry. */
+  models: Record<string, PricingEntry>;
+  /** Per-model provenance label so the tooltip can render `source: ...`. */
+  sources: Record<string, PricingSourceLabel>;
+  /** ISO 8601 `generatedAt` stamp from the bundled file (empty if missing). */
+  bundledFetchedAt: string;
+  /** AIFlowBridge version that produced the bundled file (empty if missing). */
+  bundledVersion: string;
+}
+
+export interface PricingEntry {
+  inputPerMillion: number;
+  outputPerMillion: number;
+  currency: string;
+  /** ISO 8601 timestamp of when the rate was fetched. */
+  fetchedAt?: string;
+}
+
+/**
+ * Human-readable source label for a pricing entry. Mirrors the runtime
+ * `PricingSource` enum but is exported through `AiFlowBridgeConfig`
+ * so the dashboard can render it without importing the runtime module.
+ */
+export type PricingSourceLabel = 'override (workspace)' | 'override (globalStorage)' | 'bundled (pricing.json)' | 'bundled (models.json)';
 
 export interface GatewayStatus {
   running: boolean;

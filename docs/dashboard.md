@@ -7,8 +7,8 @@ The metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or 
 ## What the dashboard shows
 
 - **Top cards** - Total requests, prompt/completion tokens, average duration, and total **Estimated cost**. With no filter active the cards show **cumulative** totals since you started using the gateway; with a filter active they recompute from the filtered subset.
-- **Filters panel** - All dashboard-wide filter controls grouped in a single collapsible section at the top of the page, between the hero (`Current version`) and the totals grid: time-range preset, provider, From/To dates, free-text search, and session inactivity gap. Because every section of the dashboard (Recent requests / Sessions / By model / totals) reads from the same filter state, narrowing the view from one place updates everything else in lockstep.
-- **Gateway panel** - Running state (or stopped / error), port, default model.
+- **Filters panel** - All dashboard-wide filter controls grouped in a single collapsible section at the top of the page, between the hero (`Current version`) and the totals grid: time-range preset, provider, From/To dates, free-text search, session inactivity gap, and **two telemetry export buttons** (`CSV` and `JSON`). Because every section of the dashboard (Recent requests / Sessions / By model / totals) reads from the same filter state, narrowing the view from one place updates everything else in lockstep - including the export: clicking `CSV` / `JSON` downloads the currently filtered entries only.
+- **Gateway panel** - Running state (or stopped / error), port, default model, **bundled pricing snapshot** (`generatedAt` + `AIFlowBridge vX.Y.Z` + the number of models sourced from `resources/pricing.json`), and a **`Refresh prices` button** that hits OpenRouter `/v1/models`, writes `<globalStorageUri>/pricing-override.json`, and hot-updates the in-memory pricing registry so every `Est. cost` tooltip and the totals card refresh in place without a window reload.
 - **Recent requests table** - Timestamp, model, tokens, latency, status (200/4xx/5xx as a colored pill), **Est. cost** (with the per-rate tooltip), and per-row delete button.
 - **Sessions panel** - Recorded requests grouped into sessions by an inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min). Each session is rendered as a collapsible card showing the start time, request count, and a header summary (total tokens, average duration, total estimated cost, session span in minutes); expanding reveals per-request details.
 - **By model panel** - Same metrics aggregated per model ID, with the same time/date/search filters.
@@ -25,6 +25,21 @@ Gateway running · http://127.0.0.1:8787/v1
 ```
 
 A "Current version: v1.6.0" subtitle displays the installed extension version.
+
+## Telemetry export (CSV / JSON)
+
+Two buttons next to `Clear filters` in the Filters panel - `CSV` and `JSON` - download the currently filtered entries to a user-chosen path.
+
+- The webview builds the payload client-side so the export honors every active filter (preset / provider / date range / search / inactivity gap) - the same `currentRecent` subset the Recent table renders.
+- **CSV** is RFC 4180 (CRLF line endings, comma-separated, fields containing comma / quote / CR / LF are double-quoted with embedded quotes doubled).
+- **JSON** is pretty-printed and carries a metadata header (`schemaVersion`, `source`, `generatedAt`, `extensionVersion`, `filters`, `totals`) so a downstream consumer can reconstruct the filter context without inspecting the filename.
+- The filename follows the pattern `aiflowbridge-metrics-<preset-slug>-<YYYY-MM-DDTHH-mm-ss>.<ext>` (the preset slug is sanitized to filesystem-safe characters).
+- A native VS Code save dialog (`vscode.window.showSaveDialog`) picks the destination; the file is written via `vscode.workspace.fs.writeFile`. The dialog blocks until the user picks a path or cancels (silent no-op).
+- The buttons stay hidden when the filtered set is empty (1.5 s disabled state instead, so a stray click is obvious).
+
+## Refresh prices (Gateway panel)
+
+The `Refresh prices` button in the Gateway panel hits OpenRouter `/v1/models`, writes `<globalStorageUri>/pricing-override.json`, and updates the in-memory pricing registry in place so every `Est. cost` tooltip and the totals card refresh without a window reload. The bundled pricing snapshot stamp in the same panel (`generatedAt` + `AIFlowBridge vX.Y.Z`) tells you whether you are looking at a release-time fresh value or your last user-side refresh.
 
 ## Collapsible panels
 

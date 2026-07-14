@@ -1,7 +1,11 @@
+import { rename as renameAsync, writeFile as writeFileAsync } from 'node:fs/promises';
+import { join } from 'node:path';
 import { logger } from '../logger';
 import { resolveVendorApiKey } from './api-key-resolver';
 import { GatewayService, isPortInUse } from './gateway/server';
 import { loadConfigFromContext } from './host-config';
+import { fetchOpenRouterModels, parseOpenRouterPricing, type PricingEntry } from './pricing/openrouter-fetch';
+import { GLOBAL_STORAGE_PRICING_RELATIVE_PATH, replacePricingEntries } from './pricing/loader';
 import { TelemetryStore } from './telemetry';
 import { TelemetryPersister, defaultTelemetryPaths } from './telemetry/persistence';
 import type { AiFlowBridgeConfig, Disposable, GatewayStatus, IGatewayContext, TelemetrySnapshot } from './types';
@@ -357,7 +361,15 @@ class AIFlowBridgeRuntime implements Disposable {
             gateway: this.gateway.bundledVersion,
             extension: this.ctx.extensionVersion,
           }),
-          (entryId) => this.gateway.removeEntry(entryId)
+          (entryId) => this.gateway.removeEntry(entryId),
+          // Action plan item #1 / FEAT10: wire the dashboard
+          // `Refresh prices` button. The callback fetches the live
+          // OpenRouter rates, writes the override file, updates
+          // the in-memory pricing registry, and re-runs the config
+          // synthesis so the next call to `getConfig()` (which
+          // drives the dashboard re-render) picks up the new rates
+          // without the user having to close and reopen the panel.
+          () => this.dashboardRefreshPricing()
         );
       })
     );
@@ -558,6 +570,72 @@ class AIFlowBridgeRuntime implements Disposable {
       return snapshot;
     }
     return this.telemetryFallback.snapshot();
+  }
+
+  /**
+   * Action plan item #1 / FEAT10. The dashboard `Refresh prices`
+   * button's callback. Fetches the live OpenRouter rates, writes
+   * the globalStorage override file, updates the in-memory pricing
+   * registry in place, then re-runs the config synthesis so the
+   * next `getConfig()` call returns the refreshed rates. Returns
+   * the number of models that landed in the override file so the
+   * dashboard can show a transient toast.
+   *
+   * Errors propagate to the caller; the dashboard shows them via
+   * the standard `showWarning` channel and the failure does not
+   * touch the cached registry.
+   */
+  private async dashboardRefreshPricing(): Promise<{ updated: number; source: string } | undefined> {
+    try {
+      logger.info('[AIFlowBridge] Pricing refresh (dashboard): fetching live OpenRouter /v1/models ...');
+      const raw = await fetchOpenRouterModels();
+      const fetchedAt = new Date().toISOString();
+      const entries = parseOpenRouterPricing(raw, fetchedAt);
+      const modelIds = Object.keys(entries);
+      if (modelIds.length === 0) {
+        throw new Error('OpenRouter returned zero metered models - refusing to update the override.');
+      }
+
+      const overridePath = join(this.ctx.globalStorageDir, ...GLOBAL_STORAGE_PRICING_RELATIVE_PATH);
+      const file = {
+        schemaVersion: 1,
+        generatedAt: fetchedAt,
+        source: 'openrouter',
+        sourceUrl: 'https://openrouter.ai/api/v1/models',
+        userFetchedAt: fetchedAt,
+        models: entries,
+      };
+      const tmpPath = `${overridePath}.tmp-${process.pid}-${Date.now()}`;
+      await writeFileAsync(tmpPath, JSON.stringify(file, null, 2), 'utf8');
+      await renameAsync(tmpPath, overridePath);
+      logger.info(`[AIFlowBridge] Pricing refresh (dashboard): wrote ${modelIds.length} model(s) to ${overridePath}`);
+
+      // Update the in-memory pricing registry in place. The dashboard
+      // re-renders from `getConfig()`, which itself reads the registry,
+      // so the next render carries the new rates without a window
+      // reload. The 4-tier merge (workspace > globalStorage > bundled
+      // pricing.json > models.json) is preserved - the override file
+      // just landed on disk, so the next `loadPricingRegistry()` call
+      // would already see it. We avoid re-reading it: the cached
+      // registry is updated in place via `replacePricingEntries` so the
+      // active config object remains the source of truth for the
+      // running session.
+      replacePricingEntries(entries as Record<string, PricingEntry>, 'override (globalStorage)');
+
+      // Re-run the synthesis so the returned `AiFlowBridgeConfig`
+      // carries the freshly-loaded pricing registry. The dashboard
+      // re-renders against this new config.
+      this.config = await loadConfigFromContext(this.ctx);
+      this.gateway.updateConfig(this.config);
+      this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
+
+      return { updated: modelIds.length, source: 'openrouter' };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`[AIFlowBridge] Pricing refresh (dashboard) failed: ${message}`);
+      this.ctx.showWarning?.(`AIFlowBridge pricing refresh failed: ${message}`);
+      return undefined;
+    }
   }
 }
 

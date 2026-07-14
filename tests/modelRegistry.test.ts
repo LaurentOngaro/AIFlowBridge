@@ -232,8 +232,7 @@ describe('loadModelRegistry - 3-tier merge', () => {
     // seven flagships. A user adding an OpenRouter-only model to their
     // .vscode/aiflowbridge.models.json must see the entry preserved
     // verbatim (id, family, capabilities all deep-merged from the
-    // bundled tier where applicable). This is the T3 user scenario
-    // for Action #4.
+    // bundled tier where applicable).
     const files: Record<string, unknown> = {};
     files[`${BUNDLED_PATH.replace('/resources/models.json', '')}/resources/models.json`] = bundledRegistry();
     files[`${WORKSPACE_PATH}/.vscode/aiflowbridge.models.json`] = {

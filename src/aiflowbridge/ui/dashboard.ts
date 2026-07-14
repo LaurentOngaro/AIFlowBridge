@@ -1,6 +1,81 @@
 import * as vscode from 'vscode';
 import type { AiFlowBridgeConfig, ProviderPricing, ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from '../types';
 
+/**
+ * Field shape for the AFF07 telemetry export (CSV / JSON). Decoupled
+ * from `RequestTelemetry` so the export can drop fields the user
+ * doesn't care about (e.g. internal flags) and add a few computed
+ * columns (e.g. `tokensPerSecond`) without churning the runtime
+ * type. Kept in sync with the export helpers in `dashboard.ts`.
+ */
+export interface ExportedRequestEntry {
+  id: string;
+  timestamp: string;
+  providerId: string;
+  providerLabel: string;
+  model: string;
+  status: number;
+  durationMs: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCost: number;
+  estimated: boolean;
+  /** Origin of the request (`gateway` / `copilot-chat` / unknown). */
+  source: string;
+  /** Stable identifier of the originating client (e.g. `kilocode@1.2.3`). */
+  clientId: string;
+  /** Sanitized prompt summary captured at recording time (may be empty). */
+  promptSummary: string;
+  /** Sanitized response summary captured at recording time (may be empty). */
+  responseSummary: string;
+}
+
+/** Shape of the metadata header included in JSON exports and in the export filename. */
+export interface ExportMetadata {
+  /** ISO 8601 timestamp of when the export was generated. */
+  generatedAt: string;
+  /** AIFlowBridge extension version that produced the export. */
+  extensionVersion: string;
+  /** Snapshot of the active dashboard filters at export time. */
+  filters: {
+    preset: string;
+    provider: string;
+    fromDate: string;
+    toDate: string;
+    search: string;
+  };
+  /** Aggregated totals over the exported (filtered) entry set. */
+  totals: {
+    requests: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    estimatedCost: number;
+    errors: number;
+  };
+}
+
+/** Numeric / string fields included in the CSV header (order = export order). */
+export const CSV_COLUMNS: ReadonlyArray<keyof ExportedRequestEntry> = [
+  'id',
+  'timestamp',
+  'providerId',
+  'providerLabel',
+  'model',
+  'status',
+  'durationMs',
+  'promptTokens',
+  'completionTokens',
+  'totalTokens',
+  'estimatedCost',
+  'estimated',
+  'source',
+  'clientId',
+  'promptSummary',
+  'responseSummary',
+] as const;
+
 let currentPanel: vscode.WebviewPanel | undefined;
 let currentMessageDisposable: vscode.Disposable | undefined;
 
@@ -9,6 +84,7 @@ export type RunningGetter = () => boolean;
 export type ConfigGetter = () => AiFlowBridgeConfig;
 export type VersionsGetter = () => DashboardVersions;
 export type RemoveEntryFn = (entryId: string) => boolean;
+export type RefreshPricingFn = () => Promise<{ updated: number; source: string } | undefined>;
 
 export interface DashboardVersions {
   gateway?: string;
@@ -40,6 +116,14 @@ export interface DashboardVersions {
  * supply this callback, the trash button is hidden (backward-compat
  * with callers that do not want to expose the affordance).
  *
+ * `onRefreshPricing` (optional, action plan item #1 / FEAT10) wires
+ * the `Refresh prices` button. When the dashboard receives
+ * `{ type: "refreshPricing" }` from the webview, the handler is
+ * invoked, the in-memory pricing registry is updated in place, and
+ * the panel is re-rendered so the `Est. cost` tooltips + headline card
+ * pick up the new rates without a window reload. When the caller does
+ * not supply this callback, the button is hidden.
+ *
  * Historical `RequestTelemetry.estimatedCost` values stay frozen (they
  * are immutable per-request facts, computed at request time and persisted
  * to the file-based persister introduced in 1.5.0); only the rate
@@ -50,13 +134,14 @@ export function showMetricsDashboard(
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
   getVersions?: VersionsGetter,
-  onRemoveEntry?: RemoveEntryFn
+  onRemoveEntry?: RemoveEntryFn,
+  onRefreshPricing?: RefreshPricingFn
 ): void {
   const versionsGetter: VersionsGetter = getVersions ?? (() => ({}));
   if (currentPanel) {
-    currentPanel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), versionsGetter(), onRemoveEntry);
+    currentPanel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), versionsGetter(), onRemoveEntry, onRefreshPricing);
     currentPanel.reveal(vscode.ViewColumn.One);
-    attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning, versionsGetter, onRemoveEntry);
+    attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning, versionsGetter, onRemoveEntry, onRefreshPricing);
     return;
   }
 
@@ -65,8 +150,8 @@ export function showMetricsDashboard(
     retainContextWhenHidden: true,
   });
 
-  currentPanel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), versionsGetter(), onRemoveEntry);
-  attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning, versionsGetter, onRemoveEntry);
+  currentPanel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), versionsGetter(), onRemoveEntry, onRefreshPricing);
+  attachMessageHandler(currentPanel, getConfig, getSnapshot, isRunning, versionsGetter, onRemoveEntry, onRefreshPricing);
   currentPanel.onDidDispose(() => {
     currentPanel = undefined;
     currentMessageDisposable?.dispose();
@@ -80,7 +165,8 @@ function attachMessageHandler(
   getSnapshot: SnapshotGetter,
   isRunning: RunningGetter,
   getVersions: VersionsGetter,
-  onRemoveEntry: RemoveEntryFn | undefined
+  onRemoveEntry: RemoveEntryFn | undefined,
+  onRefreshPricing: RefreshPricingFn | undefined
 ): void {
   // Dispose the previous handler (if any) before attaching a new one.
   // Without this, every call to `showMetricsDashboard` on an already-
@@ -91,12 +177,64 @@ function attachMessageHandler(
     if (!message || typeof message !== 'object') {
       return;
     }
-    const typed = message as { type?: unknown; id?: unknown };
+    const typed = message as {
+      type?: unknown;
+      id?: unknown;
+      // AFF07: telemetry export payload (filename / format / contents).
+      format?: unknown;
+      filename?: unknown;
+      contents?: unknown;
+    };
     if (typed.type === 'refresh') {
       // Read the config at refresh time, not at panel-creation time, so a
       // pricing override picked up by a window reload is reflected without
       // having to close and reopen the panel.
-      panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry);
+      panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry, onRefreshPricing);
+      return;
+    }
+    if (typed.type === 'refreshPricing' && onRefreshPricing) {
+      // Action plan item #1 / FEAT10: forward the click to the
+      // runtime, which fetches the live OpenRouter rates and
+      // updates the in-memory pricing registry in place. We
+      // re-render the dashboard from the freshly-read config so
+      // the tooltips and headline card pick up the new rates
+      // without the user having to close and reopen the panel.
+      void Promise.resolve(onRefreshPricing()).then((result) => {
+        panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry, onRefreshPricing);
+        void panel.webview.postMessage({
+          type: 'refreshPricingResult',
+          updated: result?.updated ?? 0,
+          source: result?.source ?? 'openrouter',
+        });
+      });
+      return;
+    }
+    // AFF07: telemetry export. The webview builds the export
+    // payload (so the download honors every active filter) and
+    // hands it to the host via `postMessage`. The host delegates
+    // to the `aiflowbridge.exportToFile` command which owns the
+    // save dialog + disk write. This replaces the previous
+    // client-side `URL.createObjectURL` + `<a download>` pattern
+    // that did NOT work in VS Code webviews (the default webview
+    // CSP blocks the `blob:` URL the synthetic anchor uses, so the
+    // click was a no-op and the user got nothing).
+    if (typed.type === 'export'
+        && (typed.format === 'csv' || typed.format === 'json')
+        && typeof typed.filename === 'string'
+        && typeof typed.contents === 'string') {
+      void vscode.commands.executeCommand('aiflowbridge.exportToFile', {
+        format: typed.format,
+        filename: typed.filename,
+        contents: typed.contents,
+      }).then((result: unknown) => {
+        const r = (result as { saved?: boolean } | undefined) ?? {};
+        void panel.webview.postMessage({
+          type: 'exportResult',
+          format: typed.format,
+          filename: typed.filename,
+          saved: r.saved === true,
+        });
+      });
       return;
     }
     if (typed.type === 'resetMetrics') {
@@ -109,7 +247,7 @@ function attachMessageHandler(
       // `aiflowbridge.resetMetrics` command (which shows its own
       // confirmation dialog and wipes the on-disk file).
       void vscode.commands.executeCommand('aiflowbridge.resetMetrics').then(() => {
-        panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry);
+        panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry, onRefreshPricing);
       });
       return;
     }
@@ -157,7 +295,7 @@ function attachMessageHandler(
       // on-disk write is fire-and-forget through the persister); the
       // re-render below uses the freshly-updated snapshot.
       onRemoveEntry(typed.id);
-      panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry);
+      panel.webview.html = buildDashboardHtml(getConfig(), getSnapshot(), isRunning(), getVersions(), onRemoveEntry, onRefreshPricing);
     }
   });
 }
@@ -192,15 +330,21 @@ export function buildPricingMaps(providers: readonly ProviderProfile[]): Pricing
  * Format a USD (or other-currency) amount as a short monospace cell.
  * Returns the '-' placeholder when the amount is zero, non-finite, or unpriced - so unpriced requests do not pollute the totals visually.
  */
-export function formatCostCell(cost: number, pricing: ProviderPricing | undefined): string {
+export function formatCostCell(cost: number, pricing: ProviderPricing | undefined, sourceLabel?: string): string {
   if (!Number.isFinite(cost) || cost <= 0) {
     return '<span class="muted">-</span>';
   }
   const currency = pricing?.currency || 'USD';
   const symbol = currency === 'USD' ? '$' : `${currency} `;
+  // Action plan item #1 / FEAT10: surface the pricing source on the
+  // tooltip so the user can tell at a glance whether the rate is
+  // release-time-fresh (`bundled (pricing.json)` with the bundled
+  // date stamp), user-refreshed (`override (globalStorage)`), or a
+  // fallback from the registry / family default.
+  const sourceTag = sourceLabel ? ` - source: ${escapeHtml(sourceLabel)}` : '';
   const title = pricing
-    ? `in ${symbol}${(pricing.inputPerMillion ?? 0).toFixed(2)} / out ${symbol}${(pricing.outputPerMillion ?? 0).toFixed(2)} per 1M tokens (${escapeHtml(currency)})`
-    : `Estimated cost (${escapeHtml(currency)})`;
+    ? `in ${symbol}${(pricing.inputPerMillion ?? 0).toFixed(2)} / out ${symbol}${(pricing.outputPerMillion ?? 0).toFixed(2)} per 1M tokens (${escapeHtml(currency)})${sourceTag}`
+    : `Estimated cost (${escapeHtml(currency)})${sourceTag}`;
   // 4 decimals covers sub-cent values (token-plan rates produce costs in
   // the $0.0001-$0.01 range for typical prompts). Trim trailing zeros so
   // $0.0010 reads as $0.001.
@@ -218,7 +362,8 @@ export function buildDashboardHtml(
   snapshot: TelemetrySnapshot,
   running: boolean,
   versions: DashboardVersions = {},
-  onRemoveEntry?: RemoveEntryFn
+  onRemoveEntry?: RemoveEntryFn,
+  onRefreshPricing?: RefreshPricingFn
 ): string {
   const providers = config.providers.filter((provider) => provider.enabled);
   const entries = Object.entries(snapshot.byModel);
@@ -696,10 +841,12 @@ export function buildDashboardHtml(
           <span class="chevron">&#9662;</span>
           <h2>Gateway</h2>
         </button>
+        ${onRefreshPricing ? `<button type="button" class="refresh-btn" id="refresh-pricing-button" title="Fetch the latest OpenRouter rates and update the in-memory pricing registry (action plan item #1 / FEAT10)."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg><span>Refresh prices</span></button>` : ''}
       </div>
       <div class="panel-body">
         <p class="muted">Port: <code>${config.gateway.port}</code> · Default model: <code>${escapeHtml(config.gateway.defaultModel || 'none')}</code></p>
         <p class="muted">Upstream providers are configured as logical aliases for unified access.</p>
+        ${config.pricing ? `<p class="muted">Pricing snapshot: <code>${escapeHtml(config.pricing.bundledFetchedAt || '<no bundled stamp>')}</code> · <code>${escapeHtml(formatPricingBundleVersion(config.pricing.bundledVersion))}</code> · <code>${Object.keys(config.pricing.models).length} model(s) sourced from bundled JSON</code></p>` : ''}
       </div>
     </div>
 
@@ -736,6 +883,10 @@ export function buildDashboardHtml(
           </select>
           <span class="filter-separator" aria-hidden="true"></span>
           <button type="button" class="banner-btn" id="clear-filters-btn" title="Reset all filters (time range, provider, dates, search, inactivity gap) to their defaults">Clear filters</button>
+          <span class="filter-separator" aria-hidden="true"></span>
+          <span class="muted" style="font-size:12px;">Export filtered</span>
+          <button type="button" class="banner-btn" id="export-csv-btn" title="Download the currently filtered entries as CSV (RFC 4180, comma-separated, CRLF line endings, UTF-8). Honors all active filters.">CSV</button>
+          <button type="button" class="banner-btn" id="export-json-btn" title="Download the currently filtered entries as JSON. Includes the active filters and aggregated totals in the metadata header.">JSON</button>
         </div>
       </div>
     </div>
@@ -852,6 +1003,17 @@ export function buildDashboardHtml(
     (function() {
       const vscodeApi = acquireVsCodeApi();
 
+      // AFF07: the export-payload builder references
+      // extensionVersion to stamp the JSON export metadata with
+      // the build that produced the file. Hydrate it from the
+      // versions.extension passed in by the host at HTML build
+      // time so the inline script has the value in scope (the
+      // webview cannot see the host's variables; only the literal
+      // embedded in the HTML reaches the script). JSON.stringify
+      // ensures the embedded literal is a valid JS string
+      // regardless of the version content.
+      var extensionVersion = ${JSON.stringify(versions.extension ?? '')};
+
       const refreshButton = document.getElementById("refresh-button");
       if (refreshButton) {
         refreshButton.addEventListener("click", () => {
@@ -860,6 +1022,27 @@ export function buildDashboardHtml(
             refreshButton.classList.remove("spinning");
           }, 1500);
           vscodeApi.postMessage({ type: "refresh" });
+        });
+      }
+
+      // Action plan item #1 / FEAT10: the Gateway panel's
+      // Refresh prices button forwards to the host, which fetches
+      // the live OpenRouter /v1/models listing, writes the result
+      // to globalStorage pricing-override.json, updates the
+      // in-memory pricing registry in place, and re-renders the
+      // dashboard. The host posts a refreshPricingResult message
+      // back when the operation completes so the button can show a
+      // transient Updated N model(s) toast.
+      const refreshPricingButton = document.getElementById("refresh-pricing-button");
+      if (refreshPricingButton) {
+        refreshPricingButton.addEventListener("click", () => {
+          refreshPricingButton.classList.add("spinning");
+          refreshPricingButton.disabled = true;
+          vscodeApi.postMessage({ type: "refreshPricing" });
+          window.setTimeout(() => {
+            refreshPricingButton.classList.remove("spinning");
+            refreshPricingButton.disabled = false;
+          }, 4000);
         });
       }
 
@@ -1608,6 +1791,115 @@ export function buildDashboardHtml(
       function escapeHtml(value) {
         return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
       }
+
+      // AFF07: telemetry export helpers. Duplicated from the
+      // module-level escapeCsvValue / buildCsvExport /
+      // buildJsonExport / computeExportTotals / buildExportFilename
+      // so the inline script can call them directly (the
+      // browser-side script has no access to the TypeScript module
+      // scope). The two implementations stay in lockstep via the
+      // unit tests in tests/dashboard.test.ts.
+      var CSV_COLUMNS_BROWSER = [
+        "id", "timestamp", "providerId", "providerLabel", "model",
+        "status", "durationMs", "promptTokens", "completionTokens",
+        "totalTokens", "estimatedCost", "estimated", "source",
+        "clientId", "promptSummary", "responseSummary"
+      ];
+      function escapeCsvValue(value, forceQuote) {
+        if (forceQuote === void 0) forceQuote = false;
+        var s = String(value == null ? "" : value);
+        // The regex literal escapes CR and LF as the source-code
+        // sequences backslash-r and backslash-n. Inside the
+        // enclosing TypeScript template literal each must be
+        // doubled to survive the template-literal escape pass
+        // (otherwise the runtime script would contain a real
+        // CR/LF byte and the regex literal would terminate early).
+        var needsQuoting = forceQuote || /[",\\r\\n]/.test(s);
+        if (!needsQuoting) return s;
+        return '"' + s.replaceAll('"', '""') + '"';
+      }
+      function toExportedEntryBrowser(entry) {
+        return {
+          id: entry.id,
+          timestamp: entry.timestamp,
+          providerId: entry.providerId,
+          providerLabel: entry.providerLabel,
+          model: entry.model,
+          status: entry.status,
+          durationMs: entry.durationMs,
+          promptTokens: entry.promptTokens,
+          completionTokens: entry.completionTokens,
+          totalTokens: entry.totalTokens,
+          estimatedCost: entry.estimatedCost,
+          estimated: Boolean(entry.estimated),
+          source: entry.source || "unknown",
+          clientId: entry.clientId || "unknown",
+          promptSummary: entry.promptSummary || "",
+          responseSummary: entry.responseSummary || "",
+        };
+      }
+      function formatCsvRowBrowser(entry, columns) {
+        if (columns === void 0) columns = CSV_COLUMNS_BROWSER;
+        var cells = columns.map(function(col) {
+          var value = entry[col];
+          if (typeof value === "number") {
+            return Number.isFinite(value) ? String(value) : "0";
+          }
+          if (typeof value === "boolean") {
+            return value ? "true" : "false";
+          }
+          return escapeCsvValue(value);
+        });
+        return cells.join(",");
+      }
+      function buildCsvExportBrowser(entries, columns) {
+        if (columns === void 0) columns = CSV_COLUMNS_BROWSER;
+        var rows = [columns.join(",")];
+        for (var i = 0; i < entries.length; i++) {
+          rows.push(formatCsvRowBrowser(entries[i], columns));
+        }
+        return rows.join("\\r\\n") + "\\r\\n";
+      }
+      function computeExportTotalsBrowser(entries) {
+        var promptTokens = 0, completionTokens = 0, totalTokens = 0;
+        var estimatedCost = 0, errors = 0;
+        for (var i = 0; i < entries.length; i++) {
+          var e = entries[i];
+          promptTokens += e.promptTokens;
+          completionTokens += e.completionTokens;
+          totalTokens += e.totalTokens;
+          estimatedCost += e.estimatedCost;
+          if (e.status >= 400) errors += 1;
+        }
+        return {
+          requests: entries.length,
+          promptTokens: promptTokens,
+          completionTokens: completionTokens,
+          totalTokens: totalTokens,
+          estimatedCost: Math.round(estimatedCost * 1e6) / 1e6,
+          errors: errors,
+        };
+      }
+      function sanitizeFilenameSlugBrowser(value) {
+        return (value || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, "-")
+          .replace(/^-+|-+$/g, "") || "all";
+      }
+      function buildExportFilenameBrowser(meta, format) {
+        var presetSlug = sanitizeFilenameSlugBrowser(meta.filters.preset || "all");
+        var dateSlug = (meta.generatedAt || "").replace(/[:.]/g, "-");
+        return "aiflowbridge-metrics-" + presetSlug + "-" + dateSlug + "." + format;
+      }
+      function buildJsonExportBrowser(entries, meta) {
+        var payload = {
+          schemaVersion: 1,
+          source: "AIFlowBridge dashboard export",
+          meta: meta,
+          entries: entries,
+        };
+        return JSON.stringify(payload, null, 2) + "\\n";
+      }
       function formatCostCell(cost, pricing) {
         if (!isFinite(cost) || cost <= 0) {
           return '<span class="muted">-</span>';
@@ -2071,6 +2363,82 @@ export function buildDashboardHtml(
         });
       }
 
+      // AFF07: telemetry export. Two buttons, one per format,
+      // share the same payload builder (buildExportPayload) which
+      // uses currentRecent (the filtered subset the dashboard
+      // already renders) so the export honors every active filter.
+      // The payload is sent to the host via postMessage; the host
+      // shows a native save dialog and writes the file via
+      // vscode.workspace.fs.writeFile. The previous client-side
+      // URL.createObjectURL + synthetic <a download> pattern did
+      // NOT work in VS Code webviews: the default webview CSP
+      // blocks the blob: URL the synthetic anchor uses, so the
+      // click was a silent no-op and the user got nothing.
+      function captureExportFilters() {
+        var f = currentFilters();
+        return {
+          preset: f.range || "all",
+          provider: f.provider || "",
+          fromDate: f.from || "",
+          toDate: f.to || "",
+          search: f.search || "",
+        };
+      }
+
+      function buildExportPayload(format) {
+        var exportedEntries = currentRecent.map(toExportedEntryBrowser);
+        var filters = captureExportFilters();
+        var meta = {
+          generatedAt: new Date().toISOString(),
+          extensionVersion: extensionVersion || "",
+          filters: filters,
+          totals: computeExportTotalsBrowser(exportedEntries),
+        };
+        var filename = buildExportFilenameBrowser(meta, format);
+        var contents = format === "csv"
+          ? buildCsvExportBrowser(exportedEntries)
+          : buildJsonExportBrowser(exportedEntries, meta);
+        var mimeType = format === "csv" ? "text/csv" : "application/json";
+        return { filename: filename, mimeType: mimeType, contents: contents, count: exportedEntries.length };
+      }
+
+      function wireExportButton(buttonId, format) {
+        var btn = document.getElementById(buttonId);
+        if (!btn) return;
+        btn.addEventListener("click", function() {
+          if (currentRecent.length === 0) {
+            // Empty dataset: the dashboard already shows a muted
+            // "No request recorded yet." row in the Recent panel, but
+            // an explicit transient cue here keeps the user from
+            // wondering why their download is a header-only CSV.
+            btn.disabled = true;
+            setTimeout(function() { btn.disabled = false; }, 1500);
+            return;
+          }
+          var payload = buildExportPayload(format);
+          // Hand the payload to the host; the host owns the save
+          // dialog + disk write so the export survives the default
+          // webview CSP that would otherwise swallow a blob: URL
+          // download attempt.
+          vscodeApi.postMessage({
+            type: "export",
+            format: format,
+            filename: payload.filename,
+            mimeType: payload.mimeType,
+            contents: payload.contents,
+          });
+          btn.classList.add("spinning");
+          btn.disabled = true;
+          setTimeout(function() {
+            btn.classList.remove("spinning");
+            btn.disabled = false;
+          }, 1500);
+        });
+      }
+
+      wireExportButton("export-csv-btn", "csv");
+      wireExportButton("export-json-btn", "json");
+
       // sortable column headers: click to cycle asc -> desc -> clear.
       // Event delegation on each table's <thead> so re-renders
       // (pagination, filter) do not break the handler.
@@ -2526,6 +2894,182 @@ function formatCostValue(cost: number): string {
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+/**
+ * Format the bundled pricing JSON's `aiflowbridgeVersion` field for
+ * the dashboard header. Treats the literal string "0.0.0" as a
+ * sentinel (the legacy default of the release-time script when the
+ * `package.json` `version` field was missing) and surfaces a clear
+ * "unknown" label + a hint to re-run the refresh script. A truly
+ * absent / empty version falls through to the same label. A real
+ * semver string is rendered with the canonical `v` prefix.
+ *
+ * Exported so the unit test can assert the sentinel / empty / real
+ * branches without booting a webview.
+ */
+export function formatPricingBundleVersion(version: string | undefined | null): string {
+  if (!version || version === '0.0.0') {
+    return 'AIFlowBridge version unknown (run npm run pricing:refresh)';
+  }
+  return `AIFlowBridge v${version}`;
+}
+
+// ----- AFF07 telemetry export (CSV / JSON) -------------------------------
+// Pure helpers used by both the dashboard client-side JS (to build the
+// payload for the download Blob) and the unit tests (to exercise the
+// serialization rules without booting a webview). Kept dependency-free
+// so the test surface is just a function call and a string equality.
+
+/**
+ * Map a `RequestTelemetry` entry to the flat export shape. Coalesces
+ * optional fields to empty strings / `0` so the row is always
+ * stringifiable without conditional logic in the row builder.
+ */
+export function toExportedEntry(entry: RequestTelemetry): ExportedRequestEntry {
+  return {
+    id: entry.id,
+    timestamp: entry.timestamp,
+    providerId: entry.providerId,
+    providerLabel: entry.providerLabel,
+    model: entry.model,
+    status: entry.status,
+    durationMs: entry.durationMs,
+    promptTokens: entry.promptTokens,
+    completionTokens: entry.completionTokens,
+    totalTokens: entry.totalTokens,
+    estimatedCost: entry.estimatedCost,
+    estimated: Boolean(entry.estimated),
+    source: entry.source ?? 'unknown',
+    clientId: entry.clientId ?? 'unknown',
+    promptSummary: entry.promptSummary ?? '',
+    responseSummary: entry.responseSummary ?? '',
+  };
+}
+
+/**
+ * Escape a single CSV field value per RFC 4180:
+ *   - Wraps the value in double quotes if it contains a comma,
+ *     double quote, CR or LF.
+ *   - Doubles embedded double quotes.
+ *
+ * Always quotes when the caller opts in via `forceQuote`, which the
+ * JSON column uses to keep the trailing-newline literal visible
+ * inside the field.
+ */
+export function escapeCsvValue(value: string, forceQuote = false): string {
+  const needsQuoting = forceQuote || /[",\r\n]/.test(value);
+  if (!needsQuoting) {
+    return value;
+  }
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+/**
+ * Build a single CSV row (without the trailing CRLF - the caller
+ * concatenates with `\r\n` to honor the RFC 4180 line terminator).
+ * Numbers / booleans are stringified without quoting; strings go
+ * through `escapeCsvValue`.
+ */
+export function formatCsvRow(entry: ExportedRequestEntry, columns: ReadonlyArray<keyof ExportedRequestEntry> = CSV_COLUMNS): string {
+  const cells: string[] = columns.map((col) => {
+    const value = entry[col];
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? String(value) : '0';
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
+    return escapeCsvValue(String(value ?? ''));
+  });
+  return cells.join(',');
+}
+
+/**
+ * Build the full CSV payload for the export. Includes a single
+ * header row and one row per entry. RFC 4180 line terminator
+ * (CRLF); final CRLF preserved for tooling that requires it.
+ *
+ * No metadata preamble (would violate strict RFC 4180 parsing); the
+ * `meta` block is exposed via `buildJsonExport` for users who need
+ * the filter context inline.
+ */
+export function buildCsvExport(entries: readonly ExportedRequestEntry[], columns: ReadonlyArray<keyof ExportedRequestEntry> = CSV_COLUMNS): string {
+  const rows: string[] = [columns.join(',')];
+  for (const entry of entries) {
+    rows.push(formatCsvRow(entry, columns));
+  }
+  // Trailing CRLF so the file ends with a newline (POSIX + most CSV
+  // tools expect this; some `wc -l` style tools count lines
+  // differently otherwise).
+  return rows.join('\r\n') + '\r\n';
+}
+
+/**
+ * Compute the export totals from the entry set. Duplicates the
+ * per-entry math the dashboard already does in
+ * `aggregateModels()`/`updateTotals()` so the JSON payload stays
+ * self-describing even if the user only consumes the export file.
+ */
+export function computeExportTotals(entries: readonly ExportedRequestEntry[]): ExportMetadata['totals'] {
+  let promptTokens = 0;
+  let completionTokens = 0;
+  let totalTokens = 0;
+  let estimatedCost = 0;
+  let errors = 0;
+  for (const entry of entries) {
+    promptTokens += entry.promptTokens;
+    completionTokens += entry.completionTokens;
+    totalTokens += entry.totalTokens;
+    estimatedCost += entry.estimatedCost;
+    if (entry.status >= 400) {
+      errors += 1;
+    }
+  }
+  // Round the cost to the same precision the dashboard uses so the
+  // totals in the export match the dashboard's headline card.
+  return {
+    requests: entries.length,
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    estimatedCost: Math.round(estimatedCost * 1e6) / 1e6,
+    errors,
+  };
+}
+
+/**
+ * Build the JSON export payload (pretty-printed). Embeds the
+ * metadata header (`generatedAt`, `extensionVersion`, `filters`,
+ * `totals`) at the top so a downstream consumer can reconstruct the
+ * filter context without inspecting the filename.
+ */
+export function buildJsonExport(entries: readonly ExportedRequestEntry[], meta: ExportMetadata): string {
+  const payload = {
+    schemaVersion: 1,
+    source: 'AIFlowBridge dashboard export',
+    meta,
+    entries,
+  };
+  return JSON.stringify(payload, null, 2) + '\n';
+}
+
+/**
+ * Build the download filename for an export.
+ *
+ *   aiflowbridge-metrics-<preset>-<YYYY-MM-DDTHH-mm-ss>.<ext>
+ *
+ * The preset slug is sanitized to filesystem-safe characters only
+ * so the file survives a Windows / macOS / Linux round trip.
+ */
+export function buildExportFilename(meta: Pick<ExportMetadata, 'filters' | 'generatedAt'>, format: 'csv' | 'json'): string {
+  const presetSlug = sanitizeFilenameSlug(meta.filters.preset || 'all');
+  const dateSlug = meta.generatedAt.replace(/[:.]/g, '-');
+  return `aiflowbridge-metrics-${presetSlug}-${dateSlug}.${format}`;
+}
+
+function sanitizeFilenameSlug(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'all';
 }
 
 /**

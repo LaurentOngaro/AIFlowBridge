@@ -9,37 +9,56 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('vscode', () => {
-	return {
-		default: {
-			window: {
-				createOutputChannel: vi.fn(() => ({
-					name: 'AIFlowBridge',
-					log: vi.fn(),
-					trace: vi.fn(),
-					debug: vi.fn(),
-					info: vi.fn(),
-					warn: vi.fn(),
-					error: vi.fn(),
-					dispose: vi.fn(),
-					append: vi.fn(),
-					appendLine: vi.fn(),
-					clear: vi.fn(),
-					show: vi.fn(),
-					hide: vi.fn(),
-				})),
-			},
-			LogLevel: { Trace: 0, Debug: 1, Info: 2, Warning: 3, Error: 4, Off: 5 },
-			LogOutputChannel: class MockLogOutputChannel {
-				name = 'AIFlowBridge';
-				log = vi.fn();
-				trace = vi.fn();
-				debug = vi.fn();
-				info = vi.fn();
-				warn = vi.fn();
-				error = vi.fn();
-				dispose = vi.fn();
-			},
+	const stubChannel = {
+		name: 'AIFlowBridge',
+		log: vi.fn(),
+		trace: vi.fn(),
+		debug: vi.fn(),
+		info: vi.fn(),
+		warn: vi.fn(),
+		error: vi.fn(),
+		dispose: vi.fn(),
+		append: vi.fn(),
+		appendLine: vi.fn(),
+		clear: vi.fn(),
+		show: vi.fn(),
+		hide: vi.fn(),
+	};
+	// Both the namespace form (`vscode.window.showWarningMessage`,
+	// used by the lazy `import('vscode')` in `defaultUserPrompt`)
+	// and the default-import form (`vscode.default.window`,
+	// used by the runtime adapter) need to see the same mocks.
+	// The production callers all hit the namespace form via the
+	// `esModuleInterop` flag, so duplicating the mocks here keeps
+	// every code path happy.
+	const windowMock = {
+		createOutputChannel: vi.fn(() => stubChannel),
+		// Mocks for the version-restart dialog (action plan:
+		// the prompt must be modal so the user cannot lose it
+		// behind another window and leave the extension stuck
+		// waiting). The regression test below asserts the dialog
+		// uses showWarningMessage with { modal: true }, not the
+		// legacy non-modal showInformationMessage.
+		showWarningMessage: vi.fn(async () => undefined),
+		showInformationMessage: vi.fn(async () => undefined),
+	};
+	const vscodeMock = {
+		window: windowMock,
+		LogLevel: { Trace: 0, Debug: 1, Info: 2, Warning: 3, Error: 4, Off: 5 },
+		LogOutputChannel: class MockLogOutputChannel {
+			name = 'AIFlowBridge';
+			log = vi.fn();
+			trace = vi.fn();
+			debug = vi.fn();
+			info = vi.fn();
+			warn = vi.fn();
+			error = vi.fn();
+			dispose = vi.fn();
 		},
+	};
+	return {
+		default: vscodeMock,
+		...vscodeMock,
 	};
 });
 
@@ -73,10 +92,10 @@ function makeConfig(port: number, baseUrl: string): AiFlowBridgeConfig {
 }
 
 function makeUserPrompt(choice: string | undefined = undefined): UserPrompt & {
-	showInformationMessage: ReturnType<typeof vi.fn>;
+	showModalMessage: ReturnType<typeof vi.fn>;
 } {
 	return {
-		showInformationMessage: vi.fn().mockResolvedValue(choice),
+		showModalMessage: vi.fn().mockResolvedValue(choice),
 	};
 }
 
@@ -162,7 +181,7 @@ describe('GatewayService - version-aware restart', () => {
 			const status = await service.start();
 			expect(status.running).toBe(true);
 			expect(status.port).toBe(peer.port);
-			expect(prompt.showInformationMessage).not.toHaveBeenCalled();
+			expect(prompt.showModalMessage).not.toHaveBeenCalled();
 			expect(peer.shutdownCalls).toBe(0);
 		} finally {
 			await service.stop();
@@ -184,7 +203,7 @@ describe('GatewayService - version-aware restart', () => {
 		try {
 			const status = await service.start();
 			expect(status.running).toBe(true);
-			expect(prompt.showInformationMessage).not.toHaveBeenCalled();
+			expect(prompt.showModalMessage).not.toHaveBeenCalled();
 			expect(peer.shutdownCalls).toBe(0);
 		} finally {
 			await service.stop();
@@ -206,7 +225,7 @@ describe('GatewayService - version-aware restart', () => {
 		try {
 			const status = await service.start();
 			expect(status.running).toBe(true);
-			expect(prompt.showInformationMessage).toHaveBeenCalledOnce();
+			expect(prompt.showModalMessage).toHaveBeenCalledOnce();
 			expect(peer.shutdownCalls).toBe(0);
 		} finally {
 			await service.stop();
@@ -228,7 +247,7 @@ describe('GatewayService - version-aware restart', () => {
 		try {
 			const status = await service.start();
 			expect(status.running).toBe(true);
-			expect(prompt.showInformationMessage).toHaveBeenCalledOnce();
+			expect(prompt.showModalMessage).toHaveBeenCalledOnce();
 			expect(peer.shutdownCalls).toBe(0);
 		} finally {
 			await service.stop();
@@ -250,7 +269,7 @@ describe('GatewayService - version-aware restart', () => {
 		try {
 			const status = await service.start();
 			expect(status.running).toBe(true);
-			expect(prompt.showInformationMessage).toHaveBeenCalledOnce();
+			expect(prompt.showModalMessage).toHaveBeenCalledOnce();
 			// Wait a beat for the fake peer's shutdown side-effect
 			await new Promise((resolve) => setTimeout(resolve, 50));
 			expect(peer.shutdownCalls).toBe(1);
@@ -343,7 +362,7 @@ describe('GatewayService - version-aware restart', () => {
 			// The port is taken by the foreign service, so listen() will fail.
 			// We just need to confirm the prompt was never shown.
 			await expect(service.start()).rejects.toBeDefined();
-			expect(prompt.showInformationMessage).not.toHaveBeenCalled();
+			expect(prompt.showModalMessage).not.toHaveBeenCalled();
 		} finally {
 			await service.stop();
 			await new Promise<void>((resolve) => foreign.close(() => resolve()));
@@ -365,7 +384,7 @@ describe('GatewayService - version-aware restart', () => {
 		try {
 			// The port is taken by another app, listen() will fail, no prompt.
 			await expect(service.start()).rejects.toBeDefined();
-			expect(prompt.showInformationMessage).not.toHaveBeenCalled();
+			expect(prompt.showModalMessage).not.toHaveBeenCalled();
 		} finally {
 			await service.stop();
 		}
@@ -502,6 +521,65 @@ describe('GatewayService - /shutdown authentication', () => {
 			expect(crossRes.status).toBe(403);
 		} finally {
 			await other.stop();
+		}
+	});
+
+	it('default user prompt uses a MODAL warning dialog (never non-modal info)', async () => {
+		// Regression: the version-restart prompt used to be a
+		// non-modal `showInformationMessage` that could be hidden
+		// behind another window and leave the extension stuck waiting
+		// for a choice the user could not see. The default
+		// `userPrompt` MUST use `showWarningMessage` with
+		// `{ modal: true }` so the dialog blocks the editor and stays
+		// in the foreground until the user picks an action.
+		const vscode = (await import('vscode')).default as unknown as {
+			window: {
+				showWarningMessage: ReturnType<typeof vi.fn>;
+				showInformationMessage: ReturnType<typeof vi.fn>;
+			};
+		};
+		vscode.window.showWarningMessage.mockClear();
+		vscode.window.showInformationMessage.mockClear();
+		// User dismisses the modal so `start()` can return instead of
+		// waiting forever on the dialog.
+		vscode.window.showWarningMessage.mockResolvedValueOnce(undefined);
+
+		// Spin up an older peer on a free port, then ask the new
+		// gateway (with the default `userPrompt`) to start on the same
+		// port so the dialog flow fires.
+		const peer = await startFakePeer('0.0.0-test');
+		try {
+			// Constructor signature:
+			//   (config, onUpdate?, resolveApiKey?, loadState?, saveState?,
+			//    bundledVersion?, userPrompt?, persister?)
+			// Pass `bundledVersion = '9.9.9-test'` so the version
+			// comparison fires (`peer 0.0.0-test < this 9.9.9-test`),
+			// AND no `userPrompt` so the default impl (which uses the
+			// modal `showWarningMessage`) is exercised end-to-end.
+			const service = new GatewayService(
+				makeConfig(peer.port, `http://127.0.0.1:${peer.port}/v1`),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'9.9.9-test',
+			);
+			try {
+				await service.start();
+				// The dialog MUST have been raised via the modal API.
+				expect(vscode.window.showWarningMessage).toHaveBeenCalledTimes(1);
+				expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+				const call = vscode.window.showWarningMessage.mock.calls[0];
+				// showWarningMessage(message, { modal: true }, ...items)
+				expect(call[0]).toMatch(/gateway v0\.0\.0-test is running\. Restart with v/);
+				expect(call[1]).toEqual({ modal: true });
+				expect(call[2]).toMatch(/^Restart with v/);
+				expect(call[3]).toBe('Keep current version');
+			} finally {
+				await service.stop();
+			}
+		} finally {
+			peer.server.close();
 		}
 	});
 });

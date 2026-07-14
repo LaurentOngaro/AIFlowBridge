@@ -3,7 +3,9 @@ import { logger } from '../logger';
 import { loadModelRegistry } from './modelRegistry';
 import type { ModelRegistry } from './modelRegistry.schema';
 import { normalizeProviderProfiles, redactProvidersForLog } from './providers';
-import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, IGatewayContext, ProviderProfile, VisionProxySettings } from './types';
+import { getLoadedPricingRegistry, loadPricingRegistry } from './pricing/loader';
+import type { PricingEntry, PricingSourceLabel } from './pricing/loader';
+import type { AiFlowBridgeConfig, ConfigReader, GatewaySettings, IGatewayContext, ProviderProfile, PricingConfig, VisionProxySettings } from './types';
 
 /**
  * Well-known upstream provider profiles used as defaults when the user has not
@@ -64,7 +66,7 @@ const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
   },
 ];
 
-function buildDefaultGatewayProfiles(configuration: ConfigReader, registry: ModelRegistry): ProviderProfile[] {
+function buildDefaultGatewayProfiles(configuration: ConfigReader, registry: ModelRegistry, pricingRegistry: PricingConfig | undefined): ProviderProfile[] {
   const profiles: ProviderProfile[] = [];
 
   for (const entry of DEFAULT_GATEWAY_PROFILES) {
@@ -72,12 +74,19 @@ function buildDefaultGatewayProfiles(configuration: ConfigReader, registry: Mode
     if (!baseUrl) {
       continue;
     }
-    // Pricing precedence for the hand-curated gateway entries:
+    // Pricing precedence for the hand-curated gateway entries (action
+    // plan item #1 / FEAT10):
     //   1. `entry.pricing` (the hand-curated indicative default)
-    //   2. The per-model pricing from the merged registry - work for hand-curated
-    //      entries too: editing a model's pricing in the globalStorage
-    //      override is picked up here on the next activation.
+    //   2. The merged pricing registry - wins over the registry's
+    //      per-model block so the release-time-refreshed
+    //      `resources/pricing.json` and the user's
+    //      `<globalStorageUri>/pricing-override.json` propagate
+    //      immediately without touching the model registry.
+    //   3. The per-model pricing from the merged registry - work for
+    //      hand-curated entries too: editing a model's pricing in the
+    //      globalStorage override is picked up here on the next activation.
     const registryEntry = registry.models.find((model) => model.id === entry.model);
+    const pricingFromRegistry = pricingRegistry?.models[entry.model];
     profiles.push({
       id: entry.id,
       label: entry.label,
@@ -85,7 +94,7 @@ function buildDefaultGatewayProfiles(configuration: ConfigReader, registry: Mode
       baseUrl,
       model: entry.model,
       enabled: true,
-      pricing: entry.pricing ?? toProviderPricing(registryEntry?.pricing),
+      pricing: entry.pricing ?? toProviderPricing(pricingFromRegistry) ?? toProviderPricing(registryEntry?.pricing),
     });
   }
 
@@ -106,6 +115,48 @@ function getFamilyPricing(): Map<string, ProviderProfile['pricing']> {
     }
   }
   return map;
+}
+
+/**
+ * Resolve the pricing block for a synthesized provider (action plan
+ * item #1 / FEAT10). Precedence (highest first):
+ *   1. The merged pricing registry (workspace > globalStorage > bundled
+ *      pricing.json). The 4-tier merge in `loadPricingRegistry` already
+ *      layered the per-model `models.json` blocks at the bottom; this
+ *      lookup is a single `pricingRegistry.models[id]` read.
+ *   2. The model's own `pricing` block from the merged registry.
+ *   3. The family-level indicative `familyPricing` (the hardcoded
+ *      token-plan defaults in `DEFAULT_GATEWAY_PROFILES`) so un-priced
+ *      models still show a non-zero "Estimated cost" out of the box.
+ *
+ * Returns the matching `PricingSourceLabel` so the host-config
+ * diagnostic can label each row with the active source.
+ */
+function resolvePricingForModel(
+  modelId: string,
+  modelPricing: { inputPerMillion: number; outputPerMillion: number; currency: string } | undefined,
+  pricingRegistry: PricingConfig | undefined,
+  familyPricing: Map<string, ProviderProfile['pricing']>,
+  family: string
+): { pricing: ProviderProfile['pricing']; source: PricingSourceLabel | 'family default' | 'none' } {
+  const fromRegistry = pricingRegistry?.models[modelId];
+  if (fromRegistry) {
+    return {
+      pricing: toProviderPricing(fromRegistry),
+      source: pricingRegistry?.sources[modelId] ?? 'bundled (pricing.json)',
+    };
+  }
+  if (modelPricing) {
+    return {
+      pricing: toProviderPricing(modelPricing),
+      source: 'bundled (models.json)',
+    };
+  }
+  const familyDefault = familyPricing.get(family);
+  if (familyDefault) {
+    return { pricing: familyDefault, source: 'family default' };
+  }
+  return { pricing: undefined, source: 'none' };
 }
 
 /**
@@ -133,16 +184,9 @@ function toProviderPricing(pricing: { inputPerMillion: number; outputPerMillion:
 /**
  * Build a `ProviderProfile` for a given model id / name / family.
  *
- * Pricing precedence (highest first):
- *   1. The model's own `pricing` block from the merged registry or
- *      `aiflowbridge.userModels` (i.e. whatever the globalStorage /
- *      workspace override has resolved to after the 3-tier merge in
- *      `loadModelRegistry`). editing a model's pricing in
- *      `<globalStorageUri>/models.json` and reloading VS Code must surface
- *      in the dashboard.
- *   2. The family-level indicative `familyPricing` (the hardcoded token-plan
- *      defaults in `DEFAULT_GATEWAY_PROFILES`) so un-priced models still
- *      show a non-zero "Estimated cost" out of the box.
+ * Pricing precedence (highest first) is delegated to
+ * `resolvePricingForModel` (action plan item #1 / FEAT10): merged
+ * pricing registry > registry entry pricing > family default.
  *
  * Returns `undefined` when the family has no default upstream URL or when
  * the model id is already taken.
@@ -157,7 +201,8 @@ function synthesizeProviderForModel(
   taken: Set<string>,
   familyPricing: Map<string, ProviderProfile['pricing']>,
   configuration: ConfigReader,
-  registry: ModelRegistry
+  registry: ModelRegistry,
+  pricingRegistry: PricingConfig | undefined
 ): ProviderProfile | undefined {
   if (taken.has(model.id)) {
     return undefined;
@@ -171,6 +216,8 @@ function synthesizeProviderForModel(
 
   const baseUrl = configuration.get<string>(`providers.${family}.baseUrl`) || defaultUrl;
 
+  const resolved = resolvePricingForModel(model.id, model.pricing, pricingRegistry, familyPricing, family);
+
   taken.add(model.id);
   return {
     id: model.id,
@@ -179,7 +226,7 @@ function synthesizeProviderForModel(
     baseUrl,
     model: model.id,
     enabled: true,
-    pricing: toProviderPricing(model.pricing) ?? familyPricing.get(family),
+    pricing: resolved.pricing,
   };
 }
 
@@ -195,7 +242,8 @@ function synthesizeProvidersFromModels(
   existing: ProviderProfile[],
   configuration: ConfigReader,
   registry: ModelRegistry,
-  models: Parameters<typeof synthesizeProviderForModel>[0][]
+  models: Parameters<typeof synthesizeProviderForModel>[0][],
+  pricingRegistry: PricingConfig | undefined
 ): ProviderProfile[] {
   const taken = new Set<string>();
   for (const profile of existing) {
@@ -206,7 +254,7 @@ function synthesizeProvidersFromModels(
   const familyPricing = getFamilyPricing();
   const synthesized: ProviderProfile[] = [];
   for (const model of models) {
-    const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry);
+    const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry, pricingRegistry);
     if (synthesizedProfile) {
       synthesized.push(synthesizedProfile);
     }
@@ -218,13 +266,14 @@ function synthesizeProvidersFromModels(
 export function synthesizeProvidersFromUserModels(
   existing: ProviderProfile[],
   configuration: ConfigReader,
-  registry: ModelRegistry
+  registry: ModelRegistry,
+  pricingRegistry?: PricingConfig
 ): ProviderProfile[] {
   const userModels = getUserModels();
   if (userModels.length === 0) {
     return existing;
   }
-  return synthesizeProvidersFromModels(existing, configuration, registry, userModels);
+  return synthesizeProvidersFromModels(existing, configuration, registry, userModels, pricingRegistry);
 }
 
 /**
@@ -241,9 +290,10 @@ export function synthesizeProvidersFromUserModels(
 export function synthesizeProvidersFromBuiltInModels(
   existing: ProviderProfile[],
   configuration: ConfigReader,
-  registry: ModelRegistry
+  registry: ModelRegistry,
+  pricingRegistry?: PricingConfig
 ): ProviderProfile[] {
-  return synthesizeProvidersFromModels(existing, configuration, registry, registry.models);
+  return synthesizeProvidersFromModels(existing, configuration, registry, registry.models, pricingRegistry);
 }
 
 /**
@@ -264,6 +314,34 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
   // / `fs`. The standalone entry point (`src/standalone/main.ts`) calls
   // this function directly with its own `IGatewayContext`.
   const registry = await loadModelRegistry(ctx);
+
+  // Action plan item #1 / FEAT10: load the 4-tier pricing registry.
+  // `loadPricingRegistry` reads the workspace / globalStorage /
+  // bundled tiers and merges them over the per-model `pricing` blocks
+  // from the registry (lowest priority). Missing or malformed files
+  // are logged at WARN and skipped - activation never crashes.
+  // `pricingFromRegistryPerModel` is the explicit list of registry
+  // entries whose `pricing` blocks participate in the lowest-priority
+  // tier of the merge.
+  const pricingFromRegistryPerModel: Record<string, PricingEntry> = {};
+  for (const model of registry.models) {
+    if (model.pricing) {
+      pricingFromRegistryPerModel[model.id] = {
+        inputPerMillion: model.pricing.inputPerMillion,
+        outputPerMillion: model.pricing.outputPerMillion,
+        currency: model.pricing.currency,
+        fetchedAt: '',
+      };
+    }
+  }
+  await loadPricingRegistry(ctx, undefined, pricingFromRegistryPerModel);
+  const pricingRegistryRuntime = getLoadedPricingRegistry();
+  const pricingRegistry: PricingConfig = {
+    models: pricingRegistryRuntime.models,
+    sources: pricingRegistryRuntime.sourceByModel,
+    bundledFetchedAt: pricingRegistryRuntime.bundledFetchedAt,
+    bundledVersion: pricingRegistryRuntime.bundledVersion,
+  };
 
   const configuration = ctx.getConfiguration();
 
@@ -388,7 +466,7 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
   const baseProfiles =
     Array.isArray(rawProfiles) && rawProfiles.length > 0
       ? normalizeProviderProfiles(rawProfiles)
-      : buildDefaultGatewayProfiles(configuration, registry);
+      : buildDefaultGatewayProfiles(configuration, registry, pricingRegistry);
 
   // surface the common "double /v1" foot-gun. `resolveUpstreamUrl`
   // in the gateway appends a relative path to `baseUrl` via `new URL(path,
@@ -419,14 +497,14 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
   // (`src/standalone/vscode-shim.ts:64-87`) which reads `userModels`
   // from `~/.aiflowbridge/config.json`, so user-declared models are
   // honoured in both hosts.
-  const withUserModels = synthesizeProvidersFromUserModels(baseProfiles, configuration, registry);
+  const withUserModels = synthesizeProvidersFromUserModels(baseProfiles, configuration, registry, pricingRegistry);
 
   // Synthesize gateway providers for every model in the registry that is
   // not already covered. This guarantees the gateway catalog mirrors the
   // Copilot Chat picker (MiniMax-M3, mimo-v2-omni, ...) and that each
   // model has the family-level indicative pricing attached for the
   // dashboard's "Est. cost" column.
-  const providers = synthesizeProvidersFromBuiltInModels(withUserModels, configuration, registry);
+  const providers = synthesizeProvidersFromBuiltInModels(withUserModels, configuration, registry, pricingRegistry);
 
   // Diagnostic: surface the final gateway provider pricing. The user can
   // diff this against the registry dump from `loadModelRegistry` to find
@@ -447,14 +525,30 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     const pricingStr = provider.pricing
       ? `in=${provider.pricing.inputPerMillion}/M out=${provider.pricing.outputPerMillion}/M ${provider.pricing.currency}`
       : '<no pricing>';
+    // Action plan item #1 / FEAT10: append the 4-tier pricing source
+    // tag to the per-row diagnostic so the user can confirm the
+    // override they expected is the one that won. For the bundled
+    // file the tag also includes the `generatedAt` + AIFlowBridge
+    // version stamp from `resources/pricing.json` so the freshness
+    // of the rate they are looking at is visible from the log.
+    const pricingSource = provider.model ? pricingRegistry.sources[provider.model] : undefined;
+    const pricingTag = pricingSource
+      ? `source=${pricingSource}` + (pricingSource === 'bundled (pricing.json)' && pricingRegistry.bundledFetchedAt
+          ? ` (generatedAt=${pricingRegistry.bundledFetchedAt} v${pricingRegistry.bundledVersion || '<unknown>'})`
+          : '')
+      : '';
     logger.info(
-      `[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} apiKey=${provider.apiKeyPresent ? '***' : '<none>'} pricing=${pricingStr}`
+      `[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} apiKey=${provider.apiKeyPresent ? '***' : '<none>'} pricing=${pricingStr}${pricingTag ? ' ' + pricingTag : ''}`
     );
   }
 
   return {
     gateway,
     providers,
+    // Action plan item #1 / FEAT10. Snapshot of the merged pricing
+    // registry, surfaced on the dashboard's `Est. cost` tooltips so
+    // the user can see the freshness of the rate they are looking at.
+    pricing: pricingRegistry,
     telemetryEnabled: configuration.get<boolean>('telemetry.enabled', true),
     logRequests: configuration.get<boolean>('telemetry.logRequests', true),
     // Action plan item #3: enable by default so the Shared Session

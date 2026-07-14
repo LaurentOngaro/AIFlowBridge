@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.13.0** - data snapshot **2026-07-13**. Model ids and pricing throughout this README are pinned to this snapshot. Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
+> **AIFlowBridge 2.15.0** - data snapshot **2026-07-14**. Model ids and pricing throughout this README are pinned to this snapshot. Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
 **Runs as a VS Code extension **or** as a standalone Node.js binary (~30 MB RAM).**
 
@@ -67,7 +67,7 @@ Pair-programming is built in: the dashboard shows sanitized prompt / response su
 
 ## Pick your cost point
 
-> **Data snapshot: 2026-07-13 (AIFlowBridge 2.13.0).** Source: `https://openrouter.ai/api/v1/models` for OpenRouter entries, per-vendor pricing pages for direct vendors. Refresh per release; verify before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness).
+> **Data snapshot: 2026-07-14 (AIFlowBridge 2.15.0).** Source: `https://openrouter.ai/api/v1/models` for OpenRouter entries, per-vendor pricing pages for direct vendors. Refresh per release; verify before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness).
 
 One extension, three pricing tiers - choose what fits your workload.
 The OpenRouter path trades a small upstream markup for access to 100+ frontier models (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, Qwen 3.7 Max, etc.) behind a single API key.
@@ -95,7 +95,7 @@ You pay only the upstream providers you actually use - OpenRouter, DeepSeek, Min
 - **Smart model routing - opt-in, never surprise you.** Out of the box, the gateway routes every request to the model you (or your client) pick in the model picker. If you opt in via `aiflowbridge.gateway.languageRouting` (`"python": "deepseek-flash"`, `"rust": "deepseek-pro"`, `"*": "anthropic/claude-opus-4.8"` - any model id works, OpenRouter or direct), the gateway auto-detects the project language and routes per request. Costs are visible at all times: every routing decision is logged, the dashboard Sessions panel groups requests by provider / model, and the Request details sub-table shows the per-request cost. See [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting) and [docs/architecture.md](docs/architecture.md#workspace-context)
 - **Workspace context - informational only.** The detected context (languages, package managers, linters, formatters) is injected as a system message so the model knows your toolchain upfront. It never overrides the model picker - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context) and [docs/architecture.md](docs/architecture.md#workspace-context)
 - **Pair-programming visibility** - the gateway captures sanitized prompt + response summaries on every request (Bearer / `sk-...` / `x-api-key` redacted before storage). The dashboard's Shared session panel shows the last 20 Q&A pairs with one-click replay. Three loopback HTTP endpoints expose the same data for IDE integrations: `GET /v1/sessions` (list), `GET /v1/replay/{id}` (OpenAI-shaped body), `GET /v1/events` (live SSE stream) - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events)
-- **Cost control** - per-request token counts, latency, and estimated cost in a live dashboard (`Ctrl+Alt+M`). Sessions grouped automatically (inactivity gap configurable 1-60 min). Filter by provider, date range, client (Kilo Code vs Continue vs curl), or source (gateway vs Copilot Chat). Paginated, with per-row delete - see [docs/dashboard.md](docs/dashboard.md)
+- **Cost control** - per-request token counts, latency, and estimated cost in a live dashboard (`Ctrl+Alt+M`). Sessions grouped automatically (inactivity gap configurable 1-60 min). Filter by provider, date range, client (Kilo Code vs Continue vs curl), or source (gateway vs Copilot Chat). Paginated, with per-row delete. **Telemetry export**: two buttons (`CSV` and `JSON`) in the Filters panel download the currently filtered entries with a self-describing metadata header (`generatedAt`, `extensionVersion`, `filters`, `totals`). The bundled pricing snapshot is refreshed via `AIFlowBridge: Refresh pricing now` (or the dashboard's `Refresh prices` button) and stamped with `source: ...` on every `Est. cost` tooltip - see [docs/dashboard.md](docs/dashboard.md)
 - **Two ways to run it**: as a VS Code extension or as a standalone Node.js binary - see [docs/standalone.md](docs/standalone.md)
 - **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](vision-proxy.md)
 - **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini 3.5 Flash - see [docs/reasoning.md](reasoning.md)
@@ -213,6 +213,9 @@ See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste cli
 | `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                                                                    |
 | `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                                                                              |
 | `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation)                                                  |
+| `AIFlowBridge: Purge session log`                        | Clear only the captured prompt / response summaries (totals kept)                                        |
+| `AIFlowBridge: Refresh pricing now`                      | Hit OpenRouter `/v1/models`, write `<globalStorageUri>/pricing-override.json`, hot-update the in-memory pricing registry |
+| `AIFlowBridge: Open pricing data`                        | Open the bundled `resources/pricing.json` in the editor                                                  |
 | `AIFlowBridge: Start local gateway`                      | Start proxy                                                                                              |
 | `AIFlowBridge: Stop local gateway`                       | Stop proxy                                                                                               |
 | `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                                                                    |
@@ -232,15 +235,16 @@ Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is l
 
 ## Roadmap (extract)
 
-- telemetry export (CSV/JSON) - ship as soon as the action plan queue frees up
 - Ollama local upstream - the next "single-key unlocks N models" milestone, on par with OpenRouter in terms of breadth per key
 - auto-routing with failover across the 4 vendors - ordered fallback list (DeepSeek -> MiniMax -> OpenRouter) so an outage on one doesn't block the agent
 - web-based dashboard at `http://127.0.0.1:8787/dashboard`
 - ...
 
-Just shipped in 2.13.0: **OpenRouter upstream** (100+ models via single key) - see [CHANGELOG.md](CHANGELOG.md#2121).
+Just shipped in 2.15.0: **Dynamic pricing and cost estimation** - bundled `resources/pricing.json` (OpenRouter catalog snapshot, refreshed per release and on demand) + dashboard `Refresh prices` button + `AIFlowBridge: Refresh pricing now` + dashboard `CSV` / `JSON` export of the filtered telemetry. See [CHANGELOG.md](CHANGELOG.md#2150).
+Just before (2.14.0): audit-driven hardening pass - 3 fixes + 1 defense-in-depth check on the upstream credential path + 3 redundant code paths cleaned up.
+Back in 2.12.0: **OpenRouter upstream** (100+ models via single key) - see [CHANGELOG.md](CHANGELOG.md#2120).
 
-Full roadmap: [TODO.md](TODO.md#1-versions-roadmap).
+Full roadmap: [TODO.md](TODO.md#roadmap--ideas-to-investigate).
 
 ## Sponsoring
 

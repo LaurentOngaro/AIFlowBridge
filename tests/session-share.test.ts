@@ -23,6 +23,19 @@
  *   from disk when no summaries are present.
  */
 
+/// <reference types="node" />
+// Pulls in `@types/node` for this file. The root `tsconfig.json`
+// only includes `src/` and the proposed language model typings, so
+// the implicit TS project VS Code creates for files under `tests/`
+// does not pick up `node` from `"types": ["node"]`. Without this
+// directive, every `import ... from 'node:http'` (and the other
+// 16+ test files that import from `node:*`) raise TS2591
+// ("Cannot find name 'node:http'") in the editor even though they
+// run fine under vitest. Once a `tsconfig.test.json` is wired into
+// the editor this triple-slash can be removed; until then it is the
+// minimal-impact fix that resolves the squiggle for every test file
+// without touching the production compile.
+
 import { request as httpRequest } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GatewayService, buildReplayResponse } from '../src/aiflowbridge/gateway/server';

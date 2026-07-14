@@ -12,8 +12,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AiFlowBridgeConfig, TelemetrySnapshot } from '../src/aiflowbridge/types';
-import { buildDashboardHtml, buildPricingMaps, formatCostCell } from '../src/aiflowbridge/ui/dashboard';
+import type { AiFlowBridgeConfig, RequestTelemetry, TelemetrySnapshot } from '../src/aiflowbridge/types';
+import { buildDashboardHtml, buildPricingMaps, formatCostCell, formatPricingBundleVersion } from '../src/aiflowbridge/ui/dashboard';
 
 function emptySnapshot(): TelemetrySnapshot {
   return {
@@ -1626,5 +1626,290 @@ describe('preset combobox and provider filter', () => {
     // The groupSessions function must push each entry into the
     // session's entries array so renderSessionEntries can list them.
     expect(script).toMatch(/current\.entries\.push/);
+  });
+});
+
+describe('AFF07 telemetry export helpers', () => {
+  // Pure-function coverage for the export building blocks in
+  // `src/aiflowbridge/ui/dashboard.ts`. The browser-side mirror
+  // (escapeCsvValueBrowser / buildCsvExportBrowser / ...) is
+  // exercised end-to-end by the "emits a syntactically valid
+  // JavaScript program in the embedded <script> tag" test above.
+
+  it('escapeCsvValue passes plain ASCII through unchanged', async () => {
+    const { escapeCsvValue } = await import('../src/aiflowbridge/ui/dashboard');
+    expect(escapeCsvValue('hello')).toBe('hello');
+    expect(escapeCsvValue('hello world')).toBe('hello world');
+    expect(escapeCsvValue('model-gpt-4o-mini')).toBe('model-gpt-4o-mini');
+  });
+
+  it('escapeCsvValue quotes and escapes values containing comma, quote, CR, or LF', async () => {
+    const { escapeCsvValue } = await import('../src/aiflowbridge/ui/dashboard');
+    expect(escapeCsvValue('a,b')).toBe('"a,b"');
+    expect(escapeCsvValue('he said "hi"')).toBe('"he said ""hi"""');
+    expect(escapeCsvValue('line1\nline2')).toBe('"line1\nline2"');
+    expect(escapeCsvValue('line1\r\nline2')).toBe('"line1\r\nline2"');
+    expect(escapeCsvValue('')).toBe('');
+    expect(escapeCsvValue('"quoted"')).toBe('"""quoted"""');
+  });
+
+  it('escapeCsvValue forceQuote wraps every value in quotes', async () => {
+    const { escapeCsvValue } = await import('../src/aiflowbridge/ui/dashboard');
+    expect(escapeCsvValue('plain', true)).toBe('"plain"');
+  });
+
+  it('buildCsvExport emits a header row + one row per entry + trailing CRLF', async () => {
+    const { buildCsvExport, toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
+    const entries = [
+      toExportedEntry(makeEntry({ id: 'a', promptSummary: 'simple prompt' })),
+      toExportedEntry(makeEntry({ id: 'b', model: 'MiniMax-M3', status: 500 })),
+    ];
+    const csv = buildCsvExport(entries);
+    const lines = csv.split('\r\n');
+    expect(lines[0]).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,source,clientId,promptSummary,responseSummary');
+    expect(lines[1]).toContain('a');
+    expect(lines[1]).toContain('simple prompt');
+    expect(lines[2]).toContain('MiniMax-M3');
+    expect(lines[2]).toContain('500');
+    // Last line is empty (trailing CRLF).
+    expect(csv.endsWith('\r\n')).toBe(true);
+  });
+
+  it('buildCsvExport quotes fields containing commas, quotes, and newlines', async () => {
+    const { buildCsvExport, toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
+    const entries = [
+      toExportedEntry(makeEntry({
+        id: 'a',
+        providerLabel: 'Test, with comma',
+        promptSummary: 'he said "hi"\nnew line',
+      })),
+    ];
+    const csv = buildCsvExport(entries);
+    const lines = csv.split('\r\n');
+    expect(lines[1]).toContain('"Test, with comma"');
+    expect(lines[1]).toContain('"he said ""hi""\nnew line"');
+  });
+
+  it('buildCsvExport handles an empty entry set with a header-only payload', async () => {
+    const { buildCsvExport } = await import('../src/aiflowbridge/ui/dashboard');
+    const csv = buildCsvExport([]);
+    expect(csv).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,source,clientId,promptSummary,responseSummary\r\n');
+  });
+
+  it('buildCsvExport stringifies numbers, booleans, and strings', async () => {
+    const { buildCsvExport, toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
+    const csv = buildCsvExport([
+      toExportedEntry(makeEntry({ id: 'a', estimatedCost: 0.0012, estimated: true, promptTokens: 0 })),
+    ]);
+    const row = csv.split('\r\n')[1];
+    // estimatedCost rounded to 6 decimals
+    expect(row).toMatch(/0\.0012/);
+    expect(row).toMatch(/,true,/);
+    expect(row).toMatch(/,0,/); // promptTokens
+  });
+
+  it('toExportedEntry coalesces optional fields (clientId / source / summaries) to safe defaults', async () => {
+    const { toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
+    const out = toExportedEntry(makeEntry({ id: 'a' }));
+    expect(out.clientId).toBe('unknown');
+    expect(out.source).toBe('unknown');
+    expect(out.promptSummary).toBe('');
+    expect(out.responseSummary).toBe('');
+    expect(out.estimated).toBe(false);
+  });
+
+  it('computeExportTotals aggregates requests, tokens, cost, errors', async () => {
+    const { computeExportTotals, toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
+    const totals = computeExportTotals([
+      toExportedEntry(makeEntry({ id: 'a', promptTokens: 100, completionTokens: 50, totalTokens: 150, estimatedCost: 0.001 })),
+      toExportedEntry(makeEntry({ id: 'b', promptTokens: 200, completionTokens: 80, totalTokens: 280, estimatedCost: 0.002, status: 500 })),
+      toExportedEntry(makeEntry({ id: 'c', promptTokens: 50, completionTokens: 10, totalTokens: 60, estimatedCost: 0.0005, status: 200 })),
+    ]);
+    expect(totals.requests).toBe(3);
+    expect(totals.promptTokens).toBe(350);
+    expect(totals.completionTokens).toBe(140);
+    expect(totals.totalTokens).toBe(490);
+    expect(totals.errors).toBe(1); // only the 500
+    expect(totals.estimatedCost).toBeCloseTo(0.0035, 6);
+  });
+
+  it('computeExportTotals returns zeros on an empty entry set', async () => {
+    const { computeExportTotals } = await import('../src/aiflowbridge/ui/dashboard');
+    expect(computeExportTotals([])).toEqual({
+      requests: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      estimatedCost: 0,
+      errors: 0,
+    });
+  });
+
+  it('buildJsonExport wraps entries + meta in a schemaVersioned envelope', async () => {
+    const { buildJsonExport, toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
+    const entries = [toExportedEntry(makeEntry({ id: 'a' }))];
+    const meta = {
+      generatedAt: '2026-07-13T20:00:00.000Z',
+      extensionVersion: '2.15.0',
+      filters: { preset: '24h', provider: '', fromDate: '', toDate: '', search: '' },
+      totals: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0 },
+    };
+    const payload = JSON.parse(buildJsonExport(entries, meta));
+    expect(payload.schemaVersion).toBe(1);
+    expect(payload.source).toBe('AIFlowBridge dashboard export');
+    expect(payload.meta).toEqual(meta);
+    expect(payload.entries).toHaveLength(1);
+    expect(payload.entries[0].id).toBe('a');
+    // Pretty-printed (indented) and ends with newline.
+    expect(buildJsonExport(entries, meta).endsWith('\n')).toBe(true);
+  });
+
+  it('buildExportFilename slugifies the preset and embeds the timestamp', async () => {
+    const { buildExportFilename } = await import('../src/aiflowbridge/ui/dashboard');
+    const filename = buildExportFilename(
+      { generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: '24h', provider: '', fromDate: '', toDate: '', search: '' } },
+      'csv'
+    );
+    expect(filename).toBe('aiflowbridge-metrics-24h-2026-07-13T20-00-00-000Z.csv');
+    expect(buildExportFilename({ generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: 'last 30mn', provider: '', fromDate: '', toDate: '', search: '' } }, 'json')).toBe(
+      'aiflowbridge-metrics-last-30mn-2026-07-13T20-00-00-000Z.json'
+    );
+  });
+
+  it('buildExportFilename uses "all" as the preset fallback when missing or empty', async () => {
+    const { buildExportFilename } = await import('../src/aiflowbridge/ui/dashboard');
+    const filename = buildExportFilename(
+      { generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: '', provider: '', fromDate: '', toDate: '', search: '' } },
+      'csv'
+    );
+    expect(filename.startsWith('aiflowbridge-metrics-all-')).toBe(true);
+  });
+
+  it('renders an Export filtered group with CSV + JSON buttons in the Filters panel', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toMatch(/id="export-csv-btn"/);
+    expect(html).toMatch(/id="export-json-btn"/);
+    expect(html).toMatch(/Export filtered/);
+  });
+
+  it('wires the export buttons to click handlers that call buildExportPayload', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    const script = extractScript(html);
+    expect(script).toMatch(/wireExportButton/);
+    expect(script).toMatch(/wireExportButton\("export-csv-btn", "csv"\)/);
+    expect(script).toMatch(/wireExportButton\("export-json-btn", "json"\)/);
+    // The handler builds the payload from currentRecent (the
+    // filtered subset) - this is the contract that makes the
+    // export honor every active dashboard filter.
+    expect(script).toMatch(/currentRecent\.map\(toExportedEntryBrowser\)/);
+    // The previous client-side `URL.createObjectURL` + `<a download>`
+    // pattern silently no-op'd under the default VS Code webview
+    // CSP (blob: URLs are blocked). The handler now ships the
+    // payload to the extension host via postMessage; the host
+    // shows a native save dialog and writes the file via
+    // vscode.workspace.fs.writeFile.
+    expect(script).toMatch(/vscodeApi\.postMessage\(\s*\{[^}]*type:\s*"export"/);
+    expect(script).toMatch(/filename:\s*payload\.filename/);
+    expect(script).toMatch(/contents:\s*payload\.contents/);
+    // The legacy broken pattern must NOT appear anymore. The regex
+    // is anchored to a code statement (not a comment) so the
+    // historical context lines (which explain why we removed it)
+    // do not trigger a false positive.
+    expect(script).not.toMatch(/^\s*var url\s*=\s*URL\.createObjectURL/m);
+    expect(script).not.toMatch(/a\.download\s*=\s*filename/);
+  });
+
+  it('declares extensionVersion in the inline script (regression for buildExportPayload ReferenceError)', () => {
+    // Regression: buildExportPayload referenced an `extensionVersion`
+    // identifier that was never declared in the inline script. The
+    // dashboard threw `Uncaught ReferenceError: extensionVersion is
+    // not defined` the moment the user clicked Export, leaving the
+    // export silently broken even after the postMessage fix. The
+    // version is now hydrated at HTML build time from
+    // `versions.extension` so the script has the value in scope.
+    const versions = { extension: '9.9.9-test' };
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, versions);
+    const script = extractScript(html);
+    expect(script).toMatch(/var\s+extensionVersion\s*=\s*"9\.9\.9-test"/);
+  });
+
+  it('declares extensionVersion as an empty string when no version is provided', () => {
+    // The extension version is optional in the API; when the host
+    // omits it, the export metadata header must still build without
+    // throwing (downstream JSON consumers expect a string).
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {});
+    const script = extractScript(html);
+    expect(script).toMatch(/var\s+extensionVersion\s*=\s*""/);
+  });
+});
+
+function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry {
+  return {
+    id: 'r1',
+    timestamp: '2026-07-13T20:00:00.000Z',
+    providerId: 'minimax',
+    providerLabel: 'MiniMax V2.7',
+    model: 'MiniMax-M2.7',
+    status: 200,
+    durationMs: 420,
+    promptTokens: 100,
+    completionTokens: 50,
+    totalTokens: 150,
+    estimatedCost: 0.0002,
+    estimated: false,
+    ...overrides,
+  } as RequestTelemetry;
+}
+
+describe('formatPricingBundleVersion', () => {
+  it('renders a real semver with the canonical v prefix', () => {
+    expect(formatPricingBundleVersion('2.15.0')).toBe('AIFlowBridge v2.15.0');
+    expect(formatPricingBundleVersion('2.14.0-rc.1')).toBe('AIFlowBridge v2.14.0-rc.1');
+  });
+
+  it('falls back to an explicit "unknown" label for the "0.0.0" sentinel', () => {
+    // The release-time script used to write "0.0.0" when
+    // package.json had no version field, which then surfaced in
+    // the dashboard as a confusing "AIFlowBridge v0.0.0" tag.
+    // The dashboard must treat it as a stale / unknown stamp.
+    expect(formatPricingBundleVersion('0.0.0')).toBe('AIFlowBridge version unknown (run npm run pricing:refresh)');
+  });
+
+  it('falls back to the same label for empty / null / undefined input', () => {
+    expect(formatPricingBundleVersion('')).toBe('AIFlowBridge version unknown (run npm run pricing:refresh)');
+    expect(formatPricingBundleVersion(undefined)).toBe('AIFlowBridge version unknown (run npm run pricing:refresh)');
+    expect(formatPricingBundleVersion(null)).toBe('AIFlowBridge version unknown (run npm run pricing:refresh)');
+  });
+});
+
+describe('dashboard renders the pricing snapshot header safely', () => {
+  function buildConfigWithPricing(bundledVersion: string): AiFlowBridgeConfig {
+    return {
+      ...baseConfig(),
+      pricing: {
+        models: {},
+        sourceByModel: {},
+        bundledFetchedAt: '2026-07-13T16:15:03.036Z',
+        bundledVersion,
+      },
+    };
+  }
+
+  it('uses the formatted version label when bundledVersion is "0.0.0"', () => {
+    const html = buildDashboardHtml(buildConfigWithPricing('0.0.0'), snapshotWithData(), true);
+    expect(html).toContain('AIFlowBridge version unknown (run npm run pricing:refresh)');
+    // The legacy "v0.0.0" string must NOT appear, so the user
+    // does not mistake the sentinel for a real install bug.
+    expect(html).not.toContain('AIFlowBridge v0.0.0');
+  });
+
+  it('uses the formatted version label when bundledVersion is empty', () => {
+    const html = buildDashboardHtml(buildConfigWithPricing(''), snapshotWithData(), true);
+    expect(html).toContain('AIFlowBridge version unknown (run npm run pricing:refresh)');
+  });
+
+  it('renders the canonical "vX.Y.Z" label for a real semver', () => {
+    const html = buildDashboardHtml(buildConfigWithPricing('2.15.0'), snapshotWithData(), true);
+    expect(html).toContain('AIFlowBridge v2.15.0');
   });
 });

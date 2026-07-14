@@ -35,11 +35,20 @@ export type TelemetryStateSaver = (snapshot: TelemetrySnapshot) => void;
 
 /**
  * Optional pluggable hook used to make the singleton/version-aware restart
- * flow testable. The default implementation shows a non-modal VS Code
- * information message; tests inject a stub instead.
+ * flow testable. The default implementation shows a MODAL VS Code
+ * warning dialog (always in the foreground, blocks the editor until
+ * the user picks an action). The previous non-modal information
+ * notification could be hidden behind another window and leave the
+ * extension stuck waiting for a choice the user could not see.
+ * Tests inject a stub instead.
  */
 export interface UserPrompt {
-  showInformationMessage(message: string, ...items: string[]): Promise<string | undefined>;
+  /**
+   * Show a modal confirmation prompt with the given action buttons.
+   * Returns the label of the chosen button, or `undefined` if the
+   * user dismissed the dialog without picking one.
+   */
+  showModalMessage(message: string, ...items: string[]): Promise<string | undefined>;
 }
 
 /**
@@ -565,7 +574,7 @@ export class GatewayService {
       if (compareSemver(peer.version, this.bundledVersion) < 0) {
         const restartLabel = `Restart with v${this.bundledVersion}`;
         const keepLabel = 'Keep current version';
-        const choice = await this.userPrompt.showInformationMessage(
+        const choice = await this.userPrompt.showModalMessage(
           `AIFlowBridge gateway v${peer.version} is running. Restart with v${this.bundledVersion}?`,
           restartLabel,
           keepLabel
@@ -2522,9 +2531,16 @@ export function translatePayloadForUpstream(payload: Record<string, unknown> | u
 
 const defaultUserPrompt: UserPrompt = {
   // Lazy import to avoid pulling vscode into pure unit tests.
-  async showInformationMessage(message: string, ...items: string[]): Promise<string | undefined> {
+  async showModalMessage(message: string, ...items: string[]): Promise<string | undefined> {
     const vscode = await import('vscode');
-    return vscode.window.showInformationMessage(message, ...items);
+    // Modal dialog so the user cannot accidentally lose the prompt
+    // behind another window and leave the extension stuck waiting
+    // for a restart decision. `showWarningMessage` with `{ modal: true }`
+    // accepts multiple buttons and blocks the editor until the user
+    // picks one (consistent with the existing `ctx.confirm` impl in
+    // `vscode-context-adapter.ts`). The warning icon signals that
+    // this is a blocking decision, not just an FYI notification.
+    return vscode.window.showWarningMessage(message, { modal: true }, ...items);
   },
 };
 
