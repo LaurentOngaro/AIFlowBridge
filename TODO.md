@@ -29,13 +29,15 @@ _None for now._
 
 _None for now._
 
-### Features (last: FEAT11)
+### Features (last: FEAT12)
 
-- [ ] FEAT11 : follows up pour FEAT10: Pistes de suivi pour la suite (non faites, reportees)
-  - [ ] **README.md cost tables regenerated from `resources/pricing.json`.** L'action plan prevoyait un script `_helpers/scripts/refresh-pricing-readme.py` pour regenerer les tableaux prose du README et `docs/cost.md` a partir du JSON bundle. Pas implementer dans cette passe ; peut etre ajoute dans une release ulterieure.
-  - [ ] **Drift drift-warning emit on user-side divergence.** L'action plan precise explicitement : "No drift warning is emitted when the user-side refresh produces a rate that diverges from the bundled one." On respecte la consigne (pas de warning), mais un toggle opt-in (`aiflowbridge.gateway.pricing.warnOnDrift`) reste imaginable si un utilisateur le demande.
-  - [ ] **Source URL configurable (`aiflowbridge.gateway.pricing.sourceUrl`).** L'action plan ecarte le sujet pour cette iteration (OpenRouter hard-coded). A reouvrir si un utilisateur passe par un proxy OpenRouter-compatible.
-  - [ ] **Sub-command CLI `aiflowbridge-server pricing refresh`.** L'action plan ecarte le sujet pour cette iteration (le standalone se contente du bundled JSON + globalStorage override). A reouvrir si necessaire pour les deploiements headless.
+- [ ] FEAT12: add Alibaba Qwen (DashScope) and ZAI GLM as leading OpenAI-compatible vendors, in the same way as DeepSeek / MiniMax / Xiaomi (dedicated picker, API key commands, preconfigured gateway profile, bundled models). See `_Private/ACTION_PLAN.md` section 1 for the detailed implementation plan.
+- [ ] FEAT11: follows up for FEAT10: Follow-up tracks for the rest (not done, postponed)
+  - [ ] **README.md cost tables regenerated from `resources/pricing.json`.** The action plan provided a script `_helpers/scripts/refresh-pricing-readme.py` to regenerate the prose tables of the README and `docs/cost.md` from the JSON bundle. Not implemented in this pass; can be added in a later release.
+  - [ ] **Drift drift-warning emit on user-side divergence.** The action plan explicitly states: "No drift warning is emitted when the user-side refresh produces a rate that diverges from the bundled one." We respect the instructions (no warning), but a toggle opt-in (`aiflowbridge.gateway.pricing.warnOnDrift`) remains possible if a user requests it.
+  - [ ] **Configurable source URL (`aiflowbridge.gateway.pricing.sourceUrl`).** The action plan deviates the subject for this iteration (OpenRouter hard-coded). To be reopened if a user goes through an OpenRouter-compatible proxy.
+  - [ ] **CLI sub-command `aiflowbridge-server pricing refresh`.** The action plan dismisses the subject for this iteration (the standalone is content with bundled JSON + globalStorage override). To be reopened if necessary for headless deployments.
+-
 
 ### Publish (last: PUB02)
 
@@ -63,16 +65,17 @@ _The README has a public-facing version of this roadmap in the "Roadmap" section
 
 Next up:
 
-- [ ] More Agentic coding extension adapters (e.g., Claude Code)
-- [ ] More openAI-compatible providers - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
+- [ ] Alibaba Qwen (DashScope) + ZAI GLM as first-class vendors - first-class picker entries, per-vendor `setApiKey` / `clearApiKey`, gateway profiles, bundled models (Qwen3 Coder / Qwen3 Max, GLM-4.6 / GLM-4.5). See `_Private/ACTION_PLAN.md` section 1.
 - [ ] Ollama upstream - local LLMs (Llama, Mistral, Qwen, DeepSeek-R1) routed through the same gateway; no cloud cost, no data leaving the machine
-- [ ] Auto-routing with failover - ordered provider fallback list (e.g. DeepSeek -> MiniMax -> Ollama local) for resilience
+- [ ] Web-based dashboard at `http://127.0.0.1:8787/dashboard` (in addition to the VS Code panel)
 - [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway
+- [ ] More openAI-compatible providers - add more profiles to the default `aiflowbridge.providers` (e.g. Azure, Gemini, Mistral) and test compatibility with the gateway routing
+- [ ] More Agentic coding extension adapters (e.g., Claude Code)
+- [ ] Auto-routing with failover - ordered provider fallback list (e.g. DeepSeek -> MiniMax -> Ollama local) for resilience
 - [ ] Token-by-token streaming diff in the dashboard - first/last token of each response, not just the total
 
 Backlog (value to confirm):
 
-- [ ] Web-based dashboard at `http://127.0.0.1:8787/dashboard` (in addition to the VS Code panel)
 - [ ] Workspace-level metrics - break down usage by current repo / current branch
 - [ ] i18n of the extension UI (only English today, by design - revisit if requests come in)
 

@@ -235,9 +235,10 @@ Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is l
 
 ## Roadmap (extract)
 
+- Alibaba Qwen (DashScope) + ZAI GLM as first-class vendors - dedicated picker entries, per-vendor `setApiKey` / `clearApiKey`, gateway profiles, bundled flagship models (Qwen3 Coder / Qwen3 Max, GLM-4.6 / GLM-4.5).
 - Ollama local upstream - the next "single-key unlocks N models" milestone, on par with OpenRouter in terms of breadth per key
-- auto-routing with failover across the 4 vendors - ordered fallback list (DeepSeek -> MiniMax -> OpenRouter) so an outage on one doesn't block the agent
 - web-based dashboard at `http://127.0.0.1:8787/dashboard`
+- auto-routing with failover across the 4 vendors - ordered fallback list (DeepSeek -> MiniMax -> OpenRouter) so an outage on one doesn't block the agent
 - ...
 
 Released in 2.15.0: **Dynamic pricing and cost estimation** - bundled `resources/pricing.json` (OpenRouter catalog snapshot, refreshed per release and on demand) + dashboard `Refresh prices` button + `AIFlowBridge: Refresh pricing now` + dashboard `CSV` / `JSON` export of the filtered telemetry. See [CHANGELOG.md](CHANGELOG.md#2150).

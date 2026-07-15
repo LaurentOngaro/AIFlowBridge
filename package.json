@@ -562,7 +562,8 @@
                 "enum": [
                   "deepseek",
                   "minimax",
-                  "xiaomi"
+                  "xiaomi",
+                  "openrouter"
                 ],
                 "description": "Provider family"
               },
