@@ -39,7 +39,8 @@ Two buttons next to `Clear filters` in the Filters panel - `CSV` and `JSON` - do
 
 ## Refresh prices (Gateway panel)
 
-The `Refresh prices` button in the Gateway panel hits OpenRouter `/v1/models`, writes `<globalStorageUri>/pricing-override.json`, and updates the in-memory pricing registry in place so every `Est. cost` tooltip and the totals card refresh without a window reload. The bundled pricing snapshot stamp in the same panel (`generatedAt` + `AIFlowBridge vX.Y.Z`) tells you whether you are looking at a release-time fresh value or your last user-side refresh.
+The `Refresh prices` button in the Gateway panel hits OpenRouter `/v1/models`, writes `<globalStorageUri>/pricing-override.json`, and updates the in-memory pricing registry in place so every `Est. cost` tooltip and the totals card refresh without a window reload.
+The bundled pricing snapshot stamp in the same panel (`generatedAt` + `AIFlowBridge vX.Y.Z`) tells you whether you are looking at a release-time fresh value or your last user-side refresh.
 
 ## Collapsible panels
 
@@ -152,13 +153,4 @@ The "requests" counter in the status bar increments only when the gateway handle
 
 ## Screenshots
 
-| Dashboard                                                                       | Copilot picker                                                                     |
-| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| ![Dashboard](resources/screenshots_v1.1.1/01_AIFB_dashboard_after_a_prompt.png) | ![Copilot picker](resources/screenshots_v1.1.1/03_AIFB_copilot%20LLM%20picker.png) |
-
-| Kilo Code picker                                                                      | Gateway metrics                                                             |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| ![Kilo Code picker](resources/screenshots_v1.1.1/02_AIFB_kiloCode%20LLM%20picker.png) | ![Gateway metrics](resources/screenshots_v1.4.0/06a_AIFB_API_metrics_1.png) |
-
-The screenshots are captured against the v1.1.1 / v1.4.0 dashboard (preset buttons, no provider filter).
-New screenshots should land in `resources/screenshots_v2.7.0/` once captured; drop them into this table to refresh the visual references for the combobox + provider filter.
+The full gallery (dashboard, pickers, providers, gateway, settings, metrics) lives in [docs/screenshots.md](screenshots.md), grouped by release version in descending order.

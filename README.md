@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.15.4** - data snapshot **2026-07-14**. Model ids and pricing throughout this README are pinned to this snapshot. Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
+> **AIFlowBridge 2.15.5** - data snapshot **2026-07-14**. Model ids and pricing throughout this README are pinned to this snapshot. Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
 **Runs as a VS Code extension **or** as a standalone Node.js binary (~30 MB RAM).**
 
@@ -67,7 +67,7 @@ Pair-programming is built in: the dashboard shows sanitized prompt / response su
 
 ## Pick your cost point
 
-> **Data snapshot: 2026-07-14 (AIFlowBridge 2.15.4).** Source: `https://openrouter.ai/api/v1/models` for OpenRouter entries, per-vendor pricing pages for direct vendors. Refresh per release; verify before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness).
+> **Data snapshot: 2026-07-14 (AIFlowBridge 2.15.5).** Source: `https://openrouter.ai/api/v1/models` for OpenRouter entries, per-vendor pricing pages for direct vendors. Refresh per release; verify before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness).
 
 One extension, three pricing tiers - choose what fits your workload.
 The OpenRouter path trades a small upstream markup for access to 100+ frontier models (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, Qwen 3.7 Max, etc.) behind a single API key.
@@ -100,6 +100,14 @@ You pay only the upstream providers you actually use - OpenRouter, DeepSeek, Min
 - **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](vision-proxy.md)
 - **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini 3.5 Flash - see [docs/reasoning.md](reasoning.md)
 - **Local-first**: API keys in your OS keychain, telemetry on your machine, no remote endpoints
+
+<!-- markdownlint-disable MD033 -->
+<p align="center">
+  <img src="resources/screenshots_v2.15.5/01a_AIFB_dashboard_all_sections.png" alt="AIFlowBridge metrics dashboard - all sections" width="900">
+</p>
+<!-- markdownlint-enable MD033 -->
+
+The full gallery (dashboard, pickers, providers, gateway, settings, metrics) lives in [docs/screenshots.md](screenshots.md), grouped by release version in descending order.
 
 ## Features
 
@@ -199,6 +207,7 @@ See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste cli
 | [docs/reasoning.md](docs/reasoning.md)                           | MiniMax M3 thinking effort selector                                |
 | [docs/gateway.md](docs/gateway.md)                               | Local OpenAI-compatible gateway, version handling                  |
 | [docs/dashboard.md](docs/dashboard.md)                           | Metrics dashboard features, filters, pagination                    |
+| [docs/screenshots.md](docs/screenshots.md)                       | Visual gallery across release versions                             |
 | [docs/architecture.md](docs/architecture.md)                     | Source layout, model registry 3-tier merge                         |
 | [docs/development.md](docs/development.md)                       | Build, test, package, privacy & security                           |
 | [docs/troubleshooting.md](docs/troubleshooting.md)               | Common errors and fixes                                            |
@@ -241,7 +250,8 @@ Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is l
 - auto-routing with failover across the 4 vendors - ordered fallback list (DeepSeek -> MiniMax -> OpenRouter) so an outage on one doesn't block the agent
 - ...
 
-Released in 2.15.0: **Dynamic pricing and cost estimation** - bundled `resources/pricing.json` (OpenRouter catalog snapshot, refreshed per release and on demand) + dashboard `Refresh prices` button + `AIFlowBridge: Refresh pricing now` + dashboard `CSV` / `JSON` export of the filtered telemetry. See [CHANGELOG.md](CHANGELOG.md#2150).
+Released in 2.15.0: **Dynamic pricing and cost estimation** - bundled `resources/pricing.json` (OpenRouter catalog snapshot, refreshed per release and on demand) + dashboard `Refresh prices` button + `AIFlowBridge: Refresh pricing now` + dashboard `CSV` / `JSON` export of the filtered telemetry.
+See [CHANGELOG.md](CHANGELOG.md#2150).
 Just before (2.14.0): audit-driven hardening pass - 3 fixes + 1 defense-in-depth check on the upstream credential path + 3 redundant code paths cleaned up.
 Back in 2.12.0: **OpenRouter upstream** (100+ models via single key) - see [CHANGELOG.md](CHANGELOG.md#2120).
 
