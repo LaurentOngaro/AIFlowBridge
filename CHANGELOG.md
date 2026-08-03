@@ -10,8 +10,9 @@
 
 ### Documentation
 
-- **Hero screenshot in the README.** The README now leads with a centered dashboard screenshot (`resources/screenshots_v2.15.5/01a_AIFB_dashboard_all_sections.png`) inserted between the "Why AIFlowBridge?" section and the "Features" section, giving casual readers a visual anchor before they dive into the bullet lists. The image is wrapped in `markdownlint-disable MD033` / `markdownlint-enable MD033` to allow the inline `<p align="center">` + `<img>` HTML, the same pattern already used for the project icon and the Sponsoring badges.
+- **Hero screenshot in the README.** The README now leads with a centered dashboard screenshot inserted between the "Why AIFlowBridge?" section and the "Features" section, giving casual readers a visual anchor before they dive into the bullet lists. The image is wrapped in `markdownlint-disable MD033` / `markdownlint-enable MD033` to allow the inline `<p align="center">` + `<img>` HTML, the same pattern already used for the project icon and the Sponsoring badges.
 - **Screenshots gallery extracted from `docs/dashboard.md` to a dedicated `docs/screenshots.md`.** The previous gallery lived inside the dashboard doc as a 2x2 table; it has grown to 18 captures across three release folders (`resources/screenshots_v2.15.5/`, `resources/screenshots_v1.4.0/`, `resources/screenshots_v1.1.1/`) and warrants its own page. `docs/screenshots.md` is the canonical gallery now, grouped by release version in descending order, with a one-image-per-row `Description | Screenshot` table format that scales cleanly and a short "Adding new captures" section explaining the convention for future releases. `docs/dashboard.md` keeps a one-paragraph pointer to the new page. The README `## Documentation` table gained a `[docs/screenshots.md](docs/screenshots.md)` row so the gallery is discoverable from the top-level index.
+- Data Snapshots and models prices have been updated to reflect the latest changes.
 
 ## 2.15.4
 
