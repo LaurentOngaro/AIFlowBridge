@@ -37,4 +37,22 @@ Before opening a PR:
 npm run compile           # 0 errors
 npm test
 npm run compile:standalone  # 0 errors (if standalone touched)
+npm run typecheck:tests   # 0 errors (type-checks tests/ via tests/tsconfig.json)
 ```
+
+## Test type-checking (`tests/tsconfig.json`)
+
+The root `tsconfig.json` only includes `src/`, so test files are not
+type-checked by `npm run compile` (vitest transpiles them without type
+checking). `tests/tsconfig.json` covers the `tests/` directory with
+`noEmit`, inherits `strict` + `types: ["node"]` from the root config,
+and is the config VS Code's TS server finds when walking up from any
+file under `tests/` - the same directory-walk discovery used for the
+root config, so the editor always assigns test files to it (a
+root-level `tsconfig.test.json` matched only by `include` is not
+reliably picked up by the editor). Run it explicitly with
+`npm run typecheck:tests` (or `tsc -p tests/tsconfig.json`) to catch
+type regressions in tests before CI.
+
+Do NOT add `/// <reference types="node" />` to test files - that was a
+stopgap for the old inferred-project setup and is no longer needed.

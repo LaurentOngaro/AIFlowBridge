@@ -28,9 +28,12 @@ const { mockVscode, capturedFsWrites } = vi.hoisted(() => {
       },
       window: {
         createOutputChannel: vi.fn(() => stubChannel),
-        showSaveDialog: vi.fn(async () => undefined),
-        showInformationMessage: vi.fn(async () => undefined),
-        showErrorMessage: vi.fn(async () => undefined),
+        // Mirror the real showSaveDialog contract: takes an options
+        // object (defaultUri + title + filters) and resolves to the
+        // chosen URI or undefined when the user dismisses the dialog.
+        showSaveDialog: vi.fn(async (_options: { defaultUri: { fsPath: string }; title?: string; filters?: Record<string, string[]> }): Promise<{ fsPath: string } | undefined> => undefined),
+        showInformationMessage: vi.fn(async (_message: string) => undefined),
+        showErrorMessage: vi.fn(async (_message: string) => undefined),
       },
       workspace: {
         fs: {

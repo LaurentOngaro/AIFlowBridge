@@ -6,6 +6,12 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.15.4
+
+### Changed
+
+- **Test files are now type-checked as a first-class gate.** The root `tsconfig.json` only includes `src/`, so the test files under `tests/` were never type-checked by the compiler - vitest transpiles them without type checking, which let type regressions in tests (wrong field names, incompatible mocks, DOM-only lib types) slip into the editor and CI silently. A new `tests/tsconfig.json` (extends the root config, `types: ["node"]`, `noEmit`) is discovered by VS Code's TS server through the normal directory-walk (the same way the root config is found), so files under `tests/` are always assigned to it, and a new `npm run typecheck:tests` script runs it. It is wired into the `npm run package` gate so the release CI rejects test-type regressions just like it rejects `src` compile errors. 40 latent type errors across 5 test files were fixed as part of wiring this up (mock signatures in `tests/export-telemetry.test.ts`, the fake-fs `readFile` typing in `tests/modelRegistry.test.ts` + `tests/pricing-loader.test.ts`, a DOM-only `BodyInit` cast in `tests/gateway-bug17.test.ts`, and an import attribute incompatible with the `commonjs` module mode in `tests/integration/openrouter.smoke.test.ts`). The `/// <reference types="node" />` stopgap directives that used to be needed for `node:*` imports in the editor were removed - they are redundant now that `tests/tsconfig.json` provides the `node` types. (A root-level `tsconfig.test.json` matched only by `include` is not reliably picked up by the editor for file assignment, so the config lives inside `tests/` where directory-walk discovery guarantees it.)
+
 ## 2.15.3
 
 ### Fixed

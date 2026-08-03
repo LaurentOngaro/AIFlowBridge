@@ -81,6 +81,10 @@ Backlog (value to confirm):
 
 ## Completed
 
+### 2.15.4
+
+- Test type-checking hardened: new `tests/tsconfig.json` (discovered by the editor via directory-walk) + `npm run typecheck:tests` (wired into `npm run package`), 40 latent type errors fixed across 5 test files, triple-slash `node` reference directives removed (see 2.15.4 CHANGELOG entry above)
+
 ### 2.15.2
 
 - BUG20 dashboard metrics: values ​​in the client column must be shortened to prevent the requests list from extending beyond the section in which it is contained

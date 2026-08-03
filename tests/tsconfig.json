@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "..",
+    "types": ["node"]
+  },
+  "include": [".", "../vscode.proposed.languageModelThinkingPart.d.ts"],
+  "exclude": ["node_modules"]
+}

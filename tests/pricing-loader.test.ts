@@ -9,6 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 // ---- Minimal vscode mock (hoisted so vi.mock can reference it) ----
 
@@ -76,7 +77,7 @@ function makeContext(): { extensionUri: MockUri; globalStorageDir: string; works
 }
 
 interface FakeFs {
-  readFile: ReturnType<typeof vi.fn>;
+  readFile: Mock<(uri: MockUri) => Promise<Uint8Array>>;
 }
 
 function makeFs(filesByPath: Record<string, unknown>): FakeFs {

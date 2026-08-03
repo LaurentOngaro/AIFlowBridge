@@ -153,7 +153,7 @@ function sseResponse(chunks: string[], delayMs = 0): Response {
       controller.close();
     },
   });
-  return new Response(stream as unknown as BodyInit, {
+  return new Response(stream, {
     status: 200,
     headers: { 'content-type': 'text/event-stream' },
   });

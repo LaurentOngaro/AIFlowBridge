@@ -8,7 +8,6 @@
  *   - The onConfigChange watcher: `invalidate()` is called on the
  *     underlying ConfigReader when the watched file changes.
  */
-/// <reference types="node" />
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
