@@ -14,7 +14,7 @@ See `_Private/docs/ACTION_PLAN.md` for implementation details, if required for s
 
 _None for now._
 
-### Bugs (last: BUG19)
+### Bugs (last: BUG20)
 
 _None for now._
 
@@ -81,6 +81,10 @@ Backlog (value to confirm):
 
 ## Completed
 
+### 2.15.2
+
+- BUG20 dashboard metrics: values ​​in the client column must be shortened to prevent the requests list from extending beyond the section in which it is contained
+
 ### 2.15.1
 
 - BUG (release-CI TS2345): modal `vscode.window.showWarningMessage(message, { modal: true }, ...items)` in `src/aiflowbridge/gateway/server.ts` failed `tsc` and aborted the release workflow with exit code 2. Cast through `unknown` to disambiguate the VS Code overloads - same workaround already in use in `src/aiflowbridge/vscode-context-adapter.ts` (see 2.15.1 CHANGELOG entry below for the full surface)
@@ -96,7 +100,7 @@ Backlog (value to confirm):
 
 ### 2.11.0
 
-- BUG19: Command "install standalone gateway" fails with error " Failed to install standalone gateway: Cannot find module 'adm-zip'"
+- 20Command "install standalone gateway" fails with error " Failed to install standalone gateway: Cannot find module 'adm-zip'"
 
 ### 2.10.0
 

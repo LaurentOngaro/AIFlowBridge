@@ -13,7 +13,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiFlowBridgeConfig, RequestTelemetry, TelemetrySnapshot } from '../src/aiflowbridge/types';
-import { buildDashboardHtml, buildPricingMaps, formatCostCell, formatPricingBundleVersion } from '../src/aiflowbridge/ui/dashboard';
+import { buildDashboardHtml, buildPricingMaps, formatCostCell, formatPricingBundleVersion, truncateClientIdForDisplay, CLIENT_ID_DISPLAY_MAX_LENGTH } from '../src/aiflowbridge/ui/dashboard';
+import { compareVals, cycleSortDir, defaultSortState, recentSortVal, objSortVal, sortRecentEntries, sortObjectEntries } from '../src/aiflowbridge/ui/dashboard-sort';
 
 function emptySnapshot(): TelemetrySnapshot {
   return {
@@ -1219,7 +1220,18 @@ describe('column sorting', () => {
   it('embeds sort state in the script block', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('sortState');
-    expect(html).toContain('key: null, dir: null');
+    // The inline script delegates to the pure helper so the unit
+    // tests can pin the default values directly.
+    expect(html).toContain('defaultSortState()');
+  });
+
+  it('defaultSortState wires the recent panel to timestamp descending', () => {
+    // The dashboard HTML reads from defaultSortState(); the test
+    // exercises the helper directly so the user-visible default is
+    // pinned without booting a webview.
+    expect(defaultSortState().recent).toEqual({ key: 'timestamp', dir: 'desc' });
+    expect(defaultSortState().model).toEqual({ key: null, dir: null });
+    expect(defaultSortState().provider).toEqual({ key: null, dir: null });
   });
 
   it('embeds compareVals helper in the script block', () => {
@@ -1286,13 +1298,10 @@ describe('column sorting', () => {
     expect(applySortsIdx).toBeGreaterThan(rerenderIdx);
   });
 
-  it('cycles sort direction: asc -> desc -> clear', () => {
+  it('cycles sort direction via cycleSortDir, not via inline state machine', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    // The click handler must implement the 3-state cycle
-    expect(html).toContain('if (st.dir === "asc")');
-    expect(html).toContain('st.dir = "desc"');
-    expect(html).toContain('st.key = null');
-    expect(html).toContain('st.dir = null');
+    // The inline handler now delegates to the cycleSortDir helper.
+    expect(html).toContain('cycleSortDir');
   });
 });
 
@@ -1324,6 +1333,277 @@ describe('formatCostCell', () => {
   it('falls back to USD when no pricing is supplied', () => {
     const html = formatCostCell(0.5, undefined);
     expect(html).toContain('$0.5');
+  });
+});
+
+describe('truncateClientIdForDisplay', () => {
+  it('returns short strings unchanged', () => {
+    expect(truncateClientIdForDisplay('kilocode@1.2.3', CLIENT_ID_DISPLAY_MAX_LENGTH)).toBe('kilocode@1.2.3');
+    expect(truncateClientIdForDisplay('', CLIENT_ID_DISPLAY_MAX_LENGTH)).toBe('');
+  });
+
+  it('returns strings exactly at the limit unchanged', () => {
+    const exact = 'a'.repeat(CLIENT_ID_DISPLAY_MAX_LENGTH);
+    expect(truncateClientIdForDisplay(exact, CLIENT_ID_DISPLAY_MAX_LENGTH)).toBe(exact);
+  });
+
+  it('truncates strings longer than the limit with an ASCII three-dot suffix', () => {
+    const long = 'kilocode@1.2.3-extra-build-metadata-abcdef0123456789';
+    const out = truncateClientIdForDisplay(long, CLIENT_ID_DISPLAY_MAX_LENGTH);
+    expect(out.length).toBe(CLIENT_ID_DISPLAY_MAX_LENGTH);
+    expect(out.endsWith('...')).toBe(true);
+    expect(out).toBe(long.slice(0, CLIENT_ID_DISPLAY_MAX_LENGTH - 3) + '...');
+  });
+
+  it('keeps the original characters except for the trailing suffix', () => {
+    const long = 'kilocode@1.2.3-extra-build-metadata-abcdef0123456789';
+    const out = truncateClientIdForDisplay(long, CLIENT_ID_DISPLAY_MAX_LENGTH);
+    expect(out.slice(0, CLIENT_ID_DISPLAY_MAX_LENGTH - 3)).toBe(long.slice(0, CLIENT_ID_DISPLAY_MAX_LENGTH - 3));
+  });
+
+  it('returns a dot-only string when maxLength is below the suffix length', () => {
+    expect(truncateClientIdForDisplay('kilocode@1.2.3', 2)).toBe('..');
+    expect(truncateClientIdForDisplay('kilocode@1.2.3', 3)).toBe('...');
+  });
+
+  it('returns the original value when maxLength is non-positive or non-finite', () => {
+    expect(truncateClientIdForDisplay('kilocode@1.2.3', 0)).toBe('kilocode@1.2.3');
+    expect(truncateClientIdForDisplay('kilocode@1.2.3', -5)).toBe('kilocode@1.2.3');
+    expect(truncateClientIdForDisplay('kilocode@1.2.3', Number.NaN)).toBe('kilocode@1.2.3');
+  });
+
+  it('exposes CLIENT_ID_DISPLAY_MAX_LENGTH as a positive integer', () => {
+    expect(CLIENT_ID_DISPLAY_MAX_LENGTH).toBeGreaterThan(3);
+    expect(Number.isInteger(CLIENT_ID_DISPLAY_MAX_LENGTH)).toBe(true);
+  });
+});
+
+describe('dashboard sort helpers', () => {
+  describe('compareVals', () => {
+    it('compares numbers numerically (NaN sorts to the end in ascending order)', () => {
+      expect(compareVals(1, 2)).toBeLessThan(0);
+      expect(compareVals(3, 3)).toBe(0);
+      expect(compareVals(5, 1)).toBeGreaterThan(0);
+      expect(compareVals(Number.NaN, 1)).toBeGreaterThan(0);
+      expect(compareVals(1, Number.NaN)).toBeLessThan(0);
+      expect(compareVals(Number.NaN, Number.NaN)).toBe(0);
+    });
+
+    it('compares strings locale-aware', () => {
+      expect(compareVals('alpha', 'beta')).toBeLessThan(0);
+      expect(compareVals('beta', 'alpha')).toBeGreaterThan(0);
+      expect(compareVals('alpha', 'alpha')).toBe(0);
+    });
+
+    it('coerces null and undefined to the empty string', () => {
+      expect(compareVals(null, 'foo')).toBeLessThan(0);
+      expect(compareVals('foo', undefined)).toBeGreaterThan(0);
+      expect(compareVals(null, null)).toBe(0);
+    });
+  });
+
+  describe('recentSortVal', () => {
+    const base = {
+      timestamp: '2026-08-03T10:00:00.000Z',
+      status: 200,
+      providerLabel: 'OpenAI',
+      model: 'gpt-4o',
+      clientId: 'kilocode@1.2.3',
+      durationMs: 1234,
+      totalTokens: 500,
+      estimatedCost: 0.01,
+      estimated: true,
+      source: 'gateway',
+    };
+
+    it('extracts the requested field for every supported column', () => {
+      expect(recentSortVal(base, 'timestamp')).toBe('2026-08-03T10:00:00.000Z');
+      expect(recentSortVal(base, 'status')).toBe(200);
+      expect(recentSortVal(base, 'providerLabel')).toBe('OpenAI');
+      expect(recentSortVal(base, 'model')).toBe('gpt-4o');
+      expect(recentSortVal(base, 'clientId')).toBe('kilocode@1.2.3');
+      expect(recentSortVal(base, 'durationMs')).toBe(1234);
+      expect(recentSortVal(base, 'totalTokens')).toBe(500);
+      expect(recentSortVal(base, 'estimatedCost')).toBe(0.01);
+      expect(recentSortVal(base, 'estimated')).toBe('estimated');
+      expect(recentSortVal(base, 'source')).toBe('gateway');
+    });
+
+    it('coalesces missing fields to the empty string or zero', () => {
+      expect(recentSortVal({}, 'timestamp')).toBe('');
+      expect(recentSortVal({}, 'status')).toBe(0);
+      expect(recentSortVal({}, 'clientId')).toBe('');
+      expect(recentSortVal({}, 'estimatedCost')).toBe(0);
+    });
+
+    it('maps estimated=false to "usage" so it sorts below "estimated"', () => {
+      expect(recentSortVal({ estimated: false }, 'estimated')).toBe('usage');
+    });
+
+    it('coalesces missing source to "gateway"', () => {
+      expect(recentSortVal({}, 'source')).toBe('gateway');
+    });
+
+    it('returns the empty string for unknown keys without throwing', () => {
+      expect(recentSortVal(base, 'unknown-column')).toBe('');
+    });
+  });
+
+  describe('objSortVal', () => {
+    const snap = { requests: 10, totalTokens: 200, averageDurationMs: 50, errors: 1, estimatedCost: 0.005 };
+
+    it('returns the id for the name key', () => {
+      expect(objSortVal('deepseek-v4-pro', snap, 'name')).toBe('deepseek-v4-pro');
+      expect(objSortVal('', snap, 'name')).toBe('');
+    });
+
+    it('returns the matching numeric field for each known column', () => {
+      expect(objSortVal('m', snap, 'requests')).toBe(10);
+      expect(objSortVal('m', snap, 'totalTokens')).toBe(200);
+      expect(objSortVal('m', snap, 'averageDurationMs')).toBe(50);
+      expect(objSortVal('m', snap, 'errors')).toBe(1);
+      expect(objSortVal('m', snap, 'estimatedCost')).toBe(0.005);
+    });
+
+    it('returns zero when the snapshot is missing the field', () => {
+      expect(objSortVal('m', {}, 'requests')).toBe(0);
+      // null and undefined are not valid snapshots (the type
+      // signature excludes them) - they collapse to the empty
+      // string so the helper is still callable without throwing.
+      expect(objSortVal('m', null, 'requests')).toBe('');
+      expect(objSortVal('m', undefined, 'requests')).toBe('');
+    });
+
+    it('returns the empty string for unknown keys', () => {
+      expect(objSortVal('m', snap, 'unknown')).toBe('');
+    });
+  });
+
+  describe('sortRecentEntries', () => {
+    const entries = [
+      { id: 'a', timestamp: '2026-08-03T10:00:00.000Z', status: 200, model: 'b-model', totalTokens: 50, estimatedCost: 0.01, estimated: true, source: 'gateway' },
+      { id: 'b', timestamp: '2026-08-03T11:00:00.000Z', status: 500, model: 'a-model', totalTokens: 10, estimatedCost: 0.005, estimated: false, source: 'copilot-chat' },
+      { id: 'c', timestamp: '2026-08-03T09:00:00.000Z', status: 404, model: 'c-model', totalTokens: 30, estimatedCost: 0.02, estimated: true, source: 'gateway' },
+    ];
+
+    it('returns the input as a new array when no sort is active', () => {
+      const out = sortRecentEntries(entries, null, null);
+      expect(out).not.toBe(entries);
+      expect(out.map((e) => e.id)).toEqual(['a', 'b', 'c']);
+    });
+
+    it('sorts by timestamp ascending (oldest first)', () => {
+      const out = sortRecentEntries(entries, 'timestamp', 'asc');
+      expect(out.map((e) => e.id)).toEqual(['c', 'a', 'b']);
+    });
+
+    it('sorts by timestamp descending (newest first)', () => {
+      const out = sortRecentEntries(entries, 'timestamp', 'desc');
+      expect(out.map((e) => e.id)).toEqual(['b', 'a', 'c']);
+    });
+
+    it('sorts by status numerically', () => {
+      const out = sortRecentEntries(entries, 'status', 'asc');
+      expect(out.map((e) => e.status)).toEqual([200, 404, 500]);
+    });
+
+    it('sorts by model name alphabetically', () => {
+      const out = sortRecentEntries(entries, 'model', 'desc');
+      expect(out.map((e) => e.model)).toEqual(['c-model', 'b-model', 'a-model']);
+    });
+
+    it('sorts by estimated flag ("estimated" before "usage" alphabetically in ascending)', () => {
+      const out = sortRecentEntries(entries, 'estimated', 'asc');
+      // "estimated" < "usage" lexicographically (e < u), so entries
+      // with `estimated: true` sort first in ascending order.
+      expect(out[0].id).toMatch(/[ac]/);
+      expect(out[out.length - 1].id).toBe('b');
+    });
+
+    it('does not mutate the input array', () => {
+      const before = entries.map((e) => e.id);
+      sortRecentEntries(entries, 'timestamp', 'desc');
+      expect(entries.map((e) => e.id)).toEqual(before);
+    });
+  });
+
+  describe('sortObjectEntries', () => {
+    const data: Record<string, { requests: number; totalTokens: number; averageDurationMs: number; errors: number; estimatedCost: number }> = {
+      'gpt-4o': { requests: 5, totalTokens: 100, averageDurationMs: 200, errors: 0, estimatedCost: 0.01 },
+      'claude-opus': { requests: 50, totalTokens: 10, averageDurationMs: 100, errors: 5, estimatedCost: 0.5 },
+      'gemini-pro': { requests: 10, totalTokens: 50, averageDurationMs: 300, errors: 1, estimatedCost: 0.05 },
+    };
+
+    it('returns a shallow copy when no sort is active', () => {
+      const out = sortObjectEntries(data, null, null);
+      expect(out).not.toBe(data);
+      expect(Object.keys(out)).toEqual(Object.keys(data));
+    });
+
+    it('sorts by name (the model id) ascending', () => {
+      const out = sortObjectEntries(data, 'name', 'asc');
+      expect(Object.keys(out)).toEqual(['claude-opus', 'gemini-pro', 'gpt-4o']);
+    });
+
+    it('sorts by requests descending', () => {
+      const out = sortObjectEntries(data, 'requests', 'desc');
+      expect(Object.keys(out)).toEqual(['claude-opus', 'gemini-pro', 'gpt-4o']);
+    });
+
+    it('sorts by errors ascending', () => {
+      const out = sortObjectEntries(data, 'errors', 'asc');
+      expect(Object.keys(out)).toEqual(['gpt-4o', 'gemini-pro', 'claude-opus']);
+    });
+
+    it('does not mutate the input object', () => {
+      const keysBefore = Object.keys(data);
+      sortObjectEntries(data, 'requests', 'desc');
+      expect(Object.keys(data)).toEqual(keysBefore);
+    });
+  });
+
+  describe('defaultSortState', () => {
+    it('returns the recent panel sorted by timestamp descending', () => {
+      const s = defaultSortState();
+      expect(s.recent).toEqual({ key: 'timestamp', dir: 'desc' });
+    });
+
+    it('leaves the model and provider panels unsorted by default', () => {
+      const s = defaultSortState();
+      expect(s.model).toEqual({ key: null, dir: null });
+      expect(s.provider).toEqual({ key: null, dir: null });
+    });
+
+    it('returns a fresh object on every call (callers can mutate safely)', () => {
+      const a = defaultSortState();
+      const b = defaultSortState();
+      expect(a).not.toBe(b);
+      expect(a.recent).not.toBe(b.recent);
+      a.recent.key = 'model';
+      expect(b.recent.key).toBe('timestamp');
+    });
+  });
+
+  describe('cycleSortDir', () => {
+    it('starts a new column in ascending order', () => {
+      const next = cycleSortDir({ key: null, dir: null }, 'status');
+      expect(next).toEqual({ key: 'status', dir: 'asc' });
+    });
+
+    it('cycles asc -> desc on the same column', () => {
+      const next = cycleSortDir({ key: 'status', dir: 'asc' }, 'status');
+      expect(next).toEqual({ key: 'status', dir: 'desc' });
+    });
+
+    it('cycles desc -> clear on the same column', () => {
+      const next = cycleSortDir({ key: 'status', dir: 'desc' }, 'status');
+      expect(next).toEqual({ key: null, dir: null });
+    });
+
+    it('switches to a different column by resetting to ascending', () => {
+      const next = cycleSortDir({ key: 'status', dir: 'desc' }, 'model');
+      expect(next).toEqual({ key: 'model', dir: 'asc' });
+    });
   });
 });
 
@@ -1450,10 +1730,41 @@ describe('per-client IDE telemetry', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithClients(), true);
     expect(html).toContain('id="panel-client"');
     expect(html).toContain('id="client-tbody"');
-    // Each named client bucket is rendered as a <code> tag in the by-client tbody.
-    expect(html).toContain('<code title="Client identification parsed from the request">kilo-code@1.2.3</code>');
-    expect(html).toContain('<code title="Client identification parsed from the request">continue@0.9.x</code>');
-    expect(html).toContain('<code title="Client identification parsed from the request">curl@8.10.1</code>');
+    // Each named client bucket is rendered as a <code> tag in the by-client tbody,
+    // with the `client-cell` class so the CSS can clamp the cell width. The full
+    // clientId is preserved in the `title` attribute for tooltip inspection.
+    expect(html).toContain('<code class="client-cell" title="kilo-code@1.2.3">kilo-code@1.2.3</code>');
+    expect(html).toContain('<code class="client-cell" title="continue@0.9.x">continue@0.9.x</code>');
+    expect(html).toContain('<code class="client-cell" title="curl@8.10.1">curl@8.10.1</code>');
+  });
+
+  it('shortens the client cell display while preserving the full clientId in the title', () => {
+    const snap = emptySnapshot();
+    const longClient = 'kilocode@1.2.3-extra-build-metadata-abcdef0123456789';
+    snap.recent = [
+      {
+        id: 'long',
+        timestamp: '2026-07-09T12:00:00.000Z',
+        providerId: 'p1',
+        providerLabel: 'Provider 1',
+        model: 'm1',
+        status: 200,
+        durationMs: 100,
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        estimatedCost: 0.001,
+        estimated: false,
+        clientId: longClient,
+      },
+    ];
+    const html = buildDashboardHtml(baseConfig(), snap, true);
+    const truncated = truncateClientIdForDisplay(longClient, CLIENT_ID_DISPLAY_MAX_LENGTH);
+    // The visible cell carries the shortened value with the CSS clamp class.
+    expect(html).toContain(`<code class="client-cell" title="${longClient}">${truncated}</code>`);
+    // The full clientId is still present in the serialized JSON for the client-side
+    // search-haystack and the replay panel.
+    expect(html).toContain(longClient);
   });
 
   it('renders the "By client" panel as a friendly placeholder when no client data exists', () => {
@@ -1750,7 +2061,7 @@ describe('AFF07 telemetry export helpers', () => {
     const entries = [toExportedEntry(makeEntry({ id: 'a' }))];
     const meta = {
       generatedAt: '2026-07-13T20:00:00.000Z',
-      extensionVersion: '2.15.1',
+      extensionVersion: '2.15.2',
       filters: { preset: '24h', provider: '', fromDate: '', toDate: '', search: '' },
       totals: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0 },
     };
@@ -1863,7 +2174,7 @@ function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry 
 
 describe('formatPricingBundleVersion', () => {
   it('renders a real semver with the canonical v prefix', () => {
-    expect(formatPricingBundleVersion('2.15.1')).toBe('AIFlowBridge v2.15.1');
+    expect(formatPricingBundleVersion('2.15.2')).toBe('AIFlowBridge v2.15.2');
     expect(formatPricingBundleVersion('2.14.0-rc.1')).toBe('AIFlowBridge v2.14.0-rc.1');
   });
 
@@ -1909,7 +2220,7 @@ describe('dashboard renders the pricing snapshot header safely', () => {
   });
 
   it('renders the canonical "vX.Y.Z" label for a real semver', () => {
-    const html = buildDashboardHtml(buildConfigWithPricing('2.15.1'), snapshotWithData(), true);
-    expect(html).toContain('AIFlowBridge v2.15.1');
+    const html = buildDashboardHtml(buildConfigWithPricing('2.15.2'), snapshotWithData(), true);
+    expect(html).toContain('AIFlowBridge v2.15.2');
   });
 });

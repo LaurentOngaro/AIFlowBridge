@@ -43,5 +43,6 @@ The gateway also runs as a standalone Node.js CLI (`aiflowbridge-server`) withou
 
 ## User-facing documentation
 
-The end-user documentation lives under `docs/` (architecture, gateway, vision, reasoning, providers, dashboard, standalone, troubleshooting, cost, development, kilocode, jetbrains).
+The end-user documentation lives under `docs/` (architecture, gateway, vision-proxy, reasoning, providers, dashboard, standalone, troubleshooting, cost, development, kilo-code, jetbrains-ai-assistant, jetbrains-continue, autostart).
+Autostart covers Linux systemd, macOS launchd, and Windows Task Scheduler in three separate files under `docs/autostart/`.
 It has a different audience and update cadence than the agent instructions above.

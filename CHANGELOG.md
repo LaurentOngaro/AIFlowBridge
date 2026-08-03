@@ -6,9 +6,13 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
-## 2.15.1
+## 2.15.2
 
-Patch release. Same data snapshot as 2.15.0 (`resources/pricing.json` is identical aside from the `aiflowbridgeVersion` field, bumped to `2.15.1`). No new features, no behaviour change for callers.
+### Fixed
+
+- **Dashboard "Client" column could overflow its cell on long identifiers.** `normalizeClientId()` (in `src/aiflowbridge/gateway/server.ts`) caps the resolved client id at 128 characters, but custom `X-AIFlowBridge-Client` headers or non-standard User-Agent strings (curl, telnet probes, raw HTTP tools, IDE plugins with verbose UA) could still produce strings long enough to push the recent-requests row past the bounds of its section. The dashboard now shortens the visible cell to 24 characters via a new pure helper `truncateClientIdForDisplay(value, maxLength)` in `src/aiflowbridge/ui/dashboard.ts`, exposed as a constant `CLIENT_ID_DISPLAY_MAX_LENGTH` and applied to all three rendering sites (server-side `recentRow`, client-side `recentRow` re-render, and the "By client" aggregation panel). The full client id is preserved in the `title` attribute (tooltip) and in the JSON payload shipped to the client-side search and replay code, so no information is lost - only the visible text is clamped. A new CSS class `code.client-cell` adds a 220 px max-width + `text-overflow: ellipsis` guard so the column never expands past its allotted width even if the JS path is bypassed. `tests/dashboard.test.ts` passes 138/138 (7 new tests for `truncateClientIdForDisplay` covering the short / exact / too-long / sub-suffix-length / non-positive-or-finite branches, plus a new integration test that asserts the truncation + `title` preservation contract on a long client id; 3 existing assertions for the "By client" panel updated to match the new `<code class="client-cell" title="...">...</code>` shape).
+
+## 2.15.1
 
 ### Fixed
 

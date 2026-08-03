@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { AiFlowBridgeConfig, ProviderPricing, ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from '../types';
+import { cycleSortDir, defaultSortState } from './dashboard-sort';
 
 /**
  * Field shape for the AFF07 telemetry export (CSV / JSON). Decoupled
@@ -617,6 +618,14 @@ export function buildDashboardHtml(
       font-size: 12px;
       border: 1px solid var(--border);
     }.pill.ok { color: var(--accent-2); }.pill.warn { color: #fbbf24; }.muted { color: var(--muted); }
+    code.client-cell {
+      display: inline-block;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
     ${actionCss}.totals-scope-note { font-size: 12px; margin: -12px 0 18px; }.banner {
       display: flex;
       align-items: center;
@@ -1172,13 +1181,21 @@ export function buildDashboardHtml(
       // ascending, click again for descending, click a third time to
       // clear the sort (back to default order). Stored as { key, dir }
       // where key is the data-sort-key value and dir is "asc" | "desc".
-      // Null key means no sort is active; the table keeps its natural
-      // order (reverse-chronological for recent, default for models).
-      const sortState = {
-        recent: { key: null, dir: null },
-        model: { key: null, dir: null },
-        provider: { key: null, dir: null },
-      };
+      // Default: the recent table opens sorted by Date descending
+      // (most recent first) so the freshest telemetry is at the top.
+      // model + provider summaries keep their natural (insertion)
+      // order until the user clicks a header. The single source of
+      // truth for the default values lives in
+      // src/aiflowbridge/ui/dashboard-sort.ts (the same values
+      // power the unit tests).
+      const sortState = (function () {
+        var d = defaultSortState();
+        return {
+          recent: { key: d.recent.key, dir: d.recent.dir },
+          model: { key: d.model.key, dir: d.model.dir },
+          provider: { key: d.provider.key, dir: d.provider.dir },
+        };
+      })();
 
       // read persisted page sizes from localStorage so the user's
       // "rows per page" choice survives a dashboard refresh. Defaults
@@ -1316,8 +1333,9 @@ export function buildDashboardHtml(
           // server coalesced missing values to the literal string
           // unknown already (see serializeRecent); we only need to
           // choose between the code element and the muted cell.
+          var displayClient = truncateClientIdForDisplay(entry.clientId, CLIENT_ID_DISPLAY_MAX_LENGTH);
           var clientCell = entry.clientId && entry.clientId !== "unknown"
-            ? '<code title="Client identification parsed from the request">' + escapeHtml(entry.clientId) + '</code>'
+            ? '<code class="client-cell" title="' + escapeHtml(entry.clientId) + '">' + escapeHtml(displayClient) + '</code>'
             : '<span class="muted" title="No client identification on this request">unknown</span>';
           return '<tr>' +
             actionCell +
@@ -2441,7 +2459,9 @@ export function buildDashboardHtml(
 
       // sortable column headers: click to cycle asc -> desc -> clear.
       // Event delegation on each table's <thead> so re-renders
-      // (pagination, filter) do not break the handler.
+      // (pagination, filter) do not break the handler. The cycle
+      // logic itself lives in cycleSortDir (dashboard-sort.ts) so
+      // the unit tests exercise the exact same contract.
       (function bindSortHandlers() {
         var panels = [
           { thead: document.querySelector("#panel-recent table thead"), stateKey: "recent" },
@@ -2457,15 +2477,11 @@ export function buildDashboardHtml(
               var th = event.target.closest("th.sortable");
               if (!th) return;
               var sortKey = th.getAttribute("data-sort-key");
-              if (!sortKey || sortKey === key) return;
+              if (!sortKey) return;
               var st = sortState[key];
-              if (st.key === sortKey) {
-                if (st.dir === "asc") { st.dir = "desc"; }
-                else if (st.dir === "desc") { st.key = null; st.dir = null; }
-              } else {
-                st.key = sortKey;
-                st.dir = "asc";
-              }
+              var next = cycleSortDir(st, sortKey);
+              st.key = next.key;
+              st.dir = next.dir;
               rerender();
             };
           }(stateKey));
@@ -2579,7 +2595,7 @@ function recentRow(entry: RequestTelemetry, pricing: PricingMaps, canRemove: boo
   // an empty cell - it doubles as a visual hint that the user's
   // traffic pre-dates the client-aware gateway.
   const clientCell = entry.clientId
-    ? `<code title="Client identification parsed from the request">${escapeHtml(entry.clientId)}</code>`
+    ? `<code class="client-cell" title="${escapeHtml(entry.clientId)}">${escapeHtml(truncateClientIdForDisplay(entry.clientId, CLIENT_ID_DISPLAY_MAX_LENGTH))}</code>`
     : `<span class="muted" title="No client identification on this request">unknown</span>`;
   return `<tr>
         ${actionCell}
@@ -2714,7 +2730,7 @@ function clientRow(clientId: string, entry: ProviderSnapshot): string {
   const isUnknown = clientId === 'unknown';
   const nameCell = isUnknown
     ? `<span class="muted">unknown</span>`
-    : `<code title="Client identification parsed from the request">${escapeHtml(clientId)}</code>`;
+    : `<code class="client-cell" title="${escapeHtml(clientId)}">${escapeHtml(truncateClientIdForDisplay(clientId, CLIENT_ID_DISPLAY_MAX_LENGTH))}</code>`;
   return `<tr>
         <td>${nameCell}</td>
         <td>${formatNumber(entry.requests)}</td>
@@ -2894,6 +2910,47 @@ function formatCostValue(cost: number): string {
 
 function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+/**
+ * Maximum length of a client identifier rendered in a table cell.
+ * The full value is preserved in the `title` attribute for tooltip
+ * inspection; only the visible text is shortened so the recent
+ * requests list stays within its section. 24 characters fits the
+ * narrow `Client` column at the dashboard's default webview width
+ * without wrapping or pushing the row past the section bounds.
+ */
+export const CLIENT_ID_DISPLAY_MAX_LENGTH = 24;
+
+/**
+ * Shorten a client identifier for display in a table cell. Returns
+ * the original string when it fits within `maxLength`; otherwise
+ * truncates and appends an ASCII three-dot suffix. The three-dot
+ * form is used instead of the Unicode horizontal ellipsis to stay
+ * within the project's typography rules (no smart punctuation).
+ *
+ * Exported for unit testing - the function is pure and side-effect
+ * free.
+ *
+ * @param value The full client identifier (e.g. `kilocode@1.2.3`).
+ * @param maxLength The maximum visible length, including any suffix.
+ * @returns The original string when it fits; otherwise a shortened
+ *          version suffixed with `...`.
+ */
+export function truncateClientIdForDisplay(value: string, maxLength: number): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  if (!Number.isFinite(maxLength) || maxLength <= 0) {
+    return value;
+  }
+  if (value.length <= maxLength) {
+    return value;
+  }
+  if (maxLength <= 3) {
+    return '.'.repeat(Math.max(0, Math.floor(maxLength)));
+  }
+  return value.slice(0, maxLength - 3) + '...';
 }
 
 /**

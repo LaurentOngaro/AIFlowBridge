@@ -205,30 +205,30 @@ See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste cli
 
 ## Commands
 
-| Command                                                  | Description                                                                                              |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `AIFlowBridge: Add a custom model`                       | Declare a new model from any `/v1/models` endpoint (OpenRouter is the default pick and unlocks 100+ ids) |
-| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor (paste the `vendors.openrouter` block)                     |
-| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                                                                                |
-| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                                                                    |
-| `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                                                                              |
-| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation)                                                  |
-| `AIFlowBridge: Purge session log`                        | Clear only the captured prompt / response summaries (totals kept)                                        |
+| Command                                                  | Description                                                                                                              |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `AIFlowBridge: Add a custom model`                       | Declare a new model from any `/v1/models` endpoint (OpenRouter is the default pick and unlocks 100+ ids)                 |
+| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor (paste the `vendors.openrouter` block)                                     |
+| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                                                                                                |
+| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                                                                                    |
+| `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                                                                                              |
+| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation)                                                                  |
+| `AIFlowBridge: Purge session log`                        | Clear only the captured prompt / response summaries (totals kept)                                                        |
 | `AIFlowBridge: Refresh pricing now`                      | Hit OpenRouter `/v1/models`, write `<globalStorageUri>/pricing-override.json`, hot-update the in-memory pricing registry |
-| `AIFlowBridge: Open pricing data`                        | Open the bundled `resources/pricing.json` in the editor                                                  |
-| `AIFlowBridge: Start local gateway`                      | Start proxy                                                                                              |
-| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                                                                               |
-| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                                                                    |
-| `AIFlowBridge: Join external (standalone) gateway`       | Switch to a running standalone gateway                                                                   |
-| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                                                                      |
-| `AIFlowBridge: Open settings`                            | Open the AIFlowBridge settings page                                                                      |
-| `AIFlowBridge: Show logs`                                | Open output log                                                                                          |
-| `AIFlowBridge: Open request dumps folder`                | Reveal the folder with request dumps for diagnosis                                                       |
-| `AIFlowBridge: Install standalone gateway`               | Download + extract the standalone CLI for the current OS                                                 |
-| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials (direct vendor)                                                              |
-| `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`                                                         |
-| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                               |
-| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                           |
+| `AIFlowBridge: Open pricing data`                        | Open the bundled `resources/pricing.json` in the editor                                                                  |
+| `AIFlowBridge: Start local gateway`                      | Start proxy                                                                                                              |
+| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                                                                                               |
+| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                                                                                    |
+| `AIFlowBridge: Join external (standalone) gateway`       | Switch to a running standalone gateway                                                                                   |
+| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                                                                                      |
+| `AIFlowBridge: Open settings`                            | Open the AIFlowBridge settings page                                                                                      |
+| `AIFlowBridge: Show logs`                                | Open output log                                                                                                          |
+| `AIFlowBridge: Open request dumps folder`                | Reveal the folder with request dumps for diagnosis                                                                       |
+| `AIFlowBridge: Install standalone gateway`               | Download + extract the standalone CLI for the current OS                                                                 |
+| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials (direct vendor)                                                                              |
+| `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`                                                                         |
+| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                                               |
+| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                                           |
 
 Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by design - it is exposed through the gateway path only (works from Kilo Code, Continue, Open WebUI, curl).
 Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is listed first), or via the registry override file, or via the `AIFLOWBRIDGE_OPENROUTER_API_KEY` env var on the standalone CLI.
@@ -242,7 +242,6 @@ Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is l
 - ...
 
 Released in 2.15.0: **Dynamic pricing and cost estimation** - bundled `resources/pricing.json` (OpenRouter catalog snapshot, refreshed per release and on demand) + dashboard `Refresh prices` button + `AIFlowBridge: Refresh pricing now` + dashboard `CSV` / `JSON` export of the filtered telemetry. See [CHANGELOG.md](CHANGELOG.md#2150).
-Just shipped in 2.15.1: **Release-CI hotfix** - the modal helper in `defaultUserPrompt.showModalMessage()` was failing `tsc` with `TS2345` and blocking every release tag. Cast applied; same workaround already in place in `vscode-context-adapter.ts`. See [CHANGELOG.md](CHANGELOG.md#2151).
 Just before (2.14.0): audit-driven hardening pass - 3 fixes + 1 defense-in-depth check on the upstream credential path + 3 redundant code paths cleaned up.
 Back in 2.12.0: **OpenRouter upstream** (100+ models via single key) - see [CHANGELOG.md](CHANGELOG.md#2120).
 
