@@ -80,7 +80,7 @@ src/
 └── extension.ts                        # activate()/deactivate()
 
 resources/
-├── models.json                         # Bundled model registry (21 entries across 4 vendors; OpenRouter adds 100+ model ids reachable verbatim through userModels / registry override) - snapshot 2026-07-14, AIFlowBridge 2.15.1
+├── models.json                         # Bundled model registry (21 entries across 4 vendors; OpenRouter adds 100+ model ids reachable verbatim through userModels / registry override) - snapshot 2026-07-14, AIFlowBridge 2.15.3
 └── models.schema.json                  # JSON Schema for editor autocompletion
 ```
 

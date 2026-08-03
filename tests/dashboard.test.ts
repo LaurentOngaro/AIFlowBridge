@@ -1217,18 +1217,21 @@ describe('column sorting', () => {
     expect(html).not.toContain('row-actions-col sortable');
   });
 
-  it('embeds sort state in the script block', () => {
+  it('embeds the default sort state inline in the script block', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('sortState');
-    // The inline script delegates to the pure helper so the unit
-    // tests can pin the default values directly.
-    expect(html).toContain('defaultSortState()');
+    // The webview runs sandboxed with no module loader, so the sort
+    // defaults are inlined in the script. The recent panel opens
+    // sorted by Date descending; model + provider keep natural order.
+    expect(html).toContain('recent: { key: "timestamp", dir: "desc" }');
+    expect(html).toContain('model: { key: null, dir: null }');
+    expect(html).toContain('provider: { key: null, dir: null }');
   });
 
-  it('defaultSortState wires the recent panel to timestamp descending', () => {
-    // The dashboard HTML reads from defaultSortState(); the test
-    // exercises the helper directly so the user-visible default is
-    // pinned without booting a webview.
+  it('defaultSortState mirrors the inline recent default', () => {
+    // The module helper is the single source of truth for the inline
+    // values embedded in the webview script. Pin it directly so the
+    // user-visible default cannot drift without a test failure.
     expect(defaultSortState().recent).toEqual({ key: 'timestamp', dir: 'desc' });
     expect(defaultSortState().model).toEqual({ key: null, dir: null });
     expect(defaultSortState().provider).toEqual({ key: null, dir: null });
@@ -1298,10 +1301,14 @@ describe('column sorting', () => {
     expect(applySortsIdx).toBeGreaterThan(rerenderIdx);
   });
 
-  it('cycles sort direction via cycleSortDir, not via inline state machine', () => {
+  it('embeds the inline 3-state sort cycle in the click handler', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    // The inline handler now delegates to the cycleSortDir helper.
-    expect(html).toContain('cycleSortDir');
+    // The webview handler cannot import modules, so the asc -> desc ->
+    // clear cycle is inlined in the script. Assert the state machine is
+    // present so the click-to-cycle behaviour cannot silently regress.
+    expect(html).toContain('st.dir = "asc"');
+    expect(html).toContain('st.dir = "desc"');
+    expect(html).toContain('st.key = null; st.dir = null;');
   });
 });
 
@@ -1375,6 +1382,18 @@ describe('truncateClientIdForDisplay', () => {
   it('exposes CLIENT_ID_DISPLAY_MAX_LENGTH as a positive integer', () => {
     expect(CLIENT_ID_DISPLAY_MAX_LENGTH).toBeGreaterThan(3);
     expect(Number.isInteger(CLIENT_ID_DISPLAY_MAX_LENGTH)).toBe(true);
+  });
+
+  it('embeds a self-contained truncateClientIdForDisplay in the webview script', () => {
+    // The webview runs sandboxed with no module loader, so the inline
+    // script must ship its own copy of the truncation helper and the
+    // display-length constant. Without it, the first client-side
+    // renderRecent() throws "truncateClientIdForDisplay is not
+    // defined" and sorting / pagination / filters all break.
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).toContain('function truncateClientIdForDisplay');
+    expect(html).toContain('var CLIENT_ID_DISPLAY_MAX_LENGTH = 24;');
+    expect(html).toContain('value.slice(0, maxLength - 3) + \'...\'');
   });
 });
 
@@ -2061,7 +2080,7 @@ describe('AFF07 telemetry export helpers', () => {
     const entries = [toExportedEntry(makeEntry({ id: 'a' }))];
     const meta = {
       generatedAt: '2026-07-13T20:00:00.000Z',
-      extensionVersion: '2.15.2',
+      extensionVersion: '2.15.3',
       filters: { preset: '24h', provider: '', fromDate: '', toDate: '', search: '' },
       totals: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0 },
     };
@@ -2174,7 +2193,7 @@ function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry 
 
 describe('formatPricingBundleVersion', () => {
   it('renders a real semver with the canonical v prefix', () => {
-    expect(formatPricingBundleVersion('2.15.2')).toBe('AIFlowBridge v2.15.2');
+    expect(formatPricingBundleVersion('2.15.3')).toBe('AIFlowBridge v2.15.3');
     expect(formatPricingBundleVersion('2.14.0-rc.1')).toBe('AIFlowBridge v2.14.0-rc.1');
   });
 
@@ -2199,7 +2218,7 @@ describe('dashboard renders the pricing snapshot header safely', () => {
       ...baseConfig(),
       pricing: {
         models: {},
-        sourceByModel: {},
+        sources: {},
         bundledFetchedAt: '2026-07-13T16:15:03.036Z',
         bundledVersion,
       },
@@ -2220,7 +2239,7 @@ describe('dashboard renders the pricing snapshot header safely', () => {
   });
 
   it('renders the canonical "vX.Y.Z" label for a real semver', () => {
-    const html = buildDashboardHtml(buildConfigWithPricing('2.15.2'), snapshotWithData(), true);
-    expect(html).toContain('AIFlowBridge v2.15.2');
+    const html = buildDashboardHtml(buildConfigWithPricing('2.15.3'), snapshotWithData(), true);
+    expect(html).toContain('AIFlowBridge v2.15.3');
   });
 });

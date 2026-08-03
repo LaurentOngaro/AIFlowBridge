@@ -6,6 +6,12 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.15.3
+
+### Fixed
+
+- **Dashboard column sorting was completely broken (regression from 2.15.2).** The 2.15.2 refactor moved the sort logic into a new module (`src/aiflowbridge/ui/dashboard-sort.ts`) and added a new client-id truncation helper, but the dashboard's inline webview script kept calling module-scope functions that do not exist in its sandboxed context (no module loader). Two `ReferenceError`s were involved: (1) `defaultSortState()` during script initialization, which removed the sort-arrow indicators and made every header click a no-op, and (2) `truncateClientIdForDisplay()` in the client-side `renderRecent()`, which threw on every re-render and broke sorting, pagination, and filters even after the first error was fixed. Fix: the webview script is self-contained again - the default sort state, the `asc -> desc -> clear` click cycle, the `truncateClientIdForDisplay()` helper, and the `CLIENT_ID_DISPLAY_MAX_LENGTH` constant are all inlined directly in the script, mirroring the module contracts that the unit tests exercise. The module `dashboard-sort.ts` and the exported TS helpers remain as the tested source of truth; the tests that only grepped the HTML for `defaultSortState()` / `cycleSortDir` now assert the actual inline state machine, and a new test pins the inline truncation helper. Also replaced the Unicode ellipsis (U+2026) used in the replay loading hint with the ASCII `Loading...` form to stay within the project typography rules.
+
 ## 2.15.2
 
 ### Fixed

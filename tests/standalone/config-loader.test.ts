@@ -6,6 +6,19 @@
  * read behavior (file override -> bundled default -> caller fallback).
  */
 
+/// <reference types="node" />
+// Pulls in `@types/node` for this file. The root `tsconfig.json`
+// only includes `src/` and the proposed language model typings, so
+// the implicit TS project VS Code creates for files under `tests/`
+// does not pick up `node` from `"types": ["node"]`. Without this
+// directive, every `import ... from 'node:fs'` (and the other
+// `node:*` imports below) raise TS2591 ("Cannot find name
+// 'node:fs'") in the editor even though they run fine under vitest.
+// Once a `tsconfig.test.json` is wired into the editor this
+// triple-slash can be removed; until then it is the minimal-impact
+// fix that resolves the squiggle without touching the production
+// compile. Same pattern as tests/session-share.test.ts.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the `vscode` module so the transitive import chain

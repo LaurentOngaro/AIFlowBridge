@@ -3,7 +3,7 @@
   "generatedAt": "2026-07-14T09:14:21.436Z",
   "source": "openrouter",
   "sourceUrl": "https://openrouter.ai/api/v1/models",
-  "aiflowbridgeVersion": "2.15.2",
+  "aiflowbridgeVersion": "2.15.3",
   "models": {
     "kwaipilot/kat-coder-air-v2.5": {
       "inputPerMillion": 0.15,

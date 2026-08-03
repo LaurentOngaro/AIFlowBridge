@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import type { AiFlowBridgeConfig, ProviderPricing, ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from '../types';
-import { cycleSortDir, defaultSortState } from './dashboard-sort';
 
 /**
  * Field shape for the AFF07 telemetry export (CSV / JSON). Decoupled
@@ -1085,7 +1084,7 @@ export function buildDashboardHtml(
           const out = document.querySelector('[data-replay-out="' + CSS.escape(id) + '"]');
           if (out) {
             out.hidden = false;
-            out.textContent = "Loading…";
+            out.textContent = "Loading...";
           }
           vscodeApi.postMessage({ type: "replay", id });
         });
@@ -1184,18 +1183,18 @@ export function buildDashboardHtml(
       // Default: the recent table opens sorted by Date descending
       // (most recent first) so the freshest telemetry is at the top.
       // model + provider summaries keep their natural (insertion)
-      // order until the user clicks a header. The single source of
-      // truth for the default values lives in
-      // src/aiflowbridge/ui/dashboard-sort.ts (the same values
-      // power the unit tests).
-      const sortState = (function () {
-        var d = defaultSortState();
-        return {
-          recent: { key: d.recent.key, dir: d.recent.dir },
-          model: { key: d.model.key, dir: d.model.dir },
-          provider: { key: d.provider.key, dir: d.provider.dir },
-        };
-      })();
+      // order until the user clicks a header.
+      //
+      // The webview runs in a sandboxed context with no module loader,
+      // so it cannot import from dashboard-sort.ts. The values below
+      // are inlined here (the exact contract mirrored by
+      // defaultSortState() in src/aiflowbridge/ui/dashboard-sort.ts,
+      // which the unit tests exercise directly).
+      const sortState = {
+        recent: { key: "timestamp", dir: "desc" },
+        model: { key: null, dir: null },
+        provider: { key: null, dir: null },
+      };
 
       // read persisted page sizes from localStorage so the user's
       // "rows per page" choice survives a dashboard refresh. Defaults
@@ -1303,6 +1302,20 @@ export function buildDashboardHtml(
         let filtered = applyTimeAndDateFilters(f.range, f.from, f.to);
         filtered = filterByProvider(filtered, f.provider);
         return filtered;
+      }
+
+      // The webview cannot import modules, so the client-id truncation
+      // helper is inlined here. It mirrors the exact contract of
+      // truncateClientIdForDisplay() + CLIENT_ID_DISPLAY_MAX_LENGTH in
+      // src/aiflowbridge/ui/dashboard.ts (the TS version, which the
+      // unit tests exercise directly).
+      var CLIENT_ID_DISPLAY_MAX_LENGTH = 24;
+      function truncateClientIdForDisplay(value, maxLength) {
+        if (typeof value !== 'string') return '';
+        if (!isFinite(maxLength) || maxLength <= 0) return value;
+        if (value.length <= maxLength) return value;
+        if (maxLength <= 3) return '.'.repeat(Math.max(0, Math.floor(maxLength)));
+        return value.slice(0, maxLength - 3) + '...';
       }
 
       function renderRecent(filtered) {
@@ -2459,9 +2472,10 @@ export function buildDashboardHtml(
 
       // sortable column headers: click to cycle asc -> desc -> clear.
       // Event delegation on each table's <thead> so re-renders
-      // (pagination, filter) do not break the handler. The cycle
-      // logic itself lives in cycleSortDir (dashboard-sort.ts) so
-      // the unit tests exercise the exact same contract.
+      // (pagination, filter) do not break the handler. The 3-state
+      // cycle is inlined here because the webview cannot import
+      // modules; it mirrors cycleSortDir() in dashboard-sort.ts (the
+      // same contract the unit tests exercise directly).
       (function bindSortHandlers() {
         var panels = [
           { thead: document.querySelector("#panel-recent table thead"), stateKey: "recent" },
@@ -2479,9 +2493,14 @@ export function buildDashboardHtml(
               var sortKey = th.getAttribute("data-sort-key");
               if (!sortKey) return;
               var st = sortState[key];
-              var next = cycleSortDir(st, sortKey);
-              st.key = next.key;
-              st.dir = next.dir;
+              if (st.key === sortKey) {
+                if (st.dir === "asc") { st.dir = "desc"; }
+                else if (st.dir === "desc") { st.key = null; st.dir = null; }
+                else { st.key = sortKey; st.dir = "asc"; }
+              } else {
+                st.key = sortKey;
+                st.dir = "asc";
+              }
               rerender();
             };
           }(stateKey));
