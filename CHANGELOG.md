@@ -6,6 +6,12 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.15.6
+
+### Fixed
+
+- **Standalone server silently diverged from the VS Code extension on Linux and macOS.** `src/standalone/storage-dir.ts` and `src/standalone/migrations/merge-storage.ts` stored `EXTENSION_PUBLISHER` as `'LaurentOngaro'` (matching the casing in `package.json`'s `publisher` field). VS Code always lowercases the `<publisher>.<name>` segment when creating the `globalStorage` subfolder, so the standalone resolver probed `globalStorage/LaurentOngaro.aiflowbridge/` while VS Code actually created `globalStorage/laurentongaro.aiflowbridge/`. Windows (NTFS, case-insensitive) masked the bug; on Linux and macOS (case-sensitive filesystems) the probe failed and the standalone silently fell through to the legacy `~/.aiflowbridge/` fallback, writing telemetry to a path the dashboard never reads. Both standalone files now store `'laurentongaro'`, and a comment in `src/standalone/storage-dir.ts` documents the VS Code lowercase invariant so a future contributor does not "fix" it back. The `publisher` field in `package.json`, the GitHub owner references, and the walkthrough id remain PascalCase - those are case-sensitive identifiers that VS Code does not path-resolve. `tests/standalone/storage-dir.test.ts` imports `EXTENSION_PUBLISHER` directly so it picks up the new value automatically (no test change required).
+
 ## 2.15.5
 
 ### Documentation

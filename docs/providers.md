@@ -6,13 +6,13 @@
 
 | Provider   | Models                                                                                                                                                           | Vision          | Tool Calling |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
-| DeepSeek   | V4 Flash, V4 Pro                                                                                                                                                 | Proxied         | ✅           |
-| MiniMax    | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed                                                                                             | Proxied         | ✅           |
-| MiniMax    | M3                                                                                                                                                               | **Native**      | ✅           |
-| Xiaomi     | MiMo V2 Omni                                                                                                                                                     | Native          | ✅           |
-| Xiaomi     | MiMo V2 Pro, V2.5 Pro                                                                                                                                            | Proxied         | ✅           |
-| Xiaomi     | MiMo V2.5                                                                                                                                                        | **Native**      | ✅           |
-| OpenRouter | [100+ models at `openrouter.ai/models`](https://openrouter.ai/models) - see [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) | varies by model | ✅           |
+| DeepSeek   | V4 Flash, V4 Pro                                                                                                                                                 | Proxied         | ✅            |
+| MiniMax    | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed                                                                                             | Proxied         | ✅            |
+| MiniMax    | M3                                                                                                                                                               | **Native**      | ✅            |
+| Xiaomi     | MiMo V2 Omni                                                                                                                                                     | Native          | ✅            |
+| Xiaomi     | MiMo V2 Pro, V2.5 Pro                                                                                                                                            | Proxied         | ✅            |
+| Xiaomi     | MiMo V2.5                                                                                                                                                        | **Native**      | ✅            |
+| OpenRouter | [100+ models at `openrouter.ai/models`](https://openrouter.ai/models) - see [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) | varies by model | ✅            |
 
 Notes:
 
@@ -48,13 +48,13 @@ All data below was pulled from `https://openrouter.ai/api/v1/models` (August 202
 
 | Model id (use verbatim in `model` field)                        | Context window | Output cap | Vision | Reasoning | Tool calling |
 | --------------------------------------------------------------- | -------------- | ---------- | ------ | --------- | ------------ |
-| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active) | 1 000 000      | 65 536     | ❌     | ✅        | ✅           |
-| `openai/gpt-oss-120b:free` (117B MoE, 5.1B active)              | 131 072        | 131 072    | ❌     | ✅        | ✅           |
-| `google/gemma-4-31b-it:free` (30.7B dense multimodal)           | 262 144        | 8 192      | ✅     | ✅        | ✅           |
-| `meta-llama/llama-3.3-70b-instruct:free`                        | 131 072        | 16 384     | ❌     | ❌        | ✅           |
-| `qwen/qwen3-coder:free` (480B MoE, 35B active)                  | 1 048 576      | 262 000    | ❌     | ❌        | ✅           |
-| `qwen/qwen3-next-80b-a3b-instruct:free` (80B MoE, 3B active)    | 262 144        | 16 384     | ❌     | ❌        | ✅           |
-| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active) | 1 000 000      | 262 144    | ❌     | ✅        | ✅           |
+| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active) | 1 000 000      | 65 536     | ❌      | ✅         | ✅            |
+| `openai/gpt-oss-120b:free` (117B MoE, 5.1B active)              | 131 072        | 131 072    | ❌      | ✅         | ✅            |
+| `google/gemma-4-31b-it:free` (30.7B dense multimodal)           | 262 144        | 8 192      | ✅      | ✅         | ✅            |
+| `meta-llama/llama-3.3-70b-instruct:free`                        | 131 072        | 16 384     | ❌      | ❌         | ✅            |
+| `qwen/qwen3-coder:free` (480B MoE, 35B active)                  | 1 048 576      | 262 000    | ❌      | ❌         | ✅            |
+| `qwen/qwen3-next-80b-a3b-instruct:free` (80B MoE, 3B active)    | 262 144        | 16 384     | ❌      | ❌         | ✅            |
+| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active) | 1 000 000      | 262 144    | ❌      | ✅         | ✅            |
 
 The mix covers the major OpenRouter axes: a frontier-reasoning workhorse (Nemotron 3 Ultra 550B), an OpenAI open-weight flagship (gpt-oss-120b), a multimodal option (Gemma 4 31B), the reference 70B instruct (Llama 3.3 70B), the leading free coding agent (Qwen3 Coder 480B with 1M context), a low-latency MoE (Qwen3 Next 80B), and a multi-agent orchestrator (Nemotron 3 Super 120B).
 
@@ -183,8 +183,8 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 
 ### Snapshot metadata
 
-- Current snapshot date: **2026-08-03**
-- Current snapshot version: **AIFlowBridge 2.15.5**
+- Current snapshot date: **2026-08-06**
+- Current snapshot version: **AIFlowBridge 2.15.6**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 

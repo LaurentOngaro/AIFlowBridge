@@ -13,8 +13,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AiFlowBridgeConfig, RequestTelemetry, TelemetrySnapshot } from '../src/aiflowbridge/types';
-import { buildDashboardHtml, buildPricingMaps, formatCostCell, formatPricingBundleVersion, truncateClientIdForDisplay, CLIENT_ID_DISPLAY_MAX_LENGTH } from '../src/aiflowbridge/ui/dashboard';
-import { compareVals, cycleSortDir, defaultSortState, recentSortVal, objSortVal, sortRecentEntries, sortObjectEntries } from '../src/aiflowbridge/ui/dashboard-sort';
+import { buildDashboardHtml, buildPricingMaps, CLIENT_ID_DISPLAY_MAX_LENGTH, formatCostCell, formatPricingBundleVersion, truncateClientIdForDisplay } from '../src/aiflowbridge/ui/dashboard';
+import { compareVals, cycleSortDir, defaultSortState, objSortVal, recentSortVal, sortObjectEntries, sortRecentEntries } from '../src/aiflowbridge/ui/dashboard-sort';
 
 function emptySnapshot(): TelemetrySnapshot {
   return {
@@ -1423,7 +1423,7 @@ describe('dashboard sort helpers', () => {
 
   describe('recentSortVal', () => {
     const base = {
-      timestamp: '2026-08-03T10:00:00.000Z',
+      timestamp: '2026-08-06T10:00:00.000Z',
       status: 200,
       providerLabel: 'OpenAI',
       model: 'gpt-4o',
@@ -1436,7 +1436,7 @@ describe('dashboard sort helpers', () => {
     };
 
     it('extracts the requested field for every supported column', () => {
-      expect(recentSortVal(base, 'timestamp')).toBe('2026-08-03T10:00:00.000Z');
+      expect(recentSortVal(base, 'timestamp')).toBe('2026-08-06T10:00:00.000Z');
       expect(recentSortVal(base, 'status')).toBe(200);
       expect(recentSortVal(base, 'providerLabel')).toBe('OpenAI');
       expect(recentSortVal(base, 'model')).toBe('gpt-4o');
@@ -1500,9 +1500,9 @@ describe('dashboard sort helpers', () => {
 
   describe('sortRecentEntries', () => {
     const entries = [
-      { id: 'a', timestamp: '2026-08-03T10:00:00.000Z', status: 200, model: 'b-model', totalTokens: 50, estimatedCost: 0.01, estimated: true, source: 'gateway' },
-      { id: 'b', timestamp: '2026-08-03T11:00:00.000Z', status: 500, model: 'a-model', totalTokens: 10, estimatedCost: 0.005, estimated: false, source: 'copilot-chat' },
-      { id: 'c', timestamp: '2026-08-03T09:00:00.000Z', status: 404, model: 'c-model', totalTokens: 30, estimatedCost: 0.02, estimated: true, source: 'gateway' },
+      { id: 'a', timestamp: '2026-08-06T10:00:00.000Z', status: 200, model: 'b-model', totalTokens: 50, estimatedCost: 0.01, estimated: true, source: 'gateway' },
+      { id: 'b', timestamp: '2026-08-06T11:00:00.000Z', status: 500, model: 'a-model', totalTokens: 10, estimatedCost: 0.005, estimated: false, source: 'copilot-chat' },
+      { id: 'c', timestamp: '2026-08-06T09:00:00.000Z', status: 404, model: 'c-model', totalTokens: 30, estimatedCost: 0.02, estimated: true, source: 'gateway' },
     ];
 
     it('returns the input as a new array when no sort is active', () => {

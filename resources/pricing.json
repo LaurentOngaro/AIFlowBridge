@@ -1,1899 +1,1899 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-03T14:01:14.916Z",
+  "generatedAt": "2026-08-06T14:01:14.916Z",
   "source": "openrouter",
   "sourceUrl": "https://openrouter.ai/api/v1/models",
-  "aiflowbridgeVersion": "2.15.5",
+  "aiflowbridgeVersion": "2.15.6",
   "models": {
     "~deepseek/deepseek-v4-flash-latest": {
       "inputPerMillion": 0.09,
       "outputPerMillion": 0.18,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-v4-flash-0731": {
       "inputPerMillion": 0.09,
       "outputPerMillion": 0.18,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "thinkingmachines/inkling-small": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.7-flash": {
       "inputPerMillion": 0.03,
       "outputPerMillion": 0.13,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-5-fast": {
       "inputPerMillion": 10,
       "outputPerMillion": 50,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-5": {
       "inputPerMillion": 5,
       "outputPerMillion": 25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "poolside/laguna-s-2.1": {
       "inputPerMillion": 0.09,
       "outputPerMillion": 0.18,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.6-flash": {
       "inputPerMillion": 1.5,
       "outputPerMillion": 7.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.5-flash-lite": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meituan/longcat-2.0": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "thinkingmachines/inkling": {
       "inputPerMillion": 1,
       "outputPerMillion": 4.05,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "moonshotai/kimi-k3": {
       "inputPerMillion": 3,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta/muse-spark-1.1": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 4.25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "kwaipilot/kat-coder-air-v2.5": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "kwaipilot/kat-coder-pro-v2.5": {
       "inputPerMillion": 0.74,
       "outputPerMillion": 2.96,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.6-luna-pro": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.6-luna": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.6-terra-pro": {
       "inputPerMillion": 1,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.6-terra": {
       "inputPerMillion": 1,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.6-sol-pro": {
       "inputPerMillion": 5,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.6-sol": {
       "inputPerMillion": 5,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "x-ai/grok-4.5": {
       "inputPerMillion": 2,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~x-ai/grok-latest": {
       "inputPerMillion": 2,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "aion-labs/aion-3.0-mini": {
       "inputPerMillion": 0.7,
       "outputPerMillion": 1.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "aion-labs/aion-3.0": {
       "inputPerMillion": 3,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "tencent/hy3": {
       "inputPerMillion": 0.132,
       "outputPerMillion": 0.528,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "poolside/laguna-xs-2.1": {
       "inputPerMillion": 0.06,
       "outputPerMillion": 0.12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-sonnet-5": {
       "inputPerMillion": 2,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.1-flash-lite-image": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 1.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nex-agi/nex-n2-mini": {
       "inputPerMillion": 0.025,
       "outputPerMillion": 0.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "sakana/fugu-ultra": {
       "inputPerMillion": 5,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.1-flash-image": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3-pro-image": {
       "inputPerMillion": 2,
       "outputPerMillion": 12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-5.2": {
       "inputPerMillion": 0.6986,
       "outputPerMillion": 2.1956,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "moonshotai/kimi-k2.7-code": {
       "inputPerMillion": 0.73,
       "outputPerMillion": 3.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~anthropic/claude-fable-latest": {
       "inputPerMillion": 10,
       "outputPerMillion": 50,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-fable-5": {
       "inputPerMillion": 10,
       "outputPerMillion": 50,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nex-agi/nex-n2-pro": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nvidia/nemotron-3-ultra-550b-a55b": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 3.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.7-plus": {
       "inputPerMillion": 0.32,
       "outputPerMillion": 1.28,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-m3": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "stepfun/step-3.7-flash": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 1.15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4.8-fast": {
       "inputPerMillion": 10,
       "outputPerMillion": 50,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4.8": {
       "inputPerMillion": 5,
       "outputPerMillion": 25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.7-max": {
       "inputPerMillion": 1.475,
       "outputPerMillion": 4.425,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "x-ai/grok-build-0.1": {
       "inputPerMillion": 1,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.5-flash": {
       "inputPerMillion": 1.5,
       "outputPerMillion": 9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4.7-fast": {
       "inputPerMillion": 30,
       "outputPerMillion": 150,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "perceptron/perceptron-mk1": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 1.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "inclusionai/ring-2.6-1t": {
       "inputPerMillion": 0.075,
       "outputPerMillion": 0.625,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.1-flash-lite": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 1.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-chat-latest": {
       "inputPerMillion": 5,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "x-ai/grok-4.3": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "ibm-granite/granite-4.1-8b": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-medium-3-5": {
       "inputPerMillion": 1.5,
       "outputPerMillion": 7.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~anthropic/claude-haiku-latest": {
       "inputPerMillion": 1,
       "outputPerMillion": 5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~openai/gpt-mini-latest": {
       "inputPerMillion": 0.75,
       "outputPerMillion": 4.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~google/gemini-pro-latest": {
       "inputPerMillion": 2,
       "outputPerMillion": 12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~moonshotai/kimi-latest": {
       "inputPerMillion": 2.9,
       "outputPerMillion": 14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~google/gemini-flash-latest": {
       "inputPerMillion": 1.5,
       "outputPerMillion": 7.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~anthropic/claude-sonnet-latest": {
       "inputPerMillion": 2,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~openai/gpt-latest": {
       "inputPerMillion": 5,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-plus-20260420": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 1.8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.6-flash": {
       "inputPerMillion": 0.1875,
       "outputPerMillion": 1.125,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.6-35b-a3b": {
       "inputPerMillion": 0.14,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.6-max-preview": {
       "inputPerMillion": 1.027,
       "outputPerMillion": 6.162,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.6-27b": {
       "inputPerMillion": 0.289,
       "outputPerMillion": 2.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.5-pro": {
       "inputPerMillion": 30,
       "outputPerMillion": 180,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.5": {
       "inputPerMillion": 5,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-v4-pro": {
       "inputPerMillion": 0.435,
       "outputPerMillion": 0.87,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-v4-flash": {
       "inputPerMillion": 0.14,
       "outputPerMillion": 0.28,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "inclusionai/ling-2.6-1t": {
       "inputPerMillion": 0.075,
       "outputPerMillion": 0.625,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "tencent/hy3-preview": {
       "inputPerMillion": 0.063,
       "outputPerMillion": 0.21,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "xiaomi/mimo-v2.5-pro": {
       "inputPerMillion": 0.435,
       "outputPerMillion": 0.87,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "xiaomi/mimo-v2.5": {
       "inputPerMillion": 0.14,
       "outputPerMillion": 0.28,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.4-image-2": {
       "inputPerMillion": 8,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "inclusionai/ling-2.6-flash": {
       "inputPerMillion": 0.01,
       "outputPerMillion": 0.03,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "~anthropic/claude-opus-latest": {
       "inputPerMillion": 5,
       "outputPerMillion": 25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "moonshotai/kimi-k2.6": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 3.41,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4.7": {
       "inputPerMillion": 5,
       "outputPerMillion": 25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-5.1": {
       "inputPerMillion": 0.966,
       "outputPerMillion": 3.036,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemma-4-26b-a4b-it": {
       "inputPerMillion": 0.07,
       "outputPerMillion": 0.34,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemma-4-31b-it": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.34,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.6-plus": {
       "inputPerMillion": 0.325,
       "outputPerMillion": 1.95,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-5v-turbo": {
       "inputPerMillion": 1.2,
       "outputPerMillion": 4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "arcee-ai/trinity-large-thinking": {
       "inputPerMillion": 0.22,
       "outputPerMillion": 0.85,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "x-ai/grok-4.20-multi-agent": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "x-ai/grok-4.20": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "kwaipilot/kat-coder-pro-v2": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "rekaai/reka-edge": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-m2.7": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.4-nano": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 1.25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.4-mini": {
       "inputPerMillion": 0.75,
       "outputPerMillion": 4.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-small-2603": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-5-turbo": {
       "inputPerMillion": 1.2,
       "outputPerMillion": 4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nvidia/nemotron-3-super-120b-a12b": {
       "inputPerMillion": 0.085,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "bytedance-seed/seed-2.0-lite": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-9b": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.4-pro": {
       "inputPerMillion": 30,
       "outputPerMillion": 180,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.4": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "inception/mercury-2": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 0.75,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.3-chat": {
       "inputPerMillion": 1.75,
       "outputPerMillion": 14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.1-flash-lite-preview": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 1.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "bytedance-seed/seed-2.0-mini": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.1-flash-image-preview": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-35b-a3b": {
       "inputPerMillion": 0.14,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-27b": {
       "inputPerMillion": 0.195,
       "outputPerMillion": 1.56,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-122b-a10b": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 3.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-flash-02-23": {
       "inputPerMillion": 0.065,
       "outputPerMillion": 0.26,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.1-pro-preview-customtools": {
       "inputPerMillion": 2,
       "outputPerMillion": 12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.3-codex": {
       "inputPerMillion": 1.75,
       "outputPerMillion": 14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "aion-labs/aion-2.0": {
       "inputPerMillion": 0.8,
       "outputPerMillion": 1.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3.1-pro-preview": {
       "inputPerMillion": 2,
       "outputPerMillion": 12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-sonnet-4.6": {
       "inputPerMillion": 3,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-plus-02-15": {
       "inputPerMillion": 0.26,
       "outputPerMillion": 1.56,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3.5-397b-a17b": {
       "inputPerMillion": 0.39,
       "outputPerMillion": 2.34,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-m2.5": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-5": {
       "inputPerMillion": 0.95,
       "outputPerMillion": 2.55,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-max-thinking": {
       "inputPerMillion": 0.78,
       "outputPerMillion": 3.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4.6": {
       "inputPerMillion": 5,
       "outputPerMillion": 25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-coder-next": {
       "inputPerMillion": 0.12,
       "outputPerMillion": 0.8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "stepfun/step-3.5-flash": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "moonshotai/kimi-k2.5": {
       "inputPerMillion": 0.57,
       "outputPerMillion": 2.85,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "upstage/solar-pro-3": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-m2-her": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "writer/palmyra-x5": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-audio": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-audio-mini": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 2.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-4.7-flash": {
       "inputPerMillion": 0.06,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.2-codex": {
       "inputPerMillion": 1.75,
       "outputPerMillion": 14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "bytedance-seed/seed-1.6-flash": {
       "inputPerMillion": 0.075,
       "outputPerMillion": 0.3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "bytedance-seed/seed-1.6": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-m2.1": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-4.7": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 1.75,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3-flash-preview": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nvidia/nemotron-3-nano-30b-a3b": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.2-chat": {
       "inputPerMillion": 1.75,
       "outputPerMillion": 14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.2-pro": {
       "inputPerMillion": 21,
       "outputPerMillion": 168,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.2": {
       "inputPerMillion": 1.75,
       "outputPerMillion": 14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "relace/relace-search": {
       "inputPerMillion": 1,
       "outputPerMillion": 3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-4.6v": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 0.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.1-codex-max": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "amazon/nova-2-lite-v1": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/ministral-14b-2512": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 0.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/ministral-8b-2512": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/ministral-3b-2512": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-large-2512": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 1.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-v3.2": {
       "inputPerMillion": 0.269,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4.5": {
       "inputPerMillion": 5,
       "outputPerMillion": 25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "allenai/olmo-3-32b-think": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-3-pro-image-preview": {
       "inputPerMillion": 2,
       "outputPerMillion": 12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepcogito/cogito-v2.1-671b": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 1.25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.1": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.1-codex": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5.1-codex-mini": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "moonshotai/kimi-k2-thinking": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "amazon/nova-premier-v1": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 12.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "perplexity/sonar-pro-search": {
       "inputPerMillion": 3,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/voxtral-small-24b-2507": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-oss-safeguard-20b": {
       "inputPerMillion": 0.075,
       "outputPerMillion": 0.3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-m2": {
       "inputPerMillion": 0.255,
       "outputPerMillion": 1.02,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-vl-32b-instruct": {
       "inputPerMillion": 0.104,
       "outputPerMillion": 0.416,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "ibm-granite/granite-4.0-h-micro": {
       "inputPerMillion": 0.017,
       "outputPerMillion": 0.112,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5-image-mini": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-haiku-4.5": {
       "inputPerMillion": 1,
       "outputPerMillion": 5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-vl-8b-thinking": {
       "inputPerMillion": 0.18,
       "outputPerMillion": 2.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-vl-8b-instruct": {
       "inputPerMillion": 0.117,
       "outputPerMillion": 0.455,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5-image": {
       "inputPerMillion": 10,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-2.5-flash-image": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-vl-30b-a3b-thinking": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 2.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-vl-30b-a3b-instruct": {
       "inputPerMillion": 0.13,
       "outputPerMillion": 0.52,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5-pro": {
       "inputPerMillion": 15,
       "outputPerMillion": 120,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-4.6": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-sonnet-4.5": {
       "inputPerMillion": 3,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-v3.2-exp": {
       "inputPerMillion": 0.27,
       "outputPerMillion": 0.41,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "thedrummer/cydonia-24b-v4.1": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 0.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "relace/relace-apply-3": {
       "inputPerMillion": 0.85,
       "outputPerMillion": 1.25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-vl-235b-a22b-thinking": {
       "inputPerMillion": 0.98,
       "outputPerMillion": 3.95,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-vl-235b-a22b-instruct": {
       "inputPerMillion": 0.21,
       "outputPerMillion": 1.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-max": {
       "inputPerMillion": 0.78,
       "outputPerMillion": 3.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-coder-plus": {
       "inputPerMillion": 0.65,
       "outputPerMillion": 3.25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-v3.1-terminus": {
       "inputPerMillion": 0.27,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-coder-flash": {
       "inputPerMillion": 0.195,
       "outputPerMillion": 0.975,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-next-80b-a3b-thinking": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-next-80b-a3b-instruct": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 1.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen-plus-2025-07-28": {
       "inputPerMillion": 0.26,
       "outputPerMillion": 0.78,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen-plus-2025-07-28:thinking": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "moonshotai/kimi-k2-0905": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-30b-a3b-thinking-2507": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 2.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nousresearch/hermes-4-70b": {
       "inputPerMillion": 0.13,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nousresearch/hermes-4-405b": {
       "inputPerMillion": 1,
       "outputPerMillion": 3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-chat-v3.1": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 0.95,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-medium-3.1": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-4.5v": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 1.8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "ai21/jamba-large-1.7": {
       "inputPerMillion": 2,
       "outputPerMillion": 8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5-mini": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-5-nano": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-oss-120b": {
       "inputPerMillion": 0.037,
       "outputPerMillion": 0.17,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-oss-20b": {
       "inputPerMillion": 0.03,
       "outputPerMillion": 0.13,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4.1": {
       "inputPerMillion": 15,
       "outputPerMillion": 75,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/codestral-2508": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 0.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-coder-30b-a3b-instruct": {
       "inputPerMillion": 0.07,
       "outputPerMillion": 0.28,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-30b-a3b-instruct-2507": {
       "inputPerMillion": 0.04815,
       "outputPerMillion": 0.19305,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-4.5": {
       "inputPerMillion": 0.6,
       "outputPerMillion": 2.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "z-ai/glm-4.5-air": {
       "inputPerMillion": 0.13,
       "outputPerMillion": 0.85,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-235b-a22b-thinking-2507": {
       "inputPerMillion": 0.23,
       "outputPerMillion": 2.3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-coder": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "bytedance/ui-tars-1.5-7b": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-2.5-flash-lite": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-235b-a22b-2507": {
       "inputPerMillion": 0.1495,
       "outputPerMillion": 0.598,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "moonshotai/kimi-k2": {
       "inputPerMillion": 0.57,
       "outputPerMillion": 2.3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "cognitivecomputations/dolphin-mistral-24b-venice-edition": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 0.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "tencent/hunyuan-a13b-instruct": {
       "inputPerMillion": 0.14,
       "outputPerMillion": 0.57,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "morph/morph-v3-large": {
       "inputPerMillion": 0.9,
       "outputPerMillion": 1.9,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "morph/morph-v3-fast": {
       "inputPerMillion": 0.8,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "baidu/ernie-4.5-vl-424b-a47b": {
       "inputPerMillion": 0.42,
       "outputPerMillion": 1.25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-small-3.2-24b-instruct": {
       "inputPerMillion": 0.075,
       "outputPerMillion": 0.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-m1": {
       "inputPerMillion": 0.55,
       "outputPerMillion": 2.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-2.5-flash": {
       "inputPerMillion": 0.3,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-2.5-pro": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o3-pro": {
       "inputPerMillion": 20,
       "outputPerMillion": 80,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-2.5-pro-preview": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-r1-0528": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 2.15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-opus-4": {
       "inputPerMillion": 15,
       "outputPerMillion": 75,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-sonnet-4": {
       "inputPerMillion": 3,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemma-3n-e4b-it": {
       "inputPerMillion": 0.06,
       "outputPerMillion": 0.12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-medium-3": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemini-2.5-pro-preview-05-06": {
       "inputPerMillion": 1.25,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "arcee-ai/virtuoso-large": {
       "inputPerMillion": 0.75,
       "outputPerMillion": 1.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-guard-4-12b": {
       "inputPerMillion": 0.18,
       "outputPerMillion": 0.18,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-30b-a3b": {
       "inputPerMillion": 0.12,
       "outputPerMillion": 0.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-8b": {
       "inputPerMillion": 0.117,
       "outputPerMillion": 0.455,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-14b": {
       "inputPerMillion": 0.2275,
       "outputPerMillion": 0.91,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-32b": {
       "inputPerMillion": 0.08,
       "outputPerMillion": 0.28,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen3-235b-a22b": {
       "inputPerMillion": 0.455,
       "outputPerMillion": 1.82,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o4-mini-high": {
       "inputPerMillion": 1.1,
       "outputPerMillion": 4.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o3": {
       "inputPerMillion": 2,
       "outputPerMillion": 8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o4-mini": {
       "inputPerMillion": 1.1,
       "outputPerMillion": 4.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4.1": {
       "inputPerMillion": 2,
       "outputPerMillion": 8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4.1-mini": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 1.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4.1-nano": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-4-maverick": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 0.8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-4-scout": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.3,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-chat-v3-0324": {
       "inputPerMillion": 0.27,
       "outputPerMillion": 1.12,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o1-pro": {
       "inputPerMillion": 150,
       "outputPerMillion": 600,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-small-3.1-24b-instruct": {
       "inputPerMillion": 0.351,
       "outputPerMillion": 0.555,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemma-3-4b-it": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemma-3-12b-it": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "cohere/command-a": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "rekaai/reka-flash-3": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemma-3-27b-it": {
       "inputPerMillion": 0.08,
       "outputPerMillion": 0.45,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "thedrummer/skyfall-36b-v2": {
       "inputPerMillion": 0.55,
       "outputPerMillion": 0.8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "perplexity/sonar-reasoning-pro": {
       "inputPerMillion": 2,
       "outputPerMillion": 8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "perplexity/sonar-pro": {
       "inputPerMillion": 3,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "perplexity/sonar-deep-research": {
       "inputPerMillion": 2,
       "outputPerMillion": 8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-saba": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o3-mini-high": {
       "inputPerMillion": 1.1,
       "outputPerMillion": 4.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "aion-labs/aion-rp-llama-3.1-8b": {
       "inputPerMillion": 0.8,
       "outputPerMillion": 1.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen2.5-vl-72b-instruct": {
       "inputPerMillion": 0.8,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen-plus": {
       "inputPerMillion": 0.26,
       "outputPerMillion": 0.78,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o3-mini": {
       "inputPerMillion": 1.1,
       "outputPerMillion": 4.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-small-24b-instruct-2501": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.08,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "perplexity/sonar": {
       "inputPerMillion": 1,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-r1-distill-llama-70b": {
       "inputPerMillion": 0.8,
       "outputPerMillion": 0.8,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-r1": {
       "inputPerMillion": 0.7,
       "outputPerMillion": 2.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "minimax/minimax-01": {
       "inputPerMillion": 0.2,
       "outputPerMillion": 1.1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "microsoft/phi-4": {
       "inputPerMillion": 0.07,
       "outputPerMillion": 0.14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "deepseek/deepseek-chat": {
       "inputPerMillion": 0.2574,
       "outputPerMillion": 1.0287,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "sao10k/l3.3-euryale-70b": {
       "inputPerMillion": 0.65,
       "outputPerMillion": 0.75,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/o1": {
       "inputPerMillion": 15,
       "outputPerMillion": 60,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "cohere/command-r7b-12-2024": {
       "inputPerMillion": 0.0375,
       "outputPerMillion": 0.15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-3.3-70b-instruct": {
       "inputPerMillion": 0.13,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "amazon/nova-lite-v1": {
       "inputPerMillion": 0.06,
       "outputPerMillion": 0.24,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "amazon/nova-micro-v1": {
       "inputPerMillion": 0.035,
       "outputPerMillion": 0.14,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "amazon/nova-pro-v1": {
       "inputPerMillion": 0.8,
       "outputPerMillion": 3.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4o-2024-11-20": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-large-2407": {
       "inputPerMillion": 2,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen-2.5-coder-32b-instruct": {
       "inputPerMillion": 0.66,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "thedrummer/unslopnemo-12b": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthracite-org/magnum-v4-72b": {
       "inputPerMillion": 3,
       "outputPerMillion": 5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen-2.5-7b-instruct": {
       "inputPerMillion": 0.1,
       "outputPerMillion": 0.2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "thedrummer/rocinante-12b": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 0.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-3.2-1b-instruct": {
       "inputPerMillion": 0.027,
       "outputPerMillion": 0.201,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-3.2-3b-instruct": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.33,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "qwen/qwen-2.5-72b-instruct": {
       "inputPerMillion": 0.36,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "cohere/command-r-08-2024": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "cohere/command-r-plus-08-2024": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "sao10k/l3.1-euryale-70b": {
       "inputPerMillion": 0.85,
       "outputPerMillion": 0.85,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nousresearch/hermes-3-llama-3.1-70b": {
       "inputPerMillion": 0.7,
       "outputPerMillion": 0.7,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "nousresearch/hermes-3-llama-3.1-405b": {
       "inputPerMillion": 1,
       "outputPerMillion": 1,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "sao10k/l3-lunaris-8b": {
       "inputPerMillion": 0.04,
       "outputPerMillion": 0.05,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4o-2024-08-06": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-3.1-70b-instruct": {
       "inputPerMillion": 0.4,
       "outputPerMillion": 0.4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "meta-llama/llama-3.1-8b-instruct": {
       "inputPerMillion": 0.05,
       "outputPerMillion": 0.08,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-nemo": {
       "inputPerMillion": 0.019,
       "outputPerMillion": 0.03,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4o-mini": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4o-mini-2024-07-18": {
       "inputPerMillion": 0.15,
       "outputPerMillion": 0.6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "google/gemma-2-27b-it": {
       "inputPerMillion": 0.65,
       "outputPerMillion": 0.65,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4o": {
       "inputPerMillion": 2.5,
       "outputPerMillion": 10,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4o-2024-05-13": {
       "inputPerMillion": 5,
       "outputPerMillion": 15,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mixtral-8x22b-instruct": {
       "inputPerMillion": 2,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "microsoft/wizardlm-2-8x22b": {
       "inputPerMillion": 0.62,
       "outputPerMillion": 0.62,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4-turbo": {
       "inputPerMillion": 10,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "anthropic/claude-3-haiku": {
       "inputPerMillion": 0.25,
       "outputPerMillion": 1.25,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mistralai/mistral-large": {
       "inputPerMillion": 2,
       "outputPerMillion": 6,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-3.5-turbo-0613": {
       "inputPerMillion": 1,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4-turbo-preview": {
       "inputPerMillion": 10,
       "outputPerMillion": 30,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-3.5-turbo-instruct": {
       "inputPerMillion": 1.5,
       "outputPerMillion": 2,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-3.5-turbo-16k": {
       "inputPerMillion": 3,
       "outputPerMillion": 4,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "mancer/weaver": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 0.75,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "undi95/remm-slerp-l2-13b": {
       "inputPerMillion": 0.45,
       "outputPerMillion": 0.65,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "gryphe/mythomax-l2-13b": {
       "inputPerMillion": 0.06,
       "outputPerMillion": 0.06,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-3.5-turbo": {
       "inputPerMillion": 0.5,
       "outputPerMillion": 1.5,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     },
     "openai/gpt-4": {
       "inputPerMillion": 30,
       "outputPerMillion": 60,
       "currency": "USD",
-      "fetchedAt": "2026-08-03T14:01:14.916Z"
+      "fetchedAt": "2026-08-06T14:01:14.916Z"
     }
   }
 }

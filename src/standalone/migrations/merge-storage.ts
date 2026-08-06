@@ -70,7 +70,10 @@ import { applyEntryToSnapshot, emptyTelemetrySnapshot } from '../../aiflowbridge
 import type { RequestTelemetry, TelemetrySnapshot } from '../../aiflowbridge/types';
 
 const DEFAULT_STORAGE_DIRNAME = '.aiflowbridge';
-const EXTENSION_PUBLISHER = 'LaurentOngaro';
+// VS Code always lowercases the `<publisher>.<name>` segment of the
+// `globalStorage` subfolder. Keep this in sync with
+// `src/standalone/storage-dir.ts`.
+const EXTENSION_PUBLISHER = 'laurentongaro';
 const EXTENSION_NAME = 'aiflowbridge';
 
 interface CliArgs {

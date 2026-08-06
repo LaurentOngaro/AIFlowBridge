@@ -2,7 +2,11 @@
 
 > Part of the [AIFlowBridge documentation](../README.md).
 >
-> **Data freshness policy.** Every number in this document is a snapshot, not a live feed. Pricing reflects the upstream catalogs as of the **2026-08-03** snapshot, shipped with **AIFlowBridge 2.15.5**. Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries (mirrored into the bundled `resources/pricing.json` at release time). Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
+> **Data freshness policy.**
+> Every number in this document is a snapshot, not a live feed.
+> Pricing reflects the upstream catalogs as of the **2026-08-06** snapshot, shipped with **AIFlowBridge 2.15.6**.
+> Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries (mirrored into the bundled `resources/pricing.json` at release time).
+> Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
 
 AIFlowBridge is **local glue** around paid upstream APIs. It does not replace those APIs and it does not magically lower their per-token prices.
 Anything that says otherwise is marketing.

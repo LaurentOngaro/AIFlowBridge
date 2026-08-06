@@ -4,9 +4,17 @@
  * The standalone `aiflowbridge-server` CLI and the VS Code extension
  * must share the same on-disk state (telemetry, secrets, ...). The VS
  * Code extension reads `<globalStorageUri>/...` which on this machine is
- * `C:\Users\<user>\AppData\Roaming\Code\User\globalStorage\LaurentOngaro.aiflowbridge\`
+ * `C:\Users\<user>\AppData\Roaming\Code\User\globalStorage\laurentongaro.aiflowbridge\`
  * (Windows) / `~/.config/Code/User/globalStorage/...` (Linux) /
  * `~/Library/Application Support/Code/User/globalStorage/...` (macOS).
+ *
+ * Note: VS Code always lowercases the `<publisher>.<name>` segment when
+ * it creates the `globalStorage` subfolder, regardless of the case used
+ * in `package.json`'s `publisher` field. Windows (NTFS) is
+ * case-insensitive so the lookup happens to succeed even when the
+ * constant here preserves the package casing; Linux/macOS filesystems
+ * are case-sensitive and require the lowercase form to match. We
+ * therefore store the lowercase form here.
  *
  * If the standalone server defaults to `~/.aiflowbridge/` instead of
  * detecting the VS Code ext's path, the dashboard (which always reads
@@ -28,12 +36,12 @@ import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 
 export const DEFAULT_STORAGE_DIRNAME = '.aiflowbridge';
-export const EXTENSION_PUBLISHER = 'LaurentOngaro';
+export const EXTENSION_PUBLISHER = 'laurentongaro';
 export const EXTENSION_NAME = 'aiflowbridge';
 
 /**
  * Resolve the VS Code extension's `globalStorageUri` for the
- * `LaurentOngaro.aiflowbridge` extension on this machine. Returns
+ * `laurentongaro.aiflowbridge` extension on this machine. Returns
  * `undefined` if VS Code's user data directory cannot be located or
  * the extension is not installed.
  *
