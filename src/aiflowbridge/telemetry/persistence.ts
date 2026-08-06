@@ -633,7 +633,7 @@ export function defaultTelemetryPaths(globalStorageDir: string): { filePath: str
  * supplied snapshot. Mutates the snapshot in place. Returns `true` when
  * the entry was found and removed, `false` otherwise.
  *
- * The arithmetic guards every subtraction with `Math.max(0, …)` to keep
+ * The arithmetic guards every subtraction with `Math.max(0, ...)` to keep
  * the persisted snapshot sane even if the caller asks to remove an entry
  * that was already partially reverted (e.g. by a concurrent writer
  * racing on the same id). The `requests` counter is the authoritative
@@ -672,6 +672,37 @@ function revertEntryFromSnapshot(snapshot: TelemetrySnapshot, entryId: string): 
     revertEntryFromProvider(modelSnapshot, entry);
     if (modelSnapshot.requests <= 0) {
       delete snapshot.byModel[entry.model];
+    }
+  }
+
+  // Reverse the entry from the per-originating-client map. Missing
+  // clientId was coalesced to the `'unknown'` bucket at record time
+  // (see `applyEntryToSnapshot`), so the bucket key here mirrors that
+  // decision exactly. Symmetric reversal keeps the on-disk `byClient`
+  // counts consistent with `byProvider` / `byModel` after a removeEntry
+  // - before the 2.15.7 fix, the cross-window mirror would decrement
+  // `byProvider` + `byModel` on disk but leave `byClient` stale until
+  // a retention prune rebuilt it.
+  if (!snapshot.byClient) snapshot.byClient = {};
+  const clientKey = entry.clientId ?? 'unknown';
+  const clientSnapshot = snapshot.byClient[clientKey];
+  if (clientSnapshot) {
+    revertEntryFromProvider(clientSnapshot, entry);
+    if (clientSnapshot.requests <= 0) {
+      delete snapshot.byClient[clientKey];
+    }
+  }
+
+  // Reverse the entry from the per-origin map (`gateway` vs
+  // `copilot-chat`). Missing `source` was coalesced to `'gateway'` at
+  // record time, mirroring the in-memory decision in `TelemetryStore`.
+  if (!snapshot.bySource) snapshot.bySource = {};
+  const sourceKey = entry.source ?? 'gateway';
+  const sourceSnapshot = snapshot.bySource[sourceKey];
+  if (sourceSnapshot) {
+    revertEntryFromProvider(sourceSnapshot, entry);
+    if (sourceSnapshot.requests <= 0) {
+      delete snapshot.bySource[sourceKey];
     }
   }
 

@@ -688,6 +688,24 @@ export class GatewayService {
     }
 
     if (request.method === 'GET' && path === '/v1/models') {
+      // Surface the bundled pricing snapshot freshness on
+      // `GET /v1/models` so external OpenAI-compatible clients
+      // (Kilo Code, Continue, Open WebUI) can cache the catalog
+      // intelligently: the same `generatedAt` + `aiflowbridgeVersion`
+      // pair already drives the dashboard's `Est. cost` tooltips and
+      // is part of the `> Data snapshot:` stamps in user-facing docs.
+      // Headers are set BEFORE `writeJson` overwrites
+      // `Content-Type` so the order does not matter; both end up on
+      // the response. Empty / missing pricing falls through to no
+      // header so a pre-2.15.0 install (no pricing registry yet)
+      // still serves a valid catalog.
+      const pricing = this.config.pricing;
+      if (pricing?.bundledFetchedAt) {
+        response.setHeader('X-AIFlowBridge-Pricing-GeneratedAt', pricing.bundledFetchedAt);
+      }
+      if (pricing?.bundledVersion) {
+        response.setHeader('X-AIFlowBridge-Pricing-Version', pricing.bundledVersion);
+      }
       this.writeJson(response, 200, {
         object: 'list',
         data: buildModelCatalog(this.config.providers),
@@ -835,6 +853,245 @@ export class GatewayService {
     });
   }
 
+  /**
+   * Step 1 of `forwardChatCompletion` (audit 9.1 decomposition):
+   * read the request body, parse the JSON, and surface a structured
+   * 400 on failure. The caller owns the in-flight counter; this
+   * helper decrements it on the failure path before returning so a
+   * parse error never leaks the slot.
+   *
+   * Returns the parsed JSON payload on success, or `undefined` after
+   * writing the 400 response + decrementing the counter on failure.
+   */
+  private async readAndValidateBody(request: IncomingMessage, requestId: string, response: ServerResponse): Promise<Record<string, unknown> | undefined> {
+    try {
+      const bodyText = await readBody(request);
+      // `parseJson` returns `undefined` on both an empty body and a
+      // malformed-JSON body. Both are recoverable upstream - the
+      // orchestrator will use `defaultModel` when `payload?.model` is
+      // absent and surface a 404 when no provider matches. Only true
+      // body-read failures (abort, socket reset, oversize cap)
+      // reach the 400 response.
+      return parseJson(bodyText);
+    } catch (error) {
+      // Body read failed (abort, socket reset, oversize): release the
+      // slot before propagating.
+      this.inFlightRequestsField--;
+      const message = error instanceof Error ? error.message : String(error);
+      this.writeJson(response, 400, {
+        error: 'Failed to read request body',
+        requestId,
+        details: message,
+      });
+      return undefined;
+    }
+  }
+
+  /**
+   * Step 2 of `forwardChatCompletion` (audit 9.1 decomposition):
+   * resolve the prompt summary (when session-log capture is enabled),
+   * the requested model name, and the matching upstream provider.
+   *
+   * Returns `{ modelName, provider, promptSummary }` on success, or
+   * `undefined` after writing the structured 503 (no enabled
+   * providers) or 404 (no matching provider) response.
+   *
+   * The provider selection honors language routing
+   * (`aiflowbridge.gateway.languageRouting`) so a request that asks
+   * for a Chinese-language model still falls back to the
+   * language-tuned provider even when no exact id match exists.
+   */
+  private async resolveChatProvider(
+    payload: Record<string, unknown>,
+    request: IncomingMessage,
+    requestId: string,
+    response: ServerResponse
+  ): Promise<{ modelName: string; provider: ProviderProfile; promptSummary: string | undefined } | undefined> {
+    // Action plan item #3: capture a sanitized + truncated prompt
+    // summary at the entry point so every recordTelemetry() call
+    // downstream carries it. The summary is computed once here
+    // (the request body does not change after the body read) and
+    // re-used on the success / streaming / catch paths. When
+    // `captureSessionLog` is disabled the summary is `undefined`
+    // so the recordTelemetry() path stores empty fields.
+    const promptSummary = this.config.captureSessionLog ? buildPromptSummary(payload) : undefined;
+
+    const modelName = typeof payload?.model === 'string' ? payload.model : this.config.gateway.defaultModel;
+    const enabledProviders = this.config.providers.filter((profile) => profile.enabled);
+
+    if (enabledProviders.length === 0) {
+      this.writeJson(response, 503, {
+        error: 'No enabled upstream provider is configured',
+        requestId,
+      });
+      return undefined;
+    }
+
+    const provider = selectProviderWithLanguage(
+      this.config.providers,
+      modelName,
+      this.config.gateway.defaultModel,
+      resolveLanguageHint(request, payload, this.config),
+      this.config.gateway.languageRouting
+    );
+
+    if (!provider) {
+      const availableIds = enabledProviders.map((profile) => profile.id).join(', ');
+      this.writeJson(response, 404, {
+        error:
+          `No gateway provider matches model "${modelName ?? ''}". Available provider ids: ${availableIds}. ` +
+          `Add a provider with that id in the 'aiflowbridge.providers' setting, or use 'AIFlowBridge: Add a custom model'.`,
+        requestId,
+        requestedModel: modelName ?? null,
+        availableProviderIds: enabledProviders.map((profile) => profile.id),
+      });
+      return undefined;
+    }
+
+    return { modelName, provider, promptSummary };
+  }
+
+  /**
+   * Step 3 of `forwardChatCompletion` (audit 9.1 decomposition):
+   * assemble the upstream HTTP request - URL, resolved API key,
+   * bearer-key shape check, headers (including the OpenRouter
+   * attribution pair), and the final serialized body after AIFB-
+   * specific payload translation + optional workspace-context
+   * injection + provider model override.
+   *
+   * Returns `{ upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody }`
+   * on success, or `undefined` after writing the structured 502
+   * `Upstream credential rejected` response (the only failure mode -
+   * a non-printable-ASCII resolved key).
+   *
+   * The async API-key resolver is invoked here so the rest of the
+   * pipeline can stay synchronous.
+   */
+  private async buildUpstreamRequest(
+    payload: Record<string, unknown>,
+    provider: ProviderProfile,
+    requestId: string,
+    response: ServerResponse
+  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string } | undefined> {
+    const upstreamUrl = resolveUpstreamUrl(provider, 'chat/completions');
+
+    // Resolve API key: use profile key if set, otherwise try the async resolver
+    let resolvedKey = provider.apiKey;
+    if (!resolvedKey && this.resolveApiKey) {
+      try {
+        resolvedKey = await this.resolveApiKey(provider.id);
+      } catch {
+        // Ignore resolve errors; request will fail if upstream requires auth
+      }
+    }
+
+    // Defense-in-depth: refuse to inject a key whose shape is not
+    // a printable ASCII string of bounded length. The audit flagged
+    // that the previous code spliced `resolvedKey` into the
+    // `Authorization` header without any check, which let a local
+    // attacker with write access to `SecretStorage` forge arbitrary
+    // header bytes. A `CRLF` injection or a multi-MB string is
+    // rejected here before it ever reaches the upstream socket. The
+    // empty string falls through to "no auth header" (the upstream
+    // returns its own 401/403).
+    if (resolvedKey && !isValidBearerKey(resolvedKey)) {
+      logger.warn(
+        `[Gateway] ${requestId} refused to inject Authorization header for provider=${provider.id}: resolved key failed the printable-ASCII shape check (length=${resolvedKey.length})`
+      );
+      this.writeJson(response, 502, {
+        error: 'Upstream credential rejected',
+        requestId,
+        providerId: provider.id,
+        details: 'The resolved API key is not a printable ASCII string of bounded length. Re-run "Set API Key" to overwrite the stored credential.',
+      });
+      return undefined;
+    }
+
+    const upstreamHeaders = new Headers({
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      'X-AIFlowBridge-Request-Id': requestId,
+      'X-AIFlowBridge-Provider': provider.id,
+    });
+
+    if (resolvedKey) {
+      upstreamHeaders.set('Authorization', `Bearer ${resolvedKey}`);
+    }
+
+    // OpenRouter-specific attribution header. The OpenRouter docs
+    // (https://openrouter.ai/docs/api-reference/listing) ask every
+    // client to set `HTTP-Referer` so the request can be attributed
+    // back to AIFlowBridge on the OpenRouter dashboard and so the
+    // request is eligible for free-tier reliability. Only added when
+    // the upstream URL host is openrouter.ai; other vendors are
+    // untouched. The pure helper below is exported for the smoke
+    // test in `tests/integration/openrouter.smoke.test.ts`.
+    applyOpenRouterAttributionHeaders(upstreamHeaders, upstreamUrl, this.bundledVersion);
+
+    // Translate AIFB-specific body fields into the upstream API's expected
+    // shape (e.g. Kilo Code's `reasoning: true/false` checkbox -> MiniMax's
+    // `reasoning_split: true/false`). The translator strips any AIFB-specific
+    // fields it consumed so the upstream never sees them.
+    const translatedPayload = translatePayloadForUpstream(payload, provider);
+    // when a translation actually rewrote a field, log the
+    // before/after at the debug level so the user can diagnose "I sent
+    // reasoning_effort=high but the model did not think" reports.
+    // `translatePayloadForUpstream` is intentionally pure (no side
+    // effects, exported for unit testing) - the diagnostic lives at the
+    // call site instead, where we already have `logger` and `requestId`.
+    if (payload) {
+      const hasReasoning = 'reasoning' in payload;
+      const hasEffort = 'reasoning_effort' in payload;
+      if (hasReasoning || hasEffort) {
+        const reasoningSplit = (translatedPayload as Record<string, unknown>).reasoning_split;
+        logger.debug(
+          `[Gateway] ${requestId} translated upstream payload: ` +
+            `reasoning=${hasReasoning ? String(payload.reasoning) : '<absent>'} ` +
+            `reasoning_effort=${hasEffort ? String(payload.reasoning_effort) : '<absent>'} ` +
+            `-> reasoning_split=${String(reasoningSplit)}`
+        );
+      }
+    }
+
+    // optional workspace-context injection. When `aiflowbridge.gateway.workspaceContext.enabled`
+    // is true AND a workspace root has been resolved, prepend a
+    // short system-message describing the languages / package
+    // managers / linters / formatters detected at the workspace
+    // root. The injection is a no-op when context injection is
+    // disabled, no workspace root is known, or detection returned
+    // no language (e.g. the user opened a non-code folder). Pure
+    // system-message prefix; the user's existing system message
+    // (if any) is preserved on the next slot. Default to
+    // `translatedPayload` so the rest of the pipeline always has a
+    // payload to work with.
+    //
+    // `/review uncommitted` F10: the resolved-root + options-shaping
+    // + cache-or-not dance lives in `detectWorkspaceContextFromSettings`.
+    let injectedFinalPayload: Record<string, unknown> = translatedPayload;
+    const context = detectWorkspaceContextFromSettings(this.config.gateway.workspaceContext, {
+      cached: true,
+      cwdSentinels: CWD_PROJECT_SENTINELS,
+    });
+    if (context) {
+      const prefix = renderWorkspaceContext(context);
+      if (prefix) {
+        injectedFinalPayload = prependSystemMessage(translatedPayload, prefix);
+        if (logger.debug && context.primaryLanguage) {
+          logger.debug(`[Gateway] ${requestId} injected workspace context (languages=${context.languages.join(',')})`);
+        }
+      }
+    }
+    // Override the model name in the forwarded request with the provider's
+    // upstream model name, so Kilo Code and other clients can use any alias.
+    // We always re-serialize (never pass `bodyText` through) so the
+    // translation above is guaranteed to reach the upstream.
+    const finalPayload =
+      provider.model && injectedFinalPayload.model !== provider.model ? { ...injectedFinalPayload, model: provider.model } : injectedFinalPayload;
+    const upstreamBody = JSON.stringify(finalPayload);
+
+    return { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody };
+  }
+
   private async forwardChatCompletion(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestId = randomUUID();
     const startedAt = Date.now();
@@ -868,23 +1125,14 @@ export class GatewayService {
     }
     this.inFlightRequestsField++;
 
-    let bodyText: string;
-    let payload: Record<string, unknown> | undefined;
-    try {
-      bodyText = await readBody(request);
-      payload = parseJson(bodyText);
-    } catch (error) {
-      // Body read failed (abort, socket reset, oversize): release the
-      // slot before propagating.
-      this.inFlightRequestsField--;
-      const message = error instanceof Error ? error.message : String(error);
-      this.writeJson(response, 400, {
-        error: 'Failed to read request body',
-        requestId,
-        details: message,
-      });
-      return;
-    }
+    // Helper returns `undefined` only on a true body-read failure
+    // (abort, socket reset, oversize cap); in that case the helper
+    // already wrote the 400 and decremented the in-flight counter.
+    // An empty or malformed-JSON body parses to `undefined` too but
+    // is recoverable upstream - `payload?.model` then resolves to
+    // `defaultModel` and the request keeps flowing through the
+    // provider-resolution + pipelining stages.
+    const payload = (await this.readAndValidateBody(request, requestId, response)) ?? {};
 
     // Action plan item #3: capture a sanitized + truncated prompt
     // summary at the entry point so every recordTelemetry() call
@@ -893,94 +1141,21 @@ export class GatewayService {
     // re-used on the success / streaming / catch paths. When
     // `captureSessionLog` is disabled the summary is `undefined`
     // so the recordTelemetry() path stores empty fields.
-    const promptSummary = this.config.captureSessionLog ? buildPromptSummary(payload) : undefined;
-
-    const modelName = typeof payload?.model === 'string' ? payload.model : this.config.gateway.defaultModel;
-    const enabledProviders = this.config.providers.filter((profile) => profile.enabled);
-
-    if (enabledProviders.length === 0) {
-      this.writeJson(response, 503, {
-        error: 'No enabled upstream provider is configured',
-        requestId,
-      });
+    const resolved = await this.resolveChatProvider(payload, request, requestId, response);
+    if (!resolved) {
+      // 503 (no enabled providers) or 404 (no matching provider) was
+      // already written by the helper. Propagate.
       return;
     }
+    const { modelName, provider, promptSummary } = resolved;
 
-    const provider = selectProviderWithLanguage(
-      this.config.providers,
-      modelName,
-      this.config.gateway.defaultModel,
-      resolveLanguageHint(request, payload, this.config),
-      this.config.gateway.languageRouting
-    );
-
-    if (!provider) {
-      const availableIds = enabledProviders.map((profile) => profile.id).join(', ');
-      this.writeJson(response, 404, {
-        error:
-          `No gateway provider matches model "${modelName ?? ''}". Available provider ids: ${availableIds}. ` +
-          `Add a provider with that id in the 'aiflowbridge.providers' setting, or use 'AIFlowBridge: Add a custom model'.`,
-        requestId,
-        requestedModel: modelName ?? null,
-        availableProviderIds: enabledProviders.map((profile) => profile.id),
-      });
+    const upstreamRequest = await this.buildUpstreamRequest(payload, provider, requestId, response);
+    if (!upstreamRequest) {
+      // 502 (malformed upstream credential) was already written by
+      // the helper. Propagate.
       return;
     }
-
-    const upstreamUrl = resolveUpstreamUrl(provider, 'chat/completions');
-
-    // Resolve API key: use profile key if set, otherwise try the async resolver
-    let resolvedKey = provider.apiKey;
-    if (!resolvedKey && this.resolveApiKey) {
-      try {
-        resolvedKey = await this.resolveApiKey(provider.id);
-      } catch {
-        // Ignore resolve errors; request will fail if upstream requires auth
-      }
-    }
-
-    // Defense-in-depth: refuse to inject a key whose shape is not
-    // a printable ASCII string of bounded length. The audit flagged
-    // that the previous code spliced `resolvedKey` into the
-    // `Authorization` header without any check, which let a local
-    // attacker with write access to `SecretStorage` forge arbitrary
-    // header bytes. A `CRLF` injection or a multi-MB string is
-    // rejected here before it ever reaches the upstream socket. The
-    // empty string falls through to "no auth header" (the upstream
-    // returns its own 401/403).
-    if (resolvedKey && !isValidBearerKey(resolvedKey)) {
-      logger.warn(
-        `[Gateway] ${requestId} refused to inject Authorization header for provider=${provider.id}: resolved key failed the printable-ASCII shape check (length=${resolvedKey.length})`
-      );
-      this.writeJson(response, 502, {
-        error: 'Upstream credential rejected',
-        requestId,
-        providerId: provider.id,
-        details: 'The resolved API key is not a printable ASCII string of bounded length. Re-run "Set API Key" to overwrite the stored credential.',
-      });
-      return;
-    }
-
-    const headers = new Headers({
-      'Content-Type': 'application/json',
-      Accept: 'application/json, text/event-stream',
-      'X-AIFlowBridge-Request-Id': requestId,
-      'X-AIFlowBridge-Provider': provider.id,
-    });
-
-    if (resolvedKey) {
-      headers.set('Authorization', `Bearer ${resolvedKey}`);
-    }
-
-    // OpenRouter-specific attribution header. The OpenRouter docs
-    // (https://openrouter.ai/docs/api-reference/listing) ask every
-    // client to set `HTTP-Referer` so the request can be attributed
-    // back to AIFlowBridge on the OpenRouter dashboard and so the
-    // request is eligible for free-tier reliability. Only added when
-    // the upstream URL host is openrouter.ai; other vendors are
-    // untouched. The pure helper below is exported for the smoke
-    // test in `tests/integration/openrouter.smoke.test.ts`.
-    applyOpenRouterAttributionHeaders(headers, upstreamUrl, this.bundledVersion);
+    const { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody } = upstreamRequest;
 
     // the same AbortController that aborts the upstream
     // `fetch()` also drives the per-provider semaphore. When the
@@ -1088,67 +1263,6 @@ export class GatewayService {
       this.releaseProviderSlot(provider.id);
     };
 
-    // Translate AIFB-specific body fields into the upstream API's expected
-    // shape (e.g. Kilo Code's `reasoning: true/false` checkbox -> MiniMax's
-    // `reasoning_split: true/false`). The translator strips any AIFB-specific
-    // fields it consumed so the upstream never sees them.
-    const translatedPayload = translatePayloadForUpstream(payload, provider);
-    // when a translation actually rewrote a field, log the
-    // before/after at the debug level so the user can diagnose "I sent
-    // reasoning_effort=high but the model did not think" reports.
-    // `translatePayloadForUpstream` is intentionally pure (no side
-    // effects, exported for unit testing) - the diagnostic lives at the
-    // call site instead, where we already have `logger` and `requestId`.
-    if (payload) {
-      const hasReasoning = 'reasoning' in payload;
-      const hasEffort = 'reasoning_effort' in payload;
-      if (hasReasoning || hasEffort) {
-        const reasoningSplit = (translatedPayload as Record<string, unknown>).reasoning_split;
-        logger.debug(
-          `[Gateway] ${requestId} translated upstream payload: ` +
-            `reasoning=${hasReasoning ? String(payload.reasoning) : '<absent>'} ` +
-            `reasoning_effort=${hasEffort ? String(payload.reasoning_effort) : '<absent>'} ` +
-            `-> reasoning_split=${String(reasoningSplit)}`
-        );
-      }
-    }
-
-    // optional workspace-context injection. When `aiflowbridge.gateway.workspaceContext.enabled`
-    // is true AND a workspace root has been resolved, prepend a
-    // short system-message describing the languages / package
-    // managers / linters / formatters detected at the workspace
-    // root. The injection is a no-op when context injection is
-    // disabled, no workspace root is known, or detection returned
-    // no language (e.g. the user opened a non-code folder). Pure
-    // system-message prefix; the user's existing system message
-    // (if any) is preserved on the next slot. Default to
-    // `translatedPayload` so the rest of the pipeline always has a
-    // payload to work with.
-    //
-    // `/review uncommitted` F10: the resolved-root + options-shaping
-    // + cache-or-not dance lives in `detectWorkspaceContextFromSettings`.
-    let injectedFinalPayload: Record<string, unknown> = translatedPayload;
-    const context = detectWorkspaceContextFromSettings(this.config.gateway.workspaceContext, {
-      cached: true,
-      cwdSentinels: CWD_PROJECT_SENTINELS,
-    });
-    if (context) {
-      const prefix = renderWorkspaceContext(context);
-      if (prefix) {
-        injectedFinalPayload = prependSystemMessage(translatedPayload, prefix);
-        if (logger.debug && context.primaryLanguage) {
-          logger.debug(`[Gateway] ${requestId} injected workspace context (languages=${context.languages.join(',')})`);
-        }
-      }
-    }
-    // Override the model name in the forwarded request with the provider's
-    // upstream model name, so Kilo Code and other clients can use any alias.
-    // We always re-serialize (never pass `bodyText` through) so the
-    // translation above is guaranteed to reach the upstream.
-    const finalPayload =
-      provider.model && injectedFinalPayload.model !== provider.model ? { ...injectedFinalPayload, model: provider.model } : injectedFinalPayload;
-    const upstreamBody = JSON.stringify(finalPayload);
-
     let statusCode = 502;
     let promptTokens = estimatePromptTokensFromPayload(payload);
     let completionTokens = 0;
@@ -1233,7 +1347,7 @@ export class GatewayService {
 
       const upstreamResponse = await fetch(upstreamUrl, {
         method: 'POST',
-        headers,
+        headers: upstreamHeaders,
         body: upstreamBody,
         signal: abortController.signal,
       });

@@ -65,7 +65,7 @@ Changing the date a second time in a row works as expected (`input` + `change` e
 
 ## Text search
 
-A single search box ("Filter requests…") in the Filters panel matches case-insensitively across **model / provider / status / timestamp / duration / tokens / estimated cost**.
+A single search box ("Filter requests...") in the Filters panel matches case-insensitively across **model / provider / status / timestamp / duration / tokens / estimated cost**.
 The By model panel additionally matches the **model name itself** (a model whose name contains the needle is included even if no individual entry matches).
 
 ## Pagination

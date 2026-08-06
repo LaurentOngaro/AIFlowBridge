@@ -24,6 +24,9 @@ _None for now._
   - [ ] update the screenshot in README.md
   - [ ] add new screenshot
   - [ ] add a video or/and an animated GIF for presenting the tool
+  - [ ] **30-second asciinema (or animated GIF) of `curl http://127.0.0.1:8787/v1/chat/completions` with an OpenRouter id** (audit §7.3 recommendation). The current `docs/screenshots.md` gallery is dashboard-heavy; an end-to-end video of the local-gateway loop with Kilo Code in the picker side-by-side is the missing 30-second "show, don't tell" artifact for skimmers. Track under `resources/screenshots_v2.16.0/` once recorded.
+  - [ ] **README "For whom" 3-column table above the fold** (audit §7.2 frictions + §7.3 recommendation): "Solo dev / Team / JetBrains shop" - 3 columns, one row, one sentence each, telling each persona why AIFlowBridge solves their specific problem. Replaces the current "Why AIFlowBridge?" bullets at `README.md:93-102` which interleave routing, workspace-context, and pair-programming concerns.
+  - [ ] **Ollama-first roadmap reordering** (audit §7.2 frictions + §7.3 recommendation): `README.md:247-249` currently lists Qwen + GLM, Ollama, web dashboard, and auto-routing failover together - all desirable, but Ollama (local $0, single-key-unlocks-N-models parity with OpenRouter) is the only one that changes the cost story. Lead with Ollama in the roadmap, keep Qwen/GLM as "next vendor" bullets.
 
 ### Display (last: AFF07)
 
@@ -43,9 +46,10 @@ _None for now._
 
 _None for now._
 
-### Refactoring (last:)
+### Refactoring (last: REC02)
 
-_None for now._
+- [ ] REC01: Decompose `src/aiflowbridge/host-config.ts` (~570 lines, 2nd-largest file in `src/` after `gateway/server.ts` post-2.15.7) into two focused modules: `src/aiflowbridge/gateway/settings.ts` (the `GatewaySettings` assembly in `loadConfigFromContext`, lines ~310-565) and `src/aiflowbridge/gateway/pricing-resolution.ts` (`resolvePricingForModel` + `toProviderPricing`, lines ~127-195). Audit §3.2 finding, §6.3 backlog. No behavior change, only file-size relief. Unblocks independent testability of the pricing precedence chain (workspace > globalStorage > bundled pricing.json > per-model models.json > family default). Tracking doc: `docs/audits/2026-08-06-audit-v2.15.5.md` §1.1 row "Decompose `host-config.ts`".
+- [ ] REC02: Property-based test for `deepMergeModel` / `deepMergeVendor` in `src/aiflowbridge/modelRegistry.schema.ts:526-569`. The hand-rolled 3-tier merge is correct but subtle around `pricing` partials (an override that only sets `pricing` must keep every other field from the bundled entry). A fast-check style test would guard against a future field addition that forgets to merge (e.g. a new `capabilities` sub-field silently dropped from the override path). Audit §6.3 backlog. Out of scope for the 2.15.7 patch (deferred); ship in next minor alongside REC01.
 
 ### API (last:API01)
 
@@ -62,6 +66,7 @@ _None for now._
 ### Roadmap / Ideas to Investigate
 
 _The README has a public-facing version of this roadmap in the "Roadmap" section. This file tracks the same items with more implementation detail._
+_The 2026-08-06 audit (`docs/audits/2026-08-06-audit-v2.15.5.md` §1.1 + §6.3 + §9.2) is the source-of-truth backlog for the items below - each entry points to the audit section that proposed it, and the §1.1 table tracks which recommendations already landed (in 2.15.7) versus which are still open._
 
 Next up:
 

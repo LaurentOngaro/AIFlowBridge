@@ -43,7 +43,29 @@ import type { ConfigReader, Disposable, FileSystemLike, IGatewayContext, SecretS
 import { logger } from '../logger';
 import { StandaloneConfigFile } from './config-loader';
 
-const POLLING_INTERVAL_MS = 5_000;
+const DEFAULT_POLLING_INTERVAL_MS = 5_000;
+
+/**
+ * Resolve the polling interval used by the config-file `fs.watchFile`
+ * watchdog. Operators on slow disks (network mounts, WSL2, NFS-backed
+ * containers) can raise the interval via the
+ * `AIFLOWBRIDGE_CONFIG_WATCH_INTERVAL_MS` env var without a code
+ * change. Out-of-range or non-numeric values fall back to the 5 s
+ * default so a typo never silently disables the watcher.
+ */
+function resolveConfigWatchIntervalMs(): number {
+  const raw = process.env.AIFLOWBRIDGE_CONFIG_WATCH_INTERVAL_MS;
+  if (!raw) {
+    return DEFAULT_POLLING_INTERVAL_MS;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 250) {
+    // Below 250 ms the polling loop outpaces a slow disk's mtime
+    // granularity and burns CPU for no benefit.
+    return DEFAULT_POLLING_INTERVAL_MS;
+  }
+  return parsed;
+}
 
 /** Map our standalone secret keys to environment variable names. */
 const SECRET_TO_ENV: Record<string, string> = {
@@ -186,15 +208,19 @@ function watchConfigFile(path: string, onChange: () => void): Disposable {
     // not yet exist on Windows); fall through to the polling watcher.
   }
 
-  // Watchdog: poll mtime every 5s so we never miss a write because of a
-  // platform-specific `fs.watch` quirk.
+  // Watchdog: poll mtime at the resolved interval (default 5 s,
+  // overridable via `AIFLOWBRIDGE_CONFIG_WATCH_INTERVAL_MS`) so we
+  // never miss a write because of a platform-specific `fs.watch`
+  // quirk. Operators on slow disks (NFS, WSL2) raise the interval to
+  // keep the polling loop from outpacing mtime granularity.
+  const pollingIntervalMs = resolveConfigWatchIntervalMs();
   let lastMtime = 0;
   try {
     lastMtime = statSync(path).mtimeMs;
   } catch {
     lastMtime = 0;
   }
-  watchFile(path, { persistent: false, interval: POLLING_INTERVAL_MS }, () => {
+  watchFile(path, { persistent: false, interval: pollingIntervalMs }, () => {
     if (disposed) {
       return;
     }

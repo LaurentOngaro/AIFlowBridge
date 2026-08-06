@@ -374,6 +374,91 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
     expect(xiaomi?.id).toBe('mimo-v2.5-pro');
   });
 
+  it('whitelists the historical DeepSeek alias convention (deepseek-flash, deepseek-pro)', () => {
+    // The 2.13.0 catalog-id regression test (above) asserts that
+    // MiniMax + Xiaomi hand-curated entries use `id === model`. The
+    // audit also flagged that the DeepSeek hand-curated entries
+    // historically used `id: 'deepseek-flash'` with `model:
+    // 'deepseek-v4-flash'` - a friendly alias, not a vendor name leak.
+    // The alias is documented as an allowed exception in
+    // `docs/agent-instructions/tasks.md` (Path A, step 9). Without an
+    // explicit whitelist, a future contributor could "fix" the alias
+    // to match `model`, rename the catalog id, and break every Kilo
+    // Code / Continue config that pinned `deepseek-flash` in the
+    // picker. This test pins the whitelist so the alias stays
+    // intentional, not accidental.
+    //
+    // The hand-curated `DEFAULT_GATEWAY_PROFILES` array is internal to
+    // `host-config.ts`; we mirror the two DeepSeek entries here as
+    // the `existing` provider list (this matches what
+    // `loadConfigFromContext` builds via `buildDefaultGatewayProfiles`)
+    // so the synthesis step runs over them and the assertion below
+    // verifies the alias is preserved.
+    const registry = loadBundledRegistry();
+    const handCurated: ProviderProfile[] = [
+      {
+        id: 'deepseek-flash',
+        label: 'DeepSeek V4 Flash',
+        kind: 'openai-compat',
+        baseUrl: registry.vendors.deepseek.baseUrl,
+        model: 'deepseek-v4-flash',
+        enabled: true,
+      },
+      {
+        id: 'deepseek-pro',
+        label: 'DeepSeek V4 Pro',
+        kind: 'openai-compat',
+        baseUrl: registry.vendors.deepseek.baseUrl,
+        model: 'deepseek-v4-pro',
+        enabled: true,
+      },
+    ];
+    const providers = synthesizeProvidersFromBuiltInModels(handCurated, fakeConfig() as never, registry);
+    const deepseekFlash = providers.find((p) => p.model === 'deepseek-v4-flash');
+    expect(deepseekFlash?.id).toBe('deepseek-flash');
+    expect(deepseekFlash?.model).toBe('deepseek-v4-flash');
+    const deepseekPro = providers.find((p) => p.model === 'deepseek-v4-pro');
+    expect(deepseekPro?.id).toBe('deepseek-pro');
+    expect(deepseekPro?.model).toBe('deepseek-v4-pro');
+  });
+
+  it('DeepSeek alias catalog ids still route to the real upstream model via selectProvider', () => {
+    // The DeepSeek alias `deepseek-flash` must still resolve to the
+    // upstream `deepseek-v4-flash` via `selectProvider` so a client
+    // that pinned the friendly alias in its config (Kilo Code model
+    // picker, Continue config.json) keeps working. selectProvider
+    // already matches `id` / `model` / `label`, so this assertion is
+    // a regression guard for the documented exception: a future
+    // change that breaks the alias resolution would surface here.
+    const registry = loadBundledRegistry();
+    const handCurated: ProviderProfile[] = [
+      {
+        id: 'deepseek-flash',
+        label: 'DeepSeek V4 Flash',
+        kind: 'openai-compat',
+        baseUrl: registry.vendors.deepseek.baseUrl,
+        model: 'deepseek-v4-flash',
+        enabled: true,
+      },
+      {
+        id: 'deepseek-pro',
+        label: 'DeepSeek V4 Pro',
+        kind: 'openai-compat',
+        baseUrl: registry.vendors.deepseek.baseUrl,
+        model: 'deepseek-v4-pro',
+        enabled: true,
+      },
+    ];
+    const providers = synthesizeProvidersFromBuiltInModels(handCurated, fakeConfig() as never, registry);
+    const routedFlash = selectProvider(providers, 'deepseek-flash', '');
+    expect(routedFlash?.model).toBe('deepseek-v4-flash');
+    const routedPro = selectProvider(providers, 'deepseek-pro', '');
+    expect(routedPro?.model).toBe('deepseek-v4-pro');
+    // And the real upstream ids still route via the `model` alias.
+    const routedReal = selectProvider(providers, 'deepseek-v4-flash', '');
+    expect(routedReal?.model).toBe('deepseek-v4-flash');
+  });
+
   it('GET /v1/models catalog (built from synthesized providers) lists real upstream ids, never vendor names', () => {
     // End-to-end assertion: the picker visible in Kilo Code / Continue /
     // Open WebUI is `buildModelCatalog(providers)`. The test pulls the

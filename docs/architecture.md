@@ -103,7 +103,7 @@ resources/models.json              (bundled with the extension, source of truth 
 
 - **Bundled** - `resources/models.json` lists the 21 bundled models and the 4 vendors (baseUrl, apiKeySecret, external URLs, indicative token-plan rates).
   - The OpenRouter bundled entries advertise seven flagships in `GET /v1/models`; the 100+ other OpenRouter model ids are reachable verbatim by adding them to `aiflowbridge.userModels` or a registry override - see [docs/providers.md](providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint).
-  - Data snapshot **2026-08-06** (AIFlowBridge **2.15.6**); see [docs/providers.md#data-freshness](providers.md#data-freshness) for the refresh policy.
+  - Data snapshot **2026-08-06** (AIFlowBridge **2.15.7**); see [docs/providers.md#data-freshness](providers.md#data-freshness) for the refresh policy.
 - **Per-user override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user across all workspaces.
 - **Per-project override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
 

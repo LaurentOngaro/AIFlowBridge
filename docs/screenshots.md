@@ -5,7 +5,7 @@
 All captures across the released versions, newest first.
 v1.4.0 and v1.1.1 are kept for historical reference.
 
-## v2.15.
+## v2.15.4
 
 | Description                                                      | Screenshot                                                                                        |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |

@@ -19,6 +19,16 @@ function toNumber(value: unknown, fallback: number): number {
  * (SSRF). Loopback (`127.x.x.x`, `::1`) is intentionally NOT blocked
  * because Ollama and other local servers need it.
  *
+ * The unspecified addresses `0.0.0.0` (IPv4) and `::` (IPv6) are also
+ * left open on purpose. They bind-all on the upstream host (the
+ * operator's machine, not the gateway's loopback listener) and are the
+ * conventional way to expose an Ollama / vLLM / llama.cpp server bound
+ * to every interface when running under Docker `--net=host` or a
+ * reverse-proxy chain. They are NOT metadata endpoints, so they do not
+ * match the SSRF threat model the block list exists to defend. If a
+ * future contributor is tempted to add them "to be safe", remember that
+ * blocking them breaks the legitimate Docker `--net=host` workflow.
+ *
  * Matched against the hostname (lower-case, IPv4-mapped IPv6
  * normalised), NOT the raw string, so `https://169.254.169.254/` and
  * `https://[0xa9fe:a9fe]/` are both rejected.

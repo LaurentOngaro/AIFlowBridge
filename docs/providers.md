@@ -184,7 +184,7 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 ### Snapshot metadata
 
 - Current snapshot date: **2026-08-06**
-- Current snapshot version: **AIFlowBridge 2.15.6**
+- Current snapshot version: **AIFlowBridge 2.15.7**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 
