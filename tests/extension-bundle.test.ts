@@ -1,5 +1,6 @@
+import AdmZip from 'adm-zip';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -7,7 +8,11 @@ import { afterAll, describe, expect, it } from 'vitest';
 const REPO = resolve(__dirname, '..');
 const PACKAGE_JSON = resolve(REPO, 'package.json');
 const VSIXIGNORE = resolve(REPO, '.vscodeignore');
-const VSCE_BIN = resolve(REPO, 'node_modules', '.bin', 'vsce.cmd');
+// `vsce` ships per-platform shims in `node_modules/.bin/`: `vsce.cmd` +
+// `vsce.ps1` on Windows, the bare `vsce` shebang script on Linux/macOS.
+// The previous test hard-coded the `.cmd` extension, which `sh -c` cannot
+// execute under Fedora and other non-Windows hosts.
+const VSCE_BIN = resolve(REPO, 'node_modules', '.bin', process.platform === 'win32' ? 'vsce.cmd' : 'vsce');
 
 interface PackageJson {
   readonly bundledDependencies?: ReadonlyArray<string>;
@@ -77,39 +82,38 @@ describe('extension VSIX bundle completeness', () => {
     expect(status, `vsce package failed: ${stderr}\n${stdout}`).toBe(0);
     expect(existsSync(vsixPath)).toBe(true);
 
-    // Unzip the VSIX (it's a ZIP) with PowerShell's Expand-Archive so the
-    // test does not require an extra dependency. PowerShell's
-    // Expand-Archive refuses `.vsix` even though a .vsix IS a .zip
-    // (same container, same magic bytes) - the cmdlet whitelists
-    // extensions by suffix. Copy the file to a `.zip` sibling so
-    // the cmdlet accepts it, then extract from the copy.
-    const extractDir = join(tmp, 'extracted');
-    mkdirSync(extractDir, { recursive: true });
-    const vsixAsZip = join(outDir, 'aiflowbridge.zip');
-    copyFileSync(vsixPath, vsixAsZip);
-    execFileSync(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -LiteralPath '${vsixAsZip}' -DestinationPath '${extractDir}' -Force`],
-      {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }
-    );
+    // Inspect the VSIX (a ZIP container) directly with `adm-zip` so the
+    // test stays portable across Windows / macOS / Linux. The previous
+    // implementation spawned PowerShell's `Expand-Archive`, which
+    // refuses `.vsix` and is Windows-only - under Fedora the `execFileSync`
+    // failed with `ENOENT` and the test reported a misleading "VSIX does
+    // not exist" error. Listing the entries is enough to assert both
+    // that the modules are packaged AND that their entry points resolve
+    // (`main` field of each bundled `package.json`).
+    const zip = new AdmZip(vsixPath);
+    const entryNames = zip.getEntries().map((e) => e.entryName);
 
-    const admZipDir = join(extractDir, 'extension', 'node_modules', 'adm-zip');
-    const tarDir = join(extractDir, 'extension', 'node_modules', 'tar');
-    expect(existsSync(admZipDir), 'adm-zip folder must be inside the VSIX').toBe(true);
-    expect(existsSync(tarDir), 'tar folder must be inside the VSIX').toBe(true);
+    const admZipEntries = entryNames.filter((n) => n.startsWith('extension/node_modules/adm-zip/'));
+    const tarEntries = entryNames.filter((n) => n.startsWith('extension/node_modules/tar/'));
+    expect(admZipEntries.length, 'adm-zip folder must be inside the VSIX').toBeGreaterThan(0);
+    expect(tarEntries.length, 'tar folder must be inside the VSIX').toBeGreaterThan(0);
 
     // The entry points resolved by `require('adm-zip')` /
     // `require('tar')` must also be on disk so the dynamic import
     // inside `extractTarGz()` / `extractZip()` resolves at runtime.
-    const admZipPkg = readJson(join(admZipDir, 'package.json')) as { main?: string };
-    const tarPkg = readJson(join(tarDir, 'package.json')) as { main?: string };
+    // Strip a leading `./` so paths like `"./dist/commonjs/index.min.js"`
+    // (tar's own package.json) match the ZIP entry which uses a plain
+    // POSIX path.
+    const admZipPkg = JSON.parse(zip.readAsText('extension/node_modules/adm-zip/package.json')) as { main?: string };
+    const tarPkg = JSON.parse(zip.readAsText('extension/node_modules/tar/package.json')) as { main?: string };
+    const stripDotSlash = (p: string): string => (p.startsWith('./') ? p.slice(2) : p);
     if (admZipPkg.main) {
-      expect(existsSync(join(admZipDir, admZipPkg.main)), `adm-zip entry ${admZipPkg.main} missing`).toBe(true);
+      const main = stripDotSlash(admZipPkg.main);
+      expect(entryNames, `adm-zip entry ${main} missing`).toContain(`extension/node_modules/adm-zip/${main}`);
     }
     if (tarPkg.main) {
-      expect(existsSync(join(tarDir, tarPkg.main)), `tar entry ${tarPkg.main} missing`).toBe(true);
+      const main = stripDotSlash(tarPkg.main);
+      expect(entryNames, `tar entry ${main} missing`).toContain(`extension/node_modules/tar/${main}`);
     }
 
     rmSync(tmp, { recursive: true, force: true });

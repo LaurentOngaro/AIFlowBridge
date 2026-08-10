@@ -83,10 +83,10 @@ The file is optional - when missing the gateway uses sensible defaults.
 
 See [`./standalone-config.example.json`](./standalone-config.example.json) for the full set of keys.
 
-API keys are resolved in this order:
+API keys are resolved in this order (the same unified chain as the VS Code extension gateway, backed by `src/aiflowbridge/api-key-sources.ts`):
 
-1. Environment variable: `AIFLOWBRIDGE_<VENDOR>_API_KEY` (e.g. `AIFLOWBRIDGE_DEEPSEEK_API_KEY`, `AIFLOWBRIDGE_MINIMAX_API_KEY`, `AIFLOWBRIDGE_XIAOMI_API_KEY`).
-2. File: `~/.aiflowbridge/secrets.json` (chmod `600`).
+1. Environment variable: `AIFLOWBRIDGE_<VENDOR>_API_KEY` (e.g. `AIFLOWBRIDGE_DEEPSEEK_API_KEY`, `AIFLOWBRIDGE_MINIMAX_API_KEY`, `AIFLOWBRIDGE_XIAOMI_API_KEY`, `AIFLOWBRIDGE_OPENROUTER_API_KEY`).
+2. File: `<globalStorageDir>/secrets.json` (chmod `600`). The file is re-read when it changes on disk, no restart needed. In the VS Code extension, VS Code `SecretStorage` is the last fallback (the target of the "Set API Key" commands); env vars and the file win over it.
 
 ```json
 {

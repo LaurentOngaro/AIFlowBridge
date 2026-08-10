@@ -33,6 +33,8 @@
  */
 
 import * as vscode from 'vscode';
+import { join } from 'node:path';
+import { createGatewaySecrets } from './api-key-sources';
 import type { ConfigReader, Disposable, FileSystemLike, GlobalStateLike, IGatewayContext, UriLike } from './types';
 
 class VscodeDisposableAdapter implements Disposable {
@@ -127,11 +129,18 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
   });
 
   return {
-    secrets: {
-      get: (key) => context.secrets.get(key) as unknown as Promise<string | undefined>,
-      store: (key, value) => context.secrets.store(key, value) as unknown as Promise<void>,
-      delete: (key) => context.secrets.delete(key) as unknown as Promise<void>,
-    },
+    // Unified env -> secrets.json -> SecretStorage chain (same ordering
+    // as the standalone CLI). Writes still go to VS Code SecretStorage
+    // so the "Set API Key" commands keep using the OS keychain.
+    secrets: createGatewaySecrets({
+      secretsPath: join(context.globalStorageUri.fsPath, 'secrets.json'),
+      fallback: {
+        get: (key) => context.secrets.get(key) as unknown as Promise<string | undefined>,
+        store: (key, value) => context.secrets.store(key, value) as unknown as Promise<void>,
+        delete: (key) => context.secrets.delete(key) as unknown as Promise<void>,
+      },
+      fallbackLabel: 'SecretStorage (VS Code)',
+    }),
     globalStorageDir: context.globalStorageUri.fsPath,
     extensionVersion: context.extension.packageJSON.version ?? '0.0.0',
     subscriptions: subscriptionsBag,

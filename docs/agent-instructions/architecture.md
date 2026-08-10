@@ -18,7 +18,7 @@ The gateway + telemetry + UI logic lives in `src/aiflowbridge/` and is **indepen
 The decoupling uses an `IGatewayContext` interface (`src/aiflowbridge/types.ts`):
 
 - **VS Code side:** `createVSCodeContext()` in `src/aiflowbridge/vscode-context-adapter.ts` wraps `vscode.ExtensionContext`. The lifecycle entry point (`src/runtime/lifecycle.ts`) calls `createVSCodeContext(context)` before `activateAIFlowBridge()`.
-- **Standalone side:** `createStandaloneContext()` in `src/standalone/context.ts` reads API keys from env vars (`AIFLOWBRIDGE_<VENDOR>_API_KEY`) or `~/.aiflowbridge/secrets.json` (chmod 600). Hot-reload of `~/.aiflowbridge/config.json` via `fs.watch` + 5s `fs.watchFile` polling fallback (Windows).
+- **Standalone side:** `createStandaloneContext()` in `src/standalone/context.ts` uses the same unified key chain as the extension gateway (`src/aiflowbridge/api-key-sources.ts`): env vars (`AIFLOWBRIDGE_<VENDOR>_API_KEY`) first, then `<globalStorageDir>/secrets.json` (chmod 600). Hot-reload of `~/.aiflowbridge/config.json` via `fs.watch` + 5s `fs.watchFile` polling fallback (Windows).
 
 Both hosts share the same `gateway.lock` file (in `<globalStorageUri>` on VS Code, in `~/.aiflowbridge/` on standalone), so only one process owns the gateway.
 The version-aware probe / cooperative shutdown flow lives in `src/aiflowbridge/gateway/{probe,lock,server}.ts` and is reused as-is.

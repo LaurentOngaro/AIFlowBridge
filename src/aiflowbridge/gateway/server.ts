@@ -153,6 +153,16 @@ export class GatewayService {
    * process do not share counts.
    */
   private readonly activeSseConnections = new Set<ServerResponse>();
+  /**
+   * Provider ids for which the missing-API-key warning was already
+   * logged. The gateway forwards upstream requests without an
+   * `Authorization` header when no key resolves (empty SecretStorage,
+   * locked keyring, standalone `secrets.json` missing), which surfaces
+   * as a confusing upstream 401 (MiniMax "login fail (1004)"). Log the
+   * root cause once per provider per instance instead of once per
+   * request.
+   */
+  private readonly warnedMissingApiKeyProviders = new Set<string>();
 
   constructor(
     config: AiFlowBridgeConfig,
@@ -994,6 +1004,18 @@ export class GatewayService {
     // rejected here before it ever reaches the upstream socket. The
     // empty string falls through to "no auth header" (the upstream
     // returns its own 401/403).
+    //
+    // A missing key is the silent root cause of the upstream "login
+    // fail (1004)" 401s (MiniMax) - the request is forwarded without
+    // an `Authorization` header and the upstream rejects it. Warn once
+    // per provider so the operator can find the cause in the logs
+    // instead of staring at the upstream's opaque error body.
+    if (!resolvedKey && provider.kind !== 'ollama' && !this.warnedMissingApiKeyProviders.has(provider.id)) {
+      this.warnedMissingApiKeyProviders.add(provider.id);
+      logger.warn(
+        `[Gateway] ${requestId} no API key resolved for provider=${provider.id}; forwarding without an Authorization header (the upstream will likely reject with 401). Set the key via the AIFLOWBRIDGE_<VENDOR>_API_KEY env var, the <globalStorageDir>/secrets.json file, or "AIFlowBridge: Set <Provider> API Key" in VS Code.`
+      );
+    }
     if (resolvedKey && !isValidBearerKey(resolvedKey)) {
       logger.warn(
         `[Gateway] ${requestId} refused to inject Authorization header for provider=${provider.id}: resolved key failed the printable-ASCII shape check (length=${resolvedKey.length})`

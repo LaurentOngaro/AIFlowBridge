@@ -1,6 +1,8 @@
 import { rename as renameAsync, writeFile as writeFileAsync } from 'node:fs/promises';
 import { join } from 'node:path';
+import { API_KEY_SECRETS } from '../consts';
 import { logger } from '../logger';
+import { describeApiKeySource } from './api-key-sources';
 import { resolveVendorApiKey } from './api-key-resolver';
 import { GatewayService, isPortInUse } from './gateway/server';
 import { loadConfigFromContext } from './host-config';
@@ -100,6 +102,20 @@ class AIFlowBridgeRuntime implements Disposable {
     this.gateway.recordFromCopilotChat(options);
   }
 
+  /**
+   * Log where each vendor's API key is currently read from, so the
+   * operator can tell at a glance whether the gateway uses the env var,
+   * the `secrets.json` file, or the host storage. The source is named
+   * (env var name / file path / storage label) but never the key value
+   * itself.
+   */
+  private async logApiKeySources(): Promise<void> {
+    for (const [vendor, secretKey] of Object.entries(API_KEY_SECRETS)) {
+      const source = await describeApiKeySource(secretKey, this.ctx.secrets);
+      logger.info(`[AIFlowBridge] API key for ${vendor}: ${source}`);
+    }
+  }
+
   private loadPersistedTelemetry(): TelemetrySnapshot | undefined {
     // File is the source of truth. If the file does not exist
     // yet (e.g. first ever activation), still attempt the one-shot
@@ -167,6 +183,8 @@ class AIFlowBridgeRuntime implements Disposable {
     logger.info('[AIFlowBridge] Activating...');
 
     this.config = await loadConfigFromContext(this.ctx);
+
+    await this.logApiKeySources();
 
     // build the file-based telemetry persister (per-OS-user,
     // per-machine, NOT per-workspace). Stored under the context's

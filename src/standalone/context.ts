@@ -9,9 +9,9 @@
  * Continue, JetBrains AI Assistant, curl,...).
  *
  * Resolution of secrets (API keys):
- *   1. Environment variables `AIFLOWBRIDGE_<VENDOR>_API_KEY`
- *      (e.g. `AIFLOWBRIDGE_DEEPSEEK_API_KEY`, `AIFLOWBRIDGE_MINIMAX_API_KEY`,
- *      `AIFLOWBRIDGE_XIAOMI_API_KEY`).
+ *   Delegated to the shared chain in `src/aiflowbridge/api-key-sources.ts`
+ *   (same ordering as the VS Code extension gateway):
+ *   1. Environment variable `AIFLOWBRIDGE_<VENDOR>_API_KEY` (read-only).
  *   2. JSON file at `<globalStorageDir>/secrets.json` (e.g.
  *      `~/.aiflowbridge/secrets.json`). Format:
  *      ```json
@@ -23,6 +23,8 @@
  *      ```
  *      `store()` and `delete()` write through this file. Env vars are
  *      read-only.
+ *   The file is re-read when its mtime changes, so external edits are
+ *   picked up without a restart.
  *
  * Config hot-reload:
  *   `onConfigChange()` watches `<globalStorageDir>/config.json` via
@@ -36,11 +38,11 @@
  *   `process.on("SIGTERM")`), so there is no host bag to mirror into.
  */
 
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, unwatchFile, watch, watchFile, writeFileSync } from 'node:fs';
+import { mkdirSync, statSync, unwatchFile, watch, watchFile } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ConfigReader, Disposable, FileSystemLike, IGatewayContext, SecretStorageLike, UriLike } from '../aiflowbridge/types';
-import { logger } from '../logger';
+import { createGatewaySecrets } from '../aiflowbridge/api-key-sources';
+import type { ConfigReader, Disposable, FileSystemLike, IGatewayContext, UriLike } from '../aiflowbridge/types';
 import { StandaloneConfigFile } from './config-loader';
 
 const DEFAULT_POLLING_INTERVAL_MS = 5_000;
@@ -67,118 +69,11 @@ function resolveConfigWatchIntervalMs(): number {
   return parsed;
 }
 
-/** Map our standalone secret keys to environment variable names. */
-const SECRET_TO_ENV: Record<string, string> = {
-  'aiflowbridge.providers.deepseek.apiKey': 'AIFLOWBRIDGE_DEEPSEEK_API_KEY',
-  'aiflowbridge.providers.minimax.apiKey': 'AIFLOWBRIDGE_MINIMAX_API_KEY',
-  'aiflowbridge.providers.xiaomi.apiKey': 'AIFLOWBRIDGE_XIAOMI_API_KEY',
-};
-
-/**
- * Map short-form secret keys (as documented in `docs/standalone.md`) to
- * the full-prefix form expected by `API_KEY_SECRETS` in
- * `src/consts.ts`. The runtime resolver looks up by the full form
- * (`aiflowbridge.providers.<vendor>.apiKey`); the user-facing docs use
- * the short form (`<vendor>.apiKey`) for readability. We accept both
- * by mirroring short-form entries to the full form at load time so
- * either lookup succeeds.
- *
- * Reverse direction (full -> short) is intentionally NOT mirrored: the
- * resolver only ever asks for the full form, so the short form is a
- * documentation aid, not a runtime lookup key.
- */
-const SECRET_SHORT_TO_FULL: Record<string, string> = {
-  'deepseek.apiKey': 'aiflowbridge.providers.deepseek.apiKey',
-  'minimax.apiKey': 'aiflowbridge.providers.minimax.apiKey',
-  'xiaomi.apiKey': 'aiflowbridge.providers.xiaomi.apiKey',
-};
-
 interface StandaloneContextOptions {
   globalStorageDir: string;
   extensionVersion: string;
   /** Absolute path to the directory containing the bundled `resources/models.json`. */
   extensionRootPath: string;
-}
-
-/**
- * Mutable cache of the on-disk secrets. We read it once at construction
- * and refresh on every `store()` / `delete()` to keep the in-memory
- * view in sync. Env vars are read on every `get()` because the env can
- * change at runtime (e.g. `dotenv` loaded after the process started).
- */
-class StandaloneSecretStorage implements SecretStorageLike {
-  private readonly secretsPath: string;
-  private cached: Record<string, string>;
-
-  constructor(secretsPath: string) {
-    this.secretsPath = secretsPath;
-    this.cached = readSecretsFile(secretsPath);
-  }
-
-  async get(key: string): Promise<string | undefined> {
-    const envName = SECRET_TO_ENV[key];
-    if (envName) {
-      const fromEnv = process.env[envName];
-      if (typeof fromEnv === 'string' && fromEnv.length > 0) {
-        return fromEnv;
-      }
-    }
-    return this.cached[key];
-  }
-
-  async store(key: string, value: string): Promise<void> {
-    this.cached[key] = value;
-    writeSecretsFile(this.secretsPath, this.cached);
-  }
-
-  async delete(key: string): Promise<void> {
-    delete this.cached[key];
-    writeSecretsFile(this.secretsPath, this.cached);
-  }
-}
-
-function readSecretsFile(path: string): Record<string, string> {
-  if (!existsSync(path)) {
-    return {};
-  }
-  try {
-    const raw = readFileSync(path, 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === 'object') {
-      const result: Record<string, string> = {};
-      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof value !== 'string' || value.length === 0) {
-          continue;
-        }
-        // Store under the key as-is (covers full-prefix form and any
-        // custom keys the user might add).
-        result[key] = value;
-        // Mirror short-form keys to the full-prefix form so the runtime
-        // resolver (which only knows the full form via API_KEY_SECRETS)
-        // finds them. See SECRET_SHORT_TO_FULL above.
-        const fullKey = SECRET_SHORT_TO_FULL[key];
-        if (fullKey && !result[fullKey]) {
-          result[fullKey] = value;
-        }
-      }
-      return result;
-    }
-    return {};
-  } catch (error) {
-    logger.warn(`[Standalone] Failed to read secrets at ${path}: ${error instanceof Error ? error.message : String(error)}`);
-    return {};
-  }
-}
-
-function writeSecretsFile(path: string, secrets: Record<string, string>): void {
-  mkdirSync(join(path, '..'), { recursive: true });
-  writeFileSync(path, JSON.stringify(secrets, null, 2), { mode: 0o600 });
-  // Best-effort chmod on POSIX; Windows ignores the mode bit.
-  try {
-    chmodSync(path, 0o600);
-  } catch {
-    // ignore
-  }
 }
 
 class NodeFileSystem implements FileSystemLike {
@@ -261,7 +156,10 @@ export async function createStandaloneContext(options: StandaloneContextOptions)
 
   const secretsPath = join(globalStorageDir, 'secrets.json');
   const configPath = join(globalStorageDir, 'config.json');
-  const secrets = new StandaloneSecretStorage(secretsPath);
+  // Unified env -> secrets.json chain shared with the VS Code extension
+  // gateway. `store()` / `delete()` write through the file (no host
+  // fallback in standalone mode).
+  const secrets = createGatewaySecrets({ secretsPath, logPrefix: '[Standalone]' });
 
   // Shared ConfigReader instance; the watcher calls `invalidate()` on
   // every config file change so the next `get()` re-reads the file.

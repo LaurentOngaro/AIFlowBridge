@@ -6,6 +6,26 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.16.0
+
+### Added
+
+- **Unified API key resolution chain shared by the standalone CLI and the VS Code extension gateway.** New `src/aiflowbridge/api-key-sources.ts` (VS Code-free, unit-tested): the same ordered chain resolves every upstream key in both hosts - `AIFLOWBRIDGE_<VENDOR>_API_KEY` env var first, then `<globalStorageDir>/secrets.json` (chmod 600), then the host fallback. Writes still target the host fallback (VS Code `SecretStorage` for the "Set API Key" commands; the file for the standalone). Short-form keys documented in `docs/standalone.md` (`minimax.apiKey`) are mirrored to the full-prefix form at load time, and `secrets.json` is re-read when its mtime changes so an external edit or a peer process writing the shared file takes effect without a restart.
+- **`AIFLOWBRIDGE_OPENROUTER_API_KEY` env var** now honored by the standalone alongside `AIFLOWBRIDGE_DEEPSEEK_/MINIMAX_/XIAOMI_API_KEY`. Closes the gap where OpenRouter could only be configured via `secrets.json` (the env var was missing from `SECRET_TO_ENV`).
+- **Startup log reports where each vendor's API key is currently read from.** `src/aiflowbridge/index.ts` - at activation, one `[AIFlowBridge] API key for <vendor>: <source>` line per vendor: `Env (AIFLOWBRIDGE_<VENDOR>_API_KEY)`, `file <path>/secrets.json`, `SecretStorage (VS Code)`, or `not configured`. The source is named (env var name, file path, or storage label) but never the key value. The log also runs in standalone mode (same shared `AIFlowBridgeRuntime.activate()`), so the diagnostic is uniform across hosts.
+- **`[Gateway] ... no API key resolved for provider=<id>` warning deduplicated per provider.** `src/aiflowbridge/gateway/server.ts` - when no key resolves (empty `SecretStorage`, locked keyring, missing `secrets.json`), the gateway now logs the root cause once per provider instead of forwarding the upstream 401 silently. Closes the diagnostic gap that surfaced on Fedora where a `SecretStorage` failure produced the opaque MiniMax "login fail (1004)" 401 without any local hint.
+
+### Changed
+
+- **`StandaloneSecretStorage` removed.** `src/standalone/context.ts` - the standalone now delegates to `createGatewaySecrets({ secretsPath, logPrefix: '[Standalone]' })` from the shared module, eliminating the duplicated `SECRET_TO_ENV`, `SECRET_SHORT_TO_FULL`, `readSecretsFile`, and `writeSecretsFile` helpers. The composite writes through the file when no host fallback is provided (unchanged behavior).
+- **`createVSCodeContext` chains `ctx.secrets` as `env -> secrets.json -> SecretStorage (VS Code)`.** `src/aiflowbridge/vscode-context-adapter.ts` - env vars and the `secrets.json` file now win over the VS Code keychain, so an operator can override the stored key without "Clear API Key" first. "Set API Key" still writes into the OS keychain via the composite's write target.
+- **`docs/standalone.md`, `docs/agent-instructions/gateway.md`, `docs/agent-instructions/architecture.md`** updated to describe the unified ordering (env var -> secrets.json -> host fallback) instead of the standalone-only resolution.
+
+### Fixed
+
+- **Gateway startup could throw and block extension activation if a key source rejected.** `src/aiflowbridge/api-key-sources.ts` - `CompositeSecretStorage.get()` and `describeApiKeySource()` now wrap each source in a try/catch, so a rejecting read (locked OS keyring, the exact Fedora case this release was shaped against) is skipped instead of propagating. The startup log reports `not configured` and the activation completes.
+- **`tests/extension-bundle.test.ts` was Windows-only (hard-coded `vsce.cmd` + `powershell.exe Expand-Archive`) and always failed under Fedora / macOS.** `tests/extension-bundle.test.ts` - the `vsce` path now resolves to `process.platform === 'win32' ? 'vsce.cmd' : 'vsce'` (the `.cmd` shim does not run via `sh -c` on Linux/macOS; the bare shebang script does). The extraction step no longer spawns PowerShell: the VSIX is read directly with `adm-zip` (already in `dependencies`, same pattern as `tests/install-standalone.test.ts`). The test lists the archive entries, asserts `extension/node_modules/adm-zip/` and `extension/node_modules/tar/` are present, and verifies their entry points (`main` field of each bundled `package.json`, with the `./` prefix `tar` uses normalized away). Runs portably on Windows / macOS / Linux without an external dependency.
+
 ## 2.15.7
 
 ### Changed

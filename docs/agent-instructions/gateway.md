@@ -63,7 +63,7 @@ See [telemetry.md](telemetry.md) for the full telemetry architecture.
 The gateway can run as a pure-Node.js CLI (`aiflowbridge-server` npm bin, `dist/standalone/main.js`) without a VS Code host. Source under `src/standalone/`:
 
 - `src/standalone/main.ts` - CLI entry point.
-- `src/standalone/context.ts` - `createStandaloneContext()` reads API keys from env vars (`AIFLOWBRIDGE_<VENDOR>_API_KEY`, priority 1) or `~/.aiflowbridge/secrets.json` (priority 2, chmod 600). Config hot-reload via `fs.watch` on `~/.aiflowbridge/config.json` with a 5s `fs.watchFile` polling fallback (Windows).
+- `src/standalone/context.ts` - `createStandaloneContext()` uses the unified key chain from `src/aiflowbridge/api-key-sources.ts` (env var `AIFLOWBRIDGE_<VENDOR>_API_KEY` priority 1, `<globalStorageDir>/secrets.json` priority 2, chmod 600; same ordering as the VS Code extension gateway, which adds `SecretStorage` as the last fallback). Config hot-reload via `fs.watch` on `~/.aiflowbridge/config.json` with a 5s `fs.watchFile` polling fallback (Windows).
 - `src/standalone/config-loader.ts` - `StandaloneConfigFile` reader for `~/.aiflowbridge/config.json`. Falls back to bundled defaults.
 - `src/standalone/util.ts` - shared `getNestedValue` helper (extracted from the duplicate copies that previously lived in `context.ts` and `config-loader.ts`).
 - `src/standalone/vscode-shim.ts` - `vscode` module shim so the gateway code typechecks without `@types/vscode`.
