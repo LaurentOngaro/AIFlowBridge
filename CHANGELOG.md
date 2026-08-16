@@ -6,6 +6,13 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.16.1
+
+### Documentation
+
+- **New `README` section: `### 4. Add a custom OpenRouter model (the part that bites if you forget it)`.** Inserted between `### 3. Use it` and `## Documentation`, the section is a single-page answer to the most common onboarding friction with the OpenRouter path: a user adds a model with `family: "openrouter"` to `aiflowbridge.userModels`, restarts VS Code, runs a prompt, and gets a `{"error":{"message":"No cookie auth credentials found","code":401}}` from the gateway. The section explains that this is not a Kilo Code / Continue / `curl` problem but a missing OpenRouter key in the local resolver chain, and walks through the three storage channels (env var `$env:AIFLOWBRIDGE_OPENROUTER_API_KEY`, `<globalStorageUri>/secrets.json` chmod 600, VS Code `SecretStorage`) with PowerShell commands ready to paste. Step B then covers three equivalent recipes for declaring the model itself: (B1) the Command Palette (`AIFlowBridge: Add a custom model` -> pick OpenRouter), (B2) a copy-paste Kilo Code extension config (`http://127.0.0.1:8787/v1` as Base URL, any non-empty placeholder as API Key, the picked model id), and (B3) a raw `curl` invocation with `model: "deepseek/deepseek-v4-pro-0813"`. A short troubleshooting tail distinguishes the `No cookie auth credentials found` 401 (key absent) from the `Invalid API key` 401 (key revoked) so the next reader can self-diagnose without opening an issue.
+- **Per-vendor command note rewritten to point at the new section.** The trailing note under the `## Commands` table used to say "Store the key via `AIFlowBridge: Add a custom model` ... or via the env var on the standalone CLI", which left VS Code users with no concrete recipe and no link to follow. It now spells out the env-var command verbatim (`[Environment]::SetEnvironmentVariable("AIFLOWBRIDGE_OPENROUTER_API_KEY", "sk-or-v1-...", "User")`) and links to the new step 4 as the canonical procedure, so the README no longer sends the reader back to the Command Palette that does not actually ask for the key.
+
 ## 2.16.0
 
 ### Added

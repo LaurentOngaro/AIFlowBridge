@@ -190,8 +190,30 @@ Swap the `model` field for any of the OpenRouter ids at [openrouter.ai/models](h
 Direct vendors work the same way: `MiniMax-M3`, `deepseek-v4-pro`, `mimo-v2.5`, etc.
 See [docs/providers.md](docs/providers.md) for the full list.
 
-Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK at `http://127.0.0.1:8787/v1` with any non-empty `apiKey` (the gateway validates credentials upstream, not in the local header).
-See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste client configs.
+**Kilo Code inside VS Code:** (same gateway, chat-style client - no terminal needed)
+
+1. Install [Kilo Code](https://marketplace.visualstudio.com/items?itemName=kilocode.kilo-code) (or the [Open VSX build](https://open-vsx.org/extension/kilocode/kilo-code) for Cursor / Windsurf / VSCodium).
+2. Make sure the gateway is running: `AIFlowBridge: Show logs` should show `[Gateway] listening on http://127.0.0.1:8787`.
+3. If it is not, run `AIFlowBridge: Start local gateway` (VS Code extension) or `npm run start:standalone` (standalone CLI).
+4. Open the Kilo Code side panel, click the gear icon (Settings), then **Providers** -> **API Provider** -> **OpenAI Compatible**.
+5. Fill in:
+
+    | Field     | Value                                                                                      |
+    | --------- | ------------------------------------------------------------------------------------------ |
+    | Base URL  | `http://127.0.0.1:8787/v1`                                                                 |
+    | API Key   | any non-empty string (e.g. `sk-aiflowbridge-local`)                                        |
+    | Model     | `openai/gpt-5.6-sol` (or any id from [openrouter.ai/models](https://openrouter.ai/models)) |
+    | Streaming | Enabled                                                                                    |
+
+6. Hit **Save**, then send a prompt in the Kilo Code chat box.
+
+The same `Base URL` works whether the gateway runs as the VS Code extension or as the standalone CLI ([docs/standalone.md](docs/standalone.md)).
+The only difference between the two setups is which process owns port 8787.
+Direct vendors work the same way: `MiniMax-M3`, `deepseek-v4-pro`, `mimo-v2.5`, etc.
+
+For Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK, point the client at `http://127.0.0.1:8787/v1` with any non-empty `apiKey` (the gateway validates credentials upstream, not in the local header).
+Ready-to-paste client configs: [docs/standalone.md](docs/standalone.md#client-setup).
+Full Kilo Code reference: [docs/kilo-code.md](docs/kilo-code.md).
 
 ### 4. Add a custom OpenRouter model (the part that bites if you forget it)
 
