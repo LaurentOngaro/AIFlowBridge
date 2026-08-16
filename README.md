@@ -193,6 +193,82 @@ See [docs/providers.md](docs/providers.md) for the full list.
 Point Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, or any OpenAI SDK at `http://127.0.0.1:8787/v1` with any non-empty `apiKey` (the gateway validates credentials upstream, not in the local header).
 See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste client configs.
 
+### 4. Add a custom OpenRouter model (the part that bites if you forget it)
+
+You added a model in `aiflowbridge.userModels` with `family: "openrouter"`, restarted VS Code, ran a prompt - and got a 401 from the gateway: `{"error":{"message":"No cookie auth credentials found","code":401}}`.
+That is not a Kilo Code / Continue / curl problem. It means the gateway reached OpenRouter without an `Authorization: Bearer ...` header, so OpenRouter answered "no credentials".
+AIFlowBridge never asks you for the OpenRouter key during `AIFlowBridge: Add a custom model` on purpose (OpenRouter is Path B - gateway only, no per-vendor picker entry).
+You have to give it the key yourself, through one of the three channels below. Pick whichever fits your setup.
+
+**Step A - provide your OpenRouter key once.**
+
+| Channel                                | Where                                                   | When to use                                                  |
+| -------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| Env var (recommended for fastest fix)  | `$env:AIFLOWBRIDGE_OPENROUTER_API_KEY = "sk-or-v1-..."` | You just want it to work, you do not want to touch any file. |
+| File (works on VS Code and standalone) | `<globalStorageUri>/secrets.json` (chmod 600)           | You prefer files over env vars, or you share a setup.        |
+| VS Code SecretStorage / OS keychain    | `aiflowbridge.providers.openrouter.apiKey`              | You are already managing keys through another extension.     |
+
+Env var (PowerShell, current user, persists across reboots):
+
+```powershell
+[Environment]::SetEnvironmentVariable("AIFLOWBRIDGE_OPENROUTER_API_KEY", "sk-or-v1-...", "User")
+# Close VS Code, reopen it so the new env var is inherited, then run AIFlowBridge: Show logs to confirm.
+```
+
+File (VS Code `globalStorageUri` is your OS user data folder, e.g. `%APPDATA%\Code\User\globalStorage\LaurentOngaro.aiflowbridge`):
+
+```bash
+# PowerShell equivalent:
+ni "$env:APPDATA\Code\User\globalStorage\LaurentOngaro.aiflowbridge\secrets.json" -Force | Out-Null
+@'
+{
+  "aiflowbridge.providers.openrouter.apiKey": "sk-or-v1-..."
+}
+'@ | Set-Content -Encoding utf8 "$env:APPDATA\Code\User\globalStorage\LaurentOngaro.aiflowbridge\secrets.json"
+# On Windows the ACL is set by your user; on Linux/macOS run: chmod 600 <path>/secrets.json
+```
+
+Reload the VS Code window (`Developer: Reload Window`) after writing the file - the secret is picked up at activation.
+
+**Step B - declare the model.** Three equivalent recipes below, pick the one that matches your client.
+
+**B1. From VS Code itself (Command Palette):**
+
+1. `Ctrl+Shift+P` -> `AIFlowBridge: Add a custom model` -> pick **OpenRouter**.
+2. The picker fetches `https://openrouter.ai/api/v1/models` and lists every id - including dated variants like `deepseek/deepseek-v4-pro-0813`, `deepseek/deepseek-v4-flash-0731`, and any future model.
+3. Pick the id, answer the three capability questions (tool calling / vision / thinking).
+4. Confirm `Add`. AIFlowBridge writes the entry to `aiflowbridge.userModels` and tells you to reload the window.
+5. Reload -> the new id is visible in `GET /v1/models` (the gateway synthesizes the profile from `vendors.openrouter.baseUrl`).
+
+**B2. From VS Code with the Kilo Code extension (recommended for chat-style use):**
+
+1. Install [Kilo Code](https://marketplace.visualstudio.com/items?itemName=kilocode.kilo-code) (or the [open VSX build](https://open-vsx.org/extension/kilocode/kilo-code) for Cursor / Windsurf / VSCodium).
+2. Make sure AIFlowBridge is running (`AIFlowBridge: Show logs` should show `[Gateway] listening on http://127.0.0.1:8787`).
+3. Open the Kilo Code panel, click the gear icon (Settings), then **API Providers** -> **OpenAI Compatible**.
+4. Fill in:
+   - **Base URL:** `http://127.0.0.1:8787/v1`
+   - **API Key:** any non-empty placeholder (e.g. `sk-aiflowbridge-local`) - the gateway forwards the real key upstream.
+   - **Model:** `deepseek/deepseek-v4-pro-0813` (or any other id from `https://openrouter.ai/models`).
+5. Hit **Save**, then send a prompt. Kilo Code calls the gateway, which forwards to OpenRouter with the key from Step A.
+
+**B3. From any terminal with `curl`** (no IDE involved, useful for scripts and CI):
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model": "deepseek/deepseek-v4-pro-0813", "messages": [{"role": "user", "content": "ping"}]}'
+```
+
+Same shape for any OpenRouter id - just swap the `model` field.
+
+**Troubleshooting the 401 in three checks:**
+
+1. `AIFlowBridge: Show logs` -> look for a `[Gateway]` line near your request saying `apiKey=<none>`. That confirms the resolver did not find the key.
+2. The error is `No cookie auth credentials found` (not `Invalid API key`) -> the gateway reached OpenRouter but with no `Authorization` header. Add the env var / file as in Step A.
+3. The error is `Invalid API key` -> the key was found but is wrong or revoked. Re-grab it from [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).
+
+Full reference: [docs/providers.md](docs/providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint).
+
 ## Documentation
 
 | Page                                                             | Topic                                                              |
@@ -240,7 +316,8 @@ See [docs/standalone.md](docs/standalone.md#client-setup) for ready-to-paste cli
 | `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                                           |
 
 Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by design - it is exposed through the gateway path only (works from Kilo Code, Continue, Open WebUI, curl).
-Store the key via `AIFlowBridge: Add a custom model` (the OpenRouter choice is listed first), or via the registry override file, or via the `AIFLOWBRIDGE_OPENROUTER_API_KEY` env var on the standalone CLI.
+Store the key via the `AIFLOWBRIDGE_OPENROUTER_API_KEY` env var (PowerShell: `[Environment]::SetEnvironmentVariable("AIFLOWBRIDGE_OPENROUTER_API_KEY", "sk-or-v1-...", "User")`) or via `<globalStorageUri>/secrets.json`.
+Full procedure (including the 401 fix and a copy-paste Kilo Code config): see [step 4 above](#4-add-a-custom-openrouter-model-the-part-that-bites-if-you-forget-it).
 
 ## Roadmap (extract)
 
