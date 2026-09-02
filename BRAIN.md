@@ -54,13 +54,13 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 - **Projet** : AIFlowBridge — assistant de code IA multi-providers pour VS Code,
   avec proxy vision, métriques d'usage et **gateway locale OpenAI-compatible
   déjà fonctionnelle** (CLI `aiflowbridge-server`).
-- **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek (+ gateway
-  openai-compat/ollama générique).
+- **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek, OpenRouter
+  (+ gateway openai-compat/ollama générique).
 - **Chantier actif** : provider Antigravity / Google Cloud Code Assist afin
   d'utiliser Gemini via le compte Google AI Pro dans Kilo CLI, en parallèle
   de MiniMax-M3 via le plan MiniMax.
-- **Plan de référence** : `docs/plans/antigravity-provider-kilo-cli.md`
-  (à réviser : la gateway existe déjà, voir audit ci-dessous).
+- **Spec d'implémentation** : `docs/plans/antigravity-gateway-integration-spec.md`
+  (AP-007, remplace le plan initial `antigravity-provider-kilo-cli.md`).
 
 ## Décisions d'architecture (validées)
 
@@ -86,55 +86,52 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 ### Gateway standalone (déjà fonctionnelle)
 
 - `src/aiflowbridge/gateway/server.ts` (~114 Ko) : `GatewayService`, serveur
-  `node:http`, endpoints OpenAI-compatibles (`/v1/chat/completions`, sonde
-  `/version`), limite de concurrence (429 + `Retry-After`), statut/télémétrie.
-- Clients déjà documentés : **Kilo Code**, Continue, curl, Open WebUI sur
-  `http://127.0.0.1:8787/v1` ; clé locale `sk-aiflowbridge-local`
-  (`gateway/bearer-key.ts`) ; snippets clients dans `gateway/discovery.ts`.
-- Verrou mono-instance partagé VS Code/standalone (`gateway/lock.ts`),
-  sondage de version (`gateway/probe.ts`), headers OpenRouter dédiés.
-- Injection d'un préfixe system de contexte workspace dans chaque appel
-  (`src/aiflowbridge/context/workspace-context.ts`).
-- Standalone : binaire `aiflowbridge-server` (`package.json#bin`), config
-  `~/.aiflowbridge/config.json` avec hot-reload, secrets via env
-  `AIFLOWBRIDGE_<VENDOR>_API_KEY` puis `secrets.json` (chmod 600),
-  build `npm run build:standalone` (`tsconfig.standalone.json`), shim
-  `src/standalone/vscode-shim.ts`, contexte `createStandaloneContext()`.
-- Découplage hôte : `IGatewayContext` + `vscode-context-adapter.ts`
-  (secrets VS Code → `ctx.secrets`, globalStorage → `ctx.globalStorageDir`).
+  `node:http`. Routes : `/version`, `/health`, `/metrics`, `/v1/metrics`,
+  `/v1/models`, `/v1/discovery`, `/v1/events` (SSE télémétrie),
+  `/v1/replay/{id}`, `/v1/context`, `POST /v1/chat/completions`,
+  `POST /shutdown`. Bind `127.0.0.1` ; clé locale `sk-aiflowbridge-local`.
+- Clients documentés : **Kilo Code**, Continue, curl, Open WebUI.
+- Flux completion : `forwardChatCompletion` (orchestrateur) →
+  `readAndValidateBody` / `resolveChatProvider` (`selectProviderWithLanguage`,
+  routage par langue) / `buildUpstreamRequest` (URL, clé, headers, traduction
+  de payload, injection contexte workspace, override du modèle).
+- Streaming : `Accept: application/json, text/event-stream` upstream, réponse
+  **pipée verbatim** (`Readable.fromWeb().pipe(response)`) — aucun
+  TransformStream existant.
+- Clés : env `AIFLOWBRIDGE_<VENDOR>_API_KEY` → `secrets.json` (chmod 600) →
+  commande VS Code ; warning unique si absente (sauf `ollama`).
+- Erreurs : `sanitizeUpstreamErrorMessage()` (retire query string + credentials
+  des 502), `redactProviderForLog()` (`apiKeyPresent`).
+- Standalone : binaire `aiflowbridge-server`, config
+  `~/.aiflowbridge/config.json` hot-reload, build `npm run build:standalone`,
+  `IGatewayContext` + `vscode-context-adapter.ts` + shim `vscode-shim.ts`.
 
 ### Providers (deux chemins d'exposition)
 
-1. **Copilot Chat (VS Code LM API)** : classes `vscode.LanguageModelChatProvider`
-   — `BaseChatProvider` (`src/provider/base.ts`), `MiniMaxChatProvider`,
-   `XiaomiChatProvider`, `DeepSeekChatProvider`, `UnifiedChatProvider`.
-   Clés API en SecretStorage VS Code (`API_KEY_SECRETS` par vendor,
-   `src/consts.ts`), base URL par `getProviderBaseUrl(vendor)` (`src/config.ts`).
-2. **Gateway** : `ProviderProfile` (`id`, `label`, `kind`) avec
-   `ProviderKind = 'openai-compat' | 'ollama'` (`src/aiflowbridge/types.ts`),
-   profils synthétisés dans `host-config.ts`, relais upstream dans `server.ts`.
-   Client HTTP : `src/client/core.ts` (fetch, `stream_options.include_usage`).
+1. **Copilot Chat (VS Code LM API)** : `vscode.LanguageModelChatProvider` —
+   `BaseChatProvider`, MiniMax, Xiaomi, DeepSeek, `UnifiedChatProvider` ; clés
+   en SecretStorage (`API_KEY_SECRETS`, `src/consts.ts`).
+2. **Gateway** : `ProviderProfile { id, label, kind, model, baseUrl }`,
+   `ProviderKind = 'openai-compat' | 'ollama'` ; registry 3 tiers
+   (`resources/models.json` < globalStorage < workspace) ; checklist vendor
+   dans `docs/agent-instructions/tasks.md` ; `VENDOR_ALIASES`
+   (`api-key-resolver.ts`), `VENDOR_CHOICES`/`VENDOR_LABELS`
+   (`addCustomModel.ts`).
 
-### Conséquence pour Antigravity
+### Intégration Antigravity (spec AP-007)
 
-- Ajouter `ProviderKind 'antigravity'` + profil provider + branche de relais
-  dans `server.ts` (enveloppe `project/model/request` + conversion SSE) ;
-- module OAuth PKCE dans `src/aiflowbridge/antigravity/`, refresh token en
-  `secrets.json` (convention existante, chmod 600) ;
-- commande CLI d'authentification à ajouter au binaire `aiflowbridge-server` ;
-- option VS Code : `AntigravityChatProvider extends BaseChatProvider` ;
-- tests : suivre les patterns vitest existants (`tests/gateway*.test.ts`,
-  `tests/standalone/`).
-
-### Endpoints Antigravity (non officiels, à centraliser)
-
-- OAuth Google Authorization Code + PKCE ; API Cloud Code Assist :
-  `cloudcode-pa.googleapis.com/v1internal:{loadCodeAssist,
-  fetchAvailableModels,streamGenerateContent?alt=sse}`.
+- Nouveau `ProviderKind 'antigravity'` ; 3 divergences vs openai-compat :
+  auth OAuth async (token manager + refresh, stocké dans `secrets.json`),
+  enveloppe requête `{ project, model, request, requestType, userAgent,
+  requestId }`, **TransformStream SSE Antigravity → OpenAI** (code nouveau).
+- Nouveau module pur `src/aiflowbridge/antigravity/` : constants, types,
+  pkce, auth, token-store, project, catalog, envelope, sse-transform.
+- Détail complet : `docs/plans/antigravity-gateway-integration-spec.md`.
 
 ## Liens utiles
 
-- Plan Antigravity : `docs/plans/antigravity-provider-kilo-cli.md`
+- Spec d'intégration (active) : `docs/plans/antigravity-gateway-integration-spec.md`
+- Plan initial (historique) : `docs/plans/antigravity-provider-kilo-cli.md`
 - Zone d'échange opérationnelle : `ACTION_PLAN.md`
 - Règles agents Kilo : `.kilocode/rules/00-brain-protocol.md`
 - Canal privé : dépôt `AIFlowBridge-Private` → `BRAIN-PRIVATE.md`
@@ -143,24 +140,27 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 
 ## Journal (plus récent en haut)
 
+### 2026-09-02 — Perplexity (AP-007 : cartographie + spec)
+- Cartographie complète de `server.ts` : routage par pathname, orchestrateur
+  `forwardChatCompletion` en 3 helpers, pipe SSE verbatim (TransformStream
+  à créer), résolution de clés statiques (token manager OAuth à créer),
+  checklist d'ajout de vendor existante dans `docs/agent-instructions/tasks.md`.
+- Livrable : `docs/plans/antigravity-gateway-integration-spec.md` (design du
+  kind `antigravity`, 10 modules, fichiers touchés, risques, 4 questions
+  ouvertes transmises via `ACTION_PLAN.md`).
+
 ### 2026-09-02 — Perplexity (audit et rôles)
 - Découverte : lecture de fichiers possible via la recherche de code GitHub
   (fragments `text_matches`), malgré l'échec de l'outil de lecture directe.
-- Audit AP-005/AP-006 réalisé par Perplexity : la gateway OpenAI-compatible
-  existe déjà et vise Kilo Code ; Antigravity devient un nouveau
-  `ProviderKind`, pas une nouvelle passerelle. Synthèse complète ci-dessus.
-- Répartition des rôles validée par Laurent : Perplexity tech lead (code,
-  audit, backlog, PR), Kilo exécutant local (build/tests/OAuth), Laurent
-  décideur.
+- Audit AP-005/AP-006 : la gateway OpenAI-compatible existe déjà et vise Kilo
+  Code ; Antigravity = nouveau `ProviderKind`. Répartition des rôles validée
+  (commit `8b752ae`).
 
 ### 2026-09-02 — Perplexity
-- Création de l'infrastructure de collaboration : `BRAIN.md`, `ACTION_PLAN.md`,
-  hook `pre-commit` (pull requis + journal obligatoire), `scripts/install-hooks.js`,
-  règles Kilo `.kilocode/rules/00-brain-protocol.md` (commit `f7bc109`).
+- Infrastructure de collaboration : `BRAIN.md`, `ACTION_PLAN.md`, hook
+  `pre-commit`, `scripts/install-hooks.js`, règles Kilo (commit `f7bc109`).
 - Canal privé `AIFlowBridge-Private/BRAIN-PRIVATE.md` (commit `33bce42`).
 
 ### 2026-09-02 — Perplexity
-- Création du plan d'implémentation Antigravity :
-  `docs/plans/antigravity-provider-kilo-cli.md` (commit `2ba3a4c`).
-- Décision initiale : passerelle OpenAI-compatible (confirmée par l'audit,
-  mais en réutilisant la gateway existante).
+- Plan initial Antigravity `docs/plans/antigravity-provider-kilo-cli.md`
+  (commit `2ba3a4c`), révisé par la spec AP-007.
