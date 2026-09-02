@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# AIFlowBridge — hook pre-commit
+#
+# 1) BLOQUE le commit si la branche locale est en retard sur son upstream
+#    (ou a divergé) : un `git pull --rebase` est alors requis AVANT de committer.
+# 2) Impose la mise à jour de BRAIN.md ou ACTION_PLAN.md dans chaque commit
+#    (mode « strict » par défaut) afin que le journal de projet reste le fil rouge.
+#
+# Configuration :
+#   git config hooks.pullCheck false   # désactive le contrôle de synchronisation
+#   git config hooks.brainMode warn    # rappel au lieu de blocage
+#   git config hooks.brainMode off     # désactive le contrôle BRAIN
+# Contournement ponctuel : git commit --no-verify
+
+set -u
+
+log() { printf '[pre-commit] %s\n' "$*" >&2; }
+
+brain_mode="$(git config --get hooks.brainMode 2>/dev/null || printf 'strict')"
+pull_check="$(git config --get hooks.pullCheck 2>/dev/null || printf 'true')"
+
+# --- 1) Synchronisation avec le remote -------------------------------------
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || printf '')"
+
+if [ "$pull_check" = "true" ] && [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || printf '')"
+  if [ -n "$upstream" ]; then
+    remote_name="${upstream%%/*}"
+    remote_branch="${upstream#*/}"
+    if git fetch --quiet "$remote_name" "$remote_branch" 2>/dev/null; then
+      local_sha="$(git rev-parse HEAD)"
+      remote_sha="$(git rev-parse "$upstream")"
+      base_sha="$(git merge-base HEAD "$upstream")"
+      if [ "$local_sha" != "$remote_sha" ] && [ "$local_sha" = "$base_sha" ]; then
+        log "BLOQUÉ : '$branch' est en retard sur '$upstream'."
+        log "Exécutez d'abord : git pull --rebase"
+        exit 1
+      fi
+      if [ "$local_sha" != "$remote_sha" ] && [ "$remote_sha" != "$base_sha" ]; then
+        log "BLOQUÉ : '$branch' a divergé de '$upstream'."
+        log "Exécutez d'abord : git pull --rebase"
+        exit 1
+      fi
+    else
+      log "fetch impossible (hors ligne ?) : contrôle de synchronisation ignoré."
+    fi
+  fi
+fi
+
+# --- 2) Journal de projet (BRAIN.md / ACTION_PLAN.md) ----------------------
+if [ "$brain_mode" != "off" ]; then
+  if ! git diff --cached --name-only | grep -Eq '^(BRAIN\.md|ACTION_PLAN\.md)$'; then
+    if [ "$brain_mode" = "strict" ]; then
+      log "BLOQUÉ : aucune mise à jour de BRAIN.md / ACTION_PLAN.md dans ce commit."
+      log "Ajoutez une entrée au journal, ou assouplissez : git config hooks.brainMode warn"
+      log "Contournement ponctuel : git commit --no-verify"
+      exit 1
+    else
+      log "RAPPEL : pensez à mettre à jour BRAIN.md / ACTION_PLAN.md."
+    fi
+  fi
+fi
+
+exit 0
