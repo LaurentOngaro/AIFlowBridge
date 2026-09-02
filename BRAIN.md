@@ -59,8 +59,9 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 - **Chantier actif** : provider Antigravity / Google Cloud Code Assist afin
   d'utiliser Gemini via le compte Google AI Pro dans Kilo CLI, en parallèle
   de MiniMax-M3 via le plan MiniMax.
-- **Spec d'implémentation** : `docs/plans/antigravity-gateway-integration-spec.md`
-  (AP-007, remplace le plan initial `antigravity-provider-kilo-cli.md`).
+- **Branche de travail** : `feat/antigravity-provider` (squelette du module
+  livré : modules purs + tests ; validation locale en cours via AP-013).
+- **Spec d'implémentation** : `docs/plans/antigravity-gateway-integration-spec.md`.
 
 ## Décisions d'architecture (validées)
 
@@ -71,7 +72,8 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 | 2026-09-02 | Hooks git versionnés dans `.githooks/` + `core.hooksPath` | Partage des hooks via le dépôt |
 | 2026-09-02 | Hook pre-commit : pull obligatoire + mise à jour du journal | Éviter toute perte de modifications, journal incontournable |
 | 2026-09-02 | Répartition des rôles : Perplexity tech lead / Kilo exécutant local / Laurent décideur | Maximiser l'autonomie de Perplexity, ne déléguer que l'exécution |
-| 2026-09-02 | Antigravity = nouveau `ProviderKind` dans la gateway existante (pas de nouvelle passerelle) | La gateway OpenAI-compatible existe et vise déjà Kilo Code (audit du 2026-09-02) |
+| 2026-09-02 | Antigravity = nouveau `ProviderKind` dans la gateway existante | La gateway OpenAI-compatible existe et vise déjà Kilo Code |
+| 2026-09-02 | Kind nommé `'antigravity'`, commande `aiflowbridge-server auth antigravity`, MVP **gateway-only** (picker Copilot Chat en V2) | Arbitrage Laurent (AP-011) |
 
 ## Contraintes et préférences
 
@@ -118,15 +120,18 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
    (`api-key-resolver.ts`), `VENDOR_CHOICES`/`VENDOR_LABELS`
    (`addCustomModel.ts`).
 
-### Intégration Antigravity (spec AP-007)
+### Intégration Antigravity (spec AP-007, squelette AP-008)
 
 - Nouveau `ProviderKind 'antigravity'` ; 3 divergences vs openai-compat :
-  auth OAuth async (token manager + refresh, stocké dans `secrets.json`),
-  enveloppe requête `{ project, model, request, requestType, userAgent,
-  requestId }`, **TransformStream SSE Antigravity → OpenAI** (code nouveau).
-- Nouveau module pur `src/aiflowbridge/antigravity/` : constants, types,
-  pkce, auth, token-store, project, catalog, envelope, sse-transform.
-- Détail complet : `docs/plans/antigravity-gateway-integration-spec.md`.
+  auth OAuth async, enveloppe requête, **TransformStream SSE** (code nouveau).
+- Module `src/aiflowbridge/antigravity/` :
+  - **livrés (purs + testés)** : `constants.ts`, `types.ts`, `pkce.ts`,
+    `envelope.ts` (OpenAI → enveloppe, sanitization des schémas d'outils,
+    alternance des rôles), `sse-transform.ts` (SSE → chunks OpenAI, usage,
+    finish reasons, `[DONE]`, accumulateur non-stream), `index.ts` ;
+  - **à venir (réseau)** : `auth.ts`, `token-store.ts`, `project.ts`,
+    `catalog.ts` (AP-014).
+- Spec complète : `docs/plans/antigravity-gateway-integration-spec.md`.
 
 ## Liens utiles
 
@@ -140,14 +145,23 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 
 ## Journal (plus récent en haut)
 
+### 2026-09-02 — Perplexity (AP-008 : squelette du module, en cours)
+- Arbitrages Laurent actés (AP-011) : kind `'antigravity'`, commande
+  `aiflowbridge-server auth antigravity`, MVP gateway-only.
+- Branche `feat/antigravity-provider` créée ; modules purs livrés :
+  `constants.ts`, `types.ts`, `pkce.ts` (RFC 7636, vecteur annexe B testé),
+  `envelope.ts` (mappings complets + sanitization + alternance des rôles),
+  `sse-transform.ts` (converter incrémental + TransformStream + accumulateur
+  non-stream), `index.ts` ; 3 fichiers de tests vitest (26 cas).
+- En attente : validation locale par Kilo (AP-013 : compile + tests), puis
+  modules réseau (AP-014).
+
 ### 2026-09-02 — Perplexity (AP-007 : cartographie + spec)
 - Cartographie complète de `server.ts` : routage par pathname, orchestrateur
   `forwardChatCompletion` en 3 helpers, pipe SSE verbatim (TransformStream
-  à créer), résolution de clés statiques (token manager OAuth à créer),
-  checklist d'ajout de vendor existante dans `docs/agent-instructions/tasks.md`.
-- Livrable : `docs/plans/antigravity-gateway-integration-spec.md` (design du
-  kind `antigravity`, 10 modules, fichiers touchés, risques, 4 questions
-  ouvertes transmises via `ACTION_PLAN.md`).
+  à créer), résolution de clés statiques (token manager OAuth à créer).
+- Livrable : `docs/plans/antigravity-gateway-integration-spec.md`
+  (commit `d26f132`).
 
 ### 2026-09-02 — Perplexity (audit et rôles)
 - Découverte : lecture de fichiers possible via la recherche de code GitHub
