@@ -163,14 +163,14 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
   = "stop" au lieu de "tool_calls"), BUG-16 (switcher ignore override
   globalStorage), BUG-17 (streaming temps-réel cassé par le drain),
   BUG-06 (lockout `aicode-consumers` pour comptes non whitelistés).
-  Détail complet dans `docs/audits/2026-09-05-gemini-integration-audit.md` §6.
+  Détail complet dans `_Private/docs/audits/2026-09-05-gemini-integration-audit.md` §6 (déplacé du public le 2026-09-05 : contient email, project id et chemins locaux).
 - **Documentation à actualiser (audit v2 §6.3) :** `docs/providers.md` lignes
   90/92/113 + `README.md:26` version pin à `2.15.7`.
 
 ## Liens utiles
 
 - Spec d'intégration (active) : `docs/plans/antigravity-gateway-integration-spec.md`
-- Audit Gemini (v2) : `docs/audits/2026-09-05-gemini-integration-audit.md`
+- Audit Gemini (v2, privé) : `_Private/docs/audits/2026-09-05-gemini-integration-audit.md`
 - Plan initial (historique) : `docs/plans/antigravity-provider-kilo-cli.md`
 - Zone d'échange opérationnelle : `ACTION_PLAN.md`
 - Règles agents Kilo : `.kilocode/rules/00-brain-protocol.md`

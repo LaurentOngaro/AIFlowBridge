@@ -12,7 +12,7 @@ Two parallel auth routes for the Google AI Studio vendor ship in this release. *
 The bundled registry exposes `gemini-3.8-flash`, `gemini-3.7-flash`, and `gemini-3.6-flash` on both routes; pick the model id in the client picker, the gateway decides which surface to call based on `aiflowbridge.providers.googleaistudio.baseUrl`.
 A `AIFlowBridge: Switch Google AI Studio route` command toggles between the two and clears stale credentials, preventing the "silent globalStorage override" trap that traps users in the OAuth path after switching settings.
 
-A second-round audit (`docs/audits/2026-09-05-gemini-integration-audit.md`) tracks the 17 bugs identified during this release; 9 are fixed here, 6 are deferred to 2.18.0 (role alternation on parallel tool results, vision input on BYOK, `finish_reason: "tool_calls"`, switcher override-awareness, streaming time-to-first-token, OAuth tier lockout for non-whitelisted personal accounts).
+A second-round internal audit tracks the 17 bugs identified during this release; 9 are fixed here, 6 are deferred to 2.18.0 (role alternation on parallel tool results, vision input on BYOK, `finish_reason: "tool_calls"`, switcher override-awareness, streaming time-to-first-token, OAuth tier lockout for non-whitelisted personal accounts).
 
 ### Added
 
