@@ -3,6 +3,21 @@
  *
  * Centralizes OAuth endpoints, public client credentials, Cloud Code Assist API
  * URLs, scopes, default headers, and token refresh safety margins.
+ *
+ * SECURITY: the OAuth client_id and client_secret below are the well-known
+ * public Antigravity CLI credentials - they are bundled in the official
+ * Google Antigravity binary and are intentionally public so anyone can build
+ * a compatible client. They are kept here as defaults so the OAuth route
+ * works out-of-the-box without forcing every operator to extract them from
+ * their Antigravity install. Users who want to use their own Google Cloud
+ * OAuth client can override both via `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` and
+ * `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars.
+ *
+ * The constants file is whitelisted in `.github/secret_scanning.yml`
+ * (`paths-ignore` for this exact path) so the GitHub push protection does
+ * not block on this public-but-pattern-matching secret. Reviewers MUST
+ * still treat these two values as the same fixed strings shipped by the
+ * official Antigravity binary - any change risks breaking every install.
  */
 
 export const GOOGLE_OAUTH_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';

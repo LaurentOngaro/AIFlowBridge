@@ -39,12 +39,21 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 
 ## Règles de contenu (dépôt public)
 
-- ❌ Jamais de : tokens, clés API, codes OAuth, cookies, emails privés,
-  données personnelles, URLs internes/privées, montants de facturation détaillés.
+- ❌ Jamais de : tokens, clés API privées, codes OAuth secrets, cookies,
+  emails privés, données personnelles, URLs internes/privées, montants de
+  facturation détaillés.
 - ✅ Autorisé : architecture, décisions techniques, état des tâches, erreurs
   assainies (sans secret), liens publics, noms de modèles et de providers.
 - Toute note sensible va dans le canal privé `AIFlowBridge-Private`
   (`BRAIN-PRIVATE.md`) ; les vrais secrets restent locaux hors git (`.ai/`).
+- **Exception documentée pour les credentials OAuth publics de l'AGY CLI**
+  (le `client_id` et le `client_secret` sont embarqués dans le binaire
+  officiel d'Antigravity, donc techniquement publics) : ils sont hardcodés
+  dans `src/aiflowbridge/antigravity/constants.ts` et whitelistés via
+  `.github/secret_scanning.yml` (`paths-ignore` + `custom_patterns`).
+  Cette exception est signée par l'utilisateur le 2026-09-05 et ne s'applique
+  qu'à ces 2 valeurs figées (toute autre valeur dans `constants.ts`
+  doit rester hors versionné).
 - En cas de doute : ne pas écrire, demander à l'utilisateur.
 
 ---
@@ -76,6 +85,7 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 | 2026-09-04 | Voie BYOK Gemini comme défaut, OAuth AGY opt-in pour comptes whitelistés Cloud Code Assist                              | Quota AI Studio Pro indépendant du quota Cloud Code Assist (`aicode-consumers` lockout personnel) ; BYOK `AIzaSy...` ne dépend d'aucune whitelist         |
 | 2026-09-05 | Surface Gemini native `:streamGenerateContent?alt=sse` préférée à `/openai/chat/completions` sur la voie BYOK              | La surface OpenAI-compat est feature-gated par projet GCP, retourne 429 quota=0 si non activée ; la native est toujours dispo et permet les free-tier Gemini     |
 | 2026-09-05 | Commande `AIFlowBridge: Switch Google AI Studio route` toggle baseUrl + nettoie les credentials de la voie inactive   | Évite le piège "override silencieux" `globalStorage/models.json` qui forçait OAuth en local ; couplé au runtime avec `resetGlobalStorageRegistryOverride`        |
+| 2026-09-05 | Les credentials OAuth publics de l'AGY CLI (`client_id` + `client_secret`) sont hardcodés dans `src/aiflowbridge/antigravity/constants.ts` avec bypass `paths-ignore` dans `.github/secret_scanning.yml` | Ces credentials sont identiques à ceux embarqués dans le binaire Antigravity officiel de Google (extractibles depuis `~/.config/google/antigravity/credentials.json`). Sans eux, la voie OAuth AGY ne fonctionne pas out-of-the-box. Le whitelisting est documenté dans `.github/secret_scanning.yml` et expliqué dans le commentaire d'en-tête de `constants.ts`. Tous les autres secrets restent exclus du versionné. |
 
 ## Contraintes et préférences
 
@@ -176,6 +186,18 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 > l'audit v2** dans « Contexte technique clé → Intégration Gemini / Antigravity ».
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
+
+### 2026-09-05 — Kilo (Bypass Secret Scanning pour les credentials publics AGY)
+
+Pour débloquer le push du 2.17.0 bloqué par GitHub Secret Scanning sur
+le `client_secret` OAuth d'Antigravity, l'utilisateur a autorisé
+explicitement à garder ce secret dans le versionné. Les credentials
+OAuth officiels de l'AGY CLI (client_id + client_secret) sont hardcodés
+dans `src/aiflowbridge/antigravity/constants.ts` avec whitelist
+correspondant dans `.github/secret_scanning.yml` (`paths-ignore` +
+`custom_patterns`). Documentation de l'exception dans « Règles de
+contenu » et dans la table « Décisions d'architecture ». Tous les autres
+secrets restent exclus du versionné.
 
 ### 2026-09-05 — Kilo (Handoff vers nouvelle session : audit v2 + version 2.17.0)
 
