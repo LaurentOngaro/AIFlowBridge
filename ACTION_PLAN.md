@@ -28,7 +28,6 @@
 
 ## En cours
 
-
 ## Questions / Blocages
 
 ## Fait

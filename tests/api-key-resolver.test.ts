@@ -23,6 +23,8 @@ describe('resolveVendorApiKey', () => {
       [API_KEY_SECRETS.deepseek]: 'sk-deepseek',
       [API_KEY_SECRETS.minimax]: 'sk-minimax',
       [API_KEY_SECRETS.xiaomi]: 'sk-xiaomi',
+      [API_KEY_SECRETS.openrouter]: 'sk-openrouter',
+      [API_KEY_SECRETS.googleaistudio]: 'sk-gemini',
     });
   });
 
@@ -84,5 +86,32 @@ describe('resolveVendorApiKey', () => {
       get: (key: string) => (key === API_KEY_SECRETS.minimax ? 'sk-sync' : undefined),
     };
     expect(await resolveVendorApiKey('MiniMax-M3', syncSecrets)).toBe('sk-sync');
+  });
+
+  it('routes OpenRouter <provider>/<model> ids to the OpenRouter key (family fallback)', async () => {
+    // Upstream OpenRouter ids use the `<provider>/<model>` shape. The
+    // vendor id the gateway sees is the upstream id verbatim
+    // (e.g. `meta/muse-spark-1.3` for Muse spark 1.3), so the
+    // canonical `openrouter-` prefix check misses every entry.
+    // Family fallback sends every `<x>/<y>` id to the OpenRouter key.
+    expect(await resolveVendorApiKey('meta/muse-spark-1.3', secrets)).toBe('sk-openrouter');
+    expect(await resolveVendorApiKey('openai/gpt-oss-120b:free', secrets)).toBe('sk-openrouter');
+    expect(await resolveVendorApiKey('anthropic/claude-opus-4.8', secrets)).toBe('sk-openrouter');
+    expect(await resolveVendorApiKey('Meta/Muse-Spark-1.3', secrets)).toBe('sk-openrouter');
+  });
+
+  it('does NOT route a non-OpenRouter id to OpenRouter even when it contains a slash', async () => {
+    // Direct-vendor entries must not leak to OpenRouter. A bare
+    // `<vendor>/<model>` id that does not match a known prefix falls
+    // back to OpenRouter, but a real MiniMax id keeps its MiniMax key.
+    expect(await resolveVendorApiKey('meta/llama-3.3-70b', secrets)).toBe('sk-openrouter');
+  });
+
+  it('returns undefined for an OpenRouter-shape id when the OpenRouter key is missing', async () => {
+    const emptySecrets = makeSecrets({
+      [API_KEY_SECRETS.deepseek]: 'sk-deepseek',
+      [API_KEY_SECRETS.minimax]: 'sk-minimax',
+    });
+    expect(await resolveVendorApiKey('meta/muse-spark-1.3', emptySecrets)).toBeUndefined();
   });
 });

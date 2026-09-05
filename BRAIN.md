@@ -190,6 +190,20 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-09-05 — Kilo (Bug : Muse spark 1.3 (id OpenRouter) 401 "No cookie auth credentials found")
+
+L'utilisateur a sélectionné `meta/muse-spark-1.3` (ajouté via `aiflowbridge.userModels` avec `family: "openrouter"`) et a obtenu un 401 `No cookie auth credentials found` sur `http://127.0.0.1:8787/v1/chat/completions`.
+Cause racine : `resolveVendorApiKey` matche uniquement les IDs commençant par `openrouter-` (préfixe canonique AIFlowBridge) ou par le vendor canonique (`openrouter` exact).
+Les IDs upstream OpenRouter sont `<provider>/<model>` (`meta/muse-spark-1.3`, `openai/gpt-oss-120b:free`, `anthropic/claude-opus-4.8`, `mistralai/mistral-large-2512`, ...).
+Le préfixe `meta/` n'est pas un vendor AIFlowBridge, donc `resolveVendorApiKey` retournait `undefined`, la requête partait sans clé `Authorization`, OpenRouter rejetait avec 401.
+Le 401 upstream confirme (`Missing Authentication header` en curl direct sur `https://openrouter.ai/api/v1/chat/completions` sans clé).
+Fix : `resolveVendorApiKey` reçoit un family-fallback : si aucun vendor connu ne matche l'ID et que l'ID contient un `/`, retourner la clé OpenRouter.
+Couvre les 100+ ids OpenRouter avec leurs préfixes upstream arbitraires.
+Les vendors directs (DeepSeek / MiniMax / Xiaomi / Gemini BYOK) gardent leurs clés dédiées (pas de slash par défaut, ou alias préfixé connu).
+Tests : `tests/api-key-resolver.test.ts` étendu de 9 à 12 (3 nouveaux : family fallback, non-leak vers OpenRouter, secret OpenRouter manquant).
+Gates : compile OK, 71 fichiers / 1180 tests verts, typecheck tests OK, standalone OK.
+SANS committer (validation utilisateur requise).
+
 ### 2026-09-05 — Kilo (Coverage thought_signature en debug : le 100% MISSING reste un 200)
 
 L'utilisateur rapporte un dernier warning `36/36 MISSING` qui aboutit quand même en 200 : l'upstream accepte en pratique les bursts first-turn sans signature préalable.

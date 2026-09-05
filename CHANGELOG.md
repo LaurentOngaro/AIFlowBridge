@@ -6,6 +6,14 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.18.4
+
+Patch release that fixes the 401 `No cookie auth credentials found` returned by OpenRouter for every upstream model id that uses the `<provider>/<model>` shape (`meta/muse-spark-1.3`, `openai/gpt-oss-120b:free`, `anthropic/claude-opus-4.8`, `mistralai/mistral-large-2512`, ...).
+`resolveVendorApiKey` was matching only ids that started with the canonical AIFlowBridge prefix (`openrouter-`, `minimax`, `deepseek`, ...) so every OpenRouter id whose upstream prefix is a different provider name fell through to `undefined`, the upstream request shipped without `Authorization`, and OpenRouter rejected with 401.
+A new family-fallback routes any id containing a forward slash that does NOT match a non-OpenRouter vendor to the OpenRouter key, covering all 100+ OpenRouter ids regardless of their upstream provider prefix.
+Direct-vendor ids (DeepSeek, MiniMax, Xiaomi, Gemini BYOK) keep their dedicated keys - they either have no slash in the upstream id or carry a known AIFlowBridge alias prefix.
+Regression test added (`tests/api-key-resolver.test.ts`): family fallback returns the OpenRouter key, non-OpenRouter `<x>/<y>` ids still match their vendor when applicable, missing OpenRouter secret degrades gracefully.
+
 ## 2.18.3
 
 Patch release that hardens the Gemini `thought_signature` round-trip validated in production on 2.18.2.

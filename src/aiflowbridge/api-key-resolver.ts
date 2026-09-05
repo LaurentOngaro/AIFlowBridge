@@ -8,6 +8,14 @@
  * can include capitals and a different separator ("mimo-" for Xiaomi
  * MiMo). The resolver must therefore be case-insensitive and accept the
  * upstream-style alias for each vendor.
+ *
+ * OpenRouter special case: the upstream ids are `<provider>/<model>`
+ * (`meta/muse-spark-1.3`, `openai/gpt-oss-120b`, `anthropic/claude-opus-4.8`,
+ * `mistralai/mistral-large-2512`, ...). The `meta/`, `openai/`, `anthropic/`
+ * prefixes are upstream provider names, NOT AIFlowBridge vendor ids.
+ * `resolveVendorApiKey` therefore has a family-fallback that recognises
+ * any `<vendor>/<model>` shape on the OpenRouter family and returns the
+ * OpenRouter key (`aiflowbridge.providers.openrouter.apiKey`).
  */
 
 import { API_KEY_SECRETS } from '../consts';
@@ -40,6 +48,11 @@ export type ResolveSecretSource = SecretStorageLike | SecretsLike;
  * canonical vendor id used by the default auto-generated profiles; the
  * other entries are upstream-style prefixes that the gateway may encounter
  * on requests for user-added models.
+ *
+ * `openrouter` accepts any `<provider>/<model>` shape via the family
+ * fallback below (`resolveVendorApiKey` returns the OpenRouter key for
+ * any id containing a forward slash), so it does not need to enumerate
+ * every upstream provider name here.
  */
 const VENDOR_ALIASES: Record<KnownVendor | 'antigravity' | 'googleaistudio', readonly string[]> = {
   deepseek: ['deepseek'],
@@ -58,6 +71,12 @@ const VENDOR_ALIASES: Record<KnownVendor | 'antigravity' | 'googleaistudio', rea
  * "MiniMax-M3", "DEEPSEEK-pro"), or a known alias like "mimo-..." for
  * Xiaomi MiMo. Returns the matching secret's value, or `undefined` if
  * no vendor matches or the secret is not set.
+ *
+ * OpenRouter family fallback: any id containing a forward slash that
+ * did NOT match a non-OpenRouter vendor (`meta/muse-spark-1.3`,
+ * `openai/gpt-oss-120b`, ...) is routed to the OpenRouter key. Without
+ * this, upstream OpenRouter ids would silently send unauthenticated
+ * requests and surface as `401 No cookie auth credentials found`.
  */
 export async function resolveVendorApiKey(vendor: string, secrets: ResolveSecretSource): Promise<string | undefined> {
   if (!vendor) {
@@ -75,13 +94,28 @@ export async function resolveVendorApiKey(vendor: string, secrets: ResolveSecret
     return false;
   });
 
-  if (!matched) {
-    return undefined;
+  if (matched) {
+    try {
+      const value = await secrets.get(API_KEY_SECRETS[matched]);
+      return typeof value === 'string' ? value : undefined;
+    } catch {
+      return undefined;
+    }
   }
-  try {
-    const value = await secrets.get(API_KEY_SECRETS[matched]);
-    return typeof value === 'string' ? value : undefined;
-  } catch {
-    return undefined;
+
+  // Family fallback: any `<provider>/<model>` id that did NOT match a
+  // non-OpenRouter vendor defaults to OpenRouter (the OpenRouter
+  // catalog uses the `<provider>/<model>` convention for every entry).
+  // Direct-vendor entries (DeepSeek / MiniMax / Xiaomi / Gemini)
+  // either have no slash or carry the upstream-style alias above.
+  if (lowered.includes('/')) {
+    try {
+      const value = await secrets.get(API_KEY_SECRETS.openrouter);
+      return typeof value === 'string' ? value : undefined;
+    } catch {
+      return undefined;
+    }
   }
+
+  return undefined;
 }
