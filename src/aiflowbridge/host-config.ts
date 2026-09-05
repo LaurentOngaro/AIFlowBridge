@@ -219,14 +219,46 @@ function synthesizeProviderForModel(
   const resolved = resolvePricingForModel(model.id, model.pricing, pricingRegistry, familyPricing, family);
 
   taken.add(model.id);
+  // The `googleaistudio` family has TWO auth routes, and only the AGY
+  // OAuth one requires the `kind: 'googleaistudio'` runtime branch
+  // (envelope + SSE transform). The BYOK public-API route is plain
+  // OpenAI-compatible and goes through the upstream generic path.
+  //
+  // Synthesizing the BYOK profiles (pointed at
+  // `generativelanguage.googleapis.com`) as `kind: 'googleaistudio'`
+  // would route them through `buildAntigravityUpstreamRequest`, which
+  // would try to use the OAuth token manager and reject the call with
+  // 503. We therefore key on `family` + baseUrl host: an Antigravity
+  // baseUrl (`cloudcode-pa.googleapis.com`) keeps the AGY branch; any
+  // other baseUrl on the same family tags the profile `openai-compat`
+  // with the BYOK billing posture (per-token).
+  const upstreamHost = (() => {
+    try {
+      return new URL(baseUrl).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
+  const isAntigravityHost = upstreamHost === 'cloudcode-pa.googleapis.com';
+  const kind: ProviderProfile['kind'] = isAntigravityHost ? 'googleaistudio' : 'openai-compat';
+  // Billing mode:
+  //   - Antigravity OAuth (`kind: 'googleaistudio'`, cloudcode-pa host)
+  //     -> always plan-covered: usage is on the user's Google AI plan.
+  //   - Gemini public API BYOK (`kind: 'openai-compat'`,
+  //     generativelanguage host, any other googleaistudio family baseUrl)
+  //     -> per-token: the API key route bills against the user's GCP
+  //     project's pay-as-you-go counter. The plan-coverage flag would
+  //     hide a real charge, so it must NOT be set automatically.
+  const billing: ProviderProfile['billing'] = isAntigravityHost ? 'plan' : undefined;
   return {
     id: model.id,
     label: model.name,
-    kind: 'openai-compat',
+    kind,
     baseUrl,
     model: model.id,
     enabled: true,
     pricing: resolved.pricing,
+    ...(billing ? { billing } : {}),
   };
 }
 

@@ -38,9 +38,11 @@ export const DEFAULT_STANDALONE_CONFIG: Record<string, unknown> = {
   'providers.deepseek.baseUrl': 'https://api.deepseek.com',
   'providers.minimax.baseUrl': 'https://api.minimax.io/v1',
   'providers.xiaomi.baseUrl': 'https://api.xiaomimimo.com/v1',
+  'providers.googleaistudio.baseUrl': 'https://cloudcode-pa.googleapis.com',
   'providers.deepseek.maxTokens': 0,
   'providers.minimax.maxTokens': 0,
   'providers.xiaomi.maxTokens': 0,
+  'providers.googleaistudio.maxTokens': 0,
 };
 
 /**

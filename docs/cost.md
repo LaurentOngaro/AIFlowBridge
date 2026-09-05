@@ -54,11 +54,18 @@ The cheapest AI stack that still gives you Copilot Chat with image paste is AIFl
 
 AIFlowBridge ships with indicative per-million-token rates baked into the bundled model registry ([`resources/models.json`](../resources/models.json)) so the dashboard shows non-zero costs out of the box:
 
-| Family      | Input / 1M    | Output / 1M   | Currency | Applies to                                                               |
-| ----------- | ------------- | ------------- | -------- | ------------------------------------------------------------------------ |
-| DeepSeek    | $0.27 - $0.55 | $1.10 - $2.19 | USD      | V4 Flash, V4 Pro (per-model rates in the registry)                       |
-| MiniMax     | $0.30         | $1.20         | USD      | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 |
-| Xiaomi MiMo | $0.10         | $0.30         | USD      | V2 Omni, V2 Pro, V2.5, V2.5 Pro                                          |
+| Family                                       | Input / 1M    | Output / 1M   | Currency | Applies to                                                                                             | Billing posture                                                                                           |
+| -------------------------------------------- | ------------- | ------------- | -------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| DeepSeek                                     | $0.27 - $0.55 | $1.10 - $2.19 | USD      | V4 Flash, V4 Pro (per-model rates in the registry)                                                     | Per-token (real charge)                                                                                   |
+| MiniMax                                      | $0.30         | $1.20         | USD      | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3                               | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                                |
+| Xiaomi MiMo                                  | $0.10         | $0.30         | USD      | V2 Omni, V2 Pro, V2.5, V2.5 Pro                                                                        | Per-token (real charge)                                                                                   |
+| Google AI Studio (BYOK, default route)       | $0.30         | $2.50         | USD      | Gemini 3.8 / 3.7 / 3.6 Flash                                                                           | Per-token (real charge on the user's GCP project; INDEPENDENT from any AI Studio Pro subscription)        |
+| Google AI Studio (Antigravity OAuth, opt-in) | $0.75         | $3.75         | USD      | Gemini 3.8 / 3.7 / 3.6 Flash (introductory through 2026-12-31; standard $1.50 / $7.50 from 2027-01-01) | Plan-covered (Cloud Code Assist / AGY plan); Est. cost is the pay-as-you-go equivalent, not a real charge |
+
+**Important disambiguation**: "Google AI Studio Pro" is a Web subscription for the AI Studio UI and is **independent** from the API-key billing path.
+Activating or canceling AI Studio Pro does NOT change what you pay for Gemini calls made via `https://generativelanguage.googleapis.com/v1beta` (the BYOK route).
+Those calls are charged against the GCP project the API key is attached to - with a card, at the rate above; without a card, on Gemini's free tier (RPM/RPD caps).
+Either way, AI Studio Pro has no influence on the API-key surface.
 
 These are **estimates**, not a quote.
 The actual tariff depends on your plan tier, region (Xiaomi ships separate plans per cluster: `token-plan-ams`, `token-plan-sgp`, `token-plan-cn`), and whether you use token-plan keys (`tp-*`) or pay-as-you-go.
@@ -73,7 +80,12 @@ cost = (promptTokens * pricing.inputPerMillion
       + completionTokens * pricing.outputPerMillion) / 1_000_000
 ```
 
-Every model in the registry is auto-synthesized into the gateway catalog with the appropriate rate, so the catalog covers all 14 models without any user input.
+Every model in the registry is auto-synthesized into the gateway catalog with the appropriate rate, so the catalog covers all 16 models without any user input.
+
+The number is a **real charge estimate** for per-token billing, and an **indicative equivalent** for plan-covered usage (token plan, subscription, OAuth plan) - the same formula, the same rates, but $0 actually billed.
+The dashboard marks plan-covered rows with a `plan` badge and a billing notice under the headline cards; CSV / JSON exports carry a `billedTo` column (`token` / `plan`).
+Mark a provider as plan-covered with `"billing": "plan"` on its `aiflowbridge.providers` entry (OAuth kinds are always plan).
+Full details: [providers.md#token-plans-vs-per-token-billing](providers.md#token-plans-vs-per-token-billing).
 
 ## Overriding the pricing
 

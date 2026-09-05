@@ -17,18 +17,18 @@
 construit `new URL(request.url ?? '/', config.gateway.baseUrl)` et route par
 `pathname` + méthode. Routes identifiées :
 
-| Route | Méthode | Rôle | Auth |
-|---|---|---|---|
-| `/version` | GET | Sonde + `shutdownToken` (loopback) | non |
-| `/health` | GET | Snapshot d'état | non (loopback) |
-| `/metrics`, `/v1/metrics` | GET | Télémétrie cumulative | non (loopback) |
-| `/v1/models` | GET | Catalogue OpenAI (auto-synthétisé du registry) | non (loopback) |
-| `/v1/discovery` | GET | Snippets de config clients (Continue, Kilo, curl) | non (loopback) |
-| `/v1/events` | GET | SSE télémétrie longue durée (heartbeat 15 s) | non (loopback) |
-| `/v1/replay/{requestId}` | GET | Re-lecture d'une réponse depuis le TelemetryStore | non (loopback) |
-| `/v1/context` | GET | Contexte workspace détecté (JSON) | non (loopback) |
-| `/v1/chat/completions` | POST | Relais OpenAI-compatible (stream + non-stream) | bearer local |
-| `/shutdown` | POST | Arrêt (token par instance) | token |
+| Route                     | Méthode | Rôle                                              | Auth           |
+| ------------------------- | ------- | ------------------------------------------------- | -------------- |
+| `/version`                | GET     | Sonde + `shutdownToken` (loopback)                | non            |
+| `/health`                 | GET     | Snapshot d'état                                   | non (loopback) |
+| `/metrics`, `/v1/metrics` | GET     | Télémétrie cumulative                             | non (loopback) |
+| `/v1/models`              | GET     | Catalogue OpenAI (auto-synthétisé du registry)    | non (loopback) |
+| `/v1/discovery`           | GET     | Snippets de config clients (Continue, Kilo, curl) | non (loopback) |
+| `/v1/events`              | GET     | SSE télémétrie longue durée (heartbeat 15 s)      | non (loopback) |
+| `/v1/replay/{requestId}`  | GET     | Re-lecture d'une réponse depuis le TelemetryStore | non (loopback) |
+| `/v1/context`             | GET     | Contexte workspace détecté (JSON)                 | non (loopback) |
+| `/v1/chat/completions`    | POST    | Relais OpenAI-compatible (stream + non-stream)    | bearer local   |
+| `/shutdown`               | POST    | Arrêt (token par instance)                        | token          |
 
 La gateway bind `127.0.0.1` uniquement ; `GET /v1/models` expose les headers
 `X-AIFlowBridge-Pricing-GeneratedAt` / `X-AIFlowBridge-Pricing-Version`.
@@ -78,7 +78,7 @@ catch / finally.
   `ProviderKind = 'openai-compat' | 'ollama'` (`src/aiflowbridge/types.ts`).
 - Registry 3 tiers : `resources/models.json` (bundled) <
   `<globalStorage>/models.json` < `<workspace>/.vscode/aiflowbridge.models.json`,
-  + `aiflowbridge.userModels`. Schéma : `resources/models.schema.json`
+  - `aiflowbridge.userModels`. Schéma : `resources/models.schema.json`
   (enum `family` par vendor).
 - Checklist d'ajout de vendor (`docs/agent-instructions/tasks.md`) :
   entrée vendor dans `resources/models.json` (`baseUrl`, `apiKeySecret`,
@@ -113,12 +113,12 @@ Le provider Antigravity reste un `ProviderProfile` ; trois comportements
 divergent du kind `openai-compat` et doivent être branchés sur `kind ===
 'antigravity'` :
 
-| Étape | openai-compat | antigravity |
-|---|---|---|
-| Auth | clé statique (env / secrets.json) | access token OAuth court, refresh automatique |
-| Corps requête | pass-through + traductions mineures | enveloppe `{ project, model, request, requestType, userAgent, requestId }` |
-| Réponse stream | pipe verbatim | **TransformStream de conversion SSE** |
-| Réponse non-stream | pass-through | accumulation du flux → JSON OpenAI |
+| Étape              | openai-compat                       | antigravity                                                                |
+| ------------------ | ----------------------------------- | -------------------------------------------------------------------------- |
+| Auth               | clé statique (env / secrets.json)   | access token OAuth court, refresh automatique                              |
+| Corps requête      | pass-through + traductions mineures | enveloppe `{ project, model, request, requestType, userAgent, requestId }` |
+| Réponse stream     | pipe verbatim                       | **TransformStream de conversion SSE**                                      |
+| Réponse non-stream | pass-through                        | accumulation du flux → JSON OpenAI                                         |
 
 ### 2.2 Nouveaux modules
 
@@ -219,35 +219,35 @@ assemble un `chat.completion` complet (cohérent avec `/v1/replay/{id}`).
 
 ### 2.7 Checklist des fichiers touchés (hors nouveau module)
 
-| Fichier | Modification |
-|---|---|
-| `src/aiflowbridge/types.ts` | `ProviderKind` += `'antigravity'` |
-| `src/aiflowbridge/gateway/server.ts` | branches kind : auth async, enveloppe, TransformStream |
-| `src/aiflowbridge/api-key-resolver.ts` | alias vendor + bypass clé statique |
-| `resources/models.json` | vendor + modèles bundled |
-| `resources/models.schema.json` | enum `family` |
-| `src/runtime/addCustomModel.ts` | `VENDOR_CHOICES` / `VENDOR_LABELS` (ou exclusion explicite) |
-| `package.json` | settings `aiflowbridge.providers.antigravity.*`, commande de connexion |
-| `src/standalone/main.ts` | sous-commande `auth antigravity` |
-| `docs/gateway.md`, `docs/providers.md` | documentation du nouveau provider |
+| Fichier                                | Modification                                                           |
+| -------------------------------------- | ---------------------------------------------------------------------- |
+| `src/aiflowbridge/types.ts`            | `ProviderKind` += `'antigravity'`                                      |
+| `src/aiflowbridge/gateway/server.ts`   | branches kind : auth async, enveloppe, TransformStream                 |
+| `src/aiflowbridge/api-key-resolver.ts` | alias vendor + bypass clé statique                                     |
+| `resources/models.json`                | vendor + modèles bundled                                               |
+| `resources/models.schema.json`         | enum `family`                                                          |
+| `src/runtime/addCustomModel.ts`        | `VENDOR_CHOICES` / `VENDOR_LABELS` (ou exclusion explicite)            |
+| `package.json`                         | settings `aiflowbridge.providers.antigravity.*`, commande de connexion |
+| `src/standalone/main.ts`               | sous-commande `auth antigravity`                                       |
+| `docs/gateway.md`, `docs/providers.md` | documentation du nouveau provider                                      |
 
 ## 3. Risques spécifiques et parades
 
-| Risque | Parade |
-|---|---|
-| Endpoints internes Google changeants | `constants.ts` unique + tests contractuels sur fixtures |
-| Flux 200 vide (modèle restreint) | erreur explicite « modèle non autorisé pour ce compte » |
-| Cassure du pipe verbatim pour les autres kinds | branche strictement conditionnée à `kind === 'antigravity'` |
-| Fuite de token dans logs/502 | réutiliser `redactProviderForLog` / `sanitizeUpstreamErrorMessage` ; tests dédiés |
-| Watchdogs/orchestrateur incompatibles avec le transform | le TransformStream vit côté réponse, l'orchestrateur reste inchangé |
+| Risque                                                  | Parade                                                                            |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Endpoints internes Google changeants                    | `constants.ts` unique + tests contractuels sur fixtures                           |
+| Flux 200 vide (modèle restreint)                        | erreur explicite « modèle non autorisé pour ce compte »                           |
+| Cassure du pipe verbatim pour les autres kinds          | branche strictement conditionnée à `kind === 'antigravity'`                       |
+| Fuite de token dans logs/502                            | réutiliser `redactProviderForLog` / `sanitizeUpstreamErrorMessage` ; tests dédiés |
+| Watchdogs/orchestrateur incompatibles avec le transform | le TransformStream vit côté réponse, l'orchestrateur reste inchangé               |
 
-## 4. Questions ouvertes (pour Kilo / Laurent)
+## 4. Questions ouvertes (pour Kilo / l'utilisateur)
 
 1. Kilo → vérifier en local (`npm test`) que les 1038 tests passent avant
    branche (AP-009), et reporter la version Node utilisée.
 2. Kilo → AP-010 : confirmer port/chemin réels de la gateway en local.
-3. Laurent → valider le nom du kind (`'antigravity'`) et de la commande
+3. l'utilisateur → valider le nom du kind (`'antigravity'`) et de la commande
    (`aiflowbridge-server auth antigravity`).
-4. Laurent → valider que les modèles Antigravity apparaissent aussi dans le
+4. l'utilisateur → valider que les modèles Antigravity apparaissent aussi dans le
    picker Copilot Chat (option `AntigravityChatProvider extends
    BaseChatProvider`), ou gateway-only en MVP.

@@ -429,6 +429,7 @@ export class TelemetryStore {
     estimatedCost?: number;
     estimated?: boolean;
     errorMessage?: string;
+    billedTo?: 'token' | 'plan';
   }): void {
     const promptTokens = options.promptTokens ?? 0;
     const completionTokens = options.completionTokens ?? 0;
@@ -451,6 +452,7 @@ export class TelemetryStore {
       // column.
       estimatedCost: options.estimatedCost ?? 0,
       estimated: options.estimated ?? true,
+      billedTo: options.billedTo ?? 'token',
       source: 'copilot-chat',
     };
     this.record(entry);

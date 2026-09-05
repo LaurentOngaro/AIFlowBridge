@@ -38,9 +38,84 @@
         "models": "https://openrouter.ai/models",
         "status": "https://status.openrouter.ai"
       }
+    },
+    "googleaistudio": {
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "apiKeySecret": "aiflowbridge.providers.googleaistudio.apiKey",
+      "externalUrls": {
+        "console": "https://aistudio.google.com",
+        "apikey": "https://aistudio.google.com/apikey"
+      }
+    },
+    "antigravity": {
+      "baseUrl": "https://cloudcode-pa.googleapis.com",
+      "apiKeySecret": "aiflowbridge.providers.antigravity.apiKey",
+      "externalUrls": {
+        "console": "https://aistudio.google.com"
+      }
     }
   },
   "models": [
+    {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash (Google AI)",
+      "family": "googleaistudio",
+      "version": "3.8",
+      "detail": "Gemini 3.8 Flash via Google AI Studio API key (BYOK, pay-as-you-go on your GCP project - independent from AI Studio Pro subscription and Antigravity OAuth). 1M context, vision, tool calling.",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "toolCalling": 128,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 2.5,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "gemini-3.7-flash",
+      "name": "Gemini 3.7 Flash (Google AI)",
+      "family": "googleaistudio",
+      "version": "3.7",
+      "detail": "Gemini 3.7 Flash via Google AI Studio API key (BYOK, pay-as-you-go). 1M context, vision, tool calling.",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "toolCalling": 128,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 2.5,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "gemini-3.6-flash",
+      "name": "Gemini 3.6 Flash (Google AI)",
+      "family": "googleaistudio",
+      "version": "3.6",
+      "detail": "Gemini 3.6 Flash via Google AI Studio API key (BYOK, pay-as-you-go). 1M context, vision, tool calling.",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "toolCalling": 128,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 2.5,
+        "currency": "USD"
+      }
+    },
     {
       "id": "deepseek-v4-flash",
       "name": "DeepSeek V4 Flash",

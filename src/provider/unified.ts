@@ -37,6 +37,7 @@ export interface CopilotChatTelemetrySink {
     estimatedCost?: number;
     estimated?: boolean;
     errorMessage?: string;
+    billedTo?: 'token' | 'plan';
   }): void;
 }
 

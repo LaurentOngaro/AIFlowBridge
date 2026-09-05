@@ -61,7 +61,7 @@ import type { RequestTelemetry } from '../src/aiflowbridge/types';
 function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry {
   return {
     id: 'r1',
-    timestamp: '2026-06-03T08:00:00.000Z',
+    timestamp: new Date().toISOString(),
     providerId: 'p1',
     providerLabel: 'Provider 1',
     model: 'm1',
@@ -229,7 +229,7 @@ describe('TelemetryPersister.loadSync', () => {
       recent: [
         {
           id: 'legacy-1',
-          timestamp: '2026-06-01T00:00:00.000Z',
+          timestamp: new Date().toISOString(),
           providerId: 'minimax',
           providerLabel: 'MiniMax',
           model: 'MiniMax-M3',

@@ -155,6 +155,17 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
     getConfiguration: (): ConfigReader => {
       return new VscodeConfigReader(vscode.workspace.getConfiguration('aiflowbridge'));
     },
+    writeConfiguration: async (key: string, value: unknown): Promise<void> => {
+      // `ConfigurationTarget.Global` matches the user-level settings.json
+      // edit path used by the other settings writers
+      // (`src/provider/vision/model.ts`,
+      // `src/runtime/addCustomModel.ts`). The standalone CLI returns
+      // undefined here and edits its config file through a different
+      // code path - this helper is VS Code only.
+      await vscode.workspace
+        .getConfiguration('aiflowbridge')
+        .update(key, value, vscode.ConfigurationTarget.Global);
+    },
     registerCommand: (command: string, callback: (...args: unknown[]) => unknown): Disposable => {
       const disposable = vscode.commands.registerCommand(command, callback);
       return new VscodeDisposableAdapter(disposable);
@@ -181,6 +192,9 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
     },
     clipboardWrite: (text: string): void => {
       void vscode.env.clipboard.writeText(text);
+    },
+    openExternal: (url: string): void => {
+      void vscode.env.openExternal(vscode.Uri.parse(url));
     },
     openSettings: (query?: string): void => {
       void vscode.commands.executeCommand('workbench.action.openSettings', query);

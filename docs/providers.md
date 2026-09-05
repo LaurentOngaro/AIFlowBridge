@@ -2,21 +2,23 @@
 
 > Part of the [AIFlowBridge documentation](../README.md).
 
-## Supported models (14 bundled + 100+ reachable via OpenRouter)
+## Supported models (16 bundled + 100+ reachable via OpenRouter)
 
-| Provider   | Models                                                                                                                                                           | Vision          | Tool Calling |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
-| DeepSeek   | V4 Flash, V4 Pro                                                                                                                                                 | Proxied         | ✅            |
-| MiniMax    | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed                                                                                             | Proxied         | ✅            |
-| MiniMax    | M3                                                                                                                                                               | **Native**      | ✅            |
-| Xiaomi     | MiMo V2 Omni                                                                                                                                                     | Native          | ✅            |
-| Xiaomi     | MiMo V2 Pro, V2.5 Pro                                                                                                                                            | Proxied         | ✅            |
-| Xiaomi     | MiMo V2.5                                                                                                                                                        | **Native**      | ✅            |
-| OpenRouter | [100+ models at `openrouter.ai/models`](https://openrouter.ai/models) - see [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) | varies by model | ✅            |
+| Provider         | Models                                                                                                                                                           | Vision          | Tool Calling |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
+| DeepSeek         | V4 Flash, V4 Pro                                                                                                                                                 | Proxied         | Yes          |
+| MiniMax          | M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed                                                                                             | Proxied         | Yes          |
+| MiniMax          | M3                                                                                                                                                               | **Native**      | Yes          |
+| Xiaomi           | MiMo V2 Omni                                                                                                                                                     | Native          | Yes          |
+| Xiaomi           | MiMo V2 Pro, V2.5 Pro                                                                                                                                            | Proxied         | Yes          |
+| Xiaomi           | MiMo V2.5                                                                                                                                                        | **Native**      | Yes          |
+| Google AI Studio | Gemini 3.8 Flash, 3.7 Flash, 3.6 Flash (BYOK API key, gateway-only)                                                                                              | **Native**      | Yes          |
+| OpenRouter       | [100+ models at `openrouter.ai/models`](https://openrouter.ai/models) - see [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) | varies by model | Yes          |
 
 Notes:
 
 - All 14 direct-vendor models in the table above expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [vision-proxy.md](vision-proxy.md)).
+- **Google AI Studio (Gemini 3.8 / 3.7 / 3.6 Flash)** is gateway-only like OpenRouter. Two distinct routes are available; the bundled default uses the BYOK API-key path on `generativelanguage.googleapis.com` (always available), the Antigravity / Cloud Code Assist OAuth path is an opt-in for users with whitelisted Cloud Code Assist tenants. See [Google AI Studio via API key (BYOK)](#google-ai-studio-via-api-key-byok-pay-as-you-go) below for setup, and [Antigravity via Cloud Code Assist OAuth (advanced)](#google-ai-studio--antigravity-via-cloud-code-assist-oauth-advanced) for the Antgravity-side path. Gemini models do not appear in the Copilot Chat picker (see AP-013); Kilo Code / Continue / `curl` reach them via the gateway.
 - **Thinking** indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2 / M2.1 / M2.5 / M2.7 generations do not expose a thinking selector. **MiniMax M3 exposes a "Thinking Effort" selector** (None / High / Max) that maps to the upstream `reasoning_split` boolean - see [reasoning.md](reasoning.md).
 - Configure the proxied vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
 - **OpenRouter** is exposed through the OpenAI-compatible gateway only (port 8787), not through the Copilot Chat picker. The 100+ model ids listed at [openrouter.ai/models](https://openrouter.ai/models) are ALL reachable: pass any of them verbatim in the `model` field of a request to `http://127.0.0.1:8787/v1/chat/completions` and the gateway forwards the call to `openrouter.ai/api/v1/chat/completions` unchanged. The bundled `models.json` ships 7 flagship entries (`nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`, `google/gemma-4-31b-it:free`, `meta-llama/llama-3.3-70b-instruct:free`, `qwen/qwen3-coder:free`, `qwen/qwen3-next-80b-a3b-instruct:free`, `nvidia/nemotron-3-super-120b-a12b:free`) - all on OpenRouter's free tier, so the dashboard always shows $0 for them. **All other OpenRouter model ids work exactly the same way** - they are not "limited to the bundled list". Adding a non-bundled id is optional and only changes the dashboard experience (it appears in `GET /v1/models`, you can attach a `pricing` block). The Vision / Native columns do NOT apply to OpenRouter since the gateway forwards image parts unchanged to OpenRouter and each upstream model decides whether to handle them natively. See the [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) below for setup, the bundled flagship table (with their confirmed capabilities), and the indicative tariff.
@@ -48,13 +50,13 @@ All data below was pulled from `https://openrouter.ai/api/v1/models` (August 202
 
 | Model id (use verbatim in `model` field)                        | Context window | Output cap | Vision | Reasoning | Tool calling |
 | --------------------------------------------------------------- | -------------- | ---------- | ------ | --------- | ------------ |
-| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active) | 1 000 000      | 65 536     | ❌      | ✅         | ✅            |
-| `openai/gpt-oss-120b:free` (117B MoE, 5.1B active)              | 131 072        | 131 072    | ❌      | ✅         | ✅            |
-| `google/gemma-4-31b-it:free` (30.7B dense multimodal)           | 262 144        | 8 192      | ✅      | ✅         | ✅            |
-| `meta-llama/llama-3.3-70b-instruct:free`                        | 131 072        | 16 384     | ❌      | ❌         | ✅            |
-| `qwen/qwen3-coder:free` (480B MoE, 35B active)                  | 1 048 576      | 262 000    | ❌      | ❌         | ✅            |
-| `qwen/qwen3-next-80b-a3b-instruct:free` (80B MoE, 3B active)    | 262 144        | 16 384     | ❌      | ❌         | ✅            |
-| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active) | 1 000 000      | 262 144    | ❌      | ✅         | ✅            |
+| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active) | 1 000 000      | 65 536     | No     | Yes       | Yes          |
+| `openai/gpt-oss-120b:free` (117B MoE, 5.1B active)              | 131 072        | 131 072    | No     | Yes       | Yes          |
+| `google/gemma-4-31b-it:free` (30.7B dense multimodal)           | 262 144        | 8 192      | Yes    | Yes       | Yes          |
+| `meta-llama/llama-3.3-70b-instruct:free`                        | 131 072        | 16 384     | No     | No        | Yes          |
+| `qwen/qwen3-coder:free` (480B MoE, 35B active)                  | 1 048 576      | 262 000    | No     | No        | Yes          |
+| `qwen/qwen3-next-80b-a3b-instruct:free` (80B MoE, 3B active)    | 262 144        | 16 384     | No     | No        | Yes          |
+| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active) | 1 000 000      | 262 144    | No     | Yes       | Yes          |
 
 The mix covers the major OpenRouter axes: a frontier-reasoning workhorse (Nemotron 3 Ultra 550B), an OpenAI open-weight flagship (gpt-oss-120b), a multimodal option (Gemma 4 31B), the reference 70B instruct (Llama 3.3 70B), the leading free coding agent (Qwen3 Coder 480B with 1M context), a low-latency MoE (Qwen3 Next 80B), and a multi-agent orchestrator (Nemotron 3 Super 120B).
 
@@ -79,6 +81,114 @@ All 7 bundled flagships are **free** on OpenRouter's free tier (USD 0.00 / USD 0
 The dashboard's "Est. cost" column therefore always shows $0 for these entries.
 For non-bundled model ids, the dashboard does not show a tariff unless you supply a `pricing` block in the `aiflowbridge.userModels` entry.
 Override per-profile via `aiflowbridge.providers[].pricing` if you have a custom OpenRouter plan or want to budget against a paid upstream model.
+
+## Google AI Studio via API key (BYOK, pay-as-you-go)
+
+**This is the default route on 2.17.0+ and works for every Google account**, including those without Cloud Code Assist / Antigravity CLI access.
+Bring-your-own Gemini API key, point at the public Gemini API, pay only what you consume on the GCP project tied to the key.
+
+Authentication is a standard `Authorization: Bearer AIza...` header on every request.
+By default the gateway targets the **native Gemini surface** (`/v1beta/models/{model}:generateContent` and the streaming `:streamGenerateContent?alt=sse` variant).
+On projects where the OpenAI-compatible surface is enabled (`/v1beta/openai/chat/completions`), the gateway falls back to that path transparently; the user does not pick a surface.
+No envelope translation in the user-visible OpenAI Chat Completions request or response, no SSE re-shaping from the client's point of view, no OAuth tokens - one shot works exactly like the other direct vendors.
+
+Why native-first instead of OpenAI-compat: Google's OpenAI-compat surface is feature-gated per GCP project and returns 429 with 0 quota on projects that have not enabled the openai-compat feature (common for newer projects).
+The native surface is the canonical, always-enabled path with the same free-tier budget as the SDK Python / curl examples in Google's docs.
+
+**Billing**: the key is linked to a GCP project. Calls count against that project's pay-as-you-go counter, NOT against any AI Studio Pro subscription.
+This is precisely the same billing surface as `curl https://generativelanguage.googleapis.com/...` from a shell on a machine with `GOOGLE_API_KEY` set - AI Studio Pro is a separate Web subscription that has no impact on the API key path.
+Without a card on the GCP project, Gemini 3.8 / 3.7 / 3.6 Flash still run on the **free tier** of the public API (RPM/RPD caps apply).
+Tariffs (USD, pay-as-you-go against the GCP project): $0.30 / 1M input, $2.50 / 1M output, with the 1M context window and image input enabled on all three bundled ids.
+
+Setup:
+
+1. **Create an API key** at https://aistudio.google.com/apikey (one-click in the API key tab).
+2. **Store it**:
+   - **VS Code extension**: `Ctrl+Shift+P` -> `Google AI Studio: Set API Key (BYOK pay-as-you-go)` -> paste `AIzaSy...`. Stored in `SecretStorage`. Override the lookup slot per VS Code profile.
+   - **Standalone**: `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`. Stored in `~/.aiflowbridge/secrets.json` (chmod 600). Revoke with `aiflowbridge-server auth googleaistudio clearApiKey`. The environment variable `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY` is also recognized (lowest priority after the file, secret-storage order unchanged).
+3. **Use it**: any OpenAI-compatible client on `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`). All three ids appear in `GET /v1/models`.
+
+Notes:
+
+- The bundled default `vendors.googleaistudio.baseUrl` is `https://generativelanguage.googleapis.com/v1beta` (BYOK route). The synthesizer tags the synthesized profile `kind: 'openai-compat'`, so it runs through the same code path as the other direct vendors - no special envelope, no SSE re-shaping, no token manager.
+- The same model ids work with both routes. The difference is purely the auth + upstream URL. There is no `family` split in the registry because the gateway resolves the kind from `baseUrl.hostname` at synthesis time.
+- Like OpenRouter, this vendor is gateway-only: it does not appear in the Copilot Chat picker (AP-013). Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, and `curl` reach the Gemini ids via the gateway.
+
+## Google AI Studio / Antigravity via Cloud Code Assist OAuth (advanced)
+
+Gemini 3.8 / 3.7 / 3.6 Flash are reachable through the same local gateway without any API key for users with **whitelisted Cloud Code Assist tenants** - a subset of Google accounts/Cloud projects Google has approved for Antigravity CLI / Cloud Code Assist access.
+Authentication uses Google OAuth (Authorization Code + PKCE): tokens are stored in `<globalStorageDir>/secrets.json` (chmod 600) and refreshed automatically; usage is billed to the Google AI plan attached to the account, not per token through AIFlowBridge.
+
+**Switching between routes** - the BYOK (default, `generativelanguage.googleapis.com/v1beta`) and OAuth (advanced, `cloudcode-pa.googleapis.com`) routes share the same model ids but need different upstream credentials.
+The Command Palette command `AIFlowBridge: Switch Google AI Studio route (BYOK native surface vs Antigravity OAuth)` toggles `aiflowbridge.providers.googleaistudio.baseUrl` between the two bundled defaults and automatically clears the credentials of the inactive route (revokes OAuth tokens when leaving AGY, clears the API key when leaving BYOK) so stale credentials from the previous route never answer a request meant for the new one.
+The change is persisted in `settings.json` and picked up after a `Developer: Reload Window`.
+
+**This route is independent from the BYOK one above.** They share the same model ids and the same downstream OpenAI surface but target different upstream services (`cloudcode-pa.googleapis.com/v1internal:*` with the Antigravity envelope, vs `generativelanguage.googleapis.com/v1beta` with the Gemini native surface that the gateway translates from the OpenAI Chat Completions request).
+Both routes coexist in a single install; an account that has Cloud Code Assist whitelisting can pick either.
+
+Setup (one time, opt-in):
+
+1. **Switch the bundled default to the OAuth upstream URL** in `settings.json`:
+
+    ```json
+    "aiflowbridge.providers.googleaistudio.baseUrl": "https://cloudcode-pa.googleapis.com"
+    ```
+
+    The synthesizer reads the baseUrl host (`cloudcode-pa.googleapis.com`) and automatically tags the profile `kind: 'googleaistudio'` + `billing: 'plan'`. Without this setting the synthesized profile stays on the BYOK route regardless of whether you also went through the OAuth flow.
+
+2. **Connect the OAuth tokens**:
+   - **VS Code**: `AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)` -> the consent URL opens in the default browser. Revoke with `AIFlowBridge: Disconnect from Google AI Studio (Antigravity OAuth)`.
+   - **Standalone**: `aiflowbridge-server auth googleaistudio` -> same flow, prints the URL. `--status` shows the account, project, and token expiry. `--logout` revokes. `--probe` and `--list-models` diagnose auth + upstream.
+
+3. **Use it**: point any OpenAI-compatible client at `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`). All three ids appear in `GET /v1/models`. The Est. cost displayed is an indicative equivalent ($0.75 / $3.75 per 1M, introductory through 2026-12-31, standard $1.50 / $7.50 from 2027-01-01) - the dashboard marks those rows `plan` because the plan covers the usage. See [Token plans vs per-token billing](#token-plans-vs-per-token-billing) below.
+
+### How the AGY route differs from the BYOK one
+
+- **Auth**: OAuth tokens (VS Code SecretStorage + `secrets.json`) vs `AIzaSy...` API key.
+- **Upstream**: `cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse` vs `generativelanguage.googleapis.com/v1beta/models/...:streamGenerateContent`.
+- **Gateway code path**: `kind: 'googleaistudio'` -> `buildAntigravityUpstreamRequest` (envelope, SSE transform, async auth, token manager) vs `kind: 'openai-compat'` -> generic upstream path with `Authorization: Bearer AIzaSy...` (no envelope, no SSE re-shaping).
+- **Billing posture**: plan-covered by default (`aiflowbridge.providers.googleaistudio.billing: 'plan'` synthesized when the AGY host is detected) vs per-token, charged against the GCP project's pay-as-you-go counter.
+
+Notes:
+
+- This vendor is gateway-only: the Gemini ids do not appear in the Copilot Chat picker (tracked as AP-013).
+- The `kind` values `googleaistudio` and `antigravity` are aliases of the same provider. Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
+- Implementation: pure modules under `src/aiflowbridge/antigravity/` (`envelope.ts`, `sse-transform.ts`, `auth.ts`, `token-store.ts`, `pkce.ts`, `project.ts`, `catalog.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`).
+- Diagnose an OAuth failure with `aiflowbridge-server auth googleaistudio --probe` (token + project + upstream status + truncated body) before suspecting AIFlowBridge - 9 times out of 10 it's an upstream Cloud Code Assist decision, not our code.
+
+## Token plans vs per-token billing
+
+The dashboard's **Est. cost** column always computes the same formula - `(promptTokens x inputPerMillion + completionTokens x outputPerMillion) / 1_000_000` at the profile's rates - but the meaning of the number depends on how the upstream bills you.
+Two cases:
+
+- **Per-token billing** (default): DeepSeek / MiniMax / Xiaomi pay-as-you-go keys, OpenRouter keys, **Google AI Studio API-key (BYOK)** calls billed on the GCP project. The Est. cost is a **real charge estimate**: what the upstream will bill for those tokens.
+- **Plan-covered** (token plan, subscription, or OAuth plan): MiniMax token-plan keys (`tp-*`), Google AI Studio / Antigravity via OAuth (Google AI plan, when the AGY baseUrl is configured). The Est. cost is an **indicative equivalent**: what the same tokens *would* cost at the profile's pay-as-you-go rates. You pay $0 extra - the plan already covers it.
+- **None of the above confuses "AI Studio Pro" subscription with the BYOK API-key route.** AI Studio Pro is a Web product subscription and has nothing to do with the API-key counter on the user's GCP project. A user with AI Studio Pro (and zero card on their GCP project) still pays only what Gemini's free tier allows on the API-key route. A user without AI Studio Pro but with a card on the GCP project still pays per-token on the API-key route. See the [AI Studio via API key](#google-ai-studio-via-api-key-byok-pay-as-you-go) section for the full billing breakdown.
+
+How the dashboard distinguishes them:
+
+- A `plan` badge on the model cell of each plan-covered row in Recent requests, and a `(plan)` suffix on its Est. cost value with an explicit tooltip.
+- A billing notice under the headline cards whenever at least one recorded row is plan-covered, with the plan-covered share of the headline total.
+- Typing `plan` in the Filters search box narrows to plan-covered rows; `token` narrows to per-token rows.
+- CSV / JSON exports carry a `billedTo` column (`token` or `plan`) per row.
+
+How to mark a provider as plan-covered:
+
+- **Explicit (per provider)**: set `"billing": "plan"` on the entry in `aiflowbridge.providers` in `settings.json`. Use this for MiniMax token-plan keys and any other plan-billed upstream. Omit it (or set `"token"`) for pay-as-you-go keys.
+- **Automatic (OAuth)**: `antigravity` and `googleaistudio` kinds are always plan-covered - no setting needed, the gateway stamps every such request as plan.
+- **Standalone**: same `providers` array shape in `~/.aiflowbridge/config.json`.
+
+The indicative rates used for the equivalent come from the usual pricing precedence (merged pricing registry, then registry `pricing` block, then family default) - see [cost.md](cost.md).
+For Gemini (BYOK route, the bundled default), the dashboard uses the real upstream public-API rates ($0.30 / $2.50 per 1M for Gemini 3.8 / 3.7 / 3.6 Flash as of 2026-09-04) since the API-key route IS the pay-as-you-go counter.
+For the Antigravity OAuth route (opt-in via `aiflowbridge.providers.googleaistudio.baseUrl`), the bundled rates are the introductory tariffs ($0.75 / $3.75 per 1M through 2026-12-31, standard $1.50 / $7.50 from 2027-01-01), and the dashboard marks those rows `plan` because the OAuth plan covers them; the equivalent shown is the true pay-as-you-go value of the plan-covered tokens.
+
+Notes:
+
+- Like OpenRouter, this vendor is gateway-only: the three Gemini ids do not appear in the Copilot Chat picker (tracked as AP-013).
+- The `kind` values `googleaistudio` and `antigravity` are aliases of the same provider. Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
+- Implementation: pure modules under `src/aiflowbridge/antigravity/` (`envelope.ts`, `sse-transform.ts`, `auth.ts`, `token-store.ts`, `pkce.ts`, `project.ts`, `catalog.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`).
+- This route is unavailable if your Google account is not whitelisted for Cloud Code Assist; the upstream returns `429 RESOURCE_EXHAUSTED` (a misleading code that actually means "no access") regardless of how much quota you have on AI Studio Pro, MiniMax, etc. The bundling assumes most users will switch to the [BYOK route](#google-ai-studio-via-api-key-byok-pay-as-you-go) instead.
+- Diagnose an auth / upstream issue with `aiflowbridge-server auth googleaistudio --probe` (token + project + upstream status + truncated body).
 
 ## Why is the model list hardcoded?
 

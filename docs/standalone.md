@@ -96,6 +96,27 @@ API keys are resolved in this order (the same unified chain as the VS Code exten
 }
 ```
 
+Google AI Studio (Gemini) has two distinct authentication routes. Pick the one that matches your setup:
+
+```bash
+# API-key (BYOK, pay-as-you-go on your GCP project, always available):
+aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>            # save an API key in secrets.json
+aiflowbridge-server auth googleaistudio clearApiKey                        # revoke it
+# ... or set AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY in the environment.
+
+# Antigravity / Cloud Code Assist OAuth (advanced, requires a whitelisted tenant; do NOT use as a stand-in for AI Studio Pro - they are unrelated billing surfaces):
+aiflowbridge-server auth googleaistudio                                    # login (prints the Google consent URL)
+aiflowbridge-server auth googleaistudio --status                           # login state, account, project, expiry
+aiflowbridge-server auth googleaistudio --logout                           # revoke OAuth tokens
+aiflowbridge-server auth googleaistudio --probe                            # token + project + upstream status diagnostic
+aiflowbridge-server auth googleaistudio --list-models                      # list Cloud Code Assist -permitted model ids
+```
+
+`auth antigravity` is accepted as an alias. Custom OAuth clients for private Google Cloud tenants via `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET`.
+To enable the OAuth route, also set `aiflowbridge.providers.googleaistudio.baseUrl` to `https://cloudcode-pa.googleapis.com` in `config.json` (the default routes the BYOK path).
+
+Full vendor notes: [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go) (recommended, always works) and [providers.md](providers.md#google-ai-studio--antigravity-via-cloud-code-assist-oauth-advanced) (advanced).
+
 ## Run
 
 ```bash

@@ -92,6 +92,7 @@ You pay only the upstream providers you actually use - OpenRouter, DeepSeek, Min
 
 - **100+ AI models behind one OpenRouter key.** AIFlowBridge ships OpenRouter as a first-class upstream: GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, Mistral Large 2512, Qwen 3.7 Max, DeepSeek V4 Pro, plus every other model id at [openrouter.ai/models](https://openrouter.ai/models) - all routed through the same local gateway. **Seven free-tier flagships are bundled** (Nemotron 3 Ultra 550B, gpt-oss-120b, Gemma 4 31B multimodal, Llama 3.3 70B, Qwen3 Coder 480B, Qwen3 Next 80B, Nemotron 3 Super 120B) so they appear in `GET /v1/models` with $0 dashboard pricing; the other 100+ ids are reachable verbatim by passing them in the `model` field or adding them to `aiflowbridge.userModels`. Compare to running bare OpenRouter: no telemetry, no cost dashboard, no Copilot Chat picker, no JetsBrains client integration. See [docs/providers.md](docs/providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint)
 - **Go direct when it's cheaper.** The same gateway exposes direct DeepSeek (V4 Pro, V4 Flash, $0.27-$0.55 /M in), MiniMax (M2 -> M3, $0.30 /M in), and Xiaomi MiMo (V2 Omni, V2 Pro, V2.5, V2.5 Pro, $0.10 /M in) - no middleman markup on the three direct vendors, full control over your API key. Mix OpenRouter and direct vendors in the same Copilot Chat picker / dashboard - the cheapest model for boilerplate, the smartest for the hard stuff, all from the same chat window. See [docs/providers.md](docs/providers.md)
+- **Google AI Studio via API key (BYOK, always available).** Bring-your-own Gemini API key (`AIzaSy...`), route Gemini 3.8 / 3.7 / 3.6 Flash through the same gateway. Pay-as-you-go on your GCP project, independent of any AI Studio Pro subscription. See [docs/providers.md](docs/providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go). For users with whitelisted Cloud Code Assist tenants who already use the Antigravity CLI, AIFlowBridge also exposes the Antigravity OAuth route as a separate path - see [docs/providers.md](docs/providers.md#google-ai-studio--antigravity-via-cloud-code-assist-oauth-advanced).
 - **Smart model routing - opt-in, never surprise you.** Out of the box, the gateway routes every request to the model you (or your client) pick in the model picker. If you opt in via `aiflowbridge.gateway.languageRouting` (`"python": "deepseek-flash"`, `"rust": "deepseek-pro"`, `"*": "anthropic/claude-opus-4.8"` - any model id works, OpenRouter or direct), the gateway auto-detects the project language and routes per request. Costs are visible at all times: every routing decision is logged, the dashboard Sessions panel groups requests by provider / model, and the Request details sub-table shows the per-request cost. See [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting) and [docs/architecture.md](docs/architecture.md#workspace-context)
 - **Workspace context - informational only.** The detected context (languages, package managers, linters, formatters) is injected as a system message so the model knows your toolchain upfront. It never overrides the model picker - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context) and [docs/architecture.md](docs/architecture.md#workspace-context)
 - **Pair-programming visibility** - the gateway captures sanitized prompt + response summaries on every request (Bearer / `sk-...` / `x-api-key` redacted before storage). The dashboard's Shared session panel shows the last 20 Q&A pairs with one-click replay. Three loopback HTTP endpoints expose the same data for IDE integrations: `GET /v1/sessions` (list), `GET /v1/replay/{id}` (OpenAI-shaped body), `GET /v1/events` (live SSE stream) - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events)
@@ -111,7 +112,7 @@ The full gallery (dashboard, pickers, providers, gateway, settings, metrics) liv
 
 ## Features
 
-- **100+ AI models through one OpenRouter key, plus three direct vendors for the cheapest path.** GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, Mistral Large 2512, Qwen 3.7 Max, DeepSeek V4 Pro - all routed through the same `http://127.0.0.1:8787/v1` gateway. 14 direct-vendor models bundled for the Copilot Chat picker (DeepSeek V4 Pro / Flash, MiniMax M2 through M3, Xiaomi MiMo V2 Omni / Pro / V2.5 / V2.5 Pro). **7 free-tier OpenRouter flagships bundled** for `GET /v1/models` with $0 dashboard pricing (Nemotron 3 Ultra 550B, gpt-oss-120b, Gemma 4 31B multimodal, Llama 3.3 70B, Qwen3 Coder 480B, Qwen3 Next 80B, Nemotron 3 Super 120B). Every other OpenRouter model id is reachable verbatim by passing it in the `model` field - no AIFlowBridge update needed. See [docs/providers.md](docs/providers.md)
+- **100+ AI models through one OpenRouter key, plus three direct vendors for the cheapest path.** GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, Mistral Large 2512, Qwen 3.7 Max, DeepSeek V4 Pro - all routed through the same `http://127.0.0.1:8787/v1` gateway. 14 direct-vendor models bundled for the Copilot Chat picker (DeepSeek V4 Pro / Flash, MiniMax M2 through M3, Xiaomi MiMo V2 Omni / Pro / V2.5 / V2.5 Pro). **3 Gemini models via Google AI Studio API key (BYOK, pay-as-you-go on your GCP project)** (Gemini 3.8 / 3.7 / 3.6 Flash). **7 free-tier OpenRouter flagships bundled** for `GET /v1/models` with $0 dashboard pricing (Nemotron 3 Ultra 550B, gpt-oss-120b, Gemma 4 31B multimodal, Llama 3.3 70B, Qwen3 Coder 480B, Qwen3 Next 80B, Nemotron 3 Super 120B). Every other OpenRouter model id is reachable verbatim by passing it in the `model` field - no AIFlowBridge update needed. See [docs/providers.md](docs/providers.md)
 - **Workspace context injection** - auto-detects your project's languages, package managers, linters, and formatters, and tells the model upfront on every request so completions are context-aware from the first token - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context)
 - **Language-based model routing - opt-in** - off by default (`aiflowbridge.gateway.languageRouting = {}`). When you set a non-empty map (`"python": "deepseek-flash"`, `"rust": "deepseek-pro"`, `"*": "MiniMax-M3"` - any model id is accepted, including OpenRouter ones), the gateway picks the right model for each prompt automatically, or honours an explicit `X-AIFlowBridge-Language` header from the IDE. Disable the header override with `aiflowbridge.gateway.allowLanguageHeaderOverride = false`. Full defaults + cost-visibility notes in [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting)
 - **Pair-programming replay + live stream** - the gateway captures sanitized summaries on every request; `GET /v1/sessions` lists them, `GET /v1/replay/{id}` returns the full OpenAI-shaped body, `GET /v1/events` streams new requests over SSE in real time. The dashboard's Shared session panel surfaces the same data with one-click replay - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events)
@@ -163,6 +164,33 @@ Ctrl+Shift+P  ->  DeepSeek: Set API Key
 Ctrl+Shift+P  ->  MiniMax: Set API Key
 Ctrl+Shift+P  ->  Xiaomi MiMo: Set API Key
 ```
+
+**Google AI Studio (BYOK, pay-as-you-go on your GCP project)**:
+
+```
+Ctrl+Shift+P  ->  Google AI Studio: Set API Key (BYOK pay-as-you-go)   # VS Code: paste an AIzaSy... key
+aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>          # standalone equivalent
+aiflowbridge-server auth googleaistudio clearApiKey                    # revoke locally stored key
+```
+
+Create your key at https://aistudio.google.com/apikey.
+This route is independent of any AI Studio Pro subscription (consumes the GCP project's pay-as-you-go counter), and is also independent of the Antigravity OAuth path used by the Antigravity CLI - the two never interfere.
+
+**Antigravity / Cloud Code Assist via OAuth** (advanced, requires a whitelisted Cloud Code Assist tenant):
+
+```
+Ctrl+Shift+P  ->  AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)   # VS Code: opens the Google consent page, tokens land in secrets.json
+aiflowbridge-server auth googleaistudio                                          # standalone: same flow, prints the URL to open
+aiflowbridge-server auth googleaistudio --status                                 # check login state, account, project, expiry
+aiflowbridge-server auth googleaistudio --logout                                 # revoke locally stored tokens
+aiflowbridge-server auth googleaistudio --probe                                  # token + project + upstream status diagnostic
+```
+
+To opt in: set `aiflowbridge.providers.googleaistudio.baseUrl` to `https://cloudcode-pa.googleapis.com` in `settings.json`.
+The runtime detects the host and routes those profiles through `buildAntigravityUpstreamRequest`.
+Skip this section entirely if you only need the API-key route - it covers the same model ids with the always-available public API and your own key.
+
+Then point any OpenAI-compatible client at `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`).
 
 **Standalone** (env vars first, then `~/.aiflowbridge/secrets.json` chmod 600):
 

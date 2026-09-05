@@ -9,7 +9,7 @@ The metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or 
 - **Top cards** - Total requests, prompt/completion tokens, average duration, and total **Estimated cost**. With no filter active the cards show **cumulative** totals since you started using the gateway; with a filter active they recompute from the filtered subset.
 - **Filters panel** - All dashboard-wide filter controls grouped in a single collapsible section at the top of the page, between the hero (`Current version`) and the totals grid: time-range preset, provider, From/To dates, free-text search, session inactivity gap, and **two telemetry export buttons** (`CSV` and `JSON`). Because every section of the dashboard (Recent requests / Sessions / By model / totals) reads from the same filter state, narrowing the view from one place updates everything else in lockstep - including the export: clicking `CSV` / `JSON` downloads the currently filtered entries only.
 - **Gateway panel** - Running state (or stopped / error), port, default model, **bundled pricing snapshot** (`generatedAt` + `AIFlowBridge vX.Y.Z` + the number of models sourced from `resources/pricing.json`), and a **`Refresh prices` button** that hits OpenRouter `/v1/models`, writes `<globalStorageUri>/pricing-override.json`, and hot-updates the in-memory pricing registry so every `Est. cost` tooltip and the totals card refresh in place without a window reload.
-- **Recent requests table** - Timestamp, model, tokens, latency, status (200/4xx/5xx as a colored pill), **Est. cost** (with the per-rate tooltip), and per-row delete button.
+- **Recent requests table** - Timestamp, model, tokens, latency, status (200/4xx/5xx as a colored pill), **Est. cost** (with the per-rate tooltip), `plan` badge on token-plan / subscription / OAuth rows, and per-row delete button.
 - **Sessions panel** - Recorded requests grouped into sessions by an inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min). Each session is rendered as a collapsible card showing the start time, request count, and a header summary (total tokens, average duration, total estimated cost, session span in minutes); expanding reveals per-request details.
 - **By model panel** - Same metrics aggregated per model ID, with the same time/date/search filters.
 - **By client / By source panels** - Per-`clientId` (kilocode@1.2.3, curl@8.x, ...) and per-origin (gateway vs copilot-chat) splits.
@@ -41,6 +41,24 @@ Two buttons next to `Clear filters` in the Filters panel - `CSV` and `JSON` - do
 
 The `Refresh prices` button in the Gateway panel hits OpenRouter `/v1/models`, writes `<globalStorageUri>/pricing-override.json`, and updates the in-memory pricing registry in place so every `Est. cost` tooltip and the totals card refresh without a window reload.
 The bundled pricing snapshot stamp in the same panel (`generatedAt` + `AIFlowBridge vX.Y.Z`) tells you whether you are looking at a release-time fresh value or your last user-side refresh.
+
+## Token plans vs per-token billing
+
+The **Est. cost** column always uses the same formula - `(promptTokens x inputPerMillion + completionTokens x outputPerMillion) / 1_000_000` at the profile's rates - but the number means two different things.
+For per-token billing (DeepSeek / MiniMax / Xiaomi / OpenRouter pay-as-you-go keys, **Google AI Studio API-key (BYOK)** calls billed on the user's GCP project) it is a **real charge estimate**.
+For plan-covered usage (MiniMax token-plan keys, Google AI Studio / Antigravity via OAuth on the AGY baseUrl) it is an **indicative equivalent**: what the same tokens would cost at pay-as-you-go rates - you pay $0 extra, the plan covers it.
+
+The dashboard makes the distinction visible without any extra configuration step:
+
+- Each plan-covered row carries a `plan` badge on its model cell, and its Est. cost value shows a `(plan)` suffix with an explicit tooltip.
+- A billing notice appears under the headline cards whenever at least one recorded row is plan-covered, with the plan-covered share of the headline total.
+- Typing `plan` in the Filters search box narrows to plan-covered rows; `token` narrows to per-token rows.
+- CSV / JSON exports carry a `billedTo` column (`token` or `plan`) per row.
+
+Mark a provider as plan-covered with `"billing": "plan"` on its `aiflowbridge.providers` entry in `settings.json` (same shape in `~/.aiflowbridge/config.json` standalone).
+OAuth kinds (`antigravity`, `googleaistudio`) are plan only when the synthesizer detects the AGY baseUrl (`cloudcode-pa.googleapis.com`).
+The same `googleaistudio` family pointed at `generativelanguage.googleapis.com` (BYOK default) stays per-token.
+Full details and the bundled Gemini rates: [providers.md#token-plans-vs-per-token-billing](providers.md#token-plans-vs-per-token-billing).
 
 ## Collapsible panels
 

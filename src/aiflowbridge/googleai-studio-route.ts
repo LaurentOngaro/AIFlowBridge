@@ -1,0 +1,107 @@
+/**
+ * AIFlowBridge - Google AI Studio route switcher.
+ *
+ * Resolves the two valid `baseUrl` values for the
+ * `googleaistudio` provider family and exposes a pure helper to toggle
+ * between the BYOK (native surface, `generativelanguage.googleapis.com/v1beta`)
+ * and the Antigravity OAuth routes (`cloudcode-pa.googleapis.com`). The
+ * switcher returns the next baseUrl plus the cleanup side-effects that
+ * the caller should apply (revoke OAuth tokens when leaving AGY, clear
+ * the API key when leaving BYOK) so stale credentials from the inactive
+ * route never answer a request.
+ *
+ * Pure module - no network calls, no vscode imports. Tested in
+ * isolation by `tests/runtime-switch-route.test.ts`.
+ */
+
+export const GOOGLEAISTUDIO_BASES = {
+  /** Native Gemini public API surface (`/v1beta/models/{model}:generateContent`). */
+  byok: 'https://generativelanguage.googleapis.com/v1beta',
+  /** Cloud Code Assist OAuth surface (`/v1internal:*`). Requires a whitelisted tenant. */
+  oauth: 'https://cloudcode-pa.googleapis.com',
+} as const;
+
+export type GoogleAIStudioRoute = 'byok' | 'oauth';
+
+export interface SwitchRouteDecision {
+  nextRoute: GoogleAIStudioRoute;
+  nextBaseUrl: string;
+  /**
+   * Cleanup to apply after writing the new baseUrl. The caller is
+   * responsible for running each side-effect (no I/O here).
+   */
+  cleanup: {
+    /** The OAuth route was just left -> clear the stored OAuth tokens. */
+    revokeOAuthTokens: boolean;
+    /** The BYOK route was just left -> clear the stored API key. */
+    revokeApiKey: boolean;
+  };
+  /** Stable message describing the toggle for the Command Palette toast. */
+  message: string;
+}
+
+/**
+ * Resolve the new baseUrl + cleanup actions for the toggle. Pass the
+ * current user-configured baseUrl (may be undefined when the user never
+ * overrode it - falls back to the bundled default). Returns null when
+ * no override exists yet AND the bundled default is already on the
+ * target route (no toggle needed).
+ *
+ * @param currentBaseUrl The `aiflowbridge.providers.googleaistudio.baseUrl`
+ *   value from `vscode.workspace.getConfiguration`, or undefined if
+ *   the user never set it.
+ * @param targetRoute The route the user wants to switch to. Defaults to
+ *   the inverse of the current effective route.
+ */
+export function decideGoogleAIStudioRouteSwitch(
+  currentBaseUrl: string | undefined,
+  targetRoute?: GoogleAIStudioRoute
+): SwitchRouteDecision | null {
+  const currentEffective: GoogleAIStudioRoute = hostnameRoute(currentBaseUrl);
+  const requestedTarget: GoogleAIStudioRoute = targetRoute ?? (currentEffective === 'byok' ? 'oauth' : 'byok');
+  // `requestedTarget` is the route the caller wants to converge on.
+  // When the user invokes the toggle command without specifying a
+  // target, we infer the inverse of the current route. When the
+  // current route already matches the target, no toggle is needed.
+  const next = requestedTarget;
+  if (currentEffective === next) {
+    return null;
+  }
+
+  const nextBaseUrl = next === 'byok' ? GOOGLEAISTUDIO_BASES.byok : GOOGLEAISTUDIO_BASES.oauth;
+  const wasOauth = currentEffective === 'oauth';
+  const wasByok = currentEffective === 'byok';
+
+  return {
+    nextRoute: next,
+    nextBaseUrl,
+    cleanup: {
+      revokeOAuthTokens: wasOauth,
+      revokeApiKey: wasByok,
+    },
+    message:
+      next === 'byok'
+        ? 'Google AI Studio: switched to BYOK (native Gemini surface). OAuth tokens revoked.'
+        : 'Google AI Studio: switched to Antigravity OAuth. API key cleared.',
+  };
+}
+
+function hostnameRoute(baseUrl: string | undefined): GoogleAIStudioRoute {
+  if (!baseUrl) return 'byok';
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    if (host === 'cloudcode-pa.googleapis.com') return 'oauth';
+    if (host === 'generativelanguage.googleapis.com') return 'byok';
+  } catch {
+    // fall through: malformed URLs default to BYOK.
+  }
+  return 'byok';
+}
+
+/**
+ * Helper for the runtime: return the user-readable label of the
+ * currently-effective route, suitable for the Command Palette title.
+ */
+export function describeCurrentRoute(currentBaseUrl: string | undefined): string {
+  return hostnameRoute(currentBaseUrl) === 'byok' ? 'BYOK (native Gemini surface)' : 'Antigravity OAuth';
+}

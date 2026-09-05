@@ -41,11 +41,13 @@ export type ResolveSecretSource = SecretStorageLike | SecretsLike;
  * other entries are upstream-style prefixes that the gateway may encounter
  * on requests for user-added models.
  */
-const VENDOR_ALIASES: Record<KnownVendor, readonly string[]> = {
+const VENDOR_ALIASES: Record<KnownVendor | 'antigravity' | 'googleaistudio', readonly string[]> = {
   deepseek: ['deepseek'],
   minimax: ['minimax'],
   xiaomi: ['xiaomi', 'mimo'],
   openrouter: ['openrouter'],
+  antigravity: ['antigravity'],
+  googleaistudio: ['googleaistudio', 'gemini'],
 };
 
 /**

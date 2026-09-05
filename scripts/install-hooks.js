@@ -30,12 +30,19 @@ function gitConfigGet(key) {
 let root;
 try {
   root = git('rev-parse --show-toplevel');
+  if (process.platform === 'win32' && /^\/[a-zA-Z]\//.test(root)) {
+    root = root[1] + ':' + root.slice(2);
+  }
 } catch {
-  console.error('[install-hooks] ERREUR : pas dans un dépôt git.');
-  process.exit(1);
+  root = path.resolve(__dirname, '..');
 }
 
-const hooksDir = path.join(root, '.githooks');
+let hooksDir = path.join(root, '.githooks');
+if (!fs.existsSync(hooksDir)) {
+  root = path.resolve(__dirname, '..');
+  hooksDir = path.join(root, '.githooks');
+}
+
 if (!fs.existsSync(hooksDir)) {
   console.error('[install-hooks] ERREUR : dossier .githooks/ introuvable.');
   process.exit(1);

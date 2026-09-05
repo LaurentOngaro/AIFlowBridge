@@ -185,6 +185,40 @@ describe('GatewayService - HTTP endpoints', () => {
   });
 
   it('GET /unknown returns 404', async () => {
+  });
+
+  // Direct unit-level check of the path rewrite. The full HTTP path is
+  // covered by the integration smoke tests below; this is the smallest
+  // possible assertion that catches a regression on the Gemini public
+  // API baseUrl routing.
+  it('resolveUpstreamUrl prefixes /openai for the Gemini public API hostname', async () => {
+    const { resolveUpstreamUrlForTest } = await import('../src/aiflowbridge/gateway/server');
+    const profile = {
+      id: 'byok',
+      label: 'BYOK',
+      kind: 'openai-compat',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      model: 'gemini-3.8-flash',
+      enabled: true,
+    } as unknown as ProviderProfile;
+    expect(resolveUpstreamUrlForTest(profile, 'chat/completions')).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
+    );
+    // Non-Gemini baseUrls are forwarded verbatim.
+    const openrouter = {
+      id: 'or',
+      label: 'OR',
+      kind: 'openai-compat',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'openai/gpt-oss-120b:free',
+      enabled: true,
+    } as unknown as ProviderProfile;
+    expect(resolveUpstreamUrlForTest(openrouter, 'chat/completions')).toBe(
+      'https://openrouter.ai/api/v1/chat/completions'
+    );
+  });
+
+  it('GET /unknown returns 404', async () => {
     const res = await fetch(`${baseUrl}/unknown`);
     expect(res.status).toBe(404);
     const body = (await res.json()) as { error: string; path: string };

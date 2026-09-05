@@ -259,6 +259,9 @@ export const env = {
       return Promise.resolve();
     },
   },
+  openExternal(_target: unknown): Promise<boolean> {
+    return Promise.resolve(false);
+  },
 };
 
 export const Uri = {

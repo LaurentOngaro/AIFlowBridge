@@ -8,6 +8,9 @@ node_modules/
 .env*
 !.env.example
 .kilo/
+.ai/
+firebase-debug.log
+*.log
 
 # Personal private notes (local-only, see _helpers/setup-private.ps1)
 _Private/

@@ -78,6 +78,49 @@ describe('normalizeProviderProfiles', () => {
     expect(result[0].kind).toBe('ollama');
   });
 
+  it('marks explicit billing plan on the normalized profile', () => {
+    const input = [{ id: 'p1', label: 'L1', baseUrl: 'https://x', model: 'm', billing: 'plan' }];
+    const result = normalizeProviderProfiles(input);
+    expect(result[0].billing).toBe('plan');
+  });
+
+  it('leaves per-token profiles without a billing field', () => {
+    const input = [{ id: 'p1', label: 'L1', baseUrl: 'https://x', model: 'm' }];
+    const result = normalizeProviderProfiles(input);
+    expect(result[0].billing).toBeUndefined();
+  });
+
+  it('forces plan billing for OAuth kinds without an explicit flag', () => {
+    const input = [
+      { id: 'g1', label: 'G1', baseUrl: 'https://cloudcode-pa.googleapis.com', model: 'gemini-3.8-flash', kind: 'googleaistudio' },
+      { id: 'a1', label: 'A1', baseUrl: 'https://cloudcode-pa.googleapis.com', model: 'gemini-3.8-flash', kind: 'antigravity' },
+    ];
+    const result = normalizeProviderProfiles(input);
+    expect(result[0].billing).toBe('plan');
+    expect(result[1].billing).toBe('plan');
+  });
+
+  it('does not force plan billing for the BYOK Google AI Studio route', () => {
+    // The BYOK path uses `generativelanguage.googleapis.com` (no OAuth).
+    // Plan-coverage would mask a real per-token charge, so the gateway
+    // must keep it per-token.
+    const input = [
+      { id: 'g1', label: 'G1', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-3.8-flash' },
+    ];
+    const result = normalizeProviderProfiles(input);
+    expect(result[0].billing).toBeUndefined();
+  });
+
+  it('respects an explicit billing flag on a BYOK profile', () => {
+    // Future-proofing: if the user has a MiniMax token-plan style
+    // setup for a BYOK upstream, the explicit flag must be honoured.
+    const input = [
+      { id: 'g1', label: 'G1', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-3.8-flash', billing: 'plan' },
+    ];
+    const result = normalizeProviderProfiles(input);
+    expect(result[0].billing).toBe('plan');
+  });
+
   it('preserves enabled=false', () => {
     const input = [
       { id: 'p1', label: 'L1', baseUrl: 'https://x', model: 'm', enabled: false },

@@ -1,5 +1,7 @@
+import { t } from '../i18n';
 import vscode from 'vscode';
 import { logger } from '../logger';
+import { AuthManager } from '../auth';
 import { DeepSeekChatProvider } from '../provider';
 import { MiniMaxChatProvider } from '../provider/minimax';
 import { UnifiedChatProvider } from '../provider/unified';
@@ -53,6 +55,37 @@ export async function registerAllProviders(context: vscode.ExtensionContext): Pr
 
     vscode.commands.registerCommand('aiflowbridge.providers.xiaomi.setApiKey', () => xiaomiProvider.configureApiKey()),
     vscode.commands.registerCommand('aiflowbridge.providers.xiaomi.clearApiKey', () => xiaomiProvider.clearApiKey()),
+
+    // Google AI Studio (BYOK, pay-as-you-go): prompt for an `AIzaSy...`
+    // API key and persist it to `SecretStorage` under
+    // `API_KEY_SECRETS.googleaistudio`. The runtime shares the same
+    // `secrets.json` file / SecretStorage slot as the standalone CLI's
+    // `auth googleaistudio setApiKey`, so a key set in one place is
+    // seen by the other. The OAuth / Antigravity route lives on
+    // `aiflowbridge.connectGoogleAIStudio` (registered separately in
+    // `src/aiflowbridge/index.ts`) and uses the OAuth token manager.
+    vscode.commands.registerCommand('aiflowbridge.providers.googleaistudio.setApiKey', async () => {
+      const providerName = t('provider.googleaistudio.name');
+      const authManager = new AuthManager(context);
+      const saved = await authManager.promptForApiKey(
+        'googleaistudio',
+        t('command.apiKeyPrompt', providerName),
+        t('command.apiKeyPlaceholder', providerName)
+      );
+      if (saved) {
+        vscode.window.showInformationMessage(
+          t('command.apiKeySaved', providerName)
+        );
+      }
+    }),
+    vscode.commands.registerCommand('aiflowbridge.providers.googleaistudio.clearApiKey', async () => {
+      const providerName = t('provider.googleaistudio.name');
+      const authManager = new AuthManager(context);
+      await authManager.deleteApiKey('googleaistudio');
+      vscode.window.showInformationMessage(
+        t('command.apiKeyRemoved', providerName)
+      );
+    }),
 
     // Vision proxy picker. Registered here (next to the VS Code
     // adapter) because the implementation imports `vscode.lm`

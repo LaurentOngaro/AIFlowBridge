@@ -148,7 +148,21 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
       const candidate = entry as Record<string, unknown>;
       const id = toString(candidate.id);
       const label = toString(candidate.label, id);
-      const kind = candidate.kind === 'ollama' ? 'ollama' : 'openai-compat';
+      // The `googleaistudio` family has TWO auth routes:
+      //   1. `kind: 'googleaistudio'` -> Antigravity / Cloud Code Assist
+      //      (OAuth, gated, no API key) - handled in `server.ts`
+      //      `buildAntigravityUpstreamRequest`.
+      //   2. `kind: 'openai-compat'` + `baseUrl: 'https://generativelanguage.googleapis.com/v1beta'`
+      //      -> BYOK API key against the public Gemini API. This is the
+      //      always-available fallback when the OAuth route is not
+      //      whitelisted for the user's Cloud Code Assist tenant (see
+      //      `docs/providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go`).
+      // The synthesis in `host-config.ts` tags OAuth-vendor entries with
+      // `kind: 'googleaistudio'` and BYOK entries with their registry
+      // setting (openai-compat by default). The default below matches the
+      // syntetized OAuth family but lets a user override a profile entry
+      // to openai-compat explicitly.
+      const kind = candidate.kind === 'ollama' || candidate.kind === 'antigravity' || candidate.kind === 'googleaistudio' ? candidate.kind : 'openai-compat';
       const baseUrl = toString(candidate.baseUrl);
       const model = toString(candidate.model);
 
@@ -164,6 +178,14 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
       const pricing = candidate.pricing && typeof candidate.pricing === 'object' ? (candidate.pricing as Record<string, unknown>) : undefined;
       const inputPerMillion = toNumber(pricing?.inputPerMillion, 0);
       const outputPerMillion = toNumber(pricing?.outputPerMillion, 0);
+
+      // Billing mode: explicit `billing: 'plan'` wins (user checked
+      // "Billed to a token plan" in settings). OAuth kinds
+      // (`antigravity` / `googleaistudio`) are always plan-covered
+      // (Google AI plan via OAuth, no per-token bill). Everything
+      // else defaults to per-token billing.
+      const rawBilling = typeof candidate.billing === 'string' ? candidate.billing.trim().toLowerCase() : '';
+      const billing = rawBilling === 'plan' || kind === 'antigravity' || kind === 'googleaistudio' ? ('plan' as const) : undefined;
 
       return {
         id,
@@ -186,6 +208,11 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
               currency: toString(pricing.currency, 'USD') || 'USD',
             }
           : undefined,
+        // `billing` stays `undefined` (not `'token'`) for per-token
+        // profiles so older snapshots / fixtures without the field
+        // keep passing strict equality checks; the recording path
+        // coalesces absent to `'token'`.
+        ...(billing ? { billing } : {}),
       };
     })
     .filter((profile): profile is ProviderProfile => Boolean(profile));

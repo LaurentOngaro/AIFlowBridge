@@ -169,6 +169,31 @@ describe('buildDashboardHtml', () => {
     expect(html).toContain('usage</td>'); // real-usage row marker
   });
 
+  it('marks plan-covered rows with a plan badge and a plan-suffixed cost', () => {
+    const snap = snapshotWithData();
+    snap.recent = [
+      { ...snap.recent[0], billedTo: 'plan', estimatedCost: 0.001 },
+      { ...snap.recent[1], billedTo: 'token', estimatedCost: 0.002 },
+    ];
+    const html = buildDashboardHtml(baseConfig(), snap, true);
+    expect(html).toContain('class="pill plan"');
+    expect(html).toContain('(plan)');
+    expect(html).toContain('id="billing-notice"');
+    expect(html).toContain('indicative plan equivalents');
+  });
+
+  it('omits the billing notice when no row is plan-covered', () => {
+    const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
+    expect(html).not.toContain('id="billing-notice"');
+  });
+
+  it('treats absent billedTo as per-token billing', () => {
+    const snap = snapshotWithData();
+    delete (snap.recent[0] as Partial<RequestTelemetry>).billedTo;
+    const html = buildDashboardHtml(baseConfig(), snap, true);
+    expect(html).not.toContain('id="billing-notice"');
+  });
+
   it('renders the per-provider summary from snapshot.byProvider', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('<code>minimax</code>');
@@ -1341,6 +1366,14 @@ describe('formatCostCell', () => {
     const html = formatCostCell(0.5, undefined);
     expect(html).toContain('$0.5');
   });
+
+  it('marks plan-covered costs with a plan suffix and tooltip', () => {
+    const html = formatCostCell(0.0023, { inputPerMillion: 0.75, outputPerMillion: 3.75, currency: 'USD' }, undefined, 'plan');
+    expect(html).toContain('$0.0023 (plan)');
+    expect(html).toContain('not a real charge');
+    const token = formatCostCell(0.0023, { inputPerMillion: 0.75, outputPerMillion: 3.75, currency: 'USD' }, undefined, 'token');
+    expect(token).not.toContain('(plan)');
+  });
 });
 
 describe('truncateClientIdForDisplay', () => {
@@ -1996,7 +2029,7 @@ describe('AFF07 telemetry export helpers', () => {
     ];
     const csv = buildCsvExport(entries);
     const lines = csv.split('\r\n');
-    expect(lines[0]).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,source,clientId,promptSummary,responseSummary');
+    expect(lines[0]).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,billedTo,source,clientId,promptSummary,responseSummary');
     expect(lines[1]).toContain('a');
     expect(lines[1]).toContain('simple prompt');
     expect(lines[2]).toContain('MiniMax-M3');
@@ -2023,7 +2056,7 @@ describe('AFF07 telemetry export helpers', () => {
   it('buildCsvExport handles an empty entry set with a header-only payload', async () => {
     const { buildCsvExport } = await import('../src/aiflowbridge/ui/dashboard');
     const csv = buildCsvExport([]);
-    expect(csv).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,source,clientId,promptSummary,responseSummary\r\n');
+    expect(csv).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,billedTo,source,clientId,promptSummary,responseSummary\r\n');
   });
 
   it('buildCsvExport stringifies numbers, booleans, and strings', async () => {
@@ -2036,6 +2069,14 @@ describe('AFF07 telemetry export helpers', () => {
     expect(row).toMatch(/0\.0012/);
     expect(row).toMatch(/,true,/);
     expect(row).toMatch(/,0,/); // promptTokens
+  });
+
+  it('toExportedEntry defaults billedTo to token for legacy entries', async () => {
+    const { toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
+    const out = toExportedEntry(makeEntry({ id: 'a' }));
+    expect(out.billedTo).toBe('token');
+    const plan = toExportedEntry(makeEntry({ id: 'b', billedTo: 'plan' }));
+    expect(plan.billedTo).toBe('plan');
   });
 
   it('toExportedEntry coalesces optional fields (clientId / source / summaries) to safe defaults', async () => {

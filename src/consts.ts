@@ -27,6 +27,20 @@ export const API_KEY_SECRETS = {
   minimax: 'aiflowbridge.providers.minimax.apiKey',
   xiaomi: 'aiflowbridge.providers.xiaomi.apiKey',
   openrouter: 'aiflowbridge.providers.openrouter.apiKey',
+  // The Google AI Studio API key is the BYOK path (separate from the
+  // Antigravity / Cloud Code Assist OAuth path, which lives in
+  // `src/aiflowbridge/antigravity/auth.ts` and has no apiKey slot).
+  // Two distinct auth routes for the same vendor family
+  // (`googleaistudio`); the OAuth route is unavailable to non-whitelisted
+  // Cloud Code Assist tenants, the API-key route is the BYOK fallback that
+  // always works against `generativelanguage.googleapis.com` (factured on
+  // the user's own GCP project, NOT on the AI Studio Pro subscription).
+  googleaistudio: 'aiflowbridge.providers.googleaistudio.apiKey',
+  // OAuth vendors have no API-key setting (`aiflowbridge.providers.*.apiKey`
+  // is meaningless for them - auth lives in `secrets.json` via
+  // `AntigravityTokenManager`). They are intentionally absent from this
+  // map so the startup log never prints a confusing
+  // `API key for <oauth-vendor>: not configured` line.
 } as const;
 
 /** memento key tracking whether the welcome walkthrough has been shown. */

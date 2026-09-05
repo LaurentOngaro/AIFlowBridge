@@ -3,7 +3,7 @@
 Ces règles s'appliquent à tout agent travaillant sur ce dépôt (Kilo Code,
 Kilo CLI, ou autre). Elles rendent la mémoire de projet incontournable.
 
-## Répartition des rôles (décision Laurent, 2026-09-02)
+## Répartition des rôles (décision l'utilisateur, 2026-09-02)
 
 - **Perplexity** (via connecteur GitHub) est le tech lead : conception,
   spécifications, écriture de code/docs/tests, audit et revue de code
@@ -13,7 +13,7 @@ Kilo CLI, ou autre). Elles rendent la mémoire de projet incontournable.
   scripts, lancement de la gateway, flux OAuth réel, tests CLI. Kilo remonte
   les résultats **assainis** (jamais de secrets) dans `BRAIN.md` et
   `ACTION_PLAN.md`.
-- **Laurent** arbitre, valide les décisions d'architecture et gère les
+- **l'utilisateur** arbitre, valide les décisions d'architecture et gère les
   secrets locaux.
 
 ## Avant toute tâche
@@ -49,4 +49,4 @@ Kilo CLI, ou autre). Elles rendent la mémoire de projet incontournable.
 - Réponse ou nouvelle consigne de Perplexity → préfixe `Perplexity → Kilo :`.
 - Kilo colle les extraits de logs pertinents (assainis) dans le journal
   plutôt que de décrire vaguement une erreur.
-- Laurent arbitre et valide les décisions d'architecture.
+- l'utilisateur arbitre et valide les décisions d'architecture.

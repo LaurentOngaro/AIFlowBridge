@@ -29,14 +29,14 @@ vi.mock('vscode', () => {
   };
 });
 
-import { TelemetryPersister } from '../src/aiflowbridge/telemetry/persistence';
 import { TelemetryStore } from '../src/aiflowbridge/telemetry';
+import { TelemetryPersister } from '../src/aiflowbridge/telemetry/persistence';
 import type { RequestTelemetry } from '../src/aiflowbridge/types';
 
 function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry {
   const base: RequestTelemetry = {
     id: overrides.id ?? 'r1',
-    timestamp: overrides.timestamp ?? '2026-06-03T08:00:00.000Z',
+    timestamp: overrides.timestamp ?? new Date().toISOString(),
     providerId: overrides.providerId ?? 'p1',
     providerLabel: overrides.providerLabel ?? 'Provider 1',
     model: overrides.model ?? 'm1',

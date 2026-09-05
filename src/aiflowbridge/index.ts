@@ -2,12 +2,13 @@ import { rename as renameAsync, writeFile as writeFileAsync } from 'node:fs/prom
 import { join } from 'node:path';
 import { API_KEY_SECRETS } from '../consts';
 import { logger } from '../logger';
-import { describeApiKeySource } from './api-key-sources';
 import { resolveVendorApiKey } from './api-key-resolver';
+import { describeApiKeySource } from './api-key-sources';
+import { AntigravityTokenManager } from './antigravity/auth';
 import { GatewayService, isPortInUse } from './gateway/server';
 import { loadConfigFromContext } from './host-config';
-import { fetchOpenRouterModels, parseOpenRouterPricing, type PricingEntry } from './pricing/openrouter-fetch';
 import { GLOBAL_STORAGE_PRICING_RELATIVE_PATH, replacePricingEntries } from './pricing/loader';
+import { fetchOpenRouterModels, parseOpenRouterPricing, type PricingEntry } from './pricing/openrouter-fetch';
 import { TelemetryStore } from './telemetry';
 import { TelemetryPersister, defaultTelemetryPaths } from './telemetry/persistence';
 import type { AiFlowBridgeConfig, Disposable, GatewayStatus, IGatewayContext, TelemetrySnapshot } from './types';
@@ -20,6 +21,7 @@ class AIFlowBridgeRuntime implements Disposable {
   private readonly statusBar: StatusBarController;
   private telemetryFallback!: TelemetryStore;
   private persister: TelemetryPersister | undefined;
+  private tokenManager: AntigravityTokenManager | undefined;
 
   constructor(private readonly ctx: IGatewayContext) {
     // The gateway and config are built in `activate()` (not as class
@@ -95,6 +97,7 @@ class AIFlowBridgeRuntime implements Disposable {
     estimatedCost?: number;
     estimated?: boolean;
     errorMessage?: string;
+    billedTo?: 'token' | 'plan';
   }): void {
     if (!this.gateway) {
       return;
@@ -107,12 +110,27 @@ class AIFlowBridgeRuntime implements Disposable {
    * operator can tell at a glance whether the gateway uses the env var,
    * the `secrets.json` file, or the host storage. The source is named
    * (env var name / file path / storage label) but never the key value
-   * itself.
+   * itself. OAuth vendors (Google AI Studio / Antigravity) have no
+   * API-key slot - their line reports the OAuth login state instead,
+   * so a successful `Connect to Google AI Studio` never shows a
+   * confusing `not configured` key line.
    */
   private async logApiKeySources(): Promise<void> {
     for (const [vendor, secretKey] of Object.entries(API_KEY_SECRETS)) {
       const source = await describeApiKeySource(secretKey, this.ctx.secrets);
       logger.info(`[AIFlowBridge] API key for ${vendor}: ${source}`);
+    }
+    const googleLabel = 'googleaistudio';
+    if (this.tokenManager) {
+      const tokens = this.tokenManager.getTokens();
+      if (tokens) {
+        const who = tokens.email ?? 'authenticated account';
+        const project = tokens.projectId ? ` (project ${tokens.projectId})` : '';
+        const expiry = tokens.expiresAt > Date.now() ? 'token valid' : 'token expired (auto-refresh on next request)';
+        logger.info(`[AIFlowBridge] Google AI Studio OAuth for ${googleLabel}: connected as ${who}${project} - ${expiry}`);
+      } else {
+        logger.info(`[AIFlowBridge] Google AI Studio OAuth for ${googleLabel}: not connected (run "AIFlowBridge: Connect to Google AI Studio")`);
+      }
     }
   }
 
@@ -184,6 +202,12 @@ class AIFlowBridgeRuntime implements Disposable {
 
     this.config = await loadConfigFromContext(this.ctx);
 
+    // The OAuth / Antigravity token manager is instantiated BEFORE the
+    // startup log runs so `logApiKeySources()` can read the token state
+    // (audit BUG-09). The persister uses the same globalStorageDir so
+    // both files stay in sync.
+    this.tokenManager = new AntigravityTokenManager(this.ctx.globalStorageDir);
+
     await this.logApiKeySources();
 
     // build the file-based telemetry persister (per-OS-user,
@@ -209,6 +233,13 @@ class AIFlowBridgeRuntime implements Disposable {
     // contract still accepts an optional saveState hook for tests and
     // non-VS Code hosts that rely on the legacy globalState path,
     // but the production runtime does not need it.
+    //
+    // The Google AI Studio / Antigravity OAuth token manager shares
+    // the same globalStorageDir as the telemetry persister so the
+    // standalone CLI (`aiflowbridge-server auth googleaistudio`) and
+    // the VS Code extension read the same `secrets.json`.
+    // The `AntigravityTokenManager` is instantiated above (before
+    // `logApiKeySources`) so the startup log can read OAuth token state.
     this.gateway = new GatewayService(
       this.config,
       (status, snapshot) => this.refreshUi(status, snapshot),
@@ -217,7 +248,8 @@ class AIFlowBridgeRuntime implements Disposable {
       undefined,
       this.ctx.extensionVersion,
       undefined,
-      this.persister
+      this.persister,
+      this.tokenManager
     );
     this.gateway.init();
 
@@ -304,6 +336,129 @@ class AIFlowBridgeRuntime implements Disposable {
     if (!register) {
       return;
     }
+
+    this.ctx.subscriptions.push(
+      register('aiflowbridge.connectGoogleAIStudio', async () => {
+        if (!this.tokenManager) {
+          this.ctx.showWarning?.('AIFlowBridge: Google AI Studio auth is unavailable (token manager not initialized).');
+          return;
+        }
+        try {
+          let browserOpened = false;
+          const tokens = await this.tokenManager.startLocalOAuthFlow({
+            onUrlReady: (url) => {
+              // Open the Google consent page in the default browser
+              // immediately; the clipboard copy + notification are the
+              // fallback for locked-down environments where the opener
+              // fails (remote SSH, containers without xdg-open).
+              try {
+                this.ctx.openExternal?.(url);
+                browserOpened = true;
+              } catch {
+                browserOpened = false;
+              }
+              if (!browserOpened) {
+                this.ctx.showInformation?.(`AIFlowBridge: open this URL to connect Google AI Studio: ${url}`);
+              }
+              void this.ctx.clipboardWrite?.(url);
+            },
+          });
+          logger.info('[AIFlowBridge] Google AI Studio connected.');
+          this.ctx.showInformation?.(
+            `AIFlowBridge: Google AI Studio connected${tokens.email ? ` as ${tokens.email}` : ''}${tokens.projectId ? ` (project ${tokens.projectId})` : ''}.`
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`[AIFlowBridge] Google AI Studio connect failed: ${message}`);
+          this.ctx.showWarning?.(`AIFlowBridge: Google AI Studio connection failed: ${message}`);
+        }
+      })
+    );
+
+    this.ctx.subscriptions.push(
+      register('aiflowbridge.disconnectGoogleAIStudio', async () => {
+        if (!this.tokenManager) {
+          return;
+        }
+        this.tokenManager.logout();
+        logger.info('[AIFlowBridge] Google AI Studio disconnected.');
+        this.ctx.showInformation?.('AIFlowBridge: Google AI Studio disconnected.');
+      })
+    );
+
+    // Switch Google AI Studio route between the BYOK native surface
+    // (`generativelanguage.googleapis.com/v1beta`) and the Antigravity
+    // OAuth surface (`cloudcode-pa.googleapis.com`). Toggle persists
+    // the new baseUrl in `settings.json` and clears the stale credentials
+    // of the inactive route so a leftover OAuth token cannot answer a
+    // request meant for the BYOK path (and vice-versa). See
+    // `docs/providers.md` for the rationale.
+    this.ctx.subscriptions.push(
+      register('aiflowbridge.switchGoogleAIStudioRoute', async () => {
+        const { decideGoogleAIStudioRouteSwitch, describeCurrentRoute } = await import('./googleai-studio-route');
+        if (!this.ctx.writeConfiguration) {
+          this.ctx.showWarning?.('AIFlowBridge: switching the Google AI Studio route is supported in the VS Code extension only. Edit "aiflowbridge.providers.googleaistudio.baseUrl" in settings.json manually.');
+          return;
+        }
+        const currentConfig = this.ctx.getConfiguration();
+        const currentBaseUrl = currentConfig.get<string>('providers.googleaistudio.baseUrl');
+        const decision = decideGoogleAIStudioRouteSwitch(currentBaseUrl);
+        if (!decision) {
+          this.ctx.showInformation?.(`AIFlowBridge: Google AI Studio is already on the ${describeCurrentRoute(currentBaseUrl)} route.`);
+          return;
+        }
+        try {
+          await this.ctx.writeConfiguration('providers.googleaistudio.baseUrl', decision.nextBaseUrl);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.ctx.showWarning?.(`AIFlowBridge: failed to write the new baseUrl: ${message}`);
+          return;
+        }
+        // Audit BUG-02: the `globalStorage/models.json` registry
+        // override is higher-priority than the bundled registry and the
+        // `providers.*.baseUrl` setting. A stale override here would
+        // silently re-route the request to the previous surface and
+        // reproduce the failure we just toggled away from. Strip any
+        // `vendors.googleaistudio` entry from the override file before
+        // it can override the new bundled default. The next
+        // `Developer: Reload Window` re-runs the registry loader
+        // automatically (the loader caches per activation).
+        try {
+          const { GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH } = await import('./modelRegistry');
+          const { resetGlobalStorageRegistryOverride } = await import('./modelRegistryOverride');
+          const stripped = await resetGlobalStorageRegistryOverride(
+            this.ctx.globalStorageDir,
+            GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH,
+            (registry) => {
+              if (registry.vendors?.googleaistudio) {
+                delete registry.vendors.googleaistudio;
+              }
+              return registry;
+            }
+          );
+          if (stripped) {
+            logger.info('[AIFlowBridge] Switch Google AI Studio route: cleared stale vendors.googleaistudio from globalStorage override.');
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`[AIFlowBridge] Could not clear the globalStorage vendors.googleaistudio override: ${message}`);
+        }
+        if (decision.cleanup.revokeOAuthTokens && this.tokenManager) {
+          this.tokenManager.logout();
+          logger.info('[AIFlowBridge] Switch Google AI Studio route -> BYOK: cleared stale OAuth tokens.');
+        }
+        if (decision.cleanup.revokeApiKey) {
+          try {
+            await this.ctx.secrets.delete('aiflowbridge.providers.googleaistudio.apiKey');
+            logger.info('[AIFlowBridge] Switch Google AI Studio route -> OAuth: cleared stale API key.');
+          } catch {
+            // ignore: the API key may not be set.
+          }
+        }
+        logger.info(`[AIFlowBridge] Google AI Studio baseUrl -> ${decision.nextBaseUrl}`);
+        this.ctx.showInformation?.(`AIFlowBridge: ${decision.message} Reload Window to pick up the new route.`);
+      })
+    );
 
     this.ctx.subscriptions.push(
       register('aiflowbridge.refreshMetrics', async () => {
@@ -405,6 +560,64 @@ class AIFlowBridgeRuntime implements Disposable {
         }
         this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
         this.ctx.showInformation?.(`AIFlowBridge gateway started on ${this.config.gateway.baseUrl}`);
+      })
+    );
+
+    // Debug-host escape hatch: when a debug session (F5) joins the
+    // already-running gateway owned by the launching VS Code window
+    // (lock held by the peer, port owned by the peer), the debug
+    // session's own freshly compiled code never serves traffic - every
+    // request lands on the stale peer. Restarting VS Code works but
+    // kills the debug loop. This command shuts the peer down
+    // cooperatively (same shutdown-token flow as the version-aware
+    // restart) and starts a fresh local gateway from THIS session's
+    // code, so F5 iterations take effect without a full restart.
+    //
+    // Precondition: this command is only meaningful when the local
+    // runtime did NOT start the gateway (joined-peer case). When the
+    // local gateway owns the port, the version-aware prompt at
+    // `GatewayService.start()` time already handled the restart
+    // decision, and re-running it here would kill a healthy gateway
+    // for no reason - refuse with a clear message instead.
+    this.ctx.subscriptions.push(
+      register('aiflowbridge.restartGatewayHere', async () => {
+        if (this.gateway.running && !this.gateway.isJoined) {
+          this.ctx.showInformation?.(
+            `AIFlowBridge gateway already runs here (v${this.gateway.bundledVersion}, not joined) - nothing to restart. Use this command from a debug session that joined a stale peer.`
+          );
+          return;
+        }
+        try {
+          await this.gateway.stop();
+        } catch {
+          // ignore: we may not own any socket (joined peer case).
+        }
+        const { probeServerVersion, requestPeerShutdown, waitUntilPortFree } = await import('./gateway/probe');
+        const port = this.config.gateway.port;
+        const peer = await probeServerVersion(port, { timeoutMs: this.config.gateway.probeTimeoutMs });
+        if (peer && peer.name === 'aiflowbridge-gateway' && peer.shutdownToken) {
+          logger.info(`[AIFlowBridge] Restart-here: asking peer gateway v${peer.version} (pid ${peer.pid}) to shut down.`);
+          const accepted = await requestPeerShutdown(port, { shutdownToken: peer.shutdownToken });
+          if (!accepted) {
+            this.ctx.showWarning?.('AIFlowBridge: peer gateway refused the shutdown request. Close the other VS Code window (or stop its gateway) and retry.');
+            return;
+          }
+          const freed = await waitUntilPortFree(port, { timeoutMs: 3000, intervalMs: 100 });
+          if (!freed) {
+            this.ctx.showWarning?.('AIFlowBridge: peer gateway did not free the port in time. Retry in a few seconds.');
+            return;
+          }
+        }
+        try {
+          await this.gateway.start();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          logger.error(`[AIFlowBridge] Gateway restart-here failed: ${message}`);
+          this.ctx.showWarning?.(`AIFlowBridge gateway restart failed: ${message}`);
+          return;
+        }
+        this.refreshUi(this.gatewayStatus(), this.gatewaySnapshot());
+        this.ctx.showInformation?.(`AIFlowBridge gateway restarted here on ${this.config.gateway.baseUrl}`);
       })
     );
 

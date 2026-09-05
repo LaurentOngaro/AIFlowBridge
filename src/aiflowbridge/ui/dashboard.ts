@@ -21,6 +21,13 @@ export interface ExportedRequestEntry {
   totalTokens: number;
   estimatedCost: number;
   estimated: boolean;
+  /**
+   * Billing mode resolved at recording time (`'token'` per-token
+   * billing, `'plan'` when covered by a token plan / subscription /
+   * OAuth plan). Absent on entries recorded before the feature;
+   * `toExportedEntry` coalesces to `'token'`.
+   */
+  billedTo: string;
   /** Origin of the request (`gateway` / `copilot-chat` / unknown). */
   source: string;
   /** Stable identifier of the originating client (e.g. `kilocode@1.2.3`). */
@@ -70,6 +77,7 @@ export const CSV_COLUMNS: ReadonlyArray<keyof ExportedRequestEntry> = [
   'totalTokens',
   'estimatedCost',
   'estimated',
+  'billedTo',
   'source',
   'clientId',
   'promptSummary',
@@ -329,8 +337,13 @@ export function buildPricingMaps(providers: readonly ProviderProfile[]): Pricing
 /**
  * Format a USD (or other-currency) amount as a short monospace cell.
  * Returns the '-' placeholder when the amount is zero, non-finite, or unpriced - so unpriced requests do not pollute the totals visually.
+ *
+ * `billedTo` marks plan-covered rows (`'plan'`: token plan /
+ * subscription / OAuth plan): the numeric estimate is still shown
+ * (indicative equivalent at the profile's rates) but the tooltip and
+ * a `(plan)` suffix make clear it is NOT a real per-token charge.
  */
-export function formatCostCell(cost: number, pricing: ProviderPricing | undefined, sourceLabel?: string): string {
+export function formatCostCell(cost: number, pricing: ProviderPricing | undefined, sourceLabel?: string, billedTo?: string): string {
   if (!Number.isFinite(cost) || cost <= 0) {
     return '<span class="muted">-</span>';
   }
@@ -342,14 +355,17 @@ export function formatCostCell(cost: number, pricing: ProviderPricing | undefine
   // date stamp), user-refreshed (`override (globalStorage)`), or a
   // fallback from the registry / family default.
   const sourceTag = sourceLabel ? ` - source: ${escapeHtml(sourceLabel)}` : '';
+  const isPlan = billedTo === 'plan';
+  const planTag = isPlan ? ' - billed to a token plan / subscription (indicative equivalent, not a real charge)' : '';
   const title = pricing
-    ? `in ${symbol}${(pricing.inputPerMillion ?? 0).toFixed(2)} / out ${symbol}${(pricing.outputPerMillion ?? 0).toFixed(2)} per 1M tokens (${escapeHtml(currency)})${sourceTag}`
-    : `Estimated cost (${escapeHtml(currency)})${sourceTag}`;
+    ? `in ${symbol}${(pricing.inputPerMillion ?? 0).toFixed(2)} / out ${symbol}${(pricing.outputPerMillion ?? 0).toFixed(2)} per 1M tokens (${escapeHtml(currency)})${sourceTag}${planTag}`
+    : `Estimated cost (${escapeHtml(currency)})${sourceTag}${planTag}`;
   // 4 decimals covers sub-cent values (token-plan rates produce costs in
   // the $0.0001-$0.01 range for typical prompts). Trim trailing zeros so
   // $0.0010 reads as $0.001.
   const formatted = cost.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
-  return `<code title="${title}">${symbol}${formatted}</code>`;
+  const suffix = isPlan ? ' (plan)' : '';
+  return `<code title="${title}">${symbol}${formatted}${suffix}</code>`;
 }
 
 /**
@@ -376,8 +392,7 @@ export function buildDashboardHtml(
   // (because the file was written under an older release with a hard
   // cap of 20 or 100 entries). Reset is the only way to recover - the
   // aggregated totals alone cannot reconstruct the missing entries.
-  // Threshold: only warn when at least 5 entries are missing, so a
-  // user who just deleted a row does not see a spurious banner.
+  // Threshold: only warn when at least 5 entries are missing, so a  // user who just deleted a row does not see a spurious banner.
   const missingRecent = snapshot.recent.length < snapshot.requests && snapshot.requests - snapshot.recent.length >= 5;
   const truncationBanner = missingRecent
     ? `<div class="banner banner-warn" id="truncation-banner">
@@ -903,10 +918,11 @@ export function buildDashboardHtml(
       ${metricCard('Requests', formatNumber(snapshot.requests), `${providers.length} enabled provider${providers.length === 1 ? '' : 's'}`, 'totals-requests')}
       ${metricCard('Tokens', formatNumber(snapshot.totalTokens), `${formatNumber(snapshot.promptTokens)} prompt / ${formatNumber(snapshot.completionTokens)} completion`, 'totals-tokens')}
       ${metricCard('Duration', snapshot.averageDurationMs ? `${Math.round(snapshot.averageDurationMs)} ms` : '0 ms', `P95 ${Math.round(snapshot.p95DurationMs)} ms`, 'totals-duration')}
-      ${metricCard('Estimated cost', formatCostValue(snapshot.estimatedCost), 'Optional pricing only', 'totals-cost')}
+      ${metricCard('Estimated cost', formatCostValue(snapshot.estimatedCost), costCardDetail(snapshot), 'totals-cost')}
     </div>
     ${truncationBanner}
     <p class="muted totals-scope-note" id="totals-scope-note">Showing all recorded requests (no filter active).</p>
+    ${renderBillingNotice(snapshot)}
 
     <div class="panel" id="panel-recent">
       <div class="panel-header">
@@ -1242,6 +1258,9 @@ export function buildDashboardHtml(
           // filters down to Copilot Chat traffic. Action plan
           // item #6.
           entry.source || "gateway",
+          // Billing mode: typing 'plan' filters to token-plan /
+          // subscription / OAuth rows, 'token' to per-token rows.
+          entry.billedTo === "plan" ? "plan plan-billed" : "token",
         ].join(" ").toLowerCase();
       }
       function matchesSearch(entry, needle) {
@@ -1359,8 +1378,8 @@ export function buildDashboardHtml(
             '<td>' + clientCell + '</td>' +
             '<td>' + formatNumber(entry.durationMs) + ' ms</td>' +
             '<td>' + formatNumber(entry.totalTokens) + '</td>' +
-            '<td>' + formatCostCell(entry.estimatedCost || 0, lookupPricing(entry)) + '</td>' +
-            '<td>' + (entry.estimated ? "estimated" : "usage") + '</td>' +
+          '<td>' + formatCostCell(entry.estimatedCost || 0, lookupPricing(entry), undefined, entry.billedTo) + '</td>' +
+          '<td>' + (entry.estimated ? "estimated" : "usage") + '</td>' +
             '<td>' + (entry.source === "copilot-chat" ? '<code title="Driven by VS Code Copilot Chat (vscode.lm API)">copilot-chat</code>' : "gateway") + '</td>' +
           '</tr>';
         }).join("");
@@ -1376,7 +1395,7 @@ export function buildDashboardHtml(
             '<td>' + formatNumber(snap.totalTokens) + '</td>' +
             '<td>' + formatNumber(Math.round(snap.averageDurationMs)) + ' ms</td>' +
             '<td>' + formatNumber(snap.errors) + '</td>' +
-            '<td>' + formatCostCell(snap.estimatedCost || 0, lookupPricingForModel(model)) + '</td>' +
+            '<td>' + formatCostCell(snap.estimatedCost || 0, lookupPricingForModel(model), undefined, undefined) + '</td>' +
           '</tr>';
         });
         tbody.innerHTML = rows.length > 0 ? rows.join("") : '<tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">No data in this range.</td></tr>';
@@ -1414,7 +1433,7 @@ export function buildDashboardHtml(
           '<td>' + formatNumber(snap.totalTokens) + '</td>' +
           '<td>' + formatNumber(Math.round(snap.averageDurationMs)) + ' ms</td>' +
           '<td>' + formatNumber(snap.errors) + '</td>' +
-          '<td>' + formatCostCell(snap.estimatedCost || 0, pricing) + '</td>' +
+          '<td>' + formatCostCell(snap.estimatedCost || 0, pricing, undefined, undefined) + '</td>' +
         '</tr>';
       }
 
@@ -1704,7 +1723,7 @@ export function buildDashboardHtml(
             + '<span>&#x2B55; ' + formatNumber(s.totalTokens) + ' tokens</span>'
             + '<span>&#x23F1; ' + formatNumber(avgDurationMs) + ' ms avg</span>'
             + (durationMinutes > 0 ? '<span>&#x1F552; ' + durationMinutes + ' min</span>' : '')
-            + '<span>' + formatCostCell(s.estimatedCost, null) + '</span>'
+            + '<span>' + formatCostCell(s.estimatedCost, null, undefined, undefined) + '</span>'
             + '</span>'
             + '</div>'
             + '</button>'
@@ -1726,7 +1745,7 @@ export function buildDashboardHtml(
             + '<td>' + formatNumber(s.totalTokens) + '</td>'
             + '<td>' + formatNumber(avgDurationMs) + ' ms</td>'
             + '<td>' + formatNumber(s.errors) + '</td>'
-            + '<td>' + formatCostCell(s.estimatedCost, null) + '</td>'
+            + '<td>' + formatCostCell(s.estimatedCost, null, undefined, undefined) + '</td>'
             + '</tr></tbody>'
             + '</table>'
             + renderSessionEntries(s.entries, i)
@@ -1791,7 +1810,7 @@ export function buildDashboardHtml(
             + '<td><span class="pill ' + statusClass + '">' + e.status + '</span></td>'
             + '<td>' + formatNumber(e.durationMs) + ' ms</td>'
             + '<td>' + formatNumber(e.totalTokens) + '</td>'
-            + '<td>' + formatCostCell(e.estimatedCost || 0, lookupPricing(e)) + '</td>'
+            + '<td>' + formatCostCell(e.estimatedCost || 0, lookupPricing(e), undefined, e.billedTo) + '</td>'
             + '</tr>';
         }
         var containerId = 'session-entries-' + sessionId;
@@ -1833,7 +1852,7 @@ export function buildDashboardHtml(
       var CSV_COLUMNS_BROWSER = [
         "id", "timestamp", "providerId", "providerLabel", "model",
         "status", "durationMs", "promptTokens", "completionTokens",
-        "totalTokens", "estimatedCost", "estimated", "source",
+        "totalTokens", "estimatedCost", "estimated", "billedTo", "source",
         "clientId", "promptSummary", "responseSummary"
       ];
       function escapeCsvValue(value, forceQuote) {
@@ -1863,6 +1882,7 @@ export function buildDashboardHtml(
           totalTokens: entry.totalTokens,
           estimatedCost: entry.estimatedCost,
           estimated: Boolean(entry.estimated),
+          billedTo: entry.billedTo || "token",
           source: entry.source || "unknown",
           clientId: entry.clientId || "unknown",
           promptSummary: entry.promptSummary || "",
@@ -1931,7 +1951,7 @@ export function buildDashboardHtml(
         };
         return JSON.stringify(payload, null, 2) + "\\n";
       }
-      function formatCostCell(cost, pricing) {
+      function formatCostCell(cost, pricing, sourceLabel, billedTo) {
         if (!isFinite(cost) || cost <= 0) {
           return '<span class="muted">-</span>';
         }
@@ -1939,11 +1959,14 @@ export function buildDashboardHtml(
         var symbol = currency === "USD" ? "$" : (currency + " ");
         var inputRate = pricing && pricing.inputPerMillion ? Number(pricing.inputPerMillion).toFixed(2) : "0.00";
         var outputRate = pricing && pricing.outputPerMillion ? Number(pricing.outputPerMillion).toFixed(2) : "0.00";
+        var sourceTag = sourceLabel ? " - source: " + escapeHtml(sourceLabel) : "";
+        var planTag = billedTo === "plan" ? " - billed to a token plan / subscription (indicative equivalent, not a real charge)" : "";
         var title = pricing
-          ? "in " + symbol + inputRate + " / out " + symbol + outputRate + " per 1M tokens (" + escapeHtml(currency) + ")"
-          : "Estimated cost (" + escapeHtml(currency) + ")";
+          ? "in " + symbol + inputRate + " / out " + symbol + outputRate + " per 1M tokens (" + escapeHtml(currency) + ")" + sourceTag + planTag
+          : "Estimated cost (" + escapeHtml(currency) + ")" + sourceTag + planTag;
         var formatted = Number(cost).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
-        return '<code title="' + title + '">' + symbol + formatted + '</code>';
+        var suffix = billedTo === "plan" ? " (plan)" : "";
+        return '<code title="' + title + '">' + symbol + formatted + suffix + '</code>';
       }
 
       // Sync the active state of the canonical preset select. Kept as a
@@ -2616,19 +2639,62 @@ function recentRow(entry: RequestTelemetry, pricing: PricingMaps, canRemove: boo
   const clientCell = entry.clientId
     ? `<code class="client-cell" title="${escapeHtml(entry.clientId)}">${escapeHtml(truncateClientIdForDisplay(entry.clientId, CLIENT_ID_DISPLAY_MAX_LENGTH))}</code>`
     : `<span class="muted" title="No client identification on this request">unknown</span>`;
+  // Billing marker: plan-covered rows (`billedTo === 'plan'`) keep
+  // their indicative estimate but carry an explicit badge so the
+  // user can tell a real per-token charge from a plan equivalent.
+  // Older entries (no `billedTo` field) render unmarked - same as
+  // per-token billing.
+  const billingCell =
+    entry.billedTo === 'plan'
+      ? `<span class="pill plan" title="Covered by a token plan / subscription / OAuth plan - the Est. cost is an indicative equivalent at the profile rates, not a real charge">plan</span>`
+      : '';
   return `<tr>
         ${actionCell}
         <td><span class="pill ${entry.status >= 400 ? 'warn' : 'ok'}">${entry.status}</span></td>
         <td class="muted">${escapeHtml(formatClock(entry.timestamp))}</td>
         <td>${escapeHtml(entry.providerLabel)}</td>
-        <td><code>${escapeHtml(entry.model)}</code></td>
+        <td><code>${escapeHtml(entry.model)}</code>${billingCell}</td>
         <td>${clientCell}</td>
         <td>${formatNumber(entry.durationMs)} ms</td>
         <td>${formatNumber(entry.totalTokens)}</td>
-        <td>${formatCostCell(entry.estimatedCost, rate)}</td>
+        <td>${formatCostCell(entry.estimatedCost, rate, undefined, entry.billedTo)}</td>
         <td>${entry.estimated ? 'estimated' : 'usage'}</td>
         <td>${formatSourceCell(entry.source)}</td>
       </tr>`;
+}
+
+/**
+ * Billing-mode notice rendered under the headline cards. Counts how
+ * many recorded rows are plan-covered (`billedTo === 'plan'`) and
+ * tells the user the "Estimated cost" total mixes real per-token
+ * charges with indicative plan equivalents. Rendered only when at
+ * least one plan-covered row exists; per-token-only histories keep
+ * the previous layout untouched.
+ */
+function renderBillingNotice(snapshot: TelemetrySnapshot): string {
+  const planRequests = snapshot.recent.filter((entry) => entry.billedTo === 'plan').length;
+  if (planRequests === 0) {
+    return '';
+  }
+  const total = snapshot.recent.length;
+  return `<p class="muted billing-notice" id="billing-notice">Est. cost mixes real per-token charges with indicative plan equivalents: ${planRequests} of ${total} recorded request${total === 1 ? '' : 's'} ${planRequests === 1 ? 'is' : 'are'} billed to a token plan / subscription / OAuth plan (marked <span class="pill plan">plan</span>). Those rows cost you $0 extra - the amount shown is what the same tokens would cost at pay-as-you-go rates.</p>`;
+}
+
+/**
+ * Headline-card detail for the Estimated cost card. Replaces the
+ * static "Optional pricing only" label with a billing-aware split
+ * when plan-covered rows exist, so the total is never misread as a
+ * real bill.
+ */
+function costCardDetail(snapshot: TelemetrySnapshot): string {
+  const planRequests = snapshot.recent.filter((entry) => entry.billedTo === 'plan').length;
+  if (planRequests === 0) {
+    return 'Optional pricing only';
+  }
+  const planCost = snapshot.recent
+    .filter((entry) => entry.billedTo === 'plan')
+    .reduce((sum, entry) => sum + (entry.estimatedCost || 0), 0);
+  return `Optional pricing only - ${formatCostValue(planCost)} of it plan-covered (indicative, not billed)`;
 }
 
 function formatClock(iso: string): string {
@@ -2674,7 +2740,7 @@ function providerRowHtml(providerId: string, entry: ProviderSnapshot, rate: Prov
         <td>${formatNumber(entry.totalTokens)}</td>
         <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
         <td>${formatNumber(entry.errors)}</td>
-        <td>${formatCostCell(entry.estimatedCost, rate)}</td>
+        <td>${formatCostCell(entry.estimatedCost, rate, undefined, undefined)}</td>
       </tr>`;
 }
 
@@ -2708,7 +2774,7 @@ function modelRow(model: string, entry: ProviderSnapshot, pricing: PricingMaps):
         <td>${formatNumber(entry.totalTokens)}</td>
         <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
         <td>${formatNumber(entry.errors)}</td>
-        <td>${formatCostCell(entry.estimatedCost, pricing.byModel[model])}</td>
+        <td>${formatCostCell(entry.estimatedCost, pricing.byModel[model], undefined, undefined)}</td>
       </tr>`;
 }
 
@@ -2835,6 +2901,7 @@ function serializeRecent(recent: readonly RequestTelemetry[]): string {
       totalTokens: entry.totalTokens,
       estimatedCost: entry.estimatedCost,
       estimated: entry.estimated,
+      billedTo: entry.billedTo ?? 'token',
       // Coalesce absent and explicit empty values to a literal
       // `'unknown'` here so the client renderer does not have to
       // special-case the undefined string ('') for row sorting or
@@ -3016,6 +3083,7 @@ export function toExportedEntry(entry: RequestTelemetry): ExportedRequestEntry {
     totalTokens: entry.totalTokens,
     estimatedCost: entry.estimatedCost,
     estimated: Boolean(entry.estimated),
+    billedTo: entry.billedTo ?? 'token',
     source: entry.source ?? 'unknown',
     clientId: entry.clientId ?? 'unknown',
     promptSummary: entry.promptSummary ?? '',

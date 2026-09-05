@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - 100+ AI models via OpenRouter, plus DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1. Three direct vendors (DeepSeek V4 at $0.27/M in, MiniMax M3 at $0.30/M in, Xiaomi MiMo V2 at $0.10/M in) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) three direct vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.16.1",
+  "version": "2.17.0",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -99,7 +99,12 @@
       {
         "command": "aiflowbridge.startGateway",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Start local gateway"
+        "title": "Start gateway"
+      },
+      {
+        "command": "aiflowbridge.restartGatewayHere",
+        "category": "AIFlowBridge",
+        "title": "Restart gateway here (debug)"
       },
       {
         "command": "aiflowbridge.stopGateway",
@@ -180,6 +185,31 @@
         "command": "aiflowbridge.providers.xiaomi.clearApiKey",
         "category": "AIFlowBridge",
         "title": "Xiaomi MiMo: Clear API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.googleaistudio.setApiKey",
+        "category": "AIFlowBridge",
+        "title": "%aiflowbridge.command.setApiKeyGoogleAIStudio.title%"
+      },
+      {
+        "command": "aiflowbridge.providers.googleaistudio.clearApiKey",
+        "category": "AIFlowBridge",
+        "title": "%aiflowbridge.command.clearApiKeyGoogleAIStudio.title%"
+      },
+      {
+        "command": "aiflowbridge.connectGoogleAIStudio",
+        "category": "AIFlowBridge",
+        "title": "%aiflowbridge.command.connectGoogleAIStudio.title%"
+      },
+      {
+        "command": "aiflowbridge.disconnectGoogleAIStudio",
+        "category": "AIFlowBridge",
+        "title": "%aiflowbridge.command.disconnectGoogleAIStudio.title%"
+      },
+      {
+        "command": "aiflowbridge.switchGoogleAIStudioRoute",
+        "category": "AIFlowBridge",
+        "title": "%aiflowbridge.command.switchGoogleAIStudioRoute.title%"
       },
       {
         "command": "aiflowbridge.installStandalone",
@@ -400,6 +430,15 @@
                 "default": true,
                 "description": "Enable or disable this provider profile"
               },
+              "billing": {
+                "type": "string",
+                "enum": [
+                  "token",
+                  "plan"
+                ],
+                "default": "token",
+                "description": "Billing mode: 'token' for per-token upstream billing (real charge), 'plan' when usage is covered by a token plan / subscription / OAuth plan (MiniMax token plan, Google AI plan) - the Est. cost stays indicative and is marked plan-covered in the dashboard"
+              },
               "pricing": {
                 "type": "object",
                 "properties": {
@@ -494,6 +533,21 @@
           "type": "string",
           "default": "https://openrouter.ai/api/v1",
           "description": "OpenRouter API base URL (100+ models via single OpenAI-compatible endpoint)"
+        },
+        "aiflowbridge.providers.googleaistudio.baseUrl": {
+          "type": "string",
+          "default": "https://generativelanguage.googleapis.com/v1beta",
+          "description": "Google AI Studio (Gemini) API base URL for the BYOK API-key route. OAuth / Antigravity / Cloud Code Assist uses a separate path - see docs/providers.md. The default targets the public Gemini API (not the Antigravity OAuth endpoint)."
+        },
+        "aiflowbridge.providers.googleaistudio.apiKey": {
+          "type": "string",
+          "description": "Google AI Studio (Gemini) API key for the BYOK route. Create one at https://aistudio.google.com/apikey. Distinct from the Antigravity OAuth tokens (which live in secrets.json under the antigravity key)."
+        },
+        "aiflowbridge.providers.googleaistudio.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum tokens per response (0 = default)"
         },
         "aiflowbridge.telemetry.enabled": {
           "type": "boolean",
@@ -636,6 +690,7 @@
     }
   },
   "scripts": {
+    "prepare": "node scripts/install-hooks.js",
     "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
     "clean:standalone": "node -e \"require('node:fs').rmSync('dist/standalone', { recursive: true, force: true })\" && node -e \"require('node:fs').rmSync('dist/aiflowbridge', { recursive: true, force: true })\" && node -e \"require('node:fs').rmSync('dist/logger.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/config.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/consts.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/types.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/json.js', { force: true })\"",
     "compile": "npm run clean && tsc -p ./",

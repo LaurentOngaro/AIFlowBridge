@@ -1,5 +1,5 @@
 export type BridgeMode = 'proxy' | 'vision' | 'proxy+vision';
-export type ProviderKind = 'openai-compat' | 'ollama';
+export type ProviderKind = 'openai-compat' | 'ollama' | 'antigravity' | 'googleaistudio';
 export type OutputMode = 'clipboard' | 'insert' | 'copilot';
 
 export interface ProviderPricing {
@@ -7,6 +7,21 @@ export interface ProviderPricing {
   outputPerMillion?: number;
   currency?: string;
 }
+
+/**
+ * Billing mode for a provider profile. `'token'` (default) means the
+ * upstream bills per token at the profile's `pricing` rates, so the
+ * computed cost is a real per-token charge. `'plan'` means the
+ * upstream usage is covered by a token plan / subscription / OAuth
+ * plan (MiniMax token plan, Google AI plan, ...) - the computed cost
+ * is an indicative equivalent at the same rates, NOT an actual bill.
+ *
+ * Optional for backward compatibility: absent means `'token'`. The
+ * gateway stamps it on every recorded entry (`RequestTelemetry.billedTo`)
+ * so the dashboard can distinguish the two without re-resolving
+ * the provider at render time.
+ */
+export type ProviderBillingMode = 'token' | 'plan';
 
 /**
  * Minimal disposable contract. Mirrors VS Code's `Disposable` shape so the
@@ -104,6 +119,12 @@ export interface IGatewayContext {
   onConfigChange?(cb: (event?: { affectsGateway: boolean }) => void): Disposable;
   /** Read the raw configuration. Called from `loadConfig()` and on every config reload. */
   getConfiguration(): ConfigReader;
+  /**
+   * Write a configuration value. Optional - only the VS Code adapter
+   * implements it (the standalone CLI edits `config.json` on disk via
+   * a different path and returns `undefined` here).
+   */
+  writeConfiguration?(key: string, value: unknown): Promise<void>;
   /** Register a command. Optional - only the VS Code adapter implements it. The standalone
    *  CLI has no command palette. */
   registerCommand?(command: string, callback: (...args: unknown[]) => unknown): Disposable;
@@ -133,6 +154,12 @@ export interface IGatewayContext {
    *  delegates to `vscode.env.clipboard.writeText`; standalone falls
    *  back to writing the text to `process.stdout`. */
   clipboardWrite?(text: string): void;
+  /** Open a URL in the host's default browser. Optional - the VS Code
+   *  adapter delegates to `vscode.env.openExternal`; standalone uses
+   *  the platform opener (`xdg-open` / `open` / `start`) and leaves
+   *  this undefined when no opener is available. Used by the Google
+   *  AI Studio OAuth login so the consent page opens automatically. */
+  openExternal?(url: string): void;
   /** Open the host settings UI scoped to the supplied query (e.g.
    *  `"aiflowbridge"`). Optional - the VS Code adapter delegates to
    *  `workbench.action.openSettings`; standalone has no settings UI and
@@ -153,6 +180,16 @@ export interface ProviderProfile {
   apiKey?: string;
   enabled: boolean;
   pricing?: ProviderPricing;
+  /**
+   * Billing mode for this profile (`'token'` per-token billing,
+   * `'plan'` when usage is covered by a token plan / subscription /
+   * OAuth plan). Defaults to `'token'` when absent. Resolved from
+   * `aiflowbridge.providers[].billing` (explicit user choice),
+   * else the vendor family default (OAuth kinds are always plan),
+   * else absent. The gateway stamps the resolved mode on every
+   * recorded `RequestTelemetry.billedTo` entry.
+   */
+  billing?: ProviderBillingMode;
 }
 
 export interface VisionProxySettings {
@@ -485,6 +522,16 @@ export interface RequestTelemetry {
   totalTokens: number;
   estimatedCost: number;
   estimated: boolean;
+  /**
+   * Billing mode resolved at recording time (`'token'` per-token
+   * billing, `'plan'` when covered by a token plan / subscription /
+   * OAuth plan). Copied from `ProviderProfile.billing` (default
+   * `'token'`). Optional for backward compatibility: older on-disk
+   * entries leave it `undefined` and the dashboard treats them as
+   * `'token'`-billed. The dashboard uses this to mark plan-covered
+   * rows and to split the headline totals.
+   */
+  billedTo?: ProviderBillingMode;
   /**
    * Stable identifier of the originating client (e.g.
    * `kilocode@1.2.3`, `continue@0.9.x`, `curl@8.10.1`,

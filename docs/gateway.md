@@ -245,23 +245,24 @@ It is best-effort: if the lock cannot be acquired, the new activation logs a war
 ## Using with Kilo Code or other OpenAI-compatible clients
 
 Any tool that supports the OpenAI API can use AIFlowBridge as a backend via the gateway.
-This lets you access DeepSeek, MiniMax, and Xiaomi MiMo models from clients other than Copilot Chat.
+This lets you access DeepSeek, MiniMax, Xiaomi MiMo, and Google AI Studio (Gemini) models from clients other than Copilot Chat.
 
 **Kilo Code configuration example:**
 
-| Setting      | Value                                                                   |
-| ------------ | ----------------------------------------------------------------------- |
-| API Provider | OpenAI Compatible                                                       |
-| Base URL     | `http://127.0.0.1:8787/v1`                                              |
-| API Key      | Any string (keys are managed by AIFlowBridge)                           |
-| Model        | `deepseek-v4-flash`, `MiniMax-M2.7`, `mimo-v2.5-pro`, `MiniMax-M3`, ... |
+| Setting      | Value                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| API Provider | OpenAI Compatible                                                                                                                   |
+| Base URL     | `http://127.0.0.1:8787/v1`                                                                                                          |
+| API Key      | Any string (keys are managed by AIFlowBridge)                                                                                       |
+| Model        | `deepseek-v4-flash`, `MiniMax-M2.7`, `mimo-v2.5-pro`, `MiniMax-M3`, `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, ... |
 
 The gateway routes requests to the correct upstream provider based on the model name. Streaming (`stream: true`) is fully supported.
+The three Gemini ids require either a Google AI Studio API key (`Google AI Studio: Set API Key (BYOK pay-as-you-go)` or `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`, the always-available public-API route) or, for accounts with whitelisted Cloud Code Assist tenants, the Antigravity OAuth flow (`AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)` plus `aiflowbridge.providers.googleaistudio.baseUrl = https://cloudcode-pa.googleapis.com`) - see [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go).
 
 ## Configuring gateway providers
 
 The gateway catalog is built from the [model registry](architecture.md#model-registry) and a few optional `settings.json` overrides.
-No need to maintain a long list of provider entries by hand - the registry already lists all 14 supported models, and the gateway synthesizes one catalog entry per registry model on activation.
+No need to maintain a long list of provider entries by hand - the registry already lists all 16 supported models, and the gateway synthesizes one catalog entry per registry model on activation.
 
 **Auto-synthesized entries** - for every model in the registry, the gateway creates a provider entry using the vendor defaults (from `registry.vendors[<family>].baseUrl`) and the model's per-token pricing.
 The synthesized `id` matches the registry model `id` exactly, so `GET /v1/models` returns the same set you see in the Copilot Chat picker.

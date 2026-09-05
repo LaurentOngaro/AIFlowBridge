@@ -15,6 +15,11 @@ The gateway also runs as a standalone Node.js CLI (`aiflowbridge-server`) withou
 - **Local install helper:** `pwsh -File _helpers/scripts/PublishAIFlowBridge.ps1`
 - **Private working notes setup:** `pwsh -File _helpers/scripts/SetupPrivateRepo.ps1`
 
+## Project memory and workflow (mandatory)
+
+- **Read `BRAIN.md` and `ACTION_PLAN.md` before starting any task.** `BRAIN.md` holds long-term project memory, architecture decisions, and sanitized context; `ACTION_PLAN.md` tracks short-term actions and blockers.
+- **Update `BRAIN.md` and `ACTION_PLAN.md` before every commit.** The git `pre-commit` hook blocks commits that touch neither file.
+
 ## Style rules (apply to every task)
 
 - **Chat interactions:** French (thinking, questions, answers).

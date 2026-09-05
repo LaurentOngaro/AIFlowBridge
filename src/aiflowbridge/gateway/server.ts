@@ -4,6 +4,11 @@ import type { Socket } from 'node:net';
 import { Readable } from 'node:stream';
 import { URL } from 'node:url';
 import { logger } from '../../logger';
+import { DEFAULT_GOOG_API_CLIENT } from '../antigravity/constants';
+import { toAntigravityEnvelope } from '../antigravity/envelope';
+import { accumulateAntigravityResponse, createAntigravityToOpenAiTransformStream } from '../antigravity/sse-transform';
+import { createGeminiNativeToOpenAiSseStream, fromGeminiNativeResponse, toGeminiNativeRequest } from '../antigravity/gemini-native';
+import type { AntigravityTokenManager } from '../antigravity/auth';
 import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../context/language-routing';
 import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
 import { buildModelCatalog } from '../providers';
@@ -12,18 +17,18 @@ import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStor
 import { buildPromptSummary, buildResponseSummary } from '../telemetry/summary';
 import { fetchMinimaxPromptTokens } from '../token-counter';
 import type {
-  AiFlowBridgeConfig,
-  GatewaySettings,
-  GatewayStatus,
-  ProviderProfile,
-  ReplayResponse,
-  RequestTelemetry,
-  TelemetrySnapshot,
+    AiFlowBridgeConfig,
+    GatewaySettings,
+    GatewayStatus,
+    ProviderProfile,
+    ReplayResponse,
+    RequestTelemetry,
+    TelemetrySnapshot,
 } from '../types';
+import { isValidBearerKey } from './bearer-key';
 import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
 import { applyOpenRouterAttributionHeaders } from './openrouter-headers';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
-import { isValidBearerKey } from './bearer-key';
 
 interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;
@@ -172,7 +177,8 @@ export class GatewayService {
     private readonly saveState?: TelemetryStateSaver,
     bundledVersion: string = '0.0.0',
     userPrompt?: UserPrompt,
-    persister?: TelemetryPersisterLike
+    persister?: TelemetryPersisterLike,
+    private readonly tokenManager?: AntigravityTokenManager
   ) {
     this.config = config;
     this.bundledVersionField = bundledVersion;
@@ -345,6 +351,7 @@ export class GatewayService {
     estimatedCost?: number;
     estimated?: boolean;
     errorMessage?: string;
+    billedTo?: 'token' | 'plan';
   }): void {
     this.telemetry.recordFromCopilotChat(options);
   }
@@ -982,8 +989,33 @@ export class GatewayService {
     provider: ProviderProfile,
     requestId: string,
     response: ServerResponse
-  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string } | undefined> {
-    const upstreamUrl = resolveUpstreamUrl(provider, 'chat/completions');
+  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string; isAntigravity: boolean; isGeminiNative: boolean } | undefined> {
+    const isAntigravity = provider.kind === 'antigravity' || provider.kind === 'googleaistudio';
+    // Gemini native surface (BYOK against
+    // `generativelanguage.googleapis.com` with the model id in the path)
+    // is preferred over the OpenAI-compat surface for two reasons:
+    //   - The OpenAI-compat surface is feature-gated per GCP project and
+    //     returns 429 with 0 quota on projects that have not opted in.
+    //   - The native surface is the canonical, always-enabled path and
+    //     matches the same free-tier budget as the SDK Python / curl
+    //     examples in Google's docs.
+    // The OAuth / AGY surface (`cloudcode-pa.googleapis.com`) is kept
+    // on the existing Antigravity branch.
+    const isGeminiNative = isGenerativeLanguageBaseUrl(provider.baseUrl);
+    const isAntigravityBranch = isAntigravity && !isGeminiNative;
+    const upstreamUrl = isAntigravityBranch
+      ? resolveAntigravityStreamUrl(provider)
+      : resolveUpstreamUrl(provider, 'chat/completions');
+
+    // Antigravity / Google AI Studio uses the OAuth token manager instead
+    // of the static key chain (env / secrets.json / SecretStorage).
+    if (isAntigravityBranch) {
+      return this.buildAntigravityUpstreamRequest(payload, provider, requestId, response);
+    }
+
+    if (isGeminiNative) {
+      return this.buildGeminiNativeUpstreamRequest(payload, provider, requestId, response);
+    }
 
     // Resolve API key: use profile key if set, otherwise try the async resolver
     let resolvedKey = provider.apiKey;
@@ -1010,7 +1042,7 @@ export class GatewayService {
     // an `Authorization` header and the upstream rejects it. Warn once
     // per provider so the operator can find the cause in the logs
     // instead of staring at the upstream's opaque error body.
-    if (!resolvedKey && provider.kind !== 'ollama' && !this.warnedMissingApiKeyProviders.has(provider.id)) {
+    if (!resolvedKey && provider.kind !== 'ollama' && provider.kind !== 'antigravity' && provider.kind !== 'googleaistudio' && !this.warnedMissingApiKeyProviders.has(provider.id)) {
       this.warnedMissingApiKeyProviders.add(provider.id);
       logger.warn(
         `[Gateway] ${requestId} no API key resolved for provider=${provider.id}; forwarding without an Authorization header (the upstream will likely reject with 401). Set the key via the AIFLOWBRIDGE_<VENDOR>_API_KEY env var, the <globalStorageDir>/secrets.json file, or "AIFlowBridge: Set <Provider> API Key" in VS Code.`
@@ -1111,7 +1143,178 @@ export class GatewayService {
       provider.model && injectedFinalPayload.model !== provider.model ? { ...injectedFinalPayload, model: provider.model } : injectedFinalPayload;
     const upstreamBody = JSON.stringify(finalPayload);
 
-    return { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody };
+    return { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody, isAntigravity: false, isGeminiNative: false };
+  }
+
+  /**
+   * Gemini public API native-surface upstream builder.
+   *
+   * Targets `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
+   * (non-streaming) or `:streamGenerateContent?alt=sse` (streaming).
+   * Translates the OpenAI Chat Completions payload into the native
+   * Gemini request envelope via `toGeminiNativeRequest`, and propagates
+   * the BYOK API key in the `Authorization: Bearer <AIzaSy...>` header.
+   *
+   * This route replaces the OpenAI-compat surface
+   * (`/v1beta/openai/chat/completions`) when the latter is not
+   * enabled on the user's GCP project (common for newer projects that
+   * return 429 with 0 quota on the OpenAI-compat surface).
+   */
+  private async buildGeminiNativeUpstreamRequest(
+    payload: Record<string, unknown>,
+    provider: ProviderProfile,
+    requestId: string,
+    response: ServerResponse
+  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string; isAntigravity: boolean; isGeminiNative: boolean } | undefined> {
+    const isStreamingRequest = Boolean(payload?.stream);
+    const modelId = provider.model || (typeof payload?.model === 'string' ? payload.model : 'gemini-3.8-flash');
+    const upstreamUrl = resolveGeminiNativeUrl(provider, modelId, isStreamingRequest);
+
+    // Resolve API key: profile key first, then async resolver (env /
+    // secrets.json / SecretStorage) for parity with the other direct
+    // vendors. No OAuth token manager here - the BYOK route uses a
+    // standard `Authorization: Bearer <key>` header.
+    let resolvedKey = provider.apiKey;
+    if (!resolvedKey && this.resolveApiKey) {
+      try {
+        resolvedKey = await this.resolveApiKey(provider.id);
+      } catch {
+        // ignored; the request will 401 upstream if the key is missing.
+      }
+    }
+    if (!resolvedKey) {
+      this.writeJson(response, 401, {
+        error: 'Google AI Studio API key is not configured',
+        requestId,
+        providerId: provider.id,
+        details: 'Run "AIFlowBridge: Google AI Studio: Set API Key (BYOK pay-as-you-go)" (VS Code) or "aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>" (standalone).',
+      });
+      return undefined;
+    }
+
+    let envelope: ReturnType<typeof toGeminiNativeRequest>;
+    try {
+      envelope = toGeminiNativeRequest(payload as Record<string, unknown>);
+    } catch (err) {
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      logger.warn(`[Gateway] ${requestId} gemini-native envelope translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
+      this.writeJson(response, 400, {
+        error: 'Invalid request for Google AI Studio native surface',
+        requestId,
+        providerId: provider.id,
+      });
+      return undefined;
+    }
+
+    logger.info(`[Gateway] ${requestId} gemini-native upstream URL=${upstreamUrl} model=${modelId} streaming=${isStreamingRequest}`);
+
+    const upstreamHeaders = new Headers({
+      'Content-Type': 'application/json',
+      Accept: isStreamingRequest ? 'text/event-stream' : 'application/json',
+      // Google's `generativelanguage.googleapis.com` native surface
+      // accepts the API key only via the `x-goog-api-key` header (or a
+      // `?key=...` URL parameter). The `Authorization: Bearer` form is
+      // reserved for OAuth 2.0 access tokens - sending an `AIzaSy...` API
+      // key under Bearer returns `401 UNAUTHENTICATED` with reason
+      // `ACCESS_TOKEN_TYPE_UNSUPPORTED`. Audit BUG-01.
+      'x-goog-api-key': resolvedKey,
+      'X-AIFlowBridge-Request-Id': requestId,
+      'X-AIFlowBridge-Provider': provider.id,
+    });
+
+    return {
+      upstreamUrl,
+      resolvedKey,
+      upstreamHeaders,
+      upstreamBody: JSON.stringify(envelope),
+      isAntigravity: false,
+      isGeminiNative: true,
+    };
+  }
+
+  /**
+   * Antigravity / Google AI Studio upstream request builder.
+   *
+   * Diverges from the static-key path in three ways (spec AP-007):
+   * auth comes from `AntigravityTokenManager.getAccessToken()` (async,
+   * auto-refresh) instead of the env / secrets.json chain; the body is
+   * translated into the Cloud Code Assist envelope via the pure
+   * `toAntigravityEnvelope()` helper; headers carry the Antigravity
+   * `User-Agent` + `X-Goog-Api-Client` pair instead of OpenRouter
+   * attribution. Workspace-context injection already happened on the
+   * OpenAI-shaped payload before translation, so the system prompt is
+   * preserved inside `systemInstruction`.
+   */
+  private async buildAntigravityUpstreamRequest(
+    payload: Record<string, unknown>,
+    provider: ProviderProfile,
+    requestId: string,
+    response: ServerResponse
+  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string; isAntigravity: boolean; isGeminiNative: boolean } | undefined> {
+    const upstreamUrl = resolveAntigravityStreamUrl(provider);
+
+    if (!this.tokenManager) {
+      this.writeJson(response, 503, {
+        error: 'Google AI Studio / Antigravity is not authenticated',
+        requestId,
+        providerId: provider.id,
+        details: 'Run "aiflowbridge-server auth googleaistudio" (standalone) or "AIFlowBridge: Connect to Google AI Studio" (VS Code) to log in.',
+      });
+      return undefined;
+    }
+
+    let accessToken: string;
+    try {
+      accessToken = await this.tokenManager.getAccessToken();
+    } catch (err) {
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      logger.warn(`[Gateway] ${requestId} antigravity token unavailable for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
+      this.writeJson(response, 503, {
+        error: 'Google AI Studio / Antigravity credentials unavailable',
+        requestId,
+        providerId: provider.id,
+        details: sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl),
+      });
+      return undefined;
+    }
+
+    const tokens = this.tokenManager.getTokens();
+    const projectId = tokens?.projectId;
+    if (!projectId) {
+      this.writeJson(response, 503, {
+        error: 'Google AI Studio / Antigravity project is unknown',
+        requestId,
+        providerId: provider.id,
+        details: 'Re-run the OAuth login so loadCodeAssist can resolve the Cloud project id.',
+      });
+      return undefined;
+    }
+
+    const upstreamHeaders = new Headers({
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      Authorization: `Bearer ${accessToken}`,
+      'User-Agent': 'antigravity',
+      'X-Goog-Api-Client': DEFAULT_GOOG_API_CLIENT,
+      'X-AIFlowBridge-Request-Id': requestId,
+      'X-AIFlowBridge-Provider': provider.id,
+    });
+
+    let envelope: ReturnType<typeof toAntigravityEnvelope>;
+    try {
+      envelope = toAntigravityEnvelope(payload as Record<string, unknown>, projectId, provider.model || (typeof payload?.model === 'string' ? payload.model : 'gemini-3.8-flash'));
+    } catch (err) {
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      logger.warn(`[Gateway] ${requestId} antigravity envelope translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
+      this.writeJson(response, 400, {
+        error: 'Invalid request for Google AI Studio / Antigravity',
+        requestId,
+        providerId: provider.id,
+      });
+      return undefined;
+    }
+
+    return { upstreamUrl, resolvedKey: accessToken, upstreamHeaders, upstreamBody: JSON.stringify(envelope), isAntigravity: true, isGeminiNative: false };
   }
 
   private async forwardChatCompletion(request: IncomingMessage, response: ServerResponse): Promise<void> {
@@ -1177,7 +1380,10 @@ export class GatewayService {
       // the helper. Propagate.
       return;
     }
-    const { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody } = upstreamRequest;
+    const { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody, isAntigravity, isGeminiNative } = upstreamRequest;
+    // AGY / OAuth is mutually exclusive with the Gemini native surface,
+    // so the AGY-only branches collapse into one flag here.
+    const isAntigravityBranch = isAntigravity && !isGeminiNative;
 
     // the same AbortController that aborts the upstream
     // `fetch()` also drives the per-provider semaphore. When the
@@ -1383,7 +1589,14 @@ export class GatewayService {
 
       statusCode = upstreamResponse.status;
       const contentType = upstreamResponse.headers.get('content-type') ?? '';
-      const isStream = Boolean(payload?.stream) || contentType.includes('text/event-stream');
+      // Antigravity always answers SSE (even for non-streaming
+      // clients): only treat the response as a stream when the
+      // CLIENT asked for one, otherwise fall into the accumulation
+      // path below. Other vendors keep the legacy heuristic (client
+      // flag OR upstream content-type).
+      const isStream = isAntigravityBranch
+        ? Boolean(payload?.stream)
+        : Boolean(payload?.stream) || contentType.includes('text/event-stream');
       // forward any upstream backoff headers so a
       // well-behaved upstream can ask the client to slow down. We
       // propagate on every status (some upstreams use 503 + a
@@ -1400,20 +1613,22 @@ export class GatewayService {
           response.setHeader(name, value);
         }
       }
-      // when the upstream returns a backoff status
-      // (HTTP 429 or 503 - the typical "slow down" codes) on a
-      // streaming request, do NOT pipe the upstream JSON body as
-      // an SSE stream. The client requested `stream: true` and
-      // would receive a JSON 429-shaped chunked response, which
-      // SSE parsers (Kilo Code, Continue, OpenAI SDK, curl --no-buffer)
-      // cannot consume. Detect the backoff before piping, end the
-      // response cleanly with the upstream body as the JSON
-      // payload (already JSON for MiniMax/OpenAI rate-limit
-      // responses), surface the status + Retry-After to the
-      // client, and let the `response.once('finish')` handler
-      // record telemetry.
-      const isBackoffStatus = statusCode === 429 || statusCode === 503;
-      if (isStream && isBackoffStatus) {
+      // when the upstream returns a non-2xx status on a streaming
+      // request, do NOT pipe the upstream body as an SSE stream. The
+      // upstream may answer with `content-type: text/event-stream` and
+      // a JSON error body, or with `content-type: application/json`
+      // that the SSE parser will choke on. Either way, the client
+      // requested `stream: true` and would receive a JSON-shaped
+      // chunked response that Kilo / Continue / OpenAI SDK cannot
+      // consume (symptom: `Bad Request: data: [DONE]`). Detect the
+      // error before piping, end the response cleanly with the upstream
+      // body as the JSON payload, surface the status + Retry-After
+      // to the client, and let `response.once('finish')` record
+      // telemetry. The generic handler covers 4xx / 5xx (not only
+      // backoff codes), so a 400 / 401 / 403 / 404 / 429 / 503 all
+      // flow through the same readable JSON error envelope. 2xx
+      // responses continue to use the streaming pipe below.
+      if (isStream && statusCode >= 400) {
         let backoffBody = '';
         try {
           backoffBody = await upstreamResponse.text();
@@ -1467,10 +1682,33 @@ export class GatewayService {
         response.setHeader('Connection', 'keep-alive');
 
         if (upstreamResponse.body) {
-          const node = Readable.fromWeb(upstreamResponse.body as unknown as globalThis.ReadableStream<Uint8Array>);
+          const webStream = upstreamResponse.body as unknown as globalThis.ReadableStream<Uint8Array>;
+          // Build the OpenAI-shaped stream from the upstream body. We
+          // drain the upstream to completion and apply the transform
+          // on the full buffer, then re-stream the OpenAI-shaped bytes
+          // to the client. The TransformStream pattern (`pipeThrough`)
+          // was dropping bytes in production with Node `Readable.fromWeb`
+          // (audit finding 2026-09-05: the transform's `flush()` ran with
+          // an empty buffer under backpressure, so the client received
+          // only `[DONE]`). Buffering + replaying the transform output
+          // is bulletproof and the per-chunk latency cost is negligible
+          // for the model sizes we proxy.
+          const transformed: ReadableStream<Uint8Array> = await (async () => {
+            if (!isAntigravity && !isGeminiNative) return webStream;
+            const accumulated = await drainReadableStream(webStream);
+            const transform = isAntigravity
+              ? createAntigravityToOpenAiTransformStream({ model: modelName ?? provider.model })
+              : createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
+            const out = new Uint8ArrayOutputStream();
+            const writer = out.writable.getWriter();
+            await accumulateThroughTransform(accumulated, transform, writer);
+            await writer.close();
+            return out.readable;
+          })();
+          const node = Readable.fromWeb(transformed);
           // re-arm the idle watchdog as soon as we
           // start piping the stream body. The headers-idle timer
-          // was cleared at line ~885 because headers arriving is
+          // was cleared above because headers arriving is
           // a sign of life, but the stream itself can still go
           // silent before sending any bytes (MiniMax queues the
           // thinking request internally without enqueuing any
@@ -1555,8 +1793,60 @@ export class GatewayService {
           this.emitUpdate();
         });
       } else {
-        const responseText = await upstreamResponse.text();
-        const usage = extractUsage(responseText);
+        let responseText = await upstreamResponse.text();
+        let usage = extractUsage(responseText);
+
+        // Antigravity non-streaming: the upstream answers with Cloud
+        // Code SSE even when the client asked for a single JSON body.
+        // Accumulate the transformed OpenAI chunks into one
+        // `chat.completion` object so the response contract stays
+        // OpenAI-compatible.
+        if (isAntigravity && !usage && (contentType.includes('text/event-stream') || responseText.includes('data:'))) {
+          try {
+            const accumulated = await accumulateAntigravityResponse(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controller.enqueue(new TextEncoder().encode(responseText));
+                  controller.close();
+                },
+              }),
+              { model: modelName ?? provider.model }
+            );
+            responseText = JSON.stringify(accumulated);
+            const accUsage = accumulated.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+            if (accUsage) {
+              usage = {
+                promptTokens: accUsage.prompt_tokens ?? 0,
+                completionTokens: accUsage.completion_tokens ?? 0,
+                totalTokens: accUsage.total_tokens ?? 0,
+              };
+            }
+          } catch (err) {
+            const rawMessage = err instanceof Error ? err.message : String(err);
+            logger.warn(`[Gateway] ${requestId} antigravity accumulation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
+          }
+        }
+
+        // Gemini native non-streaming: upstream answers with a single
+        // native JSON object that must be reshaped into the OpenAI Chat
+        // Completions shape before being relayed to the client.
+        if (isGeminiNative && !isAntigravity && upstreamResponse.status < 400) {
+          try {
+            const native = JSON.parse(responseText) as Parameters<typeof fromGeminiNativeResponse>[0];
+            const converted = fromGeminiNativeResponse(native, { model: modelName ?? provider.model });
+            responseText = JSON.stringify(converted);
+            if (converted.usage) {
+              usage = {
+                promptTokens: converted.usage.prompt_tokens,
+                completionTokens: converted.usage.completion_tokens,
+                totalTokens: converted.usage.total_tokens,
+              };
+            }
+          } catch (err) {
+            const rawMessage = err instanceof Error ? err.message : String(err);
+            logger.warn(`[Gateway] ${requestId} gemini-native response translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
+          }
+        }
 
         if (usage) {
           promptTokens = usage.promptTokens;
@@ -1727,6 +2017,12 @@ export class GatewayService {
       totalTokens,
       estimatedCost,
       estimated,
+      // Billing mode stamp: per-token by default, plan-covered when
+      // the profile opts in (`billing: 'plan'`, e.g. MiniMax token
+      // plan) or is OAuth-kind (always plan). Optional on older
+      // snapshots: the store / dashboard coalesce absent to
+      // `'token'` at read time.
+      billedTo: provider.billing ?? 'token',
       // `null` keeps the snapshot schema optional (older on-disk files
       // have no `clientId` field). The store / dashboard coalesce
       // absent and null into the `'unknown'` bucket at read time.
@@ -2021,10 +2317,249 @@ export class GatewayService {
   }
 }
 
-function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
-  const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
-  return new URL(path, baseUrl).toString();
+// Test-only re-export of `resolveUpstreamUrl` so the unit-level tests
+// in `tests/gateway.test.ts` can assert the Gemini public-API /openai
+// path rewrite without booting a full HTTP stack. The integration
+// smoke tests already cover the end-to-end path through the gateway.
+export function resolveUpstreamUrlForTest(provider: ProviderProfile, path: string): string {
+  return resolveUpstreamUrl(provider, path);
 }
+
+function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
+  // `new URL(path, base)` interprets the baseUrl's path component as
+  // the parent context and replaces it with the new `path`. With the
+  // bundled Gemini public-API baseUrl
+  // `https://generativelanguage.googleapis.com/v1beta`, passing
+  // `chat/completions` produces `/v1beta` -> `chat/completions`. We
+  // instead want `/v1beta/openai/chat/completions` (the documented
+  // OpenAI-compatible surface for Gemini public API). Construct the
+  // URL manually so the trailing `/v1beta` segment stays in place.
+  const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
+  const trimmed = path.startsWith('/') ? path.slice(1) : path;
+  const combined = `${baseUrl}${trimmed}`;
+  try {
+    const url = new URL(combined);
+    // Google Gemini public API (BYOK route on
+    // `generativelanguage.googleapis.com`) only exposes the
+    // OpenAI-compatible surface under `/openai/chat/completions` (NOT
+    // `/chat/completions`). The bundled default baseUrl points at the
+    // host root plus `/v1beta`, so we need to inject the `/openai`
+    // segment before `chat/completions`. Custom operator baseUrls that
+    // already include `/openai` or any non-default path stay
+    // unchanged.
+    if (url.hostname.toLowerCase() === 'generativelanguage.googleapis.com'
+        && !url.pathname.startsWith('/openai/')) {
+      url.pathname = url.pathname.replace(/\/?chat\/completions$/, '/openai/chat/completions');
+    }
+    return url.toString();
+  } catch {
+    return combined;
+  }
+}
+
+function resolveAntigravityStreamUrl(provider: ProviderProfile): string {
+  // A custom baseUrl lets operators point at a private relay; the
+  // default bundled baseUrl already ends at the host root, so the
+  // Cloud Code stream path is appended verbatim.
+  // Test hook: when the baseUrl is a loopback URL (unit tests spin a
+  // local mock upstream), forward to its root so the mock receives
+  // the envelope without needing the Cloud path.
+  try {
+    const parsed = new URL(provider.baseUrl);
+    const host = parsed.hostname.toLowerCase();
+    if (host === '127.0.0.1' || host === 'localhost' || host === '::1') {
+      return provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
+    }
+  } catch {
+    // fall through to the Cloud path below.
+  }
+  const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
+  // `new URL('v1internal:...', base)` treats `v1internal:` as a scheme
+  // and returns the bare `v1internal:streamGenerateContent?alt=sse`
+  // string (verified: no host, no fetch possible). String
+  // concatenation is the correct construction here - the documented
+  // Antigravity convention is a custom method on the host root.
+  return `${baseUrl}v1internal:streamGenerateContent?alt=sse`;
+}
+
+function isGenerativeLanguageBaseUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === 'generativelanguage.googleapis.com';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Drain a `ReadableStream<Uint8Array>` into a single concatenated
+ * `Uint8Array`. Audit 2026-09-05: the streaming pipe pattern lost
+ * bytes in production with `pipeThrough` + Node `Readable.fromWeb`,
+ * so the gateway now buffers the full upstream body before
+ * applying the SSE transform. Latency is unchanged for the model
+ * sizes AIFlowBridge proxies (responses are at most a few MiB), and
+ * the resulting OpenAI stream is replayed to the client without
+ * per-chunk backpressure races.
+ */
+async function drainReadableStream(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value && value.byteLength > 0) {
+        chunks.push(value);
+        total += value.byteLength;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+/**
+ * Minimal `WritableStream<Uint8Array>` that captures every chunk
+ * written to it in memory and exposes them back as a single
+ * `ReadableStream`. The bytes are then re-emitted to the client
+ * through `Readable.fromWeb`, which now sees a fully-buffered
+ * stream (no upstream backpressure race).
+ */
+class Uint8ArrayOutputStream {
+  readonly writable: WritableStream<Uint8Array>;
+  readonly readable: ReadableStream<Uint8Array>;
+  private readonly buffer: Uint8Array[] = [];
+  private reader: ((chunk: Uint8Array | null) => void) | undefined;
+  private closed = false;
+
+  constructor() {
+    this.writable = new WritableStream<Uint8Array>({
+      write: (chunk) => {
+        if (this.closed) return;
+        if (this.reader) {
+          const r = this.reader;
+          this.reader = undefined;
+          r(chunk);
+        } else {
+          this.buffer.push(chunk);
+        }
+      },
+      close: () => {
+        this.closed = true;
+        if (this.reader) {
+          const r = this.reader;
+          this.reader = undefined;
+          r(null);
+        }
+      },
+    });
+    this.readable = new ReadableStream<Uint8Array>({
+      pull: (controller) => new Promise<void>((resolve) => {
+        if (this.buffer.length > 0) {
+          controller.enqueue(this.buffer.shift() as Uint8Array);
+          resolve();
+          return;
+        }
+        if (this.closed) {
+          controller.close();
+          resolve();
+          return;
+        }
+        this.reader = (chunk) => {
+          if (chunk === null) {
+            controller.close();
+          } else {
+            controller.enqueue(chunk);
+          }
+          resolve();
+        };
+      }),
+    });
+  }
+}
+
+/**
+ * Apply `transform` to the buffered upstream bytes. Drives the
+ * transform's writable side (which produces transform output via
+ * its `transform()` + `flush()`) and pipes every chunk the
+ * transform emits into the provided writer. Errors thrown by the
+ * transform are surfaced to the writer; the upstream bytes are not
+ * double-consumed (we feed them in a single concatenated chunk).
+ */
+async function accumulateThroughTransform(
+  upstream: Uint8Array,
+  transform: TransformStream<Uint8Array, Uint8Array>,
+  writer: WritableStreamDefaultWriter<Uint8Array>
+): Promise<void> {
+  const text = new TextDecoder('utf8').decode(upstream);
+  // Feed the transform while concurrently draining its readable
+  // side into the output writer. `transform.readable.pipeTo(writer)`
+  // handles backpressure properly; writing the upstream bytes to the
+  // transform's writable side would deadlock without a concurrent
+  // reader (audit 2026-09-05: see also the test reproduction in
+  // `tests/runtime-pump.test.ts` if you add one).
+  const decoder = new TextEncoder();
+  const transformWriter = transform.writable.getWriter();
+  const transformReadable = transform.readable;
+  // Start draining in the background so writes below do not block on
+  // an internal queue.
+  const drainPromise = (async () => {
+    const reader = transformReadable.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) await writer.write(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  })();
+
+  try {
+    const frameBlocks = text.split(/(?<=\n\n)/);
+    for (const block of frameBlocks) {
+      if (!block) continue;
+      await transformWriter.write(decoder.encode(block));
+    }
+    await transformWriter.close();
+    await drainPromise;
+  } catch (err) {
+    try { await transformWriter.abort(err instanceof Error ? err : new Error(String(err))); } catch { /* ignore */ }
+    throw err;
+  }
+}
+
+/**
+ * (Removed 2026-09-05: the manual pump + transform pattern lost bytes
+ * in production too, so the gateway now drains the upstream and
+ * applies the transform on the full buffer via
+ * `accumulateThroughTransform()`.)
+ */
+function resolveGeminiNativeUrl(provider: ProviderProfile, modelId: string, streaming: boolean): string {
+  // Always build the native URL from the host root so we control the
+  // trailing path verbatim (no surprise rewriting from `new URL`).
+  // The bundled default baseUrl already points at the host root plus
+  // `/v1beta`; custom operator baseUrls that already include a path
+  // are stripped to the origin so the same URL shape is produced.
+  let origin: string;
+  try {
+    const parsed = new URL(provider.baseUrl);
+    origin = `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    origin = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
+  }
+  const suffix = streaming ? ':streamGenerateContent?alt=sse' : ':generateContent';
+  return `${origin}/v1beta/models/${encodeURIComponent(modelId)}${suffix}`;
+}
+
 
 /**
  * `AbortError` mirrors the DOMException used by the

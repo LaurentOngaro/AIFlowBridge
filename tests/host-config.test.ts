@@ -264,12 +264,49 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     expect(providers.find((p) => p.model === 'mimo-v2-omni')).toBeDefined();
   });
 
+  it('synthesizes the new googleaistudio models as openai-compat on the BYOK baseUrl', () => {
+    // Bundle flipped the default googleaistudio baseUrl to the public
+    // Gemini API (`generativelanguage.googleapis.com`). Synthesized
+    // profiles must follow that baseUrl into `kind: 'openai-compat'`
+    // so the runtime uses the generic upstream path with an `AIzaSy...`
+    // API key, NOT the AGY OAuth envelope + SSE transform path.
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    const gemini = providers.find((p) => p.id === 'gemini-3.8-flash');
+    expect(gemini).toBeDefined();
+    expect(gemini?.kind).toBe('openai-compat');
+    expect(gemini?.model).toBe('gemini-3.8-flash');
+    expect(gemini?.billing).toBeUndefined();
+    const deepseek = providers.find((p) => p.id === 'deepseek-v4-flash');
+    expect(deepseek?.kind).toBe('openai-compat');
+  });
+
+  it('switches to the antigravity kind when the user points baseUrl at cloudcode-pa', () => {
+    // Same family, different upstream: the AGY / Cloud Code Assist
+    // route. The user opts in via `aiflowbridge.providers.googleaistudio.baseUrl`
+    // override, the synthesizer reads the host and tags the profile
+    // `kind: 'googleaistudio'` + `billing: 'plan'`. Both legacy and
+    // current tests land here.
+    const config = {
+      get: (key: string, fallback?: unknown) => {
+        if (key === 'providers.googleaistudio.baseUrl') return 'https://cloudcode-pa.googleapis.com';
+        return fallback;
+      },
+    };
+    const providers = synthesizeProvidersFromBuiltInModels([], config as never, loadBundledRegistry());
+    const gemini = providers.find((p) => p.id === 'gemini-3.8-flash');
+    expect(gemini).toBeDefined();
+    expect(gemini?.kind).toBe('googleaistudio');
+    expect(gemini?.billing).toBe('plan');
+  });
+
   it('preserves the order: existing providers first, then built-in syntheses', () => {
     const providers = synthesizeProvidersFromBuiltInModels([baseProvider()], fakeConfig() as never, loadBundledRegistry());
     expect(providers[0].id).toBe('MiniMax-M2.7');
-    // First synthesized entry should be a deepseek model (since the
-    // bundled registry starts with the deepseek family).
-    expect(providers[1].id).toBe('deepseek-v4-flash');
+    // First synthesized entries are the Gemini models (the bundled
+    // registry lists the googleaistudio family first), followed by
+    // the deepseek family.
+    expect(providers[1].id).toBe('gemini-3.8-flash');
+    expect(providers.find((p) => p.id === 'deepseek-v4-flash')).toBeDefined();
   });
 
   it('uses the vendor baseUrl from the configuration override when present', () => {
