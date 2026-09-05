@@ -30,6 +30,12 @@ export interface ExportedRequestEntry {
   billedTo: string;
   /** Origin of the request (`gateway` / `copilot-chat` / unknown). */
   source: string;
+  /**
+   * Resolved authentication mode (`byok` / `oauth` / `plan` /
+   * `token` / `unknown`). Coalesced to `'unknown'` on older
+   * pre-2.18.2 entries so the export stays coherent.
+   */
+  authMode: string;
   /** Stable identifier of the originating client (e.g. `kilocode@1.2.3`). */
   clientId: string;
   /** Sanitized prompt summary captured at recording time (may be empty). */
@@ -48,6 +54,7 @@ export interface ExportMetadata {
   filters: {
     preset: string;
     provider: string;
+    auth: string;
     fromDate: string;
     toDate: string;
     search: string;
@@ -79,6 +86,7 @@ export const CSV_COLUMNS: ReadonlyArray<keyof ExportedRequestEntry> = [
   'estimated',
   'billedTo',
   'source',
+  'authMode',
   'clientId',
   'promptSummary',
   'responseSummary',
@@ -885,6 +893,15 @@ export function buildDashboardHtml(
         <div class="filters" id="dashboard-filters">
           ${renderPresetSelect('recent-preset')}
           ${renderProviderSelect('recent-provider')}
+          <label class="muted" for="recent-auth">Auth</label>
+          <select class="preset-select" id="recent-auth" aria-label="Filter by authentication mode">
+            <option value="">All auth modes</option>
+            <option value="byok">byok</option>
+            <option value="oauth">oauth</option>
+            <option value="plan">plan</option>
+            <option value="token">token</option>
+            <option value="unknown">unknown</option>
+          </select>
           <span class="filter-separator" aria-hidden="true"></span>
           <label class="muted" for="recent-from">From</label>
           <input type="date" class="date-input" id="recent-from" />
@@ -1004,6 +1021,18 @@ export function buildDashboardHtml(
       </div>
       <div class="panel-body">
         ${renderSourceSummary(snapshot)}
+      </div>
+    </div>
+
+    <div class="panel" id="panel-auth">
+      <div class="panel-header">
+        <button type="button" class="collapse-btn" data-collapse-target="panel-auth" aria-expanded="true" title="Toggle section">
+          <span class="chevron">&#9662;</span>
+          <h2>By auth</h2>
+        </button>
+      </div>
+      <div class="panel-body">
+        ${renderAuthSummary(snapshot)}
       </div>
     </div>
 
@@ -1156,9 +1185,10 @@ export function buildDashboardHtml(
       // date, provider, model, client, duration, tokens, cost,
       // token source, path = 10 in the no-remove path, +1 action
       // column when present.
-      const recentColspan = canRemove ? 11 : 10;
+      const recentColspan = canRemove ? 12 : 11;
       const byModel = ${serializeByModel(snapshot.byModel)};
       const byProvider = ${serializeByProvider(snapshot.byProvider)};
+      const byAuth = ${serializeByAuth(snapshot.byAuth)};
       const pricingMaps = ${serializePricingMaps(pricingMaps)};
       // regression fix: cumulative snapshot totals are needed by
       // updateTotals() when no filter is active. The server-side render
@@ -1261,6 +1291,12 @@ export function buildDashboardHtml(
           // Billing mode: typing 'plan' filters to token-plan /
           // subscription / OAuth rows, 'token' to per-token rows.
           entry.billedTo === "plan" ? "plan plan-billed" : "token",
+          // Per-authentication-mode: typing 'byok', 'oauth',
+          // 'plan', or 'token' filters to the matching mode. The
+          // raw authMode value is included so the user can find
+          // traffic by exact mode name without grep-ing the
+          // column.
+          entry.authMode || "unknown",
         ].join(" ").toLowerCase();
       }
       function matchesSearch(entry, needle) {
@@ -1320,7 +1356,17 @@ export function buildDashboardHtml(
       function applyAllFilters(f) {
         let filtered = applyTimeAndDateFilters(f.range, f.from, f.to);
         filtered = filterByProvider(filtered, f.provider);
+        filtered = filterByAuth(filtered, f.auth);
         return filtered;
+      }
+
+      // Per-authentication-mode filter. Empty value = no filter.
+      // Coalesce absent authMode to 'unknown' so the 'unknown'
+      // bucket behaves the same way as on the snapshot map (older
+      // entries pre-date the field and live in that bucket).
+      function filterByAuth(entries, authMode) {
+        if (!authMode) return entries;
+        return entries.filter((entry) => (entry.authMode || "unknown") === authMode);
       }
 
       // The webview cannot import modules, so the client-id truncation
@@ -1468,6 +1514,10 @@ export function buildDashboardHtml(
           // by 'source'. Coalesce absent to 'gateway' so older
           // entries do not sort to the top by default.
           case "source": return entry.source || "gateway";
+          // Per-authentication-mode sort key. Coalesce absent to
+          // 'unknown' for the same reason (older entries pre-date
+          // the authMode field).
+          case "authMode": return entry.authMode || "unknown";
           default: return "";
         }
       }
@@ -1853,7 +1903,7 @@ export function buildDashboardHtml(
         "id", "timestamp", "providerId", "providerLabel", "model",
         "status", "durationMs", "promptTokens", "completionTokens",
         "totalTokens", "estimatedCost", "estimated", "billedTo", "source",
-        "clientId", "promptSummary", "responseSummary"
+        "authMode", "clientId", "promptSummary", "responseSummary"
       ];
       function escapeCsvValue(value, forceQuote) {
         if (forceQuote === void 0) forceQuote = false;
@@ -1884,6 +1934,7 @@ export function buildDashboardHtml(
           estimated: Boolean(entry.estimated),
           billedTo: entry.billedTo || "token",
           source: entry.source || "unknown",
+          authMode: entry.authMode || "unknown",
           clientId: entry.clientId || "unknown",
           promptSummary: entry.promptSummary || "",
           responseSummary: entry.responseSummary || "",
@@ -2046,12 +2097,17 @@ export function buildDashboardHtml(
       function currentFilters() {
         const rangeSel = document.getElementById("recent-preset");
         const providerSel = document.getElementById("recent-provider");
+        const authSel = document.getElementById("recent-auth");
         const fromEl = document.getElementById("recent-from");
         const toEl = document.getElementById("recent-to");
         const searchEl = document.getElementById("recent-search");
         return {
           range: rangeSel ? rangeSel.value : "all",
           provider: providerSel ? providerSel.value : "",
+          // New auth filter: empty string = all modes. Otherwise the
+          // raw value from the select (byok / oauth / plan / token
+          // / unknown).
+          auth: authSel ? authSel.value : "",
           from: fromEl ? fromEl.value : "",
           to: toEl ? toEl.value : "",
           search: searchEl ? searchEl.value.trim().toLowerCase() : "",
@@ -2121,7 +2177,7 @@ export function buildDashboardHtml(
       // view.
       function updateTotals(f) {
         const hasActiveFilter =
-          (f.range && f.range !== "all") || !!f.from || !!f.to || !!f.search || !!f.provider;
+          (f.range && f.range !== "all") || !!f.from || !!f.to || !!f.search || !!f.provider || !!f.auth;
         let requests, promptTokens, completionTokens, totalTokens;
         let estimatedCost, averageDurationMs, p95DurationMs;
         let detail;
@@ -2192,14 +2248,16 @@ export function buildDashboardHtml(
         const hasDate = !!(f.from || f.to);
         const hasPreset = f.range && f.range !== "all";
         const hasProvider = !!f.provider;
+        const hasAuth = !!f.auth;
         const hasSearch = !!f.search;
-        if (!hasPreset && !hasDate && !hasProvider && !hasSearch) {
+        if (!hasPreset && !hasDate && !hasProvider && !hasAuth && !hasSearch) {
           note.textContent = "Showing all recorded requests (no filter active).";
           return;
         }
         const parts = [];
         if (hasPreset) parts.push("preset: " + f.range);
         if (hasProvider) parts.push("provider: " + f.provider);
+        if (hasAuth) parts.push("auth: " + f.auth);
         if (hasDate) parts.push("custom: " + (f.from || "*") + " \u2192 " + (f.to || "*"));
         if (hasSearch) parts.push("search: \\\"" + f.search + "\\\"");
         note.textContent = "Filtered totals (" + parts.join(" \u00b7 ") + ").";
@@ -2207,6 +2265,10 @@ export function buildDashboardHtml(
 
       bindPresetSelect("recent-preset", applyFilters);
       bindProviderSelect("recent-provider", applyFilters);
+      // The auth select is a static set (BYOK / OAuth / plan / token
+      // / unknown) so it does not need a refreshProviderOptions-style
+      // population - just wire the change handler.
+      bindPresetSelect("recent-auth", applyFilters);
       refreshProviderOptions();
 
       // pagination. Each paginated panel stores its current page
@@ -2405,6 +2467,8 @@ export function buildDashboardHtml(
           if (presetSel) presetSel.value = "all";
           var providerSel = document.getElementById("recent-provider");
           if (providerSel) providerSel.value = "";
+          var authSel = document.getElementById("recent-auth");
+          if (authSel) authSel.value = "";
           var fromIn = document.getElementById("recent-from");
           if (fromIn) fromIn.value = "";
           var toIn = document.getElementById("recent-to");
@@ -2433,6 +2497,7 @@ export function buildDashboardHtml(
         return {
           preset: f.range || "all",
           provider: f.provider || "",
+          auth: f.auth || "",
           fromDate: f.from || "",
           toDate: f.to || "",
           search: f.search || "",
@@ -2614,6 +2679,7 @@ function renderRecentTable(snapshot: TelemetrySnapshot, pricing: PricingMaps, ca
           <th class="sortable" data-sort-key="estimatedCost">Est. cost</th>
           <th class="sortable" data-sort-key="estimated">Token source</th>
           <th class="sortable" data-sort-key="source">Path</th>
+          <th class="sortable" data-sort-key="authMode">Auth</th>
         </tr>
       </thead>
       <tbody id="recent-tbody">
@@ -2660,6 +2726,7 @@ function recentRow(entry: RequestTelemetry, pricing: PricingMaps, canRemove: boo
         <td>${formatCostCell(entry.estimatedCost, rate, undefined, entry.billedTo)}</td>
         <td>${entry.estimated ? 'estimated' : 'usage'}</td>
         <td>${formatSourceCell(entry.source)}</td>
+        <td>${formatAuthCell(entry.authMode)}</td>
       </tr>`;
 }
 
@@ -2864,6 +2931,52 @@ function sourceRow(source: string, entry: ProviderSnapshot): string {
   const isGateway = source === 'gateway';
   const nameCell = isGateway ? 'gateway' : `<code title="Origin of the request inside the AIFlowBridge process">${escapeHtml(source)}</code>`;
   return `<tr>
+    <td>${nameCell}</td>
+        <td>${formatNumber(entry.requests)}</td>
+        <td>${formatNumber(entry.totalTokens)}</td>
+        <td>${formatNumber(Math.round(entry.averageDurationMs))} ms</td>
+        <td>${formatNumber(entry.errors)}</td>
+      </tr>`;
+}
+
+// "By auth" panel. Aggregates traffic per authentication mode
+// (BYOK / OAuth / plan / token / unknown). Mirrors the bySource
+// pattern: older on-disk snapshots (recorded before `byAuth`
+// existed) leave the map empty; entries are coalesced to the
+// `'unknown'` bucket on read so the dashboard stays coherent across
+// the upgrade window. The `authMode` cell on each Recent row
+// carries the same value, so the panel and the table tell the
+// same story.
+function renderAuthSummary(snapshot: TelemetrySnapshot): string {
+  const entries = Object.entries(snapshot.byAuth ?? {});
+  if (entries.length === 0) {
+    return '<p class="muted">No auth telemetry yet.</p>';
+  }
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Auth</th>
+          <th>Requests</th>
+          <th>Tokens</th>
+          <th>Avg duration</th>
+          <th>Errors</th>
+        </tr>
+      </thead>
+      <tbody id="auth-tbody">
+        ${entries.map(([auth, entry]) => authRow(auth, entry)).join('')}
+      </tbody>
+    </table>`;
+}
+
+function authRow(auth: string, entry: ProviderSnapshot): string {
+  // Known modes get a coloured pill so the user can tell BYOK from
+  // OAuth from plan at a glance. Unknown mode (pre-2.18.2 entries
+  // that were never stamped) renders as muted text.
+  const klass = `auth-${auth}`;
+  const title = AUTH_MODE_TITLE[auth] ?? AUTH_MODE_TITLE.unknown;
+  const nameCell = `<span class="pill ${klass}" title="${escapeHtml(title)}">${escapeHtml(auth)}</span>`;
+  return `<tr>
         <td>${nameCell}</td>
         <td>${formatNumber(entry.requests)}</td>
         <td>${formatNumber(entry.totalTokens)}</td>
@@ -2885,6 +2998,26 @@ function formatSourceCell(source: string | undefined): string {
   }
   return 'gateway';
 }
+
+// Per-authentication-mode cell renderer. Mirrors `formatSourceCell`:
+// the cell doubles as a visual hint of which real auth path the
+// gateway used (BYOK, OAuth, plan, per-token) and lets the user spot
+// at a glance whether traffic came from their personal key, an
+// OAuth session, or a covered plan.
+function formatAuthCell(authMode: string | undefined): string {
+  const resolved = authMode ?? 'unknown';
+  const title = AUTH_MODE_TITLE[resolved] ?? AUTH_MODE_TITLE.unknown;
+  const klass = `auth-${resolved}`;
+  return `<span class="pill ${klass}" title="${escapeHtml(title)}">${escapeHtml(resolved)}</span>`;
+}
+
+const AUTH_MODE_TITLE: Record<string, string> = {
+  byok: 'BYOK (Bring Your Own Key): the user supplied a personal API key (e.g. AIzaSy... for Gemini).',
+  oauth: 'OAuth: the gateway spoke to the upstream on behalf of a logged-in user (e.g. Antigravity Cloud Code envelope).',
+  plan: 'Plan: the profile is covered by a token plan / subscription / OAuth plan (e.g. MiniMax token plan).',
+  token: 'Token: per-token billing, no plan coverage.',
+  unknown: 'Auth mode unknown: this entry was recorded before the authMode field was introduced (pre-2.18.2).',
+};
 
 function serializeRecent(recent: readonly RequestTelemetry[]): string {
   return serializeForScript(
@@ -2914,6 +3047,11 @@ function serializeRecent(recent: readonly RequestTelemetry[]): string {
       // haystack, and the sort comparator all use this normalised
       // value.
       source: entry.source ?? 'gateway',
+      // Same coalesce for the new `authMode` field. Older entries
+      // have no `authMode` field; default to `'unknown'` so the
+      // dashboard Recent cell, the sort comparator, and the search
+      // haystack all see a coherent value for pre-2.18.2 history.
+      authMode: entry.authMode ?? 'unknown',
     }))
   );
 }
@@ -2924,6 +3062,13 @@ function serializeByModel(byModel: Record<string, ProviderSnapshot>): string {
 
 function serializeByProvider(byProvider: Record<string, ProviderSnapshot>): string {
   return serializeForScript(slimProviderSnapshots(byProvider));
+}
+
+function serializeByAuth(byAuth: Record<string, ProviderSnapshot> | undefined): string {
+  // Older on-disk snapshots (pre-2.18.2) leave `byAuth` undefined;
+  // ship an empty object so the client render path can stay
+  // type-safe without conditional branches.
+  return serializeForScript(slimProviderSnapshots(byAuth ?? {}));
 }
 
 // The client-side model and provider tables only consume a subset of
@@ -3085,6 +3230,7 @@ export function toExportedEntry(entry: RequestTelemetry): ExportedRequestEntry {
     estimated: Boolean(entry.estimated),
     billedTo: entry.billedTo ?? 'token',
     source: entry.source ?? 'unknown',
+    authMode: entry.authMode ?? 'unknown',
     clientId: entry.clientId ?? 'unknown',
     promptSummary: entry.promptSummary ?? '',
     responseSummary: entry.responseSummary ?? '',

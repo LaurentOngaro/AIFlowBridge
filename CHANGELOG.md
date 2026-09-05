@@ -6,11 +6,30 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.18.3
+
+Patch release that hardens the Gemini `thought_signature` round-trip validated in production on 2.18.2.
+The upstream `thought_signature` is now sent as a sibling of `functionCall` / `functionResponse` on the part object (previously nested inside `functionCall`, silently ignored by the API before the 400).
+A new opt-in `aiflowbridge.gateway.injectThoughtSignature` setting (default `false`) closes the gap left by OpenAI-compatible clients that drop the opaque `extra_signature` between turns: the gateway keeps an in-memory cache (`tool_call` id to signature, bounded to 500 entries, 30 min TTL, per gateway process) fed from every model response including the streaming path, and re-injects the cached signature into the native / AGY envelope when the client replays the turn without it.
+Client-supplied signatures always win over the cache.
+A `thought_signature` coverage line (names plus presence only, never signature values) is logged at debug level on every outgoing Gemini / Antigravity envelope for 400 diagnosis.
+README what's-new retitled to v2.18.3 with a pointer to the Kilo Code `thought_signature` section; snapshots bumped to `2.18.3 / 2026-09-05`.
+
+## 2.18.2
+
+Patch release that exposes the real authentication path on every recorded request, alongside the existing `billedTo` (token / plan) tag.
+Adds a new `authMode` field on `RequestTelemetry` (`byok` / `oauth` / `plan` / `token` / `unknown`) plus a `byAuth` aggregate map on the telemetry snapshot.
+The dashboard gets a dedicated "Auth" column on the Recent requests table (with a coloured pill per mode), a new "By auth" summary panel, a dedicated "Auth" filter dropdown, and a search-haystack entry so users can grep `byok` / `oauth` / `plan` / `token` from the existing search box.
+CSV and JSON exports gain an `authMode` column.
+The gateway resolves the mode at recording time: the Antigravity OAuth branch flips the entry to `oauth` even when the profile is `googleaistudio`, `billing: 'plan'` flips to `plan`, every other upstream call flips to `byok`.
+Older entries without `authMode` coalesce to `unknown` so pre-2.18.2 dashboards stay coherent.
+
 ## 2.18.1
 
-Patch release on top of 2.18.0 with no behavior change in the gateway or providers.
-Documents the `aiflowbridge.gateway.bufferGeminiStream` setting in `docs/gateway.md` (settings table plus the Kilo Code streaming note) and surfaces the real-time Gemini streaming default plus the effective-route switcher behavior in the `README.md` OAuth section.
-Carries the `2.18.1 / 2026-09-05` snapshot stamp on `README.md`, `docs/providers.md`, `docs/architecture.md`, and `docs/cost.md`.
+Patch release on top of 2.18.0 that closes a follow-up bug surfaced in the chat panel: the Gemini native and Antigravity OAuth surfaces return `400 Function call is missing a thought_signature` on the next `functionCall` round-trip because the gateway was dropping the opaque `thought_signature` returned by the model on the previous turn.
+The gateway now propagates the signature transparently in both directions on both surfaces: `functionCall.thoughtSignature` and `functionResponse.thoughtSignature` on the native request body, the same fields on the AGY Cloud Code envelope, and `extra_signature` on the OpenAI-shape `tool_calls[i]` and `tool` message so clients (Kilo Code, Continue, custom SDK calls) can round-trip the signature without inspecting native shapes.
+Also carries the `bufferGeminiStream` settings-row addition in `docs/gateway.md`, the streaming note under the Kilo Code section, and the real-time streaming + effective-route sentences in `README.md` OAuth section from the previous working tree.
+Documents the new behavior; bumps `README.md`, `docs/providers.md`, `docs/architecture.md`, `docs/cost.md` to the `2.18.1 / 2026-09-05` snapshot stamp.
 The exact `AIFlowBridge 2.15.7 - data snapshot 2026-08-06` string no longer appears anywhere user-facing: remaining `2.15.7` / `2026-08-06` mentions are historical (older CHANGELOG sections, the `BRAIN.md` journal, the read-only `docs/audits/2026-08-06-audit-v2.15.5.md`, and the generated `resources/pricing.json` which is refreshed by `AIFlowBridge: Refresh pricing now`, not by hand).
 
 ## 2.18.0

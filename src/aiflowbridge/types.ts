@@ -24,6 +24,30 @@ export interface ProviderPricing {
 export type ProviderBillingMode = 'token' | 'plan';
 
 /**
+ * Resolved authentication mode for a recorded request. The dashboard
+ * uses this to split traffic between the three real auth paths the
+ * gateway supports today:
+ *   - `byok` : the user supplied a personal API key (`AIzaSy...` for
+ *     Gemini native, `sk-...` for DeepSeek, ...). The gateway
+ *     forwards the key verbatim in the request header.
+ *   - `oauth` : the gateway spoke to the upstream on behalf of a
+ *     logged-in user (today: Antigravity OAuth Cloud Code envelope).
+ *     Token plan / billing happens on the upstream side.
+ *   - `plan`  : the profile is covered by a token plan / subscription
+ *     (`billing: 'plan'` in the provider profile, e.g. MiniMax
+ *     token plan or Gemini OAuth quota). The cost is an indicative
+ *     equivalent, NOT an actual bill.
+ *   - `token` : per-token billing with no plan coverage (default
+ *     fallback when nothing else matched).
+ *   - `unknown`: recorded before the field existed. Coalesced on read
+ *     for backward compatibility.
+ *
+ * Optional on `RequestTelemetry`; older on-disk entries leave it
+ * `undefined` and the dashboard / store coalesce them to `'unknown'`.
+ */
+export type AuthMode = 'byok' | 'oauth' | 'plan' | 'token' | 'unknown';
+
+/**
  * Minimal disposable contract. Mirrors VS Code's `Disposable` shape so the
  * runtime can stay agnostic of the host (VS Code extension, standalone
  * CLI,...). Returned by `IGatewayContext.registerCommand` and by
@@ -280,6 +304,20 @@ export interface GatewaySettings {
    * backward compatibility.
    */
   bufferGeminiStream?: boolean;
+  /**
+   * Whether the gateway re-injects cached `thought_signature` values
+   * into the Gemini / Antigravity envelope when the client replays a
+   * tool turn without `extra_signature`. Default `false` (pure
+   * pass-through: client-supplied signatures propagate, missing ones
+   * stay missing). Set to `true` when the OpenAI-compatible client
+   * (e.g. Kilo Code CLI `openai-chat` protocol) drops unknown
+   * `extra_signature` fields from its persisted history - the
+   * gateway then closes the gap server-side from its in-memory
+   * cache (bounded, TTL-expired; see
+   * `thought-signature-cache.ts`). Client-supplied signatures
+   * always win over the cache. Optional for backward compatibility.
+   */
+  injectThoughtSignature?: boolean;
   /**
    * Action plan item #2. Settings for the workspace-context
    * detector / system-message injector. The detector scans the
@@ -568,6 +606,17 @@ export interface RequestTelemetry {
    */
   source?: TelemetrySource;
   /**
+   * Resolved authentication mode for the request. Lets the dashboard
+   * split traffic between the three real auth paths the gateway
+   * supports today: BYOK (personal API key), OAuth (user logged in
+   * upstream, e.g. Antigravity), plan (provider is covered by a
+   * token plan / subscription), or per-token billing. See the
+   * `AuthMode` JSDoc for the full taxonomy. Optional for backward
+   * compatibility: older entries leave it `undefined` and the
+   * store / dashboard coalesce them to `'unknown'`.
+   */
+  authMode?: AuthMode;
+  /**
    * Action plan item #3: sanitized, truncated prompt text (max 500
    * chars) captured at recording time so a pair can see what was
    * asked. API keys and bearer tokens are redacted before storage.
@@ -708,4 +757,16 @@ export interface TelemetrySnapshot {
    * from Copilot Chat traffic at a glance.
    */
   bySource?: Record<string, ProviderSnapshot>;
+  /**
+   * Per-authentication-mode aggregates (same shape as `byProvider` /
+   * `byModel`). The key is the resolved `authMode` (`'byok'`,
+   * `'oauth'`, `'plan'`, `'token'`, or `'unknown'` for older
+   * snapshots). Optional for backward compatibility: older on-disk
+   * snapshots (recorded before this field was introduced) leave
+   * the field `undefined`; the dashboard coalesces absent to `{}`
+   * for display. Surfaced on the dashboard as a "By auth" summary
+   * panel so the user can split BYOK traffic from OAuth and
+   * plan-covered traffic at a glance.
+   */
+  byAuth?: Record<string, ProviderSnapshot>;
 }

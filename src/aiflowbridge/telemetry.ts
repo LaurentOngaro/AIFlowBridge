@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
-import type { ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from './types';
+import type { AuthMode, ProviderProfile, ProviderSnapshot, RequestTelemetry, TelemetrySnapshot } from './types';
+import { readAuthMode } from './auth-mode';
 
 /**
  * Minimal interface required by `TelemetryStore` to schedule a delta
@@ -51,6 +52,7 @@ export function emptyTelemetrySnapshot(): TelemetrySnapshot {
     byModel: {},
     byClient: {},
     bySource: {},
+    byAuth: {},
   };
 }
 
@@ -117,6 +119,16 @@ export function applyEntryToSnapshot(snapshot: TelemetrySnapshot, entry: Request
   const sourceSnapshot = sourceMap[sourceKey] ?? emptyProviderSnapshot();
   updateProviderSnapshot(sourceSnapshot, entry);
   sourceMap[sourceKey] = sourceSnapshot;
+
+  // Per-authentication-mode aggregation (BYOK / OAuth / plan / token).
+  // Mirrors `bySource`: optional on older on-disk snapshots; the
+  // store always populates it on write, and absent values coalesce
+  // to `'unknown'` so the dashboard never has to handle `undefined`.
+  const authKey = readAuthMode(entry);
+  const authMap = snapshot.byAuth ?? (snapshot.byAuth = {});
+  const authSnapshot = authMap[authKey] ?? emptyProviderSnapshot();
+  updateProviderSnapshot(authSnapshot, entry);
+  authMap[authKey] = authSnapshot;
 }
 
 function safeCost(value: number): number {
@@ -229,6 +241,16 @@ export class TelemetryStore {
    * the next `record()` call repopulates it.
    */
   private readonly bySource = new Map<string, ProviderSnapshot>();
+  /**
+   * Per-authentication-mode aggregates (BYOK / OAuth / plan / token).
+   * Keyed by the resolved `authMode` (see `AuthMode` JSDoc). Entries
+   * recorded before the field existed are coalesced to `'unknown'`
+   * so the dashboard always sees one coherent accounting, even on
+   * pre-2.18.2 snapshots. Backwards-compatible: a `restore()` call
+   * from an older snapshot (no `byAuth` on disk) leaves the map
+   * empty, and the next `record()` call repopulates it.
+   */
+  private readonly byAuth = new Map<string, ProviderSnapshot>();
   private totalRequests = 0;
   private totalPromptTokens = 0;
   private totalCompletionTokens = 0;
@@ -397,6 +419,14 @@ export class TelemetryStore {
     const sourceSnapshot = this.bySource.get(sourceKey) ?? emptyProviderSnapshot();
     updateProviderSnapshot(sourceSnapshot, entry);
     this.bySource.set(sourceKey, sourceSnapshot);
+
+    // Per-authentication-mode aggregation. Older entries (no
+    // `authMode` field) coalesce to `'unknown'` so the dashboard
+    // still renders a coherent bucket for pre-2.18.2 history.
+    const authKey = readAuthMode(entry);
+    const authSnapshot = this.byAuth.get(authKey) ?? emptyProviderSnapshot();
+    updateProviderSnapshot(authSnapshot, entry);
+    this.byAuth.set(authKey, authSnapshot);
   }
 
   /**
@@ -430,6 +460,16 @@ export class TelemetryStore {
     estimated?: boolean;
     errorMessage?: string;
     billedTo?: 'token' | 'plan';
+    /**
+     * Resolved auth mode. The Copilot Chat provider is driven by VS
+     * Code's `vscode.lm.registerLanguageModelChatProvider` path,
+     * not the gateway router; the caller picks the value here
+     * (typically `'oauth'` for Anthropic / OpenAI subscriptions,
+     * `'byok'` for personal keys, or `'plan'` for plan-covered
+     * vendors). Optional; the store coalesces absent to
+     * `'unknown'` for backward compat.
+     */
+    authMode?: AuthMode;
   }): void {
     const promptTokens = options.promptTokens ?? 0;
     const completionTokens = options.completionTokens ?? 0;
@@ -454,6 +494,10 @@ export class TelemetryStore {
       estimated: options.estimated ?? true,
       billedTo: options.billedTo ?? 'token',
       source: 'copilot-chat',
+      // Caller-supplied auth mode. Coalesces to `undefined` (which
+      // the store then reads as `'unknown'`) when the provider has
+      // no opinion - keeps pre-existing callers source-compatible.
+      authMode: options.authMode,
     };
     this.record(entry);
   }
@@ -473,6 +517,7 @@ export class TelemetryStore {
       byModel: Object.fromEntries(this.byModel.entries()),
       byClient: Object.fromEntries(this.byClient.entries()),
       bySource: Object.fromEntries(this.bySource.entries()),
+      byAuth: Object.fromEntries(this.byAuth.entries()),
     };
   }
 
@@ -550,6 +595,15 @@ export class TelemetryStore {
     if (state.bySource) {
       for (const [source, snapshot] of Object.entries(state.bySource)) {
         this.bySource.set(source, { ...snapshot });
+      }
+    }
+    // Older on-disk snapshots (pre-`byAuth`) leave the map empty.
+    // The next `record()` will repopulate it as requests come in, so
+    // a multi-window session upgrades gradually instead of dropping
+    // pre-existing totals.
+    if (state.byAuth) {
+      for (const [auth, snapshot] of Object.entries(state.byAuth)) {
+        this.byAuth.set(auth, { ...snapshot });
       }
     }
 
@@ -679,6 +733,7 @@ export class TelemetryStore {
     this.byModel.clear();
     this.byClient.clear();
     this.bySource.clear();
+    this.byAuth.clear();
     this.p95Cache = undefined;
     this.totalRequests = 0;
     this.totalPromptTokens = 0;
@@ -781,6 +836,22 @@ export class TelemetryStore {
       }
       if (sourceSnapshot.requests <= 0) {
         this.bySource.delete(sourceKey);
+      }
+    }
+
+    const authKey = readAuthMode(entry);
+    const authSnapshot = this.byAuth.get(authKey);
+    if (authSnapshot) {
+      authSnapshot.requests = Math.max(0, authSnapshot.requests - 1);
+      authSnapshot.promptTokens = Math.max(0, authSnapshot.promptTokens - entry.promptTokens);
+      authSnapshot.completionTokens = Math.max(0, authSnapshot.completionTokens - entry.completionTokens);
+      authSnapshot.totalTokens = Math.max(0, authSnapshot.totalTokens - entry.totalTokens);
+      authSnapshot.estimatedCost = Math.max(0, authSnapshot.estimatedCost - entry.estimatedCost);
+      if (entry.status >= 400) {
+        authSnapshot.errors = Math.max(0, authSnapshot.errors - 1);
+      }
+      if (authSnapshot.requests <= 0) {
+        this.byAuth.delete(authKey);
       }
     }
 

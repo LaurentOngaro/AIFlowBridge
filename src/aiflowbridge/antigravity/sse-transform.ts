@@ -99,6 +99,31 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
                 // chunk would break accumulation, so the id is derived
                 // once per index and reused for every chunk of that call.
                 const callIndex = toolCallIndex++;
+                const toolCallEntry: {
+                  index: number;
+                  id: string;
+                  type: 'function';
+                  function: { name?: string; arguments?: string };
+                  extra_signature?: string;
+                } = {
+                  index: callIndex,
+                  id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
+                  type: 'function',
+                  function: {
+                    name: part.functionCall.name,
+                    arguments: JSON.stringify(part.functionCall.args ?? {}),
+                  },
+                };
+                // Transparent pass-through of the upstream
+                // thought_signature. Echo it back on the next turn
+                // via `extra_signature` so the AGY Cloud Code
+                // envelope can keep the same reasoning state across
+                // tool turns (otherwise the next functionCall
+                // round-trip fails with `400 Function call is
+                // missing a thought_signature`).
+                if (typeof part.thoughtSignature === 'string' && part.thoughtSignature.length > 0) {
+                  toolCallEntry.extra_signature = part.thoughtSignature;
+                }
                 const toolChunkPayload = {
                   id: completionId,
                   object: 'chat.completion.chunk',
@@ -107,19 +132,7 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
                   choices: [
                     {
                       index: 0,
-                      delta: {
-                        tool_calls: [
-                          {
-                            index: callIndex,
-                            id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
-                            type: 'function',
-                            function: {
-                              name: part.functionCall.name,
-                              arguments: JSON.stringify(part.functionCall.args ?? {}),
-                            },
-                          },
-                        ],
-                      },
+                      delta: { tool_calls: [toolCallEntry] },
                       finish_reason: null,
                     },
                   ],
@@ -205,6 +218,24 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
                     if (part.functionCall) {
                       sawToolCall = true;
                       const callIndex = toolCallIndex++;
+                      const residualToolCallEntry: {
+                        index: number;
+                        id: string;
+                        type: 'function';
+                        function: { name?: string; arguments?: string };
+                        extra_signature?: string;
+                      } = {
+                        index: callIndex,
+                        id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
+                        type: 'function',
+                        function: {
+                          name: part.functionCall.name,
+                          arguments: JSON.stringify(part.functionCall.args ?? {}),
+                        },
+                      };
+                      if (typeof part.thoughtSignature === 'string' && part.thoughtSignature.length > 0) {
+                        residualToolCallEntry.extra_signature = part.thoughtSignature;
+                      }
                       const toolChunkPayload = {
                         id: completionId,
                         object: 'chat.completion.chunk',
@@ -213,19 +244,7 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
                         choices: [
                           {
                             index: 0,
-                            delta: {
-                              tool_calls: [
-                                {
-                                  index: callIndex,
-                                  id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
-                                  type: 'function',
-                                  function: {
-                                    name: part.functionCall.name,
-                                    arguments: JSON.stringify(part.functionCall.args ?? {}),
-                                  },
-                                },
-                              ],
-                            },
+                            delta: { tool_calls: [residualToolCallEntry] },
                             finish_reason: null,
                           },
                         ],
@@ -292,6 +311,15 @@ export interface AccumulatedToolCall {
   id: string;
   type: 'function';
   function: { name: string; arguments: string };
+  /**
+   * Transparent pass-through of the upstream `thought_signature`.
+   * The client echoes it back on the next turn via `extra_signature`
+   * so the AGY envelope keeps the same reasoning state across
+   * tool rounds (otherwise the upstream rejects the next
+   * functionCall round with `400 Function call is missing a
+   * thought_signature`).
+   */
+  extra_signature?: string;
 }
 
 export interface AccumulatedChatCompletion {
@@ -345,7 +373,13 @@ export async function accumulateAntigravityResponse(
 
           try {
             const chunk = JSON.parse(dataStr) as {
-              choices?: Array<{ delta?: { content?: string; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> }; finish_reason?: string }>;
+              choices?: Array<{
+                delta?: {
+                  content?: string;
+                  tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string }; extra_signature?: string }>;
+                };
+                finish_reason?: string;
+              }>;
               usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
             };
             if (chunk.choices && chunk.choices[0]) {
@@ -355,14 +389,18 @@ export async function accumulateAntigravityResponse(
               }
               if (Array.isArray(choice.delta?.tool_calls)) {
                 for (const tc of choice.delta.tool_calls) {
-                  toolCalls.push({
+                  const accumulated: AccumulatedToolCall = {
                     id: tc.id || `call_${toolCallIndex++}`,
                     type: 'function',
                     function: {
                       name: tc.function?.name ?? 'unknown_function',
                       arguments: tc.function?.arguments ?? '{}',
                     },
-                  });
+                  };
+                  if (typeof tc.extra_signature === 'string' && tc.extra_signature.length > 0) {
+                    accumulated.extra_signature = tc.extra_signature;
+                  }
+                  toolCalls.push(accumulated);
                 }
               }
               if (choice.finish_reason) {

@@ -12,7 +12,7 @@ The metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or 
 - **Recent requests table** - Timestamp, model, tokens, latency, status (200/4xx/5xx as a colored pill), **Est. cost** (with the per-rate tooltip), `plan` badge on token-plan / subscription / OAuth rows, and per-row delete button.
 - **Sessions panel** - Recorded requests grouped into sessions by an inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min). Each session is rendered as a collapsible card showing the start time, request count, and a header summary (total tokens, average duration, total estimated cost, session span in minutes); expanding reveals per-request details.
 - **By model panel** - Same metrics aggregated per model ID, with the same time/date/search filters.
-- **By client / By source panels** - Per-`clientId` (kilocode@1.2.3, curl@8.x, ...) and per-origin (gateway vs copilot-chat) splits.
+- **By client / By source / By auth panels** - Per-`clientId` (kilocode@1.2.3, curl@8.x, ...), per-origin (gateway vs copilot-chat), and per-authentication-mode (`byok` / `oauth` / `plan` / `token`) splits. The "By auth" panel is new in 2.18.2 and surfaces the real auth path used on every recorded request, so users can see at a glance how much of their traffic went through a personal API key (BYOK), the Antigravity OAuth session, a plan-covered vendor, or a per-token fallback.
 - **Shared session panel** - Pair-programming view: the 20 most recent recorded requests with their sanitized prompt snippets. Click **Replay** to re-fetch the stored prompt + response summaries via `GET /v1/replay/{id}` without re-running the upstream call. Auto-refreshes when the loopback `GET /v1/events` SSE stream is reachable (the dashboard subscribes on first render).
 - **Provider summary** - Per provider (DeepSeek / MiniMax / Xiaomi) totals.
 
@@ -62,7 +62,7 @@ Full details and the bundled Gemini rates: [providers.md#token-plans-vs-per-toke
 
 ## Collapsible panels
 
-Each of the nine panel sections (Filters / Gateway / Recent / Sessions / By model / By client / By source / Shared session / Provider) can be collapsed by clicking the chevron in its header.
+Each of the ten panel sections (Filters / Gateway / Recent / Sessions / By model / By client / By source / By auth / Shared session / Provider) can be collapsed by clicking the chevron in its header.
 The collapsed state is persisted per-panel in `localStorage`.
 
 ## Time filters

@@ -53,17 +53,40 @@ export interface GeminiNativeRequest {
     parts: Array<
       | { text: string }
       | { inlineData: { mimeType: string; data: string } }
+      // `thoughtSignature` is a SIBLING of `functionCall` on the
+      // same part object - NOT a child of `functionCall`. The real
+      // upstream shape is
+      // `{ functionCall: { name, args }, thoughtSignature: "..." }`.
+      // Sending it inside `functionCall` is silently ignored by the
+      // API, which then rejects the request with `400 Function call
+      // is missing a thought_signature`. Same rule on the response
+      // side: upstream returns `{ functionCall, thoughtSignature }`
+      // siblings, and the gateway reads both.
       | {
           functionCall: {
             name: string;
             args: Record<string, unknown>;
           };
+          /**
+           * Opaque `thought_signature` returned by Gemini on the
+           * previous turn, propagated by the client in
+           * `extra_signature`. Required as a sibling of
+           * `functionCall` for tools to work correctly.
+           */
+          thoughtSignature?: string;
         }
       | {
           functionResponse: {
             name: string;
             response: Record<string, unknown>;
           };
+          /**
+           * Optional `thought_signature` echoing the signature of the
+           * `functionCall` the response refers to. Some Gemini
+           * deployments reject a `functionResponse` block without the
+           * matching signature.
+           */
+          thoughtSignature?: string;
         }
     >;
   }>;
@@ -92,7 +115,12 @@ export interface GeminiNativeResponse {
   candidates?: Array<{
     content?: {
       role?: 'model';
-      parts?: Array<{ text?: string } | { functionCall?: unknown }>;
+      // `thoughtSignature` is a SIBLING of `functionCall` on the
+      // same part object (`{ functionCall, thoughtSignature }`).
+      parts?: Array<
+        | { text?: string; thought?: boolean; thoughtSignature?: string }
+        | { functionCall?: { name?: string; args?: Record<string, unknown> }; thoughtSignature?: string }
+      >;
     };
     finishReason?: string;
   }>;
@@ -167,9 +195,23 @@ interface OpenAiChatMessage {
   content?: unknown;
   name?: string;
   tool_call_id?: string;
+  /**
+   * Optional opaque `extra_signature` echoed back on a tool result
+   * message. The gateway propagates it as
+   * `functionResponse.thoughtSignature` so the upstream can pair the
+   * response with the functionCall that produced it.
+   */
+  extra_signature?: string;
   tool_calls?: Array<{
     id?: string;
     function?: { name?: string; arguments?: unknown };
+    /**
+     * Optional opaque `extra_signature` echoed back on each
+     * `tool_calls[i]` of an assistant turn. The gateway propagates
+     * it as `functionCall.thoughtSignature` on the BYOK native
+     * surface (and on the AGY envelope).
+     */
+    extra_signature?: string;
   }>;
 }
 
@@ -199,8 +241,21 @@ interface OpenAiChatBody {
  * @param warn Optional sink for dropped remote `image_url` warnings.
  *   The gateway passes `logger.warn`; unit tests omit it (no `vscode`
  *   import in this call chain).
+ * @param signatureLookup Optional cache lookup for the server-side
+ *   thought_signature gap-filler (see
+ *   `thought-signature-cache.ts`). When the client replays an
+ *   assistant turn WITHOUT `extra_signature` (most OpenAI-compatible
+ *   clients drop unknown fields when they persist history), the
+ *   lookup re-injects the signature the model returned on the
+ *   previous turn. Client-supplied `extra_signature` always wins;
+ *   the lookup only fires on a cache hit. Omit to disable the
+ *   gap-filler (pure pass-through contract).
  */
-export function toGeminiNativeRequest(openaiBody: OpenAiChatBody, warn?: (message: string) => void): GeminiNativeRequest {
+export function toGeminiNativeRequest(
+  openaiBody: OpenAiChatBody,
+  warn?: (message: string) => void,
+  signatureLookup?: (toolCallId: string) => string | undefined
+): GeminiNativeRequest {
   const messages: OpenAiChatMessage[] = Array.isArray(openaiBody.messages)
     ? (openaiBody.messages as OpenAiChatMessage[])
     : [];
@@ -257,7 +312,30 @@ export function toGeminiNativeRequest(openaiBody: OpenAiChatBody, warn?: (messag
             }
           }
           void tc.id;
-          parts.push({ functionCall: { name, args } });
+          // `thoughtSignature` is a SIBLING of `functionCall`, not a
+          // child. See the `GeminiNativeRequest` JSDoc above.
+          const functionCallPart: {
+            functionCall: { name: string; args: Record<string, unknown> };
+            thoughtSignature?: string;
+          } = { functionCall: { name, args } };
+          // Transparent pass-through of `extra_signature` -> sibling
+          // `thoughtSignature`. Missing on the upstream side would
+          // surface as `400 Function call is missing a thought_signature`
+          // on the next request, so we propagate exactly what the
+          // client gave us and never synthesize a placeholder. When
+          // the client replayed the turn without the signature (most
+          // OpenAI-compatible clients drop unknown fields from
+          // history), the server-side gap-filler re-injects the
+          // signature the model returned on the previous turn.
+          if (typeof tc.extra_signature === 'string' && tc.extra_signature.length > 0) {
+            functionCallPart.thoughtSignature = tc.extra_signature;
+          } else if (signatureLookup && typeof tc.id === 'string' && tc.id.length > 0) {
+            const cached = signatureLookup(tc.id);
+            if (cached) {
+              functionCallPart.thoughtSignature = cached;
+            }
+          }
+          parts.push(functionCallPart);
         }
       }
       pushMerged('model', parts);
@@ -275,7 +353,17 @@ export function toGeminiNativeRequest(openaiBody: OpenAiChatBody, warn?: (messag
       } else if (msg.content && typeof msg.content === 'object') {
         response = msg.content as Record<string, unknown>;
       }
-      pushMerged('user', [{ functionResponse: { name: msg.name ?? 'tool', response } }]);
+      const functionResponsePart: {
+        functionResponse: { name: string; response: Record<string, unknown> };
+        thoughtSignature?: string;
+      } = { functionResponse: { name: msg.name ?? 'tool', response } };
+      // Transparent pass-through of the tool result's
+      // `extra_signature` so the upstream can pair the response
+      // with the functionCall it refers to.
+      if (typeof msg.extra_signature === 'string' && msg.extra_signature.length > 0) {
+        functionResponsePart.thoughtSignature = msg.extra_signature;
+      }
+      pushMerged('user', [functionResponsePart]);
       continue;
     }
     // Default: user role. Content arrays (text plus image_url) map
@@ -357,31 +445,68 @@ export function fromGeminiNativeResponse(
   model: string;
   choices: Array<{
     index: 0;
-    message: { role: 'assistant'; content: string | null; tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }> };
+    message: {
+      role: 'assistant';
+      content: string | null;
+      tool_calls?: Array<{
+        id: string;
+        type: 'function';
+        function: { name: string; arguments: string };
+        /**
+         * Transparent pass-through of the upstream
+         * `thought_signature` so the client can echo it back on the
+         * next turn via `extra_signature` on `tool_calls[i]`.
+         */
+        extra_signature?: string;
+      }>;
+    };
     finish_reason: string;
   }>;
   usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 } {
   const completionId = options.completionId ?? `chatcmpl-${randomBytes(12).toString('hex')}`;
   const cand = raw.candidates?.[0];
-  type Part = { text?: string } | { functionCall?: { name?: string; args?: Record<string, unknown> } };
+  // Upstream returns the signature as a SIBLING of `functionCall`
+  // (`{ functionCall: {...}, thoughtSignature: "..." }`), never as
+  // a child. Read both.
+  type Part =
+    | { text?: string; thought?: boolean; thoughtSignature?: string }
+    | { functionCall?: { name?: string; args?: Record<string, unknown> }; thoughtSignature?: string };
   const parts: Part[] = Array.isArray(cand?.content?.parts) ? (cand?.content?.parts as Part[]) : [];
   let textBuffer = '';
-  let toolCalls: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }> = [];
+  let toolCalls: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+    extra_signature?: string;
+  }> = [];
   let callIndex = 0;
   for (const part of parts) {
     if ('text' in part && typeof part.text === 'string') {
       textBuffer += part.text;
     } else if ('functionCall' in part && part.functionCall?.name) {
       const id = `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex++}`;
-      toolCalls.push({
+      const entry: {
+        id: string;
+        type: 'function';
+        function: { name: string; arguments: string };
+        extra_signature?: string;
+      } = {
         id,
         type: 'function',
         function: {
           name: part.functionCall.name,
           arguments: JSON.stringify(part.functionCall.args ?? {}),
         },
-      });
+      };
+      // Transparent pass-through of the upstream thought_signature
+      // (sibling of `functionCall`). Echo it back on
+      // `extra_signature` so the client can round-trip it on the
+      // next turn without inspecting native shapes.
+      if (typeof part.thoughtSignature === 'string' && part.thoughtSignature.length > 0) {
+        entry.extra_signature = part.thoughtSignature;
+      }
+      toolCalls.push(entry);
     }
   }
   const text = textBuffer;
@@ -493,7 +618,7 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
                 content?: {
                   parts?: Array<
                     | { text?: string }
-                    | { functionCall?: { name?: string; args?: Record<string, unknown> } }
+                    | { functionCall?: { name?: string; args?: Record<string, unknown> }; thoughtSignature?: string }
                   >;
                 };
                 finishReason?: string;
@@ -527,6 +652,27 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
               if ('functionCall' in part && part.functionCall?.name) {
                 sawToolCall = true;
                 const callIndex = toolCallIndex++;
+                const toolCallEntry: {
+                  index: number;
+                  id: string;
+                  type: 'function';
+                  function: { name: string; arguments: string };
+                  extra_signature?: string;
+                } = {
+                  index: callIndex,
+                  id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
+                  type: 'function',
+                  function: {
+                    name: part.functionCall.name,
+                    arguments: JSON.stringify(part.functionCall.args ?? {}),
+                  },
+                };
+                // Transparent pass-through of the upstream
+                // thought_signature (sibling of functionCall) so the
+                // client can echo it back on the next turn.
+                if (typeof part.thoughtSignature === 'string' && part.thoughtSignature.length > 0) {
+                  toolCallEntry.extra_signature = part.thoughtSignature;
+                }
                 const toolChunk = {
                   id: completionId,
                   object: 'chat.completion.chunk',
@@ -535,19 +681,7 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
                   choices: [
                     {
                       index: 0,
-                      delta: {
-                        tool_calls: [
-                          {
-                            index: callIndex,
-                            id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
-                            type: 'function',
-                            function: {
-                              name: part.functionCall.name,
-                              arguments: JSON.stringify(part.functionCall.args ?? {}),
-                            },
-                          },
-                        ],
-                      },
+                      delta: { tool_calls: [toolCallEntry] },
                       finish_reason: null,
                     },
                   ],
@@ -613,7 +747,7 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
                 content?: {
                   parts?: Array<
                     | { text?: string }
-                    | { functionCall?: { name?: string; args?: Record<string, unknown> } }
+                    | { functionCall?: { name?: string; args?: Record<string, unknown> }; thoughtSignature?: string }
                   >;
                 };
                 finishReason?: string;
@@ -641,6 +775,24 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
               if ('functionCall' in part && part.functionCall?.name) {
                 sawToolCall = true;
                 const callIndex = toolCallIndex++;
+                const residualToolCallEntry: {
+                  index: number;
+                  id: string;
+                  type: 'function';
+                  function: { name: string; arguments: string };
+                  extra_signature?: string;
+                } = {
+                  index: callIndex,
+                  id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
+                  type: 'function',
+                  function: {
+                    name: part.functionCall.name,
+                    arguments: JSON.stringify(part.functionCall.args ?? {}),
+                  },
+                };
+                if (typeof part.thoughtSignature === 'string' && part.thoughtSignature.length > 0) {
+                  residualToolCallEntry.extra_signature = part.thoughtSignature;
+                }
                 const toolChunk = {
                   id: completionId,
                   object: 'chat.completion.chunk',
@@ -649,19 +801,7 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
                   choices: [
                     {
                       index: 0,
-                      delta: {
-                        tool_calls: [
-                          {
-                            index: callIndex,
-                            id: `call_${completionId.replace(/^chatcmpl-/, '').slice(0, 12)}_${callIndex}`,
-                            type: 'function',
-                            function: {
-                              name: part.functionCall.name,
-                              arguments: JSON.stringify(part.functionCall.args ?? {}),
-                            },
-                          },
-                        ],
-                      },
+                      delta: { tool_calls: [residualToolCallEntry] },
                       finish_reason: null,
                     },
                   ],

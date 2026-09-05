@@ -11,6 +11,8 @@ import { createGeminiNativeToOpenAiSseStream, fromGeminiNativeResponse, toGemini
 import type { AntigravityTokenManager } from '../antigravity/auth';
 import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../context/language-routing';
 import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
+import { resolveAuthMode } from '../auth-mode';
+import { createThoughtSignatureCache } from '../antigravity/thought-signature-cache';
 import { buildModelCatalog } from '../providers';
 import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
@@ -168,6 +170,20 @@ export class GatewayService {
    * request.
    */
   private readonly warnedMissingApiKeyProviders = new Set<string>();
+  /**
+   * In-memory thought_signature cache (one per `GatewayService`
+   * instance). The cache closes the gap left by OpenAI-compatible
+   * clients that replay tool turns without the `extra_signature`
+   * field: every OpenAI-shaped response the gateway produces is
+   * scanned for `extra_signature` values and stored by `tool_call`
+   * id; on the next request the cached signature is re-injected
+   * into the native / AGY envelope when the client omitted it.
+   * Opt-in via `aiflowbridge.gateway.injectThoughtSignature`
+   * (default `false`); the pass-through contract works with the
+   * flag off. Bounded (500 entries) and TTL-expired (30 min) - see
+   * `thought-signature-cache.ts`.
+   */
+  private readonly thoughtSignatureCache = createThoughtSignatureCache();
 
   constructor(
     config: AiFlowBridgeConfig,
@@ -1194,7 +1210,18 @@ export class GatewayService {
 
     let envelope: ReturnType<typeof toGeminiNativeRequest>;
     try {
-      envelope = toGeminiNativeRequest(payload as Record<string, unknown>, (message: string) => logger.warn(message));
+      // Server-side thought_signature gap-filler (opt-in). When the
+      // client replayed an assistant turn without `extra_signature`
+      // (most OpenAI-compatible clients drop unknown fields from
+      // history), the cache re-injects the signature the model
+      // returned on the previous turn. Client-supplied signatures
+      // always win.
+      const injectThoughtSignature = this.config.gateway.injectThoughtSignature ?? false;
+      envelope = toGeminiNativeRequest(
+        payload as Record<string, unknown>,
+        (message: string) => logger.warn(message),
+        injectThoughtSignature ? (id: string) => this.thoughtSignatureCache.lookup(id) : undefined
+      );
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err);
       logger.warn(`[Gateway] ${requestId} gemini-native envelope translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
@@ -1207,6 +1234,14 @@ export class GatewayService {
     }
 
     logger.info(`[Gateway] ${requestId} gemini-native upstream URL=${upstreamUrl} model=${modelId} streaming=${isStreamingRequest}`);
+
+    // Debug aid for the thought_signature 400: log whether the
+    // outgoing envelope carries a thoughtSignature on every
+    // functionCall part. Never logs the signature VALUE (opaque
+    // blob) - only presence per call name + whether the cache was
+    // consulted. Lets the user confirm in "AIFlowBridge: Show logs"
+    // whether the request path forwarded the signature or dropped it.
+    this.logThoughtSignatureCoverage(requestId, provider.id, envelope.contents);
 
     const upstreamHeaders = new Headers({
       'Content-Type': 'application/json',
@@ -1302,12 +1337,17 @@ export class GatewayService {
 
     let envelope: ReturnType<typeof toAntigravityEnvelope>;
     try {
+      // Same server-side gap-filler as the BYOK native surface:
+      // re-inject the cached thought_signature when the client
+      // replayed the turn without `extra_signature`.
+      const injectThoughtSignature = this.config.gateway.injectThoughtSignature ?? false;
       envelope = toAntigravityEnvelope(
         payload as Record<string, unknown>,
         projectId,
         provider.model || (typeof payload?.model === 'string' ? payload.model : 'gemini-3.8-flash'),
         undefined,
-        (message: string) => logger.warn(message)
+        (message: string) => logger.warn(message),
+        injectThoughtSignature ? (id: string) => this.thoughtSignatureCache.lookup(id) : undefined
       );
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err);
@@ -1319,6 +1359,11 @@ export class GatewayService {
       });
       return undefined;
     }
+
+    // Same debug aid as the BYOK native surface: presence (never
+    // value) of thoughtSignature on every functionCall part of the
+    // outgoing AGY envelope.
+    this.logThoughtSignatureCoverage(requestId, provider.id, envelope.request.contents);
 
     return { upstreamUrl, resolvedKey: accessToken, upstreamHeaders, upstreamBody: JSON.stringify(envelope), isAntigravity: true, isGeminiNative: false };
   }
@@ -1390,6 +1435,10 @@ export class GatewayService {
     // AGY / OAuth is mutually exclusive with the Gemini native surface,
     // so the AGY-only branches collapse into one flag here.
     const isAntigravityBranch = isAntigravity && !isGeminiNative;
+    // Precompute the auth mode for the telemetry path so every
+    // `recordTelemetry()` call downstream can stamp it without
+    // re-resolving the provider.
+    const authMode = resolveAuthMode({ provider, isAntigravityOAuth: isAntigravityBranch });
 
     // the same AbortController that aborts the upstream
     // `fetch()` also drives the per-provider semaphore. When the
@@ -1661,7 +1710,8 @@ export class GatewayService {
           estimated,
           clientId,
           promptSummary,
-          this.config.captureSessionLog ? buildResponseSummary(backoffBody) : undefined
+          this.config.captureSessionLog ? buildResponseSummary(backoffBody) : undefined,
+          { isAntigravityOAuth: isAntigravityBranch }
         );
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
@@ -1738,6 +1788,56 @@ export class GatewayService {
             }
           }
           const node = Readable.fromWeb(transformed);
+          // When the opt-in thought_signature gap-filler is on, snoop
+          // the OpenAI-shaped chunks flowing to the client and cache
+          // every `tool_calls[i].extra_signature` by `id`. The NEXT
+          // request then re-injects the cached signature even when
+          // the client replayed the turn without it. Snooping is
+          // read-only: chunks flow to the client unchanged; only a
+          // copy of `id` + `extra_signature` is retained (never
+          // logged). Skipped entirely when the flag is off so the
+          // hot streaming path adds zero overhead.
+          const snoopSignatures = this.config.gateway.injectThoughtSignature ?? false;
+          if (snoopSignatures && needsReshape) {
+            const signatureDecoder = new TextDecoder('utf8');
+            let signatureBuf = '';
+            node.on('data', (chunk: Buffer) => {
+              try {
+                signatureBuf += signatureDecoder.decode(chunk, { stream: true });
+                let boundary: number;
+                while ((boundary = signatureBuf.indexOf('\n\n')) !== -1) {
+                  const block = signatureBuf.slice(0, boundary);
+                  signatureBuf = signatureBuf.slice(boundary + 2);
+                  for (const rawLine of block.split(/\r?\n/)) {
+                    const line = rawLine.trim();
+                    if (!line.startsWith('data:')) continue;
+                    const jsonStr = line.slice(5).trim();
+                    if (!jsonStr || jsonStr === '[DONE]') continue;
+                    try {
+                      const frame = JSON.parse(jsonStr) as {
+                        choices?: Array<{
+                          delta?: {
+                            tool_calls?: Array<{ id?: string; extra_signature?: string }>;
+                          };
+                        }>;
+                      };
+                      for (const choice of frame.choices ?? []) {
+                        for (const call of choice.delta?.tool_calls ?? []) {
+                          if (call.id && call.extra_signature) {
+                            this.thoughtSignatureCache.store(call.extra_signature, call.id);
+                          }
+                        }
+                      }
+                    } catch {
+                      // ignore malformed frames during snooping
+                    }
+                  }
+                }
+              } catch {
+                // snooping must never break the client pipe
+              }
+            });
+          }
           // re-arm the idle watchdog as soon as we
           // start piping the stream body. The headers-idle timer
           // was cleared above because headers arriving is
@@ -1817,7 +1917,9 @@ export class GatewayService {
             totalTokens,
             estimated,
             clientId,
-            promptSummary
+            promptSummary,
+            undefined,
+            { isAntigravityOAuth: isAntigravityBranch }
           );
           if (this.config.logRequests) {
             logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
@@ -1853,6 +1955,10 @@ export class GatewayService {
                 totalTokens: accUsage.total_tokens ?? 0,
               };
             }
+            // Same server-side cache feed as the BYOK native path:
+            // the accumulated message carries `extra_signature` on
+            // every tool call the model returned.
+            this.cacheThoughtSignatures(accumulated.choices);
           } catch (err) {
             const rawMessage = err instanceof Error ? err.message : String(err);
             logger.warn(`[Gateway] ${requestId} antigravity accumulation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
@@ -1874,6 +1980,10 @@ export class GatewayService {
                 totalTokens: converted.usage.total_tokens,
               };
             }
+            // Feed the server-side signature cache from the converted
+            // response so the next turn can re-inject the signature
+            // even when the client drops `extra_signature` (opt-in).
+            this.cacheThoughtSignatures(converted.choices);
           } catch (err) {
             const rawMessage = err instanceof Error ? err.message : String(err);
             logger.warn(`[Gateway] ${requestId} gemini-native response translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
@@ -1912,7 +2022,8 @@ export class GatewayService {
           estimated,
           clientId,
           promptSummary,
-          this.config.captureSessionLog ? buildResponseSummary(responseText) : undefined
+          this.config.captureSessionLog ? buildResponseSummary(responseText) : undefined,
+          { isAntigravityOAuth: isAntigravityBranch }
         );
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
@@ -1942,7 +2053,9 @@ export class GatewayService {
           totalTokens,
           true,
           clientId,
-          promptSummary
+          promptSummary,
+          undefined,
+          { isAntigravityOAuth: isAntigravityBranch }
         );
       }
 
@@ -2021,7 +2134,8 @@ export class GatewayService {
     estimated: boolean,
     clientId: string | null,
     promptSummary?: string,
-    responseSummary?: string
+    responseSummary?: string,
+    options?: { isAntigravityOAuth?: boolean }
   ): void {
     if (!this.config.telemetryEnabled) {
       return;
@@ -2059,6 +2173,16 @@ export class GatewayService {
       // have no `clientId` field). The store / dashboard coalesce
       // absent and null into the `'unknown'` bucket at read time.
       clientId: clientId ?? undefined,
+      // Resolved auth mode (BYOK / OAuth / plan / token). See the
+      // `AuthMode` JSDoc for the full taxonomy. The dashboard
+      // surfaces this as a "By auth" panel and as a column in the
+      // Recent requests table so the user can split traffic by
+      // authentication path. Older entries leave it `undefined`;
+      // the store / dashboard coalesce absent to `'unknown'`.
+      authMode: resolveAuthMode({
+        provider,
+        isAntigravityOAuth: options?.isAntigravityOAuth ?? false,
+      }),
       // Action plan item #3: pair-programming summaries. Optional
       // for backward compatibility with callers (e.g. Copilot Chat
       // path) that do not have a captured prompt / response at the
@@ -2072,10 +2196,100 @@ export class GatewayService {
     this.telemetry.record(entry);
   }
 
+  /**
+   * Feed the server-side thought_signature cache from an OpenAI-shaped
+   * response (`chat.completion` choices or `chat.completion.chunk`
+   * deltas). Every `tool_calls[i]` carrying `extra_signature` is
+   * stored by its `id` so the NEXT request can re-inject the
+   * signature even when the client dropped the field from history.
+   * No-op when the opt-in flag is off or when no signatures are
+   * present. Never logs signatures (only counts).
+   */
+  private cacheThoughtSignatures(
+    choices: ReadonlyArray<{
+      message?: { tool_calls?: ReadonlyArray<{ id?: string; extra_signature?: string }> };
+      delta?: { tool_calls?: ReadonlyArray<{ id?: string; extra_signature?: string }> };
+    }>
+  ): void {
+    if (!(this.config.gateway.injectThoughtSignature ?? false)) {
+      return;
+    }
+    let stored = 0;
+    for (const choice of choices) {
+      const calls = choice.message?.tool_calls ?? choice.delta?.tool_calls ?? [];
+      for (const call of calls) {
+        if (call.id && call.extra_signature) {
+          this.thoughtSignatureCache.store(call.extra_signature, call.id);
+          stored += 1;
+        }
+      }
+    }
+    if (stored > 0) {
+      logger.debug(`[Gateway] cached ${stored} thought_signature entr${stored === 1 ? 'y' : 'ies'} for follow-up turns`);
+    }
+  }
+
   private writeJson(response: ServerResponse, statusCode: number, payload: unknown): void {
     response.statusCode = statusCode;
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.end(JSON.stringify(payload, null, 2));
+  }
+
+  /**
+   * Debug aid for the Gemini `400 Function call is missing a
+   * thought_signature` error. Logs, per outgoing request, whether
+   * every `functionCall` part carries a `thoughtSignature` - names
+   * only, never signature values (opaque blobs). Lets the user
+   * confirm in "AIFlowBridge: Show logs" whether the request path
+   * forwarded the signature or dropped it, without leaking anything
+   * sensitive. Shape-agnostic: accepts native `contents[]` and AGY
+   * `contents[]` alike (both use `{ role, parts[] }` with
+   * `functionCall` / `thoughtSignature` siblings).
+   */
+  private logThoughtSignatureCoverage(
+    requestId: string,
+    providerId: string,
+    contents: ReadonlyArray<{ parts?: ReadonlyArray<unknown> }>
+  ): void {
+    interface FunctionCallPartShape {
+      functionCall?: { name?: unknown };
+      thoughtSignature?: unknown;
+    }
+    const calls: Array<{ name: string; hasSignature: boolean }> = [];
+    for (const content of contents) {
+      for (const rawPart of content.parts ?? []) {
+        if (!rawPart || typeof rawPart !== 'object') {
+          continue;
+        }
+        const part = rawPart as FunctionCallPartShape;
+        const call = part.functionCall;
+        if (call && typeof call === 'object') {
+          const name = typeof call.name === 'string' ? call.name : 'unknown_function';
+          const sig = part.thoughtSignature;
+          calls.push({ name, hasSignature: typeof sig === 'string' && sig.length > 0 });
+        }
+      }
+    }
+    if (calls.length === 0) {
+      return;
+    }
+    const missing = calls.filter((c) => !c.hasSignature);
+    const names = calls.map((c) => `${c.name}:${c.hasSignature ? 'sig' : 'MISSING'}`).join(', ');
+    if (missing.length === calls.length) {
+      // Every functionCall part is missing its signature. The upstream
+      // accepts this in practice (first-turn bursts carry no prior
+      // signature and still return 200), so debug level only - the
+      // line stays available when diagnosing a real 400 without
+      // alarming on every healthy multi-call turn.
+      logger.debug(`[Gateway] ${requestId} thought_signature coverage for provider=${providerId}: ${missing.length}/${calls.length} functionCall parts MISSING signature [${names}]`);
+    } else if (missing.length > 0) {
+      // Partial coverage: the upstream tolerates replayed turns where
+      // only some calls carry a signature (first-time calls never had
+      // one). Debug level only - the request usually still succeeds.
+      logger.debug(`[Gateway] ${requestId} thought_signature coverage for provider=${providerId}: ${missing.length}/${calls.length} functionCall parts MISSING signature [${names}] - partial coverage is tolerated by the upstream`);
+    } else {
+      logger.debug(`[Gateway] ${requestId} thought_signature coverage for provider=${providerId}: ${calls.length}/${calls.length} functionCall parts carry a signature [${names}]`);
+    }
   }
 
   /**

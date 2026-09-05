@@ -96,8 +96,27 @@ export interface OpenAiChatMessage {
   role?: string;
   content?: unknown;
   name?: string;
+  /**
+   * Optional opaque `extra_signature` echoed back on a tool result
+   * message. The gateway propagates it as
+   * `functionResponse.thoughtSignature` on the AGY envelope (and as
+   * `functionResponse.thoughtSignature` on the BYOK native surface),
+   * so the upstream can pair the response with the functionCall that
+   * produced it. Without it some Gemini deployments reject the next
+   * `functionCall` round with `400 Function call is missing a
+   * thought_signature`.
+   */
+  extra_signature?: string;
   tool_calls?: Array<{
+    id?: string;
     function?: { name?: string; arguments?: unknown };
+    /**
+     * Optional opaque `extra_signature` echoed back on each
+     * `tool_calls[i]` of an assistant turn. The gateway propagates
+     * it as `functionCall.thoughtSignature` on the AGY envelope
+     * and on the BYOK native surface.
+     */
+    extra_signature?: string;
   }>;
 }
 
@@ -121,13 +140,20 @@ export interface OpenAiChatBody {
  * @param warn Optional sink for dropped remote `image_url` warnings.
  *   The gateway passes `logger.warn`; unit tests omit it (no
  *   `vscode` import in this call chain).
+ * @param signatureLookup Optional cache lookup for the server-side
+ *   thought_signature gap-filler (see
+ *   `thought-signature-cache.ts`). Same contract as the BYOK native
+ *   surface: client-supplied `extra_signature` wins, the lookup only
+ *   fires when the client replayed the turn without the signature.
+ *   Omit to disable the gap-filler.
  */
 export function toAntigravityEnvelope(
   openaiBody: OpenAiChatBody,
   projectId: string,
   modelId: string,
   options?: ToEnvelopeOptions,
-  warn?: (message: string) => void
+  warn?: (message: string) => void,
+  signatureLookup?: (toolCallId: string) => string | undefined
 ): CloudCodeEnvelope {
   const messages: OpenAiChatMessage[] = Array.isArray(openaiBody.messages) ? (openaiBody.messages as OpenAiChatMessage[]) : [];
   const contents: CloudCodeContent[] = [];
@@ -199,12 +225,28 @@ export function toAntigravityEnvelope(
           } else if (tc.function?.arguments && typeof tc.function.arguments === 'object') {
             args = tc.function.arguments as Record<string, unknown>;
           }
-          parts.push({
+          const functionCallPart: CloudCodePart = {
             functionCall: {
               name: tc.function?.name ?? 'unknown_function',
               args,
             },
-          });
+          };
+          // Transparent pass-through of `extra_signature` -> AGY
+          // `thoughtSignature` part. The AGY Cloud Code envelope
+          // reuses the same part shape as the native surface, so the
+          // upstream can keep the same reasoning state across turns.
+          // Same gap-filler contract as the BYOK native surface:
+          // client-supplied wins, cache lookup only fires when the
+          // client replayed the turn without the signature.
+          if (typeof tc.extra_signature === 'string' && tc.extra_signature.length > 0) {
+            functionCallPart.thoughtSignature = tc.extra_signature;
+          } else if (signatureLookup && typeof tc.id === 'string' && tc.id.length > 0) {
+            const cached = signatureLookup(tc.id);
+            if (cached) {
+              functionCallPart.thoughtSignature = cached;
+            }
+          }
+          parts.push(functionCallPart);
         }
       }
       pushMerged('model', parts);
@@ -227,14 +269,19 @@ export function toAntigravityEnvelope(
         parsedResponse = { result: String(msg.content ?? '') };
       }
 
-      pushMerged('user', [
-        {
-          functionResponse: {
-            name: toolName,
-            response: parsedResponse,
-          },
+      const functionResponsePart: CloudCodePart = {
+        functionResponse: {
+          name: toolName,
+          response: parsedResponse,
         },
-      ]);
+      };
+      // Transparent pass-through of `extra_signature` -> AGY
+      // `thoughtSignature` on `functionResponse`, same as the BYOK
+      // native surface.
+      if (typeof msg.extra_signature === 'string' && msg.extra_signature.length > 0) {
+        functionResponsePart.thoughtSignature = msg.extra_signature;
+      }
+      pushMerged('user', [functionResponsePart]);
       continue;
     }
   }

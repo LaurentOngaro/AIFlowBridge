@@ -447,31 +447,34 @@ describe('buildDashboardHtml', () => {
     expect(dashCount).toBeGreaterThanOrEqual(3);
   });
 
-  it('expands the colspan of the empty-state row in the recent table to 10 columns (no remove hook)', () => {
+  it('expands the colspan of the empty-state row in the recent table to 11 columns (no remove hook)', () => {
     const html = buildDashboardHtml(baseConfig(), emptySnapshot(), true);
     // When no `onRemoveEntry` hook is supplied, the action column is
     // not rendered server-side, so the client-side colspan falls back
-    // to 10 (9 data columns + 1 action column placeholder kept in
+    // to 11 (10 data columns + 1 action column placeholder kept in
     // sync by the dynamic `recentColspan` expression). Bumped from
     // 9 to 10 by action plan item #6 to account for the new "Path"
     // column (source of the request inside the AIFlowBridge
-    // process: `gateway` or `copilot-chat`).
-    expect(html).toContain('recentColspan = canRemove ? 11 : 10');
+    // process: `gateway` or `copilot-chat`); bumped again to 11 in
+    // 2.18.2 to account for the new "Auth" column (per-authentication-
+    // mode pill).
+    expect(html).toContain('recentColspan = canRemove ? 12 : 11');
     expect(html).toContain("'<tr><td colspan=\"' + recentColspan + '\"");
   });
 
-  it('expands the colspan of the empty-state row in the recent table to 11 columns (with remove hook)', () => {
+  it('expands the colspan of the empty-state row in the recent table to 12 columns (with remove hook)', () => {
     // When the caller supplies an onRemoveEntry hook, the action column
     // is rendered server-side (the th.row-actions-col marker), and the
     // client mirrors that with canRemove = true. The dynamic colspan
-    // expression resolves to 11 at runtime (10 data columns + 1
+    // expression resolves to 12 at runtime (11 data columns + 1
     // action column). Use a non-empty snapshot because the table
     // itself is not rendered when `recent` is empty (the panel shows
     // a muted "No request recorded yet." paragraph instead). Bumped
-    // from 10 to 11 by action plan item #6 (new "Path" column).
+    // from 10 to 11 by action plan item #6 (new "Path" column);
+    // bumped again to 12 in 2.18.2 (new "Auth" column).
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true, {}, () => true);
     expect(html).toContain('<th class="row-actions-col"');
-    expect(html).toContain('canRemove ? 11 : 10');
+    expect(html).toContain('canRemove ? 12 : 11');
   });
 
   it('serializes estimatedCost into the recent array used by the client-side filter', () => {
@@ -530,9 +533,11 @@ describe('buildDashboardHtml', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     const bodies = html.match(/<div class="panel-body">/g) ?? [];
 // Filters / Gateway / Recent / Sessions / By model / By client / By source /
-// Provider summary / Shared session = 9 (was 8; "Filters" panel added to
-// host all dashboard-wide filter controls at the top of the page).
-expect(bodies.length).toBe(9);
+// By auth / Provider summary / Shared session = 10 (was 9; the "By auth"
+// panel was added in 2.18.2 to surface per-authentication-mode
+// aggregates next to the existing By client / By source / By model
+// panels).
+expect(bodies.length).toBe(10);
   });
 
   it('contains the collapse toggle JS handler that reads / writes localStorage', () => {
@@ -2029,7 +2034,7 @@ describe('AFF07 telemetry export helpers', () => {
     ];
     const csv = buildCsvExport(entries);
     const lines = csv.split('\r\n');
-    expect(lines[0]).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,billedTo,source,clientId,promptSummary,responseSummary');
+    expect(lines[0]).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,billedTo,source,authMode,clientId,promptSummary,responseSummary');
     expect(lines[1]).toContain('a');
     expect(lines[1]).toContain('simple prompt');
     expect(lines[2]).toContain('MiniMax-M3');
@@ -2056,7 +2061,7 @@ describe('AFF07 telemetry export helpers', () => {
   it('buildCsvExport handles an empty entry set with a header-only payload', async () => {
     const { buildCsvExport } = await import('../src/aiflowbridge/ui/dashboard');
     const csv = buildCsvExport([]);
-    expect(csv).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,billedTo,source,clientId,promptSummary,responseSummary\r\n');
+    expect(csv).toBe('id,timestamp,providerId,providerLabel,model,status,durationMs,promptTokens,completionTokens,totalTokens,estimatedCost,estimated,billedTo,source,authMode,clientId,promptSummary,responseSummary\r\n');
   });
 
   it('buildCsvExport stringifies numbers, booleans, and strings', async () => {
@@ -2122,7 +2127,7 @@ describe('AFF07 telemetry export helpers', () => {
     const meta = {
       generatedAt: '2026-07-13T20:00:00.000Z',
       extensionVersion: '2.15.4',
-      filters: { preset: '24h', provider: '', fromDate: '', toDate: '', search: '' },
+      filters: { preset: '24h', provider: '', auth: '', fromDate: '', toDate: '', search: '' },
       totals: { requests: 1, promptTokens: 0, completionTokens: 0, totalTokens: 0, estimatedCost: 0, errors: 0 },
     };
     const payload = JSON.parse(buildJsonExport(entries, meta));
@@ -2138,11 +2143,11 @@ describe('AFF07 telemetry export helpers', () => {
   it('buildExportFilename slugifies the preset and embeds the timestamp', async () => {
     const { buildExportFilename } = await import('../src/aiflowbridge/ui/dashboard');
     const filename = buildExportFilename(
-      { generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: '24h', provider: '', fromDate: '', toDate: '', search: '' } },
+      { generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: '24h', provider: '', auth: '', fromDate: '', toDate: '', search: '' } },
       'csv'
     );
     expect(filename).toBe('aiflowbridge-metrics-24h-2026-07-13T20-00-00-000Z.csv');
-    expect(buildExportFilename({ generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: 'last 30mn', provider: '', fromDate: '', toDate: '', search: '' } }, 'json')).toBe(
+    expect(buildExportFilename({ generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: 'last 30mn', provider: '', auth: '', fromDate: '', toDate: '', search: '' } }, 'json')).toBe(
       'aiflowbridge-metrics-last-30mn-2026-07-13T20-00-00-000Z.json'
     );
   });
@@ -2150,7 +2155,7 @@ describe('AFF07 telemetry export helpers', () => {
   it('buildExportFilename uses "all" as the preset fallback when missing or empty', async () => {
     const { buildExportFilename } = await import('../src/aiflowbridge/ui/dashboard');
     const filename = buildExportFilename(
-      { generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: '', provider: '', fromDate: '', toDate: '', search: '' } },
+      { generatedAt: '2026-07-13T20:00:00.000Z', filters: { preset: '', provider: '', auth: '', fromDate: '', toDate: '', search: '' } },
       'csv'
     );
     expect(filename.startsWith('aiflowbridge-metrics-all-')).toBe(true);

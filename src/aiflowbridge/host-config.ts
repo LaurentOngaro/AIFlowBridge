@@ -422,6 +422,11 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // OpenAI frames (robust on lossy links, slower TTFT). Default
     // `false` (real-time `pipeThrough` streaming, best TTFT).
     bufferGeminiStream: configuration.get<boolean>('gateway.bufferGeminiStream', false),
+    // Server-side thought_signature gap-filler. When `true` the
+    // gateway re-injects cached signatures into the Gemini / AGY
+    // envelope when the client replayed the turn without
+    // `extra_signature`. Default `false` (pure pass-through).
+    injectThoughtSignature: configuration.get<boolean>('gateway.injectThoughtSignature', false),
     // Action plan item #2: workspace-context detector / system-message
     // injector. The detector scans the workspace root for language
     // manifests (pyproject.toml, Cargo.toml, package.json, ...) and

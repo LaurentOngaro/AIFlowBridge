@@ -22,6 +22,17 @@ export interface PkcePair {
 export interface CloudCodePart {
   text?: string;
   thought?: boolean;
+  /**
+   * Opaque `thought_signature` returned by the upstream on the
+   * previous turn. Echoed back on the next request so the upstream
+   * keeps the same internal reasoning state across the conversation.
+   * Required on `functionCall` parts for tool use to work
+   * (`400 Function call is missing a thought_signature`); propagated
+   * through `extra_signature` in the OpenAI-shape message so clients
+   * (Kilo Code, Continue, custom SDK calls) can round-trip the
+   * signature without inspecting native shapes.
+   */
+  thoughtSignature?: string;
   inlineData?: {
     mimeType: string;
     data: string;
