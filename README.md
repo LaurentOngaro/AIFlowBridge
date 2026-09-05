@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.18.0** - data snapshot **2026-09-05**.
+> **AIFlowBridge 2.18.1** - data snapshot **2026-09-05**.
 > Model ids and pricing throughout this README are pinned to this snapshot.
 > Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
@@ -188,7 +188,9 @@ aiflowbridge-server auth googleaistudio --probe                                 
 
 To opt in: set `aiflowbridge.providers.googleaistudio.baseUrl` to `https://cloudcode-pa.googleapis.com` in `settings.json`.
 The runtime detects the host and routes those profiles through `buildAntigravityUpstreamRequest`.
+The `AIFlowBridge: Switch Google AI Studio route` command resolves the effective route from settings, workspace override, globalStorage override, and bundled default before toggling, strips stale vendor entries from both override files, and names the source tier in the toast.
 Skip this section entirely if you only need the API-key route - it covers the same model ids with the always-available public API and your own key.
+Gemini and Antigravity upstream frames stream to the client in real time by default; on lossy links set `aiflowbridge.gateway.bufferGeminiStream` to `true` for the buffered drain-then-replay fallback - see [docs/gateway.md](docs/gateway.md#using-with-kilo-code-or-other-openai-compatible-clients).
 
 Then point any OpenAI-compatible client at `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`).
 

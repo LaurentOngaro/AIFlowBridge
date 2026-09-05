@@ -258,6 +258,7 @@ This lets you access DeepSeek, MiniMax, Xiaomi MiMo, and Google AI Studio (Gemin
 
 The gateway routes requests to the correct upstream provider based on the model name. Streaming (`stream: true`) is fully supported.
 The three Gemini ids require either a Google AI Studio API key (`Google AI Studio: Set API Key (BYOK pay-as-you-go)` or `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`, the always-available public-API route) or, for accounts with whitelisted Cloud Code Assist tenants, the Antigravity OAuth flow (`AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)` plus `aiflowbridge.providers.googleaistudio.baseUrl = https://cloudcode-pa.googleapis.com`) - see [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go).
+Gemini and Antigravity upstream frames stream to the client in real time by default (first OpenAI chunk readable before the upstream closes); on lossy links set `aiflowbridge.gateway.bufferGeminiStream` to `true` for the buffered drain-then-replay fallback.
 
 ## Configuring gateway providers
 
@@ -313,6 +314,7 @@ See [architecture.md](architecture.md#model-registry) for the full schema and ov
 | `aiflowbridge.gateway.upstreamIdleTimeoutMs`         | `90000`                       | Watchdog that aborts the upstream `fetch` after this many ms without bytes (`0` disables)                                                                                            |
 | `aiflowbridge.gateway.streamTotalTimeoutMs`          | `300000`                      | Hard ceiling on the upstream call duration in ms (`0` disables)                                                                                                                      |
 | `aiflowbridge.gateway.minimaxParallelTokenCount`     | `false`                       | When `true`, fires the parallel `/input_tokens` pre-count on streaming MiniMax requests too (off by default)                                                                         |
+| `aiflowbridge.gateway.bufferGeminiStream`            | `false`                       | When `true`, buffers the full Gemini / Antigravity upstream SSE body before reshaping it into OpenAI frames (drain then replay). Default `false` streams frames in real time with the best time-to-first-token; enable on lossy links where the buffered replay is more robust |
 | `aiflowbridge.gateway.workspaceContext.enabled`      | `true`                        | Inject the detected workspace context as a system message on every chat completion                                                                                                   |
 | `aiflowbridge.gateway.workspaceContext.root`         | `""`                          | Explicit workspace root directory (falls back to `AIFLOWBRIDGE_WORKSPACE`, then `process.cwd()`)                                                                                     |
 | `aiflowbridge.gateway.workspaceContext.maxDepth`     | `2`                           | Max directory depth the detector walks                                                                                                                                               |

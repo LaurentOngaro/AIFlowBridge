@@ -166,14 +166,14 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
   = "stop" au lieu de "tool_calls"), BUG-16 (switcher ignore override
   globalStorage), BUG-17 (streaming temps-réel cassé par le drain),
   BUG-06 (lockout `aicode-consumers` pour comptes non whitelistés).
-  Détail complet dans `_Private/docs/audits/2026-09-05-gemini-integration-audit.md` §6 (déplacé du public le 2026-09-05 : contient email, project id et chemins locaux).
+  Détail complet dans `_Private/archives/2026-09-05-gemini-integration-audit.md` §6 (archivé le 2026-09-05 : contient email, project id et chemins locaux).
 - **Documentation à actualiser (audit v2 §6.3) :** `docs/providers.md` lignes
   90/92/113 + `README.md:26` version pin à `2.15.7`.
 
 ## Liens utiles
 
 - Spec d'intégration (active) : `docs/plans/antigravity-gateway-integration-spec.md`
-- Audit Gemini (v2, privé) : `_Private/docs/audits/2026-09-05-gemini-integration-audit.md`
+- Audit Gemini (v2, archivé) : `_Private/archives/2026-09-05-gemini-integration-audit.md`
 - Plan initial (historique) : `docs/plans/antigravity-provider-kilo-cli.md`
 - Zone d'échange opérationnelle : `ACTION_PLAN.md`
 - Règles agents Kilo : `.kilocode/rules/00-brain-protocol.md`
@@ -190,9 +190,18 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-09-05 — Kilo (Patch 2.18.1 : docs gateway + README, sans commit)
+
+L'utilisateur a demandé une confirmation avant tout commit : le patch 2.18.1 reste en working tree, non commité.
+Contenu : `docs/gateway.md` documente `aiflowbridge.gateway.bufferGeminiStream` (table settings + note streaming temps réel sous la section Kilo Code), `README.md` surface le streaming temps réel par défaut et le résolveur effective-route dans la section OAuth.
+Bump `package.json` + `package-lock.json` en 2.18.1, snapshots `2.18.1 / 2026-09-05` sur README/providers/architecture/cost, entrée CHANGELOG 2.18.1.
+Vérif chaîne exacte `AIFlowBridge 2.15.7 - data snapshot 2026-08-06` : absente partout (remplacée en 2.18.0) ; reliquats `2.15.7` / `2026-08-06` légitimes (anciennes sections CHANGELOG, journal, audit read-only `2026-08-06-audit-v2.15.5.md`, `resources/pricing.json` généré rafraîchi par commande, pas à la main).
+Gates à relancer avant validation : `npm run compile`, `npm test`, `npm run typecheck:tests`, `npm run compile:standalone`.
+Aucun secret dans les fichiers versionnés ni dans les logs (extraits assainis uniquement).
+
 ### 2026-09-05 — Kilo (Implémentation plan Gemini BUG-13 à BUG-17 + release 2.18.0)
 
-Plan `_Private/docs/plans/2026-09-05-gemini-bug13-17-implementation-plan.md` exécuté dans l'ordre P0 → P2 + docs.
+Plan `_Private/archives/2026-09-05-gemini-bug13-17-implementation-plan.md` exécuté dans l'ordre P0 → P2 + docs.
 P0 : alternance user/model native (`pushMerged`, texte + `functionCall` dans une seule entrée model, `tool` consécutifs fusionnés) sur `gemini-native.ts` et `envelope.ts` via parser partagé `content-parts.ts`.
 Vision `inlineData` base64 sur les deux surfaces, URL http(s) droppée avec `logger.warn` (jamais forwardée en texte).
 `finish_reason: tool_calls` sur 4 sites (`fromGeminiNativeResponse`, `createGeminiNativeToOpenAiSseStream`, `mapFinishReason` + `sawToolCall` côté AGY streaming, `accumulateAntigravityResponse`).

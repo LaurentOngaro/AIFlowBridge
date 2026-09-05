@@ -6,6 +6,13 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.18.1
+
+Patch release on top of 2.18.0 with no behavior change in the gateway or providers.
+Documents the `aiflowbridge.gateway.bufferGeminiStream` setting in `docs/gateway.md` (settings table plus the Kilo Code streaming note) and surfaces the real-time Gemini streaming default plus the effective-route switcher behavior in the `README.md` OAuth section.
+Carries the `2.18.1 / 2026-09-05` snapshot stamp on `README.md`, `docs/providers.md`, `docs/architecture.md`, and `docs/cost.md`.
+The exact `AIFlowBridge 2.15.7 - data snapshot 2026-08-06` string no longer appears anywhere user-facing: remaining `2.15.7` / `2026-08-06` mentions are historical (older CHANGELOG sections, the `BRAIN.md` journal, the read-only `docs/audits/2026-08-06-audit-v2.15.5.md`, and the generated `resources/pricing.json` which is refreshed by `AIFlowBridge: Refresh pricing now`, not by hand).
+
 ## 2.18.0
 
 Closes the six deferred items from the 2.17.0 audit backlog on the Gemini integration: multiturn role alternation with parallel tool results, vision input on the BYOK native path, `finish_reason: "tool_calls"` on both routes, an override-aware route switcher, real-time streaming with the drain path kept as fallback, and selective OAuth token clearing in the shared standalone `secrets.json`.
@@ -28,7 +35,7 @@ Custom-model discovery sends the Gemini BYOK key as `x-goog-api-key` and surface
 - **Tool-call finish reasons on both routes.** `fromGeminiNativeResponse`, `createGeminiNativeToOpenAiSseStream`, the Antigravity SSE transform, and `accumulateAntigravityResponse` remap a terminal `stop` to `tool_calls` whenever at least one `functionCall` part was emitted, per the OpenAI contract. `length` and `content_filter` mappings are unchanged.
 - **Selective OAuth token clearing.** `AntigravityTokenStore.clear()` accepts an optional `route` option (`oauth` default, `byok`): OAuth logout clears only the `antigravity` slot so a BYOK API key stored in the shared standalone `secrets.json` survives, and vice versa. `load()` no longer reads the legacy `googleaistudio` JSON fallback (that slot now holds the BYOK API key string).
 - **Settings schema.** `providers[].kind` and `userModels[].family` enums accept `antigravity` and `googleaistudio`, matching `KNOWN_FAMILIES`, `VENDOR_CHOICES`, and the gateway synthesizer.
-- **Snapshot bump.** `README.md`, `docs/providers.md`, `docs/architecture.md`, and `docs/cost.md` carry the `2.18.0 / 2026-09-05` snapshot stamp.
+- **Snapshot bump.** `README.md`, `docs/providers.md`, `docs/architecture.md`, and `docs/cost.md` carry the `2.18.1 / 2026-09-05` snapshot stamp.
 
 ### Fixed
 
