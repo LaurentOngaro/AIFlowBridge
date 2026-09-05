@@ -87,10 +87,10 @@ Override per-profile via `aiflowbridge.providers[].pricing` if you have a custom
 **This is the default route on 2.17.0+ and works for every Google account**, including those without Cloud Code Assist / Antigravity CLI access.
 Bring-your-own Gemini API key, point at the public Gemini API, pay only what you consume on the GCP project tied to the key.
 
-Authentication is a standard `Authorization: Bearer AIza...` header on every request.
+Authentication is an `x-goog-api-key: AIza...` header on every request (the native Gemini surface accepts the key only via `x-goog-api-key` or a `?key=...` URL parameter - the `Authorization: Bearer` form is reserved for OAuth 2.0 access tokens, so sending an `AIzaSy...` key under Bearer returns `401 UNAUTHENTICATED`).
 By default the gateway targets the **native Gemini surface** (`/v1beta/models/{model}:generateContent` and the streaming `:streamGenerateContent?alt=sse` variant).
-On projects where the OpenAI-compatible surface is enabled (`/v1beta/openai/chat/completions`), the gateway falls back to that path transparently; the user does not pick a surface.
-No envelope translation in the user-visible OpenAI Chat Completions request or response, no SSE re-shaping from the client's point of view, no OAuth tokens - one shot works exactly like the other direct vendors.
+There is no transparent fallback to the OpenAI-compatible surface (`/v1beta/openai/chat/completions`) - the gateway always translates the OpenAI Chat Completions request into the native envelope (`toGeminiNativeRequest` in `src/aiflowbridge/antigravity/gemini-native.ts`) and reshapes the native SSE frames back into OpenAI chunks before replying to the client.
+No OAuth tokens - one shot works exactly like the other direct vendors.
 
 Why native-first instead of OpenAI-compat: Google's OpenAI-compat surface is feature-gated per GCP project and returns 429 with 0 quota on projects that have not enabled the openai-compat feature (common for newer projects).
 The native surface is the canonical, always-enabled path with the same free-tier budget as the SDK Python / curl examples in Google's docs.
@@ -110,8 +110,8 @@ Setup:
 
 Notes:
 
-- The bundled default `vendors.googleaistudio.baseUrl` is `https://generativelanguage.googleapis.com/v1beta` (BYOK route). The synthesizer tags the synthesized profile `kind: 'openai-compat'`, so it runs through the same code path as the other direct vendors - no special envelope, no SSE re-shaping, no token manager.
-- The same model ids work with both routes. The difference is purely the auth + upstream URL. There is no `family` split in the registry because the gateway resolves the kind from `baseUrl.hostname` at synthesis time.
+- The bundled default `vendors.googleaistudio.baseUrl` is `https://generativelanguage.googleapis.com/v1beta` (BYOK route). The synthesizer tags the synthesized profile `kind: 'googleaistudio'` for this host, so it runs through the native-surface path (`buildGeminiNativeUpstreamRequest`: OpenAI-to-native envelope translation, native SSE reshape, `x-goog-api-key` auth) - the generic `openai-compat` path is never used for Gemini.
+- The gateway resolves the effective route from a 4-tier precedence chain (settings `aiflowbridge.providers.googleaistudio.baseUrl`, workspace registry override, globalStorage registry override, bundled default). The `AIFlowBridge: Switch Google AI Studio route` command resolves the effective route before deciding, strips stale `vendors.googleaistudio` and `vendors.antigravity` entries from both override files on switch, and names the source tier in the toast - a stale override can no longer silently point the toggle the wrong way.
 - Like OpenRouter, this vendor is gateway-only: it does not appear in the Copilot Chat picker (AP-013). Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, and `curl` reach the Gemini ids via the gateway.
 
 ## Google AI Studio / Antigravity via Cloud Code Assist OAuth (advanced)
@@ -146,13 +146,13 @@ Setup (one time, opt-in):
 
 - **Auth**: OAuth tokens (VS Code SecretStorage + `secrets.json`) vs `AIzaSy...` API key.
 - **Upstream**: `cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse` vs `generativelanguage.googleapis.com/v1beta/models/...:streamGenerateContent`.
-- **Gateway code path**: `kind: 'googleaistudio'` -> `buildAntigravityUpstreamRequest` (envelope, SSE transform, async auth, token manager) vs `kind: 'openai-compat'` -> generic upstream path with `Authorization: Bearer AIzaSy...` (no envelope, no SSE re-shaping).
+- **Gateway code path**: `kind: 'googleaistudio'` -> `buildAntigravityUpstreamRequest` (envelope, SSE transform, async auth, token manager) vs `kind: 'googleaistudio'` on the BYOK host -> `buildGeminiNativeUpstreamRequest` (native envelope, SSE reshape, `x-goog-api-key`).
 - **Billing posture**: plan-covered by default (`aiflowbridge.providers.googleaistudio.billing: 'plan'` synthesized when the AGY host is detected) vs per-token, charged against the GCP project's pay-as-you-go counter.
 
 Notes:
 
 - This vendor is gateway-only: the Gemini ids do not appear in the Copilot Chat picker (tracked as AP-013).
-- The `kind` values `googleaistudio` and `antigravity` are aliases of the same provider. Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
+- The `vendors.antigravity` entry in `resources/models.json` is metadata-only: it pins the OAuth upstream `baseUrl` and the external URLs so the route switcher and custom-model discovery have a stable reference. No bundled `models[].family` uses `antigravity` today - the OAuth route is selected by setting the `googleaistudio` baseUrl to the `cloudcode-pa.googleapis.com` host, and OAuth routing uses explicit `aiflowbridge.providers[]` entries only. Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
 - Implementation: pure modules under `src/aiflowbridge/antigravity/` (`envelope.ts`, `sse-transform.ts`, `auth.ts`, `token-store.ts`, `pkce.ts`, `project.ts`, `catalog.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`).
 - Diagnose an OAuth failure with `aiflowbridge-server auth googleaistudio --probe` (token + project + upstream status + truncated body) before suspecting AIFlowBridge - 9 times out of 10 it's an upstream Cloud Code Assist decision, not our code.
 
@@ -185,7 +185,7 @@ For the Antigravity OAuth route (opt-in via `aiflowbridge.providers.googleaistud
 Notes:
 
 - Like OpenRouter, this vendor is gateway-only: the three Gemini ids do not appear in the Copilot Chat picker (tracked as AP-013).
-- The `kind` values `googleaistudio` and `antigravity` are aliases of the same provider. Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
+- Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
 - Implementation: pure modules under `src/aiflowbridge/antigravity/` (`envelope.ts`, `sse-transform.ts`, `auth.ts`, `token-store.ts`, `pkce.ts`, `project.ts`, `catalog.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`).
 - This route is unavailable if your Google account is not whitelisted for Cloud Code Assist; the upstream returns `429 RESOURCE_EXHAUSTED` (a misleading code that actually means "no access") regardless of how much quota you have on AI Studio Pro, MiniMax, etc. The bundling assumes most users will switch to the [BYOK route](#google-ai-studio-via-api-key-byok-pay-as-you-go) instead.
 - Diagnose an auth / upstream issue with `aiflowbridge-server auth googleaistudio --probe` (token + project + upstream status + truncated body).
@@ -293,8 +293,8 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 
 ### Snapshot metadata
 
-- Current snapshot date: **2026-08-06**
-- Current snapshot version: **AIFlowBridge 2.15.7**
+- Current snapshot date: **2026-09-05**
+- Current snapshot version: **AIFlowBridge 2.18.0**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 

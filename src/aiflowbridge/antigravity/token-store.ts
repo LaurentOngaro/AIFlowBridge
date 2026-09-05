@@ -38,7 +38,12 @@ export class AntigravityTokenStore {
         return undefined;
       }
 
-      const tokenEntry = parsed[ANTIGRAVITY_SECRET_KEY] || parsed['googleaistudio'];
+      // Canonical slot only. The legacy `googleaistudio` JSON fallback
+      // was removed after the 2.17.0 migration window: that slot now
+      // holds the BYOK API key (plain string), never an OAuth JSON
+      // blob. Reading it here would treat an API key as tokens.
+      // `save()` below cleans any leftover JSON-looking slot once.
+      const tokenEntry = parsed[ANTIGRAVITY_SECRET_KEY];
       if (!tokenEntry) {
         return undefined;
       }
@@ -103,7 +108,7 @@ export class AntigravityTokenStore {
     }
   }
 
-  clear(): void {
+  clear(options?: { route?: 'oauth' | 'byok' }): void {
     if (!existsSync(this.secretsFilePath)) {
       return;
     }
@@ -112,8 +117,15 @@ export class AntigravityTokenStore {
       const raw = readFileSync(this.secretsFilePath, 'utf8');
       const secrets = JSON.parse(raw);
       if (secrets && typeof secrets === 'object') {
-        delete secrets[ANTIGRAVITY_SECRET_KEY];
-        delete secrets['googleaistudio'];
+        // Selective clear by auth route. Default (no option) clears
+        // the OAuth slot only so a BYOK API key stored in the shared
+        // standalone `secrets.json` survives an OAuth logout.
+        const route = options?.route ?? 'oauth';
+        if (route === 'oauth') {
+          delete secrets[ANTIGRAVITY_SECRET_KEY];
+        } else {
+          delete secrets['googleaistudio'];
+        }
         writeFileSync(this.secretsFilePath, JSON.stringify(secrets, null, 2), { mode: 0o600 });
       }
     } catch {

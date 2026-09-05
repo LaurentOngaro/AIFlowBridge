@@ -58,7 +58,7 @@ export async function addCustomModelCommand(context: vscode.ExtensionContext): P
     const apiKey = await Promise.resolve(context.secrets.get(`aiflowbridge.providers.${vendor}.apiKey`)).catch(() => undefined);
 
     // 3. Fetch /v1/models
-    const rawModels = await fetchUpstreamModels(baseUrl, apiKey);
+    const rawModels = await fetchUpstreamModels(baseUrl, apiKey, vendor);
     if (rawModels.length === 0) {
       void vscode.window.showWarningMessage(`No models returned by ${VENDOR_LABELS[vendor]} (${baseUrl}/models). Check your API key and try again.`);
       return;
@@ -146,14 +146,25 @@ export async function addCustomModelCommand(context: vscode.ExtensionContext): P
   }
 }
 
-async function fetchUpstreamModels(baseUrl: string, apiKey: string | undefined): Promise<UpstreamModelEntry[]> {
+async function fetchUpstreamModels(baseUrl: string, apiKey: string | undefined, vendor?: VendorId): Promise<UpstreamModelEntry[]> {
   const url = `${baseUrl}/models`;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`;
+    // Gemini BYOK (native surface) authenticates with `x-goog-api-key`,
+    // not `Authorization: Bearer`. Every other vendor uses Bearer
+    // (Antigravity OAuth resolves its token via the token manager and
+    // never reaches this branch with a raw key).
+    if (vendor === 'googleaistudio') {
+      headers['x-goog-api-key'] = apiKey;
+    } else {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
   }
   const response = await fetch(url, { method: 'GET', headers });
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(`HTTP ${response.status} ${response.statusText} from ${url}: unauthorized. Check the stored API key for ${vendor ?? 'this vendor'} and try again.`);
+    }
     throw new Error(`HTTP ${response.status} ${response.statusText} from ${url}`);
   }
   const body = (await response.json()) as { data?: unknown };

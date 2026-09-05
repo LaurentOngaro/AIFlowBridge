@@ -270,6 +270,17 @@ export interface GatewaySettings {
    */
   minimaxParallelTokenCount?: boolean;
   /**
+   * Whether the gateway buffers the full Gemini / Antigravity upstream
+   * SSE body before applying the OpenAI reshape (drain then
+   * transform) instead of streaming frames through `pipeThrough` in
+   * real time. Default `false` (real-time streaming, best TTFT).
+   * Set to `true` on lossy links where the buffered replay is more
+   * robust than the live pipe. Mirrors
+   * `aiflowbridge.gateway.bufferGeminiStream`. Optional for
+   * backward compatibility.
+   */
+  bufferGeminiStream?: boolean;
+  /**
    * Action plan item #2. Settings for the workspace-context
    * detector / system-message injector. The detector scans the
    * workspace root for language manifests (`pyproject.toml`,

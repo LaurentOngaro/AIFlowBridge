@@ -6,6 +6,35 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.18.0
+
+Closes the six deferred items from the 2.17.0 audit backlog on the Gemini integration: multiturn role alternation with parallel tool results, vision input on the BYOK native path, `finish_reason: "tool_calls"` on both routes, an override-aware route switcher, real-time streaming with the drain path kept as fallback, and selective OAuth token clearing in the shared standalone `secrets.json`.
+The `AIFlowBridge: Switch Google AI Studio route` command now resolves the effective route from settings, workspace override, globalStorage override, and bundled default before deciding, strips stale `vendors.googleaistudio` and `vendors.antigravity` entries from both override files, and names the source tier in the toast.
+The gateway streams Gemini and Antigravity upstream frames in real time by default (`pipeThrough` with residual flush), with an opt-out `aiflowbridge.gateway.bufferGeminiStream` setting for lossy links.
+Custom-model discovery sends the Gemini BYOK key as `x-goog-api-key` and surfaces a clear unauthorized message on 401/403.
+
+### Added
+
+- **Shared OpenAI content to Gemini parts parser.** New pure module `src/aiflowbridge/antigravity/content-parts.ts` (`openAiContentToGeminiParts` plus `logDroppedImageUrls`) used by both the BYOK native translator and the OAuth envelope builder: `string` content becomes a single `text` part, `text` / `input_text` / `output_text` array entries become `text` parts, base64 `data:<mime>;base64,<payload>` image URLs become `inlineData` parts, remote `http(s)` image URLs are dropped with a `logger.warn` and never forwarded as text.
+- **Effective-route resolver for the Google AI Studio switcher.** New pure helpers `resolveEffectiveBaseUrl` and `decideRouteFromEffective` in `src/aiflowbridge/googleai-studio-route.ts` plus `readRegistryVendorBaseUrl` in `src/aiflowbridge/modelRegistryOverride.ts`: the switch command reads settings, workspace override, and globalStorage override, resolves the effective baseUrl with settings-first precedence, decides the toggle from the effective route, strips stale `vendors.googleaistudio` and `vendors.antigravity` entries from both override files, and reports the source tier in the toast.
+- **Real-time Gemini streaming with buffered fallback.** New `aiflowbridge.gateway.bufferGeminiStream` setting (default `false`): the gateway pipes Gemini and Antigravity upstream frames through the reshape transform in real time (`pipeThrough`) with the residual `flush()` path intact, and falls back to drain-then-transform on pipe errors. Set to `true` on lossy links for the previous buffered replay behavior.
+- **Vendor-aware custom-model discovery headers.** `fetchUpstreamModels` in `src/runtime/addCustomModel.ts` sends the Gemini BYOK key as `x-goog-api-key` (Bearer is reserved for OAuth access tokens and returns 401 on API keys) and throws a clear unauthorized message on 401/403 naming the vendor.
+- **New regression tests.** `tests/gemini-vision.test.ts` (inlineData on both surfaces, remote URL drop, alias mapping) and `tests/gateway-streaming-ttft.test.ts` (first OpenAI chunk readable before upstream close on both surfaces, finish and usage trailers intact).
+
+### Changed
+
+- **Multiturn role alternation on both Gemini surfaces.** `toGeminiNativeRequest` and `toAntigravityEnvelope` merge same-role turns: an assistant turn carrying text plus `tool_calls` produces exactly one `model` entry holding both the text and the `functionCall` parts, and consecutive `tool` messages merge into a single `user` entry holding every `functionResponse` part. Parallel 2-tool calls no longer return 400 alternation errors.
+- **Vision input on the BYOK native path.** `toGeminiNativeRequest` parses OpenAI content arrays into native parts via the shared parser, matching the OAuth envelope behavior that already existed. Upstream model ids stay verbatim.
+- **Tool-call finish reasons on both routes.** `fromGeminiNativeResponse`, `createGeminiNativeToOpenAiSseStream`, the Antigravity SSE transform, and `accumulateAntigravityResponse` remap a terminal `stop` to `tool_calls` whenever at least one `functionCall` part was emitted, per the OpenAI contract. `length` and `content_filter` mappings are unchanged.
+- **Selective OAuth token clearing.** `AntigravityTokenStore.clear()` accepts an optional `route` option (`oauth` default, `byok`): OAuth logout clears only the `antigravity` slot so a BYOK API key stored in the shared standalone `secrets.json` survives, and vice versa. `load()` no longer reads the legacy `googleaistudio` JSON fallback (that slot now holds the BYOK API key string).
+- **Settings schema.** `providers[].kind` and `userModels[].family` enums accept `antigravity` and `googleaistudio`, matching `KNOWN_FAMILIES`, `VENDOR_CHOICES`, and the gateway synthesizer.
+- **Snapshot bump.** `README.md`, `docs/providers.md`, `docs/architecture.md`, and `docs/cost.md` carry the `2.18.0 / 2026-09-05` snapshot stamp.
+
+### Fixed
+
+- **Docs corrections.** `docs/providers.md` BYOK section now documents `x-goog-api-key` auth (not Bearer), the always-on native envelope translation plus SSE reshape (no transparent OpenAI-compat fallback claim), the native code path (not `openai-compat` kind), the 4-tier effective-route resolution, and the metadata-only `vendors.antigravity` entry. `src/aiflowbridge/gateway/server.ts` BYOK builder comment fixed to match the `x-goog-api-key` code.
+- **Test hygiene.** `tests/gateway-bug17.test.ts` renamed to `tests/gateway-minimax-standby.test.ts` (the old name collided with the Gemini streaming drain issue; the file covers the MiniMax standby watchdog plus semaphore).
+
 ## 2.17.0
 
 Two parallel auth routes for the Google AI Studio vendor ship in this release. **BYOK native** is the recommended default (works for every Google account, billed to the user's GCP project at the public-API rate). **Antigravity / Cloud Code Assist OAuth** is opt-in for users with a whitelisted tenant.

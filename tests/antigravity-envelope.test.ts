@@ -177,6 +177,59 @@ describe('toAntigravityEnvelope', () => {
     });
   });
 
+  it('merges consecutive same-role turns so the envelope strictly alternates', () => {
+    const openaiBody = {
+      model: 'gemini-3.8-flash',
+      messages: [
+        { role: 'user', content: 'weather in Paris?' },
+        { role: 'assistant', content: 'checking now' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{"location":"Paris"}' } }],
+        },
+        { role: 'tool', name: 'get_weather', tool_call_id: 'call_1', content: '{"temp":18}' },
+        { role: 'tool', name: 'get_time', tool_call_id: 'call_2', content: '{"tz":"Paris"}' },
+        { role: 'user', content: 'and tomorrow?' },
+      ],
+    };
+    const envelope = toAntigravityEnvelope(openaiBody, 'proj-abc', 'gemini-3.8-flash');
+    const roles = envelope.request.contents.map((c) => c.role);
+    for (let i = 1; i < roles.length; i += 1) {
+      expect(roles[i]).not.toBe(roles[i - 1]);
+    }
+    expect(roles[0]).toBe('user');
+    const modelEntry = envelope.request.contents.find((c) => c.parts.some((p) => p.functionCall));
+    const callParts = modelEntry?.parts.filter((p) => p.functionCall) ?? [];
+    expect(callParts).toHaveLength(1);
+    const toolEntry = envelope.request.contents.find((c) => c.parts.some((p) => p.functionResponse));
+    const responseParts = toolEntry?.parts.filter((p) => p.functionResponse) ?? [];
+    expect(responseParts).toHaveLength(2);
+  });
+
+  it('keeps assistant text and tool_calls in a single model entry', () => {
+    const openaiBody = {
+      model: 'gemini-3.8-flash',
+      messages: [
+        { role: 'user', content: 'go' },
+        {
+          role: 'assistant',
+          content: 'calling now',
+          tool_calls: [
+            { id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{"location":"Paris"}' } },
+            { id: 'call_2', type: 'function', function: { name: 'get_time', arguments: '{"tz":"Paris"}' } },
+          ],
+        },
+      ],
+    };
+    const envelope = toAntigravityEnvelope(openaiBody, 'proj-abc', 'gemini-3.8-flash');
+    expect(envelope.request.contents).toHaveLength(2);
+    const modelEntry = envelope.request.contents[1];
+    expect(modelEntry.role).toBe('model');
+    expect(modelEntry.parts.some((p) => p.text)).toBe(true);
+    expect(modelEntry.parts.filter((p) => p.functionCall)).toHaveLength(2);
+  });
+
   it('translates base64 image data into inlineData parts', () => {
     const openaiBody = {
       model: 'gemini-3.7-flash',

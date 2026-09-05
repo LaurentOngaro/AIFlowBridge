@@ -44,6 +44,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { logDroppedImageUrls, openAiContentToGeminiParts } from './content-parts';
 
 /** Native Gemini request body for `:generateContent` and `:streamGenerateContent?alt=sse`. */
 export interface GeminiNativeRequest {
@@ -51,6 +52,7 @@ export interface GeminiNativeRequest {
     role: 'user' | 'model';
     parts: Array<
       | { text: string }
+      | { inlineData: { mimeType: string; data: string } }
       | {
           functionCall: {
             name: string;
@@ -182,47 +184,65 @@ interface OpenAiChatBody {
   response_format?: { type?: 'text' | 'json_object' | 'json_schema' };
 }
 
-interface ToolCallAccumulator {
-  id: string;
-  name: string;
-  args: Record<string, unknown>;
-}
-
 /**
  * Convert an OpenAI Chat Completions payload into the Gemini native
  * surface body. Pure function - no network calls.
+ *
+ * Role alternation: the native API rejects consecutive turns with the
+ * same role, so same-role turns are merged into a single entry. An
+ * assistant turn carrying both text and `tool_calls` produces exactly
+ * one `{ role: model }` entry holding both the text and the
+ * `functionCall` parts. Consecutive `tool` messages merge into a
+ * single `{ role: user }` entry holding every `functionResponse`
+ * part. Upstream model ids are kept verbatim, no alias map.
+ *
+ * @param warn Optional sink for dropped remote `image_url` warnings.
+ *   The gateway passes `logger.warn`; unit tests omit it (no `vscode`
+ *   import in this call chain).
  */
-export function toGeminiNativeRequest(openaiBody: OpenAiChatBody): GeminiNativeRequest {
+export function toGeminiNativeRequest(openaiBody: OpenAiChatBody, warn?: (message: string) => void): GeminiNativeRequest {
   const messages: OpenAiChatMessage[] = Array.isArray(openaiBody.messages)
     ? (openaiBody.messages as OpenAiChatMessage[])
     : [];
 
   const systemParts: Array<{ text: string }> = [];
   const contents: GeminiNativeRequest['contents'] = [];
-  let pendingToolCalls: ToolCallAccumulator[] = [];
 
-  const flushToolCalls = (): void => {
-    if (pendingToolCalls.length === 0) return;
-    const parts: GeminiNativeRequest['contents'][number]['parts'] = [];
-    for (const tc of pendingToolCalls) {
-      parts.push({ functionCall: { name: tc.name, args: tc.args } });
+  const pushMerged = (role: 'user' | 'model', parts: GeminiNativeRequest['contents'][number]['parts']): void => {
+    if (parts.length === 0) {
+      return;
     }
-    contents.push({ role: 'model', parts });
-    pendingToolCalls = [];
+    const last = contents.length > 0 ? contents[contents.length - 1] : undefined;
+    if (last && last.role === role) {
+      last.parts.push(...parts);
+      return;
+    }
+    contents.push({ role, parts: [...parts] });
   };
 
   for (const msg of messages) {
     const role = msg.role;
     if (role === 'system' || role === 'developer') {
-      const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content ?? '');
-      if (text) systemParts.push({ text });
+      const parsed = openAiContentToGeminiParts(msg.content);
+      for (const part of parsed.parts) {
+        if (part.text) {
+          systemParts.push({ text: part.text });
+        }
+      }
+      logDroppedImageUrls(parsed.droppedImageUrls, 'system message', warn ?? (() => undefined));
       continue;
     }
     if (role === 'assistant') {
-      flushToolCalls();
-      const text = typeof msg.content === 'string' ? msg.content : '';
       const parts: GeminiNativeRequest['contents'][number]['parts'] = [];
-      if (text) parts.push({ text });
+      const parsed = openAiContentToGeminiParts(msg.content);
+      for (const part of parsed.parts) {
+        if (part.text) {
+          parts.push({ text: part.text });
+        } else if (part.inlineData) {
+          parts.push({ inlineData: { mimeType: part.inlineData.mimeType, data: part.inlineData.data } });
+        }
+      }
+      logDroppedImageUrls(parsed.droppedImageUrls, 'assistant message', warn ?? (() => undefined));
       if (Array.isArray(msg.tool_calls)) {
         for (const tc of msg.tool_calls) {
           const name = tc.function?.name;
@@ -230,21 +250,20 @@ export function toGeminiNativeRequest(openaiBody: OpenAiChatBody): GeminiNativeR
           let args: Record<string, unknown> = {};
           if (typeof tc.function?.arguments === 'string') {
             try {
-              const parsed: unknown = JSON.parse(tc.function.arguments);
-              args = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : { raw: tc.function.arguments };
+              const parsedArgs: unknown = JSON.parse(tc.function.arguments);
+              args = typeof parsedArgs === 'object' && parsedArgs !== null ? (parsedArgs as Record<string, unknown>) : { raw: tc.function.arguments };
             } catch {
               args = { raw: tc.function.arguments };
             }
           }
-          pendingToolCalls.push({ id: tc.id ?? `call_${randomBytes(6).toString('hex')}`, name, args });
+          void tc.id;
+          parts.push({ functionCall: { name, args } });
         }
       }
-      if (parts.length > 0) contents.push({ role: 'model', parts });
-      flushToolCalls();
+      pushMerged('model', parts);
       continue;
     }
     if (role === 'tool') {
-      flushToolCalls();
       let response: Record<string, unknown> = {};
       if (typeof msg.content === 'string') {
         try {
@@ -256,18 +275,27 @@ export function toGeminiNativeRequest(openaiBody: OpenAiChatBody): GeminiNativeR
       } else if (msg.content && typeof msg.content === 'object') {
         response = msg.content as Record<string, unknown>;
       }
-      contents.push({
-        role: 'user',
-        parts: [{ functionResponse: { name: msg.name ?? 'tool', response } }],
-      });
+      pushMerged('user', [{ functionResponse: { name: msg.name ?? 'tool', response } }]);
       continue;
     }
-    // Default: user role.
-    flushToolCalls();
-    const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content ?? '');
-    contents.push({ role: 'user', parts: [{ text }] });
+    // Default: user role. Content arrays (text plus image_url) map
+    // to native parts via the shared parser. Remote http(s) image
+    // URLs are dropped with a warning, never forwarded as text.
+    const parsed = openAiContentToGeminiParts(msg.content);
+    const parts: GeminiNativeRequest['contents'][number]['parts'] = [];
+    for (const part of parsed.parts) {
+      if (part.text) {
+        parts.push({ text: part.text });
+      } else if (part.inlineData) {
+        parts.push({ inlineData: { mimeType: part.inlineData.mimeType, data: part.inlineData.data } });
+      }
+    }
+    logDroppedImageUrls(parsed.droppedImageUrls, 'user message', warn ?? (() => undefined));
+    if (parts.length === 0) {
+      continue;
+    }
+    pushMerged('user', parts);
   }
-  flushToolCalls();
 
   const generationConfig: GeminiNativeRequest['generationConfig'] = {};
   if (typeof openaiBody.temperature === 'number') generationConfig.temperature = openaiBody.temperature;
@@ -357,7 +385,10 @@ export function fromGeminiNativeResponse(
     }
   }
   const text = textBuffer;
-  const finishReason = (() => {
+  // OpenAI contract: when `tool_calls` are present the finish reason
+  // must be `tool_calls`, not `stop`. A native `STOP` with at least
+  // one `functionCall` part means the model wants to call tools.
+  const mappedReason = (() => {
     const reason = cand?.finishReason;
     switch (reason) {
       case 'STOP':
@@ -374,6 +405,7 @@ export function fromGeminiNativeResponse(
         return 'stop';
     }
   })();
+  const finishReason = mappedReason === 'stop' && toolCalls.length > 0 ? 'tool_calls' : mappedReason;
   const message: { role: 'assistant'; content: string | null; tool_calls?: typeof toolCalls } = {
     role: 'assistant',
     content: text || null,
@@ -439,6 +471,11 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
   let outputBuf = '';
   let toolCallIndex = 0;
   let sawFinish = false;
+  let sawToolCall = false;
+  const resolveStreamFinishReason = (reason: string | undefined): 'stop' | 'length' | 'content_filter' | 'tool_calls' => {
+    const mapped = mapGeminiFinishReason(reason);
+    return mapped === 'stop' && sawToolCall ? 'tool_calls' : mapped;
+  };
   return new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
       outputBuf += new TextDecoder('utf8').decode(chunk, { stream: true });
@@ -484,9 +521,11 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
             }
 
             // Tool calls: emit one OpenAI-style `delta.tool_calls` chunk
-            // per `functionCall` part.
+            // per `functionCall` part. Any emitted call flips the
+            // terminal `stop` into `tool_calls` per the OpenAI contract.
             for (const part of parts) {
               if ('functionCall' in part && part.functionCall?.name) {
+                sawToolCall = true;
                 const callIndex = toolCallIndex++;
                 const toolChunk = {
                   id: completionId,
@@ -529,7 +568,7 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
                 object: 'chat.completion.chunk',
                 created,
                 model: options.model,
-                choices: [{ index: 0, delta: {}, finish_reason: mapGeminiFinishReason(cand.finishReason) }],
+                choices: [{ index: 0, delta: {}, finish_reason: resolveStreamFinishReason(cand.finishReason) }],
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishPayload)}\n\n`));
               sawFinish = true;
@@ -600,6 +639,7 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
             }
             for (const part of parts) {
               if ('functionCall' in part && part.functionCall?.name) {
+                sawToolCall = true;
                 const callIndex = toolCallIndex++;
                 const toolChunk = {
                   id: completionId,
@@ -635,7 +675,7 @@ export function createGeminiNativeToOpenAiSseStream(options: { model: string; co
                 object: 'chat.completion.chunk',
                 created,
                 model: options.model,
-                choices: [{ index: 0, delta: {}, finish_reason: mapGeminiFinishReason(cand.finishReason) }],
+                choices: [{ index: 0, delta: {}, finish_reason: resolveStreamFinishReason(cand.finishReason) }],
               };
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(finishPayload)}\n\n`));
               sawFinish = true;

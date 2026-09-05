@@ -8,7 +8,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   decideGoogleAIStudioRouteSwitch,
+  decideRouteFromEffective,
   describeCurrentRoute,
+  resolveEffectiveBaseUrl,
   GOOGLEAISTUDIO_BASES,
 } from '../src/aiflowbridge/googleai-studio-route';
 
@@ -78,5 +80,48 @@ describe('describeCurrentRoute', () => {
     expect(describeCurrentRoute(GOOGLEAISTUDIO_BASES.byok)).toContain('BYOK');
     expect(describeCurrentRoute(GOOGLEAISTUDIO_BASES.oauth)).toContain('OAuth');
     expect(describeCurrentRoute(undefined)).toContain('BYOK');
+  });
+});
+
+describe('resolveEffectiveBaseUrl', () => {
+  it('prefers settings over workspace, globalStorage, and the bundled default', () => {
+    const effective = resolveEffectiveBaseUrl({
+      settingsBaseUrl: GOOGLEAISTUDIO_BASES.byok,
+      workspaceBaseUrl: GOOGLEAISTUDIO_BASES.oauth,
+      globalStorageBaseUrl: GOOGLEAISTUDIO_BASES.oauth,
+    });
+    expect(effective).toEqual({ baseUrl: GOOGLEAISTUDIO_BASES.byok, source: 'settings' });
+  });
+
+  it('resolves a stale globalStorage OAuth override when settings are unset', () => {
+    const effective = resolveEffectiveBaseUrl({ globalStorageBaseUrl: GOOGLEAISTUDIO_BASES.oauth });
+    expect(effective).toEqual({ baseUrl: GOOGLEAISTUDIO_BASES.oauth, source: 'globalStorage' });
+  });
+
+  it('resolves the workspace override above the globalStorage tier', () => {
+    const effective = resolveEffectiveBaseUrl({
+      workspaceBaseUrl: GOOGLEAISTUDIO_BASES.oauth,
+      globalStorageBaseUrl: GOOGLEAISTUDIO_BASES.byok,
+    });
+    expect(effective).toEqual({ baseUrl: GOOGLEAISTUDIO_BASES.oauth, source: 'workspace' });
+  });
+
+  it('falls back to the bundled BYOK default with no overrides', () => {
+    const effective = resolveEffectiveBaseUrl({});
+    expect(effective).toEqual({ baseUrl: GOOGLEAISTUDIO_BASES.byok, source: 'bundled' });
+  });
+});
+
+describe('decideRouteFromEffective', () => {
+  it('toggles to BYOK when the effective route is a stale OAuth override', () => {
+    const effective = resolveEffectiveBaseUrl({ globalStorageBaseUrl: GOOGLEAISTUDIO_BASES.oauth });
+    const decision = decideRouteFromEffective(effective);
+    expect(decision?.nextRoute).toBe('byok');
+    expect(decision?.message).toContain('globalStorage');
+  });
+
+  it('returns null when the effective route already matches the target', () => {
+    const effective = resolveEffectiveBaseUrl({ settingsBaseUrl: GOOGLEAISTUDIO_BASES.byok });
+    expect(decideRouteFromEffective(effective, 'byok')).toBeNull();
   });
 });

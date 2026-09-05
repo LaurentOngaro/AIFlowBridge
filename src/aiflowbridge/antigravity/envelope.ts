@@ -8,6 +8,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { DEFAULT_USER_AGENT } from './constants';
+import { logDroppedImageUrls, openAiContentToGeminiParts } from './content-parts';
 import type {
     CloudCodeContent,
     CloudCodeEnvelope,
@@ -117,63 +118,74 @@ export interface OpenAiChatBody {
  * @param projectId The Google Cloud project ID associated with the user account.
  * @param modelId The target model ID (e.g. 'gemini-3.8-flash').
  * @param options Optional userAgent and requestId overrides.
+ * @param warn Optional sink for dropped remote `image_url` warnings.
+ *   The gateway passes `logger.warn`; unit tests omit it (no
+ *   `vscode` import in this call chain).
  */
 export function toAntigravityEnvelope(
   openaiBody: OpenAiChatBody,
   projectId: string,
   modelId: string,
-  options?: ToEnvelopeOptions
+  options?: ToEnvelopeOptions,
+  warn?: (message: string) => void
 ): CloudCodeEnvelope {
   const messages: OpenAiChatMessage[] = Array.isArray(openaiBody.messages) ? (openaiBody.messages as OpenAiChatMessage[]) : [];
   const contents: CloudCodeContent[] = [];
   const systemParts: Array<{ text: string }> = [];
+
+  const pushMerged = (role: 'user' | 'model', parts: CloudCodePart[]): void => {
+    if (parts.length === 0) {
+      return;
+    }
+    const last = contents.length > 0 ? contents[contents.length - 1] : undefined;
+    if (last && last.role === role) {
+      last.parts.push(...parts);
+      return;
+    }
+    contents.push({ role, parts: [...parts] });
+  };
 
   for (const msg of messages) {
     if (!msg || typeof msg !== 'object') continue;
 
     const role = msg.role;
     if (role === 'system' || role === 'developer') {
-      const text = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content ?? '');
-      if (text) {
-        systemParts.push({ text });
+      const parsed = openAiContentToGeminiParts(msg.content);
+      for (const part of parsed.parts) {
+        if (part.text) {
+          systemParts.push({ text: part.text });
+        }
       }
+      logDroppedImageUrls(parsed.droppedImageUrls, 'AGY system message', warn ?? (() => undefined));
       continue;
     }
 
     if (role === 'user') {
       const parts: CloudCodePart[] = [];
-      if (typeof msg.content === 'string') {
-        parts.push({ text: msg.content });
-      } else if (Array.isArray(msg.content)) {
-        for (const item of msg.content) {
-          if (!item) continue;
-          if (item.type === 'text' && typeof item.text === 'string') {
-            parts.push({ text: item.text });
-          } else if (item.type === 'image_url' && item.image_url?.url) {
-            const url: string = item.image_url.url;
-            const match = url.match(/^data:([^;]+);base64,(.+)$/);
-            if (match) {
-              parts.push({
-                inlineData: {
-                  mimeType: match[1],
-                  data: match[2],
-                },
-              });
-            }
-          }
+      const parsed = openAiContentToGeminiParts(msg.content);
+      for (const part of parsed.parts) {
+        if (part.text) {
+          parts.push({ text: part.text });
+        } else if (part.inlineData) {
+          parts.push({ inlineData: { mimeType: part.inlineData.mimeType, data: part.inlineData.data } });
         }
       }
-      if (parts.length > 0) {
-        contents.push({ role: 'user', parts });
-      }
+      logDroppedImageUrls(parsed.droppedImageUrls, 'AGY user message', warn ?? (() => undefined));
+      pushMerged('user', parts);
       continue;
     }
 
     if (role === 'assistant') {
       const parts: CloudCodePart[] = [];
-      if (typeof msg.content === 'string' && msg.content.length > 0) {
-        parts.push({ text: msg.content });
+      const parsed = openAiContentToGeminiParts(msg.content);
+      for (const part of parsed.parts) {
+        if (part.text) {
+          parts.push({ text: part.text });
+        } else if (part.inlineData) {
+          parts.push({ inlineData: { mimeType: part.inlineData.mimeType, data: part.inlineData.data } });
+        }
       }
+      logDroppedImageUrls(parsed.droppedImageUrls, 'AGY assistant message', warn ?? (() => undefined));
       if (Array.isArray(msg.tool_calls)) {
         for (const tc of msg.tool_calls) {
           let args: Record<string, unknown> = {};
@@ -195,9 +207,7 @@ export function toAntigravityEnvelope(
           });
         }
       }
-      if (parts.length > 0) {
-        contents.push({ role: 'model', parts });
-      }
+      pushMerged('model', parts);
       continue;
     }
 
@@ -217,17 +227,14 @@ export function toAntigravityEnvelope(
         parsedResponse = { result: String(msg.content ?? '') };
       }
 
-      contents.push({
-        role: 'user',
-        parts: [
-          {
-            functionResponse: {
-              name: toolName,
-              response: parsedResponse,
-            },
+      pushMerged('user', [
+        {
+          functionResponse: {
+            name: toolName,
+            response: parsedResponse,
           },
-        ],
-      });
+        },
+      ]);
       continue;
     }
   }

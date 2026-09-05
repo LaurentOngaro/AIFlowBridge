@@ -2,6 +2,11 @@
  * Regression tests for gateway standby under concurrent agents
  * (3 agents in parallel vs MiniMax-M3 / reasoning_split: true).
  *
+ * Note: this file used to be named `gateway-bug17.test.ts`. The name
+ * collided with audit BUG-17 (Gemini streaming drain regression), a
+ * different issue fixed in 2.18.0. Renamed to describe the MiniMax
+ * standby symptom instead of the audit label.
+ *
  * Symptoms from the original report:
  *   1. Some requests take 100+ s while siblings complete in 5-15 s.
  *   2. `MaxListenersExceededWarning: Possible EventEmitter memory leak

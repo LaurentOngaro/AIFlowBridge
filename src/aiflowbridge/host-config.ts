@@ -417,6 +417,11 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // hurt the most. Default `false` (skip on streaming). Set to
     // `true` to restore the pre-2.5.1 behavior on streaming too.
     minimaxParallelTokenCount: configuration.get<boolean>('gateway.minimaxParallelTokenCount', false),
+    // Buffered Gemini / Antigravity replay. When `true` the gateway
+    // drains the full upstream SSE body before reshaping it into
+    // OpenAI frames (robust on lossy links, slower TTFT). Default
+    // `false` (real-time `pipeThrough` streaming, best TTFT).
+    bufferGeminiStream: configuration.get<boolean>('gateway.bufferGeminiStream', false),
     // Action plan item #2: workspace-context detector / system-message
     // injector. The detector scans the workspace root for language
     // manifests (pyproject.toml, Cargo.toml, package.json, ...) and

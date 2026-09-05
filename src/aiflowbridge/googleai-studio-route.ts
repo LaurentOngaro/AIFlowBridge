@@ -23,6 +23,18 @@ export const GOOGLEAISTUDIO_BASES = {
 
 export type GoogleAIStudioRoute = 'byok' | 'oauth';
 
+/** Where the effective baseUrl was resolved from. */
+export type RouteBaseUrlSource = 'settings' | 'workspace' | 'globalStorage' | 'bundled';
+
+export interface EffectiveRouteInput {
+  /** Settings override (`aiflowbridge.providers.googleaistudio.baseUrl`). */
+  settingsBaseUrl?: string;
+  /** Workspace registry override (`vendors.googleaistudio/antigravity.baseUrl`). */
+  workspaceBaseUrl?: string;
+  /** globalStorage registry override (`vendors.googleaistudio/antigravity.baseUrl`). */
+  globalStorageBaseUrl?: string;
+}
+
 export interface SwitchRouteDecision {
   nextRoute: GoogleAIStudioRoute;
   nextBaseUrl: string;
@@ -58,11 +70,11 @@ export function decideGoogleAIStudioRouteSwitch(
   targetRoute?: GoogleAIStudioRoute
 ): SwitchRouteDecision | null {
   const currentEffective: GoogleAIStudioRoute = hostnameRoute(currentBaseUrl);
-  const requestedTarget: GoogleAIStudioRoute = targetRoute ?? (currentEffective === 'byok' ? 'oauth' : 'byok');
   // `requestedTarget` is the route the caller wants to converge on.
   // When the user invokes the toggle command without specifying a
   // target, we infer the inverse of the current route. When the
   // current route already matches the target, no toggle is needed.
+  const requestedTarget: GoogleAIStudioRoute = targetRoute ?? (currentEffective === 'byok' ? 'oauth' : 'byok');
   const next = requestedTarget;
   if (currentEffective === next) {
     return null;
@@ -104,4 +116,46 @@ function hostnameRoute(baseUrl: string | undefined): GoogleAIStudioRoute {
  */
 export function describeCurrentRoute(currentBaseUrl: string | undefined): string {
   return hostnameRoute(currentBaseUrl) === 'byok' ? 'BYOK (native Gemini surface)' : 'Antigravity OAuth';
+}
+
+/**
+ * Resolve the effective baseUrl from the 4-tier precedence chain:
+ * settings override first, then workspace registry override, then
+ * globalStorage registry override, then the bundled default (BYOK).
+ * Pure function - the caller reads the override files and passes the
+ * extracted `vendors.googleaistudio/antigravity.baseUrl` values in.
+ */
+export function resolveEffectiveBaseUrl(input: EffectiveRouteInput): { baseUrl: string; source: RouteBaseUrlSource } {
+  if (input.settingsBaseUrl && input.settingsBaseUrl.trim().length > 0) {
+    return { baseUrl: input.settingsBaseUrl, source: 'settings' };
+  }
+  if (input.workspaceBaseUrl && input.workspaceBaseUrl.trim().length > 0) {
+    return { baseUrl: input.workspaceBaseUrl, source: 'workspace' };
+  }
+  if (input.globalStorageBaseUrl && input.globalStorageBaseUrl.trim().length > 0) {
+    return { baseUrl: input.globalStorageBaseUrl, source: 'globalStorage' };
+  }
+  return { baseUrl: GOOGLEAISTUDIO_BASES.byok, source: 'bundled' };
+}
+
+/**
+ * Route-switch decision on top of the resolved effective baseUrl.
+ * Same toggle semantics as `decideGoogleAIStudioRouteSwitch` but the
+ * caller resolves the effective URL first (settings, workspace,
+ * globalStorage, bundled), so a stale registry override cannot point
+ * the decision the wrong way. The toast message names the source tier
+ * the decision was based on.
+ */
+export function decideRouteFromEffective(
+  effective: { baseUrl: string; source: RouteBaseUrlSource },
+  targetRoute?: GoogleAIStudioRoute
+): SwitchRouteDecision | null {
+  const decision = decideGoogleAIStudioRouteSwitch(effective.baseUrl, targetRoute);
+  if (!decision) {
+    return null;
+  }
+  return {
+    ...decision,
+    message: `${decision.message} (effective route resolved from ${effective.source}).`,
+  };
 }

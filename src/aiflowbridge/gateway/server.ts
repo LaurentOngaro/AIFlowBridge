@@ -1153,7 +1153,7 @@ export class GatewayService {
    * (non-streaming) or `:streamGenerateContent?alt=sse` (streaming).
    * Translates the OpenAI Chat Completions payload into the native
    * Gemini request envelope via `toGeminiNativeRequest`, and propagates
-   * the BYOK API key in the `Authorization: Bearer <AIzaSy...>` header.
+   * the BYOK API key in the `x-goog-api-key` header.
    *
    * This route replaces the OpenAI-compat surface
    * (`/v1beta/openai/chat/completions`) when the latter is not
@@ -1194,7 +1194,7 @@ export class GatewayService {
 
     let envelope: ReturnType<typeof toGeminiNativeRequest>;
     try {
-      envelope = toGeminiNativeRequest(payload as Record<string, unknown>);
+      envelope = toGeminiNativeRequest(payload as Record<string, unknown>, (message: string) => logger.warn(message));
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err);
       logger.warn(`[Gateway] ${requestId} gemini-native envelope translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
@@ -1302,7 +1302,13 @@ export class GatewayService {
 
     let envelope: ReturnType<typeof toAntigravityEnvelope>;
     try {
-      envelope = toAntigravityEnvelope(payload as Record<string, unknown>, projectId, provider.model || (typeof payload?.model === 'string' ? payload.model : 'gemini-3.8-flash'));
+      envelope = toAntigravityEnvelope(
+        payload as Record<string, unknown>,
+        projectId,
+        provider.model || (typeof payload?.model === 'string' ? payload.model : 'gemini-3.8-flash'),
+        undefined,
+        (message: string) => logger.warn(message)
+      );
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : String(err);
       logger.warn(`[Gateway] ${requestId} antigravity envelope translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
@@ -1683,18 +1689,25 @@ export class GatewayService {
 
         if (upstreamResponse.body) {
           const webStream = upstreamResponse.body as unknown as globalThis.ReadableStream<Uint8Array>;
-          // Build the OpenAI-shaped stream from the upstream body. We
-          // drain the upstream to completion and apply the transform
-          // on the full buffer, then re-stream the OpenAI-shaped bytes
-          // to the client. The TransformStream pattern (`pipeThrough`)
-          // was dropping bytes in production with Node `Readable.fromWeb`
-          // (audit finding 2026-09-05: the transform's `flush()` ran with
-          // an empty buffer under backpressure, so the client received
-          // only `[DONE]`). Buffering + replaying the transform output
-          // is bulletproof and the per-chunk latency cost is negligible
-          // for the model sizes we proxy.
-          const transformed: ReadableStream<Uint8Array> = await (async () => {
-            if (!isAntigravity && !isGeminiNative) return webStream;
+          // Build the OpenAI-shaped stream from the upstream body.
+          // Default is real-time streaming: the upstream body is piped
+          // through the reshape transform straight to the client, so
+          // the first OpenAI chunk leaves as soon as the first
+          // upstream frame is complete (best TTFT). The residual
+          // `flush()` path in both transforms keeps the truncated
+          // final frame case fixed. When
+          // `aiflowbridge.gateway.bufferGeminiStream` is true the
+          // gateway falls back to drain-then-transform (buffer the
+          // full upstream, apply the transform on the buffer, replay
+          // the output), which is more robust on lossy links at the
+          // cost of TTFT. Pipe errors also fall back to the drain
+          // path so no bytes are ever silently lost.
+          const bufferGeminiStream = this.config.gateway.bufferGeminiStream ?? false;
+          const needsReshape = isAntigravity || isGeminiNative;
+          let transformed: ReadableStream<Uint8Array>;
+          if (!needsReshape) {
+            transformed = webStream;
+          } else if (bufferGeminiStream) {
             const accumulated = await drainReadableStream(webStream);
             const transform = isAntigravity
               ? createAntigravityToOpenAiTransformStream({ model: modelName ?? provider.model })
@@ -1703,8 +1716,27 @@ export class GatewayService {
             const writer = out.writable.getWriter();
             await accumulateThroughTransform(accumulated, transform, writer);
             await writer.close();
-            return out.readable;
-          })();
+            transformed = out.readable;
+          } else {
+            const transform = isAntigravity
+              ? createAntigravityToOpenAiTransformStream({ model: modelName ?? provider.model })
+              : createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
+            try {
+              transformed = webStream.pipeThrough(transform);
+            } catch (err) {
+              const rawMessage = err instanceof Error ? err.message : String(err);
+              logger.warn(`[Gateway] ${requestId} live pipe failed for provider=${provider.id}, falling back to buffered replay: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
+              const accumulated = await drainReadableStream(webStream);
+              const retry = isAntigravity
+                ? createAntigravityToOpenAiTransformStream({ model: modelName ?? provider.model })
+                : createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
+              const out = new Uint8ArrayOutputStream();
+              const writer = out.writable.getWriter();
+              await accumulateThroughTransform(accumulated, retry, writer);
+              await writer.close();
+              transformed = out.readable;
+            }
+          }
           const node = Readable.fromWeb(transformed);
           // re-arm the idle watchdog as soon as we
           // start piping the stream body. The headers-idle timer

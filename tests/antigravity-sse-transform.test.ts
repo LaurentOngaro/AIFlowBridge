@@ -111,4 +111,75 @@ describe('accumulateAntigravityResponse', () => {
       total_tokens: 9,
     });
   });
+
+  it('reports tool_calls on the streaming path when STOP arrives with functionCall parts', async () => {
+    const transform = createAntigravityToOpenAiTransformStream({ model: 'gemini-3.8-flash' });
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder('utf8');
+    const inputData =
+      'data: {"response":{"candidates":[{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"Paris"}}}]},"finishReason":"STOP"}]}}\n\n';
+    const inputStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(inputData));
+        controller.close();
+      },
+    });
+    const transformed = inputStream.pipeThrough(transform);
+    const reader = transformed.getReader();
+    let collected = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      collected += decoder.decode(value, { stream: true });
+    }
+    const chunks = collected
+      .split(/\r?\n\r?\n/)
+      .filter((block) => block.trim().length > 0 && block.trim() !== 'data: [DONE]')
+      .map((block) => JSON.parse(block.replace(/^data:\s*/, '')) as { choices: Array<{ finish_reason?: string | null }> });
+    const terminal = chunks.find((c) => c.choices[0]?.finish_reason);
+    expect(terminal?.choices[0]?.finish_reason).toBe('tool_calls');
+  });
+
+  it('keeps stop on the streaming path when STOP arrives without functionCall parts', async () => {
+    const transform = createAntigravityToOpenAiTransformStream({ model: 'gemini-3.8-flash' });
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder('utf8');
+    const inputData =
+      'data: {"response":{"candidates":[{"content":{"parts":[{"text":"done"}]},"finishReason":"STOP"}]}}\n\n';
+    const inputStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(inputData));
+        controller.close();
+      },
+    });
+    const transformed = inputStream.pipeThrough(transform);
+    const reader = transformed.getReader();
+    let collected = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      collected += decoder.decode(value, { stream: true });
+    }
+    const chunks = collected
+      .split(/\r?\n\r?\n/)
+      .filter((block) => block.trim().length > 0 && block.trim() !== 'data: [DONE]')
+      .map((block) => JSON.parse(block.replace(/^data:\s*/, '')) as { choices: Array<{ finish_reason?: string | null }> });
+    const terminal = chunks.find((c) => c.choices[0]?.finish_reason);
+    expect(terminal?.choices[0]?.finish_reason).toBe('stop');
+  });
+
+  it('reports tool_calls on the accumulated path when STOP arrives with tool calls', async () => {
+    const encoder = new TextEncoder();
+    const sseContent =
+      'data: {"response":{"candidates":[{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"Paris"}}}]},"finishReason":"STOP"}]}}\n\n';
+    const inputStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(sseContent));
+        controller.close();
+      },
+    });
+    const fullResponse = await accumulateAntigravityResponse(inputStream, { model: 'gemini-3.8-flash' });
+    expect(fullResponse.choices[0].message.tool_calls).toHaveLength(1);
+    expect(fullResponse.choices[0].finish_reason).toBe('tool_calls');
+  });
 });

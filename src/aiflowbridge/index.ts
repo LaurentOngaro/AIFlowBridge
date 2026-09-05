@@ -395,16 +395,48 @@ class AIFlowBridgeRuntime implements Disposable {
     // `docs/providers.md` for the rationale.
     this.ctx.subscriptions.push(
       register('aiflowbridge.switchGoogleAIStudioRoute', async () => {
-        const { decideGoogleAIStudioRouteSwitch, describeCurrentRoute } = await import('./googleai-studio-route');
+        const { decideRouteFromEffective, describeCurrentRoute, resolveEffectiveBaseUrl } = await import('./googleai-studio-route');
         if (!this.ctx.writeConfiguration) {
           this.ctx.showWarning?.('AIFlowBridge: switching the Google AI Studio route is supported in the VS Code extension only. Edit "aiflowbridge.providers.googleaistudio.baseUrl" in settings.json manually.');
           return;
         }
         const currentConfig = this.ctx.getConfiguration();
-        const currentBaseUrl = currentConfig.get<string>('providers.googleaistudio.baseUrl');
-        const decision = decideGoogleAIStudioRouteSwitch(currentBaseUrl);
+        const settingsBaseUrl = currentConfig.get<string>('providers.googleaistudio.baseUrl');
+        // BUG-16: resolve the effective route from the full 4-tier
+        // chain (settings, workspace override, globalStorage
+        // override, bundled default) so a stale registry override
+        // cannot point the toggle decision the wrong way. Override
+        // tiers are best-effort reads via the injected filesystem.
+        const { readRegistryVendorBaseUrl } = await import('./modelRegistryOverride');
+        const { GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH, WORKSPACE_REGISTRY_RELATIVE_PATH } = await import('./modelRegistry');
+        const fs = this.ctx.fs;
+        let workspaceBaseUrl: string | undefined;
+        let globalStorageBaseUrl: string | undefined;
+        if (fs) {
+          try {
+            const folder = this.ctx.workspaceFolder;
+            const wsPath = folder && 'fsPath' in folder ? (folder as { fsPath: string }).fsPath : undefined;
+            workspaceBaseUrl = wsPath
+              ? await readRegistryVendorBaseUrl(fs, wsPath, WORKSPACE_REGISTRY_RELATIVE_PATH, ['googleaistudio', 'antigravity'])
+              : undefined;
+          } catch {
+            // ignore: missing workspace tier means no workspace override.
+          }
+          try {
+            globalStorageBaseUrl = await readRegistryVendorBaseUrl(fs, this.ctx.globalStorageDir, GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH, [
+              'googleaistudio',
+              'antigravity',
+            ]);
+          } catch {
+            // ignore: missing globalStorage tier means no override.
+          }
+        }
+        const effective = resolveEffectiveBaseUrl({ settingsBaseUrl, workspaceBaseUrl, globalStorageBaseUrl });
+        const decision = decideRouteFromEffective(effective);
         if (!decision) {
-          this.ctx.showInformation?.(`AIFlowBridge: Google AI Studio is already on the ${describeCurrentRoute(currentBaseUrl)} route.`);
+          this.ctx.showInformation?.(
+            `AIFlowBridge: Google AI Studio is already on the ${describeCurrentRoute(effective.baseUrl)} route (resolved from ${effective.source}).`
+          );
           return;
         }
         try {
@@ -418,30 +450,43 @@ class AIFlowBridgeRuntime implements Disposable {
         // override is higher-priority than the bundled registry and the
         // `providers.*.baseUrl` setting. A stale override here would
         // silently re-route the request to the previous surface and
-        // reproduce the failure we just toggled away from. Strip any
-        // `vendors.googleaistudio` entry from the override file before
-        // it can override the new bundled default. The next
+        // reproduce the failure we just toggled away from. Strip both
+        // `vendors.googleaistudio` and `vendors.antigravity` entries
+        // from the globalStorage AND workspace overrides before they
+        // can override the new bundled default. The next
         // `Developer: Reload Window` re-runs the registry loader
         // automatically (the loader caches per activation).
         try {
-          const { GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH } = await import('./modelRegistry');
+          const { GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH, WORKSPACE_REGISTRY_RELATIVE_PATH } = await import('./modelRegistry');
           const { resetGlobalStorageRegistryOverride } = await import('./modelRegistryOverride');
-          const stripped = await resetGlobalStorageRegistryOverride(
+          const stripStaleVendors = (registry: {
+            vendors?: Record<string, { baseUrl?: string; apiKeySecret?: string; externalUrls?: Record<string, string> }>;
+          }): { vendors?: Record<string, { baseUrl?: string; apiKeySecret?: string; externalUrls?: Record<string, string> }> } => {
+            if (registry.vendors?.googleaistudio) {
+              delete registry.vendors.googleaistudio;
+            }
+            const vendors = registry.vendors as Record<string, unknown> | undefined;
+            if (vendors && 'antigravity' in vendors) {
+              delete vendors.antigravity;
+            }
+            return registry;
+          };
+          const strippedGlobal = await resetGlobalStorageRegistryOverride(
             this.ctx.globalStorageDir,
             GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH,
-            (registry) => {
-              if (registry.vendors?.googleaistudio) {
-                delete registry.vendors.googleaistudio;
-              }
-              return registry;
-            }
+            stripStaleVendors
           );
-          if (stripped) {
-            logger.info('[AIFlowBridge] Switch Google AI Studio route: cleared stale vendors.googleaistudio from globalStorage override.');
+          const folder = this.ctx.workspaceFolder;
+          const wsPath = folder && 'fsPath' in folder ? (folder as { fsPath: string }).fsPath : undefined;
+          const strippedWorkspace = wsPath
+            ? await resetGlobalStorageRegistryOverride(wsPath, WORKSPACE_REGISTRY_RELATIVE_PATH, stripStaleVendors)
+            : false;
+          if (strippedGlobal || strippedWorkspace) {
+            logger.info('[AIFlowBridge] Switch Google AI Studio route: cleared stale vendors.googleaistudio/antigravity from registry overrides.');
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[AIFlowBridge] Could not clear the globalStorage vendors.googleaistudio override: ${message}`);
+          logger.warn(`[AIFlowBridge] Could not clear the stale vendors.googleaistudio/antigravity overrides: ${message}`);
         }
         if (decision.cleanup.revokeOAuthTokens && this.tokenManager) {
           this.tokenManager.logout();

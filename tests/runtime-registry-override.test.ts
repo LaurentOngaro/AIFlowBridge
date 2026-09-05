@@ -11,7 +11,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resetGlobalStorageRegistryOverride } from '../src/aiflowbridge/modelRegistryOverride';
+import { readRegistryVendorBaseUrl, resetGlobalStorageRegistryOverride } from '../src/aiflowbridge/modelRegistryOverride';
 
 let workDir: string;
 
@@ -102,5 +102,57 @@ describe('resetGlobalStorageRegistryOverride', () => {
       vendors: Record<string, { baseUrl?: string }>;
     };
     expect(parsed.vendors.openrouter.baseUrl).toBe('https://openrouter.ai/api/v1');
+  });
+});
+
+describe('readRegistryVendorBaseUrl', () => {
+  const readerFor = (dir: string): { readFile(uri: { fsPath: string }): Promise<Uint8Array> } => ({
+    readFile: async (uri: { fsPath: string }) => new TextEncoder().encode(await readFile(uri.fsPath, 'utf8')),
+  });
+
+  it('strips both googleaistudio and antigravity vendor keys on switch', async () => {
+    const filePath = join(workDir, 'models.json');
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        vendors: {
+          googleaistudio: { baseUrl: 'https://cloudcode-pa.googleapis.com' },
+          antigravity: { baseUrl: 'https://cloudcode-pa.googleapis.com' },
+          openrouter: { baseUrl: 'https://openrouter.ai/api/v1' },
+        },
+      }),
+      'utf8'
+    );
+    const written = await resetGlobalStorageRegistryOverride(workDir, ['models.json'], (registry) => {
+      const vendors = registry.vendors as Record<string, unknown> | undefined;
+      if (registry.vendors?.googleaistudio) {
+        delete registry.vendors.googleaistudio;
+      }
+      if (vendors && 'antigravity' in vendors) {
+        delete vendors.antigravity;
+      }
+      return registry;
+    });
+    expect(written).toBe(true);
+    const parsed = JSON.parse(await readFile(filePath, 'utf8')) as { vendors: Record<string, unknown> };
+    expect(parsed.vendors.googleaistudio).toBeUndefined();
+    expect(parsed.vendors.antigravity).toBeUndefined();
+    expect(parsed.vendors.openrouter).toBeDefined();
+  });
+
+  it('reads the first matching vendor baseUrl from an override file', async () => {
+    const filePath = join(workDir, 'models.json');
+    await writeFile(
+      filePath,
+      JSON.stringify({ vendors: { antigravity: { baseUrl: 'https://cloudcode-pa.googleapis.com' } } }),
+      'utf8'
+    );
+    const found = await readRegistryVendorBaseUrl(readerFor(workDir), workDir, ['models.json'], ['googleaistudio', 'antigravity']);
+    expect(found).toBe('https://cloudcode-pa.googleapis.com');
+  });
+
+  it('returns undefined when the override file is missing', async () => {
+    const found = await readRegistryVendorBaseUrl(readerFor(workDir), workDir, ['models.json'], ['googleaistudio', 'antigravity']);
+    expect(found).toBeUndefined();
   });
 });

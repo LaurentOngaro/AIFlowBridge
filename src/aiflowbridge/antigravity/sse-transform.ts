@@ -27,6 +27,11 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
   const created = options.created || Math.floor(Date.now() / 1000);
   const model = options.model;
   let toolCallIndex = 0;
+  let sawToolCall = false;
+  const resolveFinishReason = (geminiReason: string): string => {
+    const mapped = mapFinishReason(geminiReason);
+    return mapped === 'stop' && sawToolCall ? 'tool_calls' : mapped;
+  };
 
   return new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
@@ -68,7 +73,6 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
 
           for (const cand of candidates) {
             const parts = cand.content?.parts ?? [];
-            const finishReason = cand.finishReason ? mapFinishReason(cand.finishReason) : null;
 
             for (const part of parts) {
               if (typeof part.text === 'string' && part.text.length > 0) {
@@ -89,6 +93,7 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
               }
 
               if (part.functionCall) {
+                sawToolCall = true;
                 // Stable id per tool-call index: OpenAI clients accumulate
                 // chunked `arguments` by (index, id). A random id per
                 // chunk would break accumulation, so the id is derived
@@ -123,6 +128,7 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
               }
             }
 
+            const finishReason = cand.finishReason ? resolveFinishReason(cand.finishReason) : null;
             if (finishReason) {
               const finishPayload = {
                 id: completionId,
@@ -185,7 +191,6 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
                 }
                 const candidates = parsed.response?.candidates ?? [];
                 for (const cand of candidates) {
-                  const finishReason = cand.finishReason ? mapFinishReason(cand.finishReason) : null;
                   for (const part of cand.content?.parts ?? []) {
                     if (typeof part.text === 'string' && part.text.length > 0) {
                       const chunkPayload = {
@@ -198,6 +203,7 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
                       controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunkPayload)}\n\n`));
                     }
                     if (part.functionCall) {
+                      sawToolCall = true;
                       const callIndex = toolCallIndex++;
                       const toolChunkPayload = {
                         id: completionId,
@@ -227,6 +233,7 @@ export function createAntigravityToOpenAiTransformStream(options: SseTransformOp
                       controller.enqueue(encoder.encode(`data: ${JSON.stringify(toolChunkPayload)}\n\n`));
                     }
                   }
+                  const finishReason = cand.finishReason ? resolveFinishReason(cand.finishReason) : null;
                   if (finishReason) {
                     const finishPayload = {
                       id: completionId,
@@ -381,6 +388,11 @@ export async function accumulateAntigravityResponse(
   } finally {
     reader.releaseLock();
   }
+
+  // OpenAI contract: a completion carrying `tool_calls` must report
+  // `finish_reason: tool_calls`, even when the upstream terminal
+  // reason mapped to plain `stop`.
+  const resolvedFinishReason = finishReason === 'stop' && toolCalls.length > 0 ? 'tool_calls' : finishReason;
 
   return {
     id: completionId,
