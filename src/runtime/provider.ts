@@ -13,6 +13,55 @@ export interface RegisteredProvider {
   provider: DeepSeekChatProvider | MiniMaxChatProvider | XiaomiChatProvider;
 }
 
+/**
+ * Register the `Set API Key` / `Clear API Key` command pair for a vendor
+ * that has an `API_KEY_SECRETS` slot but no
+ * `vscode.LanguageModelChatProvider` class (the Path B "gateway-only"
+ * vendors: `googleaistudio` on the BYOK route, `zai`, `moonshot`).
+ *
+ * Without this pair, a gateway-only vendor would only be configurable
+ * through `secrets.json` or the `AIFLOWBRIDGE_<VENDOR>_API_KEY`
+ * environment variable, with no UI entry point.
+ */
+function registerApiKeyCommands(
+  context: vscode.ExtensionContext,
+  vendor: 'googleaistudio' | 'zai' | 'moonshot',
+  labelKey: 'provider.googleaistudio.name' | 'provider.zai.name' | 'provider.moonshot.name'
+): vscode.Disposable[] {
+  const providerName = t(labelKey);
+  return [
+    vscode.commands.registerCommand(`aiflowbridge.providers.${vendor}.setApiKey`, async () => {
+      const authManager = new AuthManager(context);
+      const saved = await authManager.promptForApiKey(
+        vendor,
+        t('command.apiKeyPrompt', providerName),
+        t('command.apiKeyPlaceholder', providerName)
+      );
+      if (saved) {
+        vscode.window.showInformationMessage(
+          t('command.apiKeySaved', providerName)
+        );
+      }
+    }),
+    vscode.commands.registerCommand(`aiflowbridge.providers.${vendor}.clearApiKey`, async () => {
+      const authManager = new AuthManager(context);
+      await authManager.deleteApiKey(vendor);
+      vscode.window.showInformationMessage(
+        t('command.apiKeyRemoved', providerName)
+      );
+    }),
+  ];
+}
+
+/** Disposables for the three vendors that have an API-key command pair but no provider class. */
+function googleaistudioAndGatewayOnlyCommandDisposables(context: vscode.ExtensionContext): vscode.Disposable[] {
+  return [
+    ...registerApiKeyCommands(context, 'googleaistudio', 'provider.googleaistudio.name'),
+    ...registerApiKeyCommands(context, 'zai', 'provider.zai.name'),
+    ...registerApiKeyCommands(context, 'moonshot', 'provider.moonshot.name'),
+  ];
+}
+
 export interface RegisteredProviders {
   /**
    * One entry per underlying vendor. Mirrors the historical
@@ -64,28 +113,8 @@ export async function registerAllProviders(context: vscode.ExtensionContext): Pr
     // seen by the other. The OAuth / Antigravity route lives on
     // `aiflowbridge.connectGoogleAIStudio` (registered separately in
     // `src/aiflowbridge/index.ts`) and uses the OAuth token manager.
-    vscode.commands.registerCommand('aiflowbridge.providers.googleaistudio.setApiKey', async () => {
-      const providerName = t('provider.googleaistudio.name');
-      const authManager = new AuthManager(context);
-      const saved = await authManager.promptForApiKey(
-        'googleaistudio',
-        t('command.apiKeyPrompt', providerName),
-        t('command.apiKeyPlaceholder', providerName)
-      );
-      if (saved) {
-        vscode.window.showInformationMessage(
-          t('command.apiKeySaved', providerName)
-        );
-      }
-    }),
-    vscode.commands.registerCommand('aiflowbridge.providers.googleaistudio.clearApiKey', async () => {
-      const providerName = t('provider.googleaistudio.name');
-      const authManager = new AuthManager(context);
-      await authManager.deleteApiKey('googleaistudio');
-      vscode.window.showInformationMessage(
-        t('command.apiKeyRemoved', providerName)
-      );
-    }),
+    // Z.ai and MoonshotAI reuse the same pattern (Path B, gateway-only).
+    ...googleaistudioAndGatewayOnlyCommandDisposables(context),
 
     // Vision proxy picker. Registered here (next to the VS Code
     // adapter) because the implementation imports `vscode.lm`

@@ -89,11 +89,13 @@
         },
         "family": {
           "type": "string",
-          "description": "Vendor config key. Must match a key in the `vendors` map of this registry (deepseek, minimax, xiaomi, openrouter, antigravity, or googleaistudio).",
+          "description": "Vendor config key. Must match a key in the `vendors` map of this registry (deepseek, minimax, xiaomi, zai, moonshot, openrouter, antigravity, or googleaistudio).",
           "enum": [
             "deepseek",
             "minimax",
             "xiaomi",
+            "zai",
+            "moonshot",
             "openrouter",
             "antigravity",
             "googleaistudio"

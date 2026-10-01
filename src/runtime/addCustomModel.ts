@@ -30,6 +30,8 @@ const VENDOR_CHOICES = [
   { id: 'xiaomi', label: 'Xiaomi MiMo' },
   { id: 'openrouter', label: 'OpenRouter' },
   { id: 'googleaistudio', label: 'Google AI Studio' },
+  { id: 'zai', label: 'Z.ai GLM' },
+  { id: 'moonshot', label: 'MoonshotAI Kimi' },
 ] as const;
 
 type VendorId = (typeof VENDOR_CHOICES)[number]['id'];
@@ -40,6 +42,8 @@ const VENDOR_LABELS: Record<VendorId, string> = {
   xiaomi: 'Xiaomi MiMo',
   openrouter: 'OpenRouter',
   googleaistudio: 'Google AI Studio',
+  zai: 'Z.ai GLM',
+  moonshot: 'MoonshotAI Kimi',
 };
 
 export async function addCustomModelCommand(context: vscode.ExtensionContext): Promise<void> {

@@ -34,7 +34,7 @@ _None for now._
 
 ### Features (last: FEAT12)
 
-- [ ] FEAT12: add Alibaba Qwen (DashScope) and ZAI GLM as leading OpenAI-compatible vendors, in the same way as DeepSeek / MiniMax / Xiaomi (dedicated picker, API key commands, preconfigured gateway profile, bundled models). See `_Private/ACTION_PLAN.md` section 1 for the detailed implementation plan.
+- [x] FEAT12: ZAI GLM shipped in 2.19.0 as a gateway-only vendor (Path B: API key commands, gateway profile, GLM 5.3 / 5.3 Flash / 5.3 FlashX bundled, no Copilot picker entry). Alibaba Qwen (DashScope) is still to do; a first-class picker entry for both remains the follow-up.
 - [ ] FEAT11: follows up for FEAT10: Follow-up tracks for the rest (not done, postponed)
   - [ ] **README.md cost tables regenerated from `resources/pricing.json`.** The action plan provided a script `_helpers/scripts/refresh-pricing-readme.py` to regenerate the prose tables of the README and `docs/cost.md` from the JSON bundle. Not implemented in this pass; can be added in a later release.
   - [ ] **Drift drift-warning emit on user-side divergence.** The action plan explicitly states: "No drift warning is emitted when the user-side refresh produces a rate that diverges from the bundled one." We respect the instructions (no warning), but a toggle opt-in (`aiflowbridge.gateway.pricing.warnOnDrift`) remains possible if a user requests it.
@@ -70,7 +70,7 @@ _The 2026-08-06 audit (`docs/audits/2026-08-06-audit-v2.15.5.md` §1.1 + §6.3 +
 
 Next up:
 
-- [ ] Alibaba Qwen (DashScope) + ZAI GLM as first-class vendors - first-class picker entries, per-vendor `setApiKey` / `clearApiKey`, gateway profiles, bundled models (Qwen3 Coder / Qwen3 Max, GLM-4.6 / GLM-4.5). See `_Private/ACTION_PLAN.md` section 1.
+- [ ] Alibaba Qwen (DashScope) as a first-class vendor - picker entry, per-vendor `setApiKey` / `clearApiKey`, gateway profile, bundled models (Qwen3 Coder / Qwen3 Max). Follow-up: promote Z.ai GLM and MoonshotAI Kimi from gateway-only (Path B) to a Copilot Chat picker entry (Path A).
 - [ ] Ollama upstream - local LLMs (Llama, Mistral, Qwen, DeepSeek-R1) routed through the same gateway; no cloud cost, no data leaving the machine
 - [ ] Web-based dashboard at `http://127.0.0.1:8787/dashboard` (in addition to the VS Code panel)
 - [ ] Custom OpenAI-compatible upstreams (LM Studio, vLLM, llama.cpp) routed through the same gateway

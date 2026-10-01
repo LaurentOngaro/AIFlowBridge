@@ -1,8 +1,8 @@
 {
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - 100+ AI models via OpenRouter, plus DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
-  "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1. Three direct vendors (DeepSeek V4 at $0.27/M in, MiniMax M3 at $0.30/M in, Xiaomi MiMo V2 at $0.10/M in) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) three direct vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.18.4",
+  "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1, alongside the gateway-only Z.ai GLM 5.3, MoonshotAI Kimi K3 and Google AI Studio Gemini vendors. Six direct vendors (DeepSeek V4.1 Flash at $0.30/M in, DeepSeek V4 Pro, MiniMax M3, Xiaomi MiMo V2.6, Z.ai GLM 5.3, MoonshotAI Kimi) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) per-vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
+  "version": "2.19.0",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -36,7 +36,7 @@
     "minimax",
     "minimax-m3",
     "xiaomi",
-    "mimo",
+    "mimo", "zai", "glm", "kimi", "moonshot", "minimax-m3-1", "deepseek-v4-1",
     "copilot",
     "copilot-chat",
     "copilot-alternative",
@@ -195,6 +195,26 @@
         "command": "aiflowbridge.providers.googleaistudio.clearApiKey",
         "category": "AIFlowBridge",
         "title": "%aiflowbridge.command.clearApiKeyGoogleAIStudio.title%"
+      },
+      {
+        "command": "aiflowbridge.providers.zai.setApiKey",
+        "category": "AIFlowBridge",
+        "title": "Z.ai GLM: Set API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.zai.clearApiKey",
+        "category": "AIFlowBridge",
+        "title": "Z.ai GLM: Clear API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.moonshot.setApiKey",
+        "category": "AIFlowBridge",
+        "title": "MoonshotAI Kimi: Set API Key"
+      },
+      {
+        "command": "aiflowbridge.providers.moonshot.clearApiKey",
+        "category": "AIFlowBridge",
+        "title": "MoonshotAI Kimi: Clear API Key"
       },
       {
         "command": "aiflowbridge.connectGoogleAIStudio",
@@ -561,6 +581,38 @@
           "minimum": 0,
           "description": "Maximum tokens per response (0 = default)"
         },
+        "aiflowbridge.providers.zai.baseUrl": {
+          "type": "string",
+          "default": "https://api.z.ai/api/paas/v4",
+          "description": "Z.ai GLM API base URL. The default is the pay-as-you-go endpoint; GLM Coding Plan subscribers must switch to https://api.z.ai/api/coding/paas/v4"
+        },
+        "aiflowbridge.providers.zai.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum tokens per response (0 = default)"
+        },
+        "aiflowbridge.providers.zai.modelIdOverrides": {
+          "type": "object",
+          "default": {},
+          "description": "Model ID overrides for Z.ai GLM models"
+        },
+        "aiflowbridge.providers.moonshot.baseUrl": {
+          "type": "string",
+          "default": "https://api.moonshot.ai/v1",
+          "description": "MoonshotAI Kimi API base URL (global endpoint)"
+        },
+        "aiflowbridge.providers.moonshot.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum tokens per response (0 = default)"
+        },
+        "aiflowbridge.providers.moonshot.modelIdOverrides": {
+          "type": "object",
+          "default": {},
+          "description": "Model ID overrides for MoonshotAI Kimi models"
+        },
         "aiflowbridge.telemetry.enabled": {
           "type": "boolean",
           "default": true,
@@ -629,6 +681,8 @@
                   "deepseek",
                   "minimax",
                   "xiaomi",
+                  "zai",
+                  "moonshot",
                   "openrouter",
                   "antigravity",
                   "googleaistudio"

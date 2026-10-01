@@ -228,6 +228,93 @@ describe('loadModelRegistry - 3-tier merge', () => {
     expect(result.vendors.openrouter?.baseUrl).toBe('https://openrouter.ai/api/v1');
   });
 
+  it('recognises "zai" as a valid family in the bundled tier', async () => {
+    // The KNOWN_FAMILIES Set in src/aiflowbridge/modelRegistry.schema.ts
+    // MUST contain "zai". A family missing from the Set is dropped
+    // fail-soft by validateModelEntry(): one warn in the log, the model
+    // disappears from the picker and from GET /v1/models, no visible
+    // error. This is the most failure-prone edit of a Path B vendor
+    // addition, so it gets a dedicated test.
+    const files: Record<string, unknown> = {};
+    files[`${BUNDLED_PATH.replace('/resources/models.json', '')}/resources/models.json`] = {
+      version: 1,
+      vendors: {
+        zai: { baseUrl: 'https://api.z.ai/api/paas/v4', apiKeySecret: 'aiflowbridge.providers.zai.apiKey' },
+      },
+      models: [
+        {
+          id: 'glm-5.3',
+          name: 'Z.ai GLM 5.3',
+          family: 'zai',
+          version: '5.3',
+          detail: 'd',
+          maxInputTokens: 1000000,
+          maxOutputTokens: 131072,
+          capabilities: { toolCalling: true, imageInput: false, thinking: true },
+          requiresThinkingParam: true,
+        },
+        {
+          id: 'glm-5.3-flash',
+          name: 'Z.ai GLM 5.3 Flash',
+          family: 'zai',
+          version: '5.3-flash',
+          detail: 'd',
+          maxInputTokens: 1000000,
+          maxOutputTokens: 131072,
+          capabilities: { toolCalling: true, imageInput: true, thinking: true },
+          requiresThinkingParam: true,
+        },
+      ],
+    };
+
+    const fs = makeFs(files);
+    const result = await loadModelRegistry(makeContext(), { fs });
+
+    expect(result.models.map((m) => m.id).sort()).toEqual(['glm-5.3', 'glm-5.3-flash']);
+    expect(result.vendors.zai?.baseUrl).toBe('https://api.z.ai/api/paas/v4');
+  });
+
+  it('recognises "moonshot" as a valid family in the bundled tier', async () => {
+    // Same fail-soft failure mode as "zai": see the test above.
+    const files: Record<string, unknown> = {};
+    files[`${BUNDLED_PATH.replace('/resources/models.json', '')}/resources/models.json`] = {
+      version: 1,
+      vendors: {
+        moonshot: { baseUrl: 'https://api.moonshot.ai/v1', apiKeySecret: 'aiflowbridge.providers.moonshot.apiKey' },
+      },
+      models: [
+        {
+          id: 'kimi-k3',
+          name: 'MoonshotAI Kimi K3',
+          family: 'moonshot',
+          version: 'k3',
+          detail: 'd',
+          maxInputTokens: 1048576,
+          maxOutputTokens: 1048576,
+          capabilities: { toolCalling: true, imageInput: true, thinking: true },
+          requiresThinkingParam: true,
+        },
+        {
+          id: 'kimi-k2.6',
+          name: 'MoonshotAI Kimi K2.6',
+          family: 'moonshot',
+          version: 'k2.6',
+          detail: 'd',
+          maxInputTokens: 262144,
+          maxOutputTokens: 131072,
+          capabilities: { toolCalling: true, imageInput: true, thinking: true },
+          requiresThinkingParam: false,
+        },
+      ],
+    };
+
+    const fs = makeFs(files);
+    const result = await loadModelRegistry(makeContext(), { fs });
+
+    expect(result.models.map((m) => m.id).sort()).toEqual(['kimi-k2.6', 'kimi-k3']);
+    expect(result.vendors.moonshot?.baseUrl).toBe('https://api.moonshot.ai/v1');
+  });
+
   it('resolves an unknown OpenRouter model added through a workspace override (100+ models reachable)', async () => {
     // OpenRouter exposes 100+ models; the bundled registry only lists
     // seven flagships. A user adding an OpenRouter-only model to their

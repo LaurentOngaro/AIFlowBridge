@@ -25,6 +25,10 @@
     <string>replace-me</string>
     <key>AIFLOWBRIDGE_XIAOMI_API_KEY</key>
     <string>replace-me</string>
+    <key>AIFLOWBRIDGE_ZAI_API_KEY</key>
+    <string>replace-me</string>
+    <key>AIFLOWBRIDGE_MOONSHOT_API_KEY</key>
+    <string>replace-me</string>
   </dict>
 
   <key>StandardOutPath</key>

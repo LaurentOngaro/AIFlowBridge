@@ -10,7 +10,7 @@ npm run watch                # Watch mode for development
 npm run package              # Build .vsix package (output in dist/)
 npm run build:standalone     # Build the standalone gateway CLI (dist/standalone/main.js)
 npm run start:standalone     # Run the standalone gateway CLI from a build
-npm test                     # Run vitest unit tests (905 tests / 50 files, includes tests/integration/openrouter.smoke.test.ts)
+npm test                     # Run vitest unit tests (inventory is dynamic; see docs/agent-instructions/testing.md)
 npm run publish:vscode       # Publish to VS Code Marketplace (requires PAT)
 npm run publish:openvsx      # Publish to Open VSX (Cursor / Windsurf / VSCodium)
 npm run publish:all          # Publish to both stores
@@ -53,7 +53,7 @@ The full recipe - the vendor shows up in the Copilot Chat picker AND in the Open
 15. **i18n** in `package.nls.json` (`provider.<vendor>.name` + `model.<id>.detail` per model).
 16. **Add tests** in `tests/<vendor>-*.test.ts` + register in `docs/agent-instructions/testing.md`.
 
-### Path B - Gateway-only vendor (OpenRouter since 2.12.0)
+### Path B - Gateway-only vendor (OpenRouter since 2.12.0, Z.ai and MoonshotAI since 2.19.0)
 
 The vendor is exposed through the OpenAI-compatible gateway (`http://127.0.0.1:8787/v1`) but **NOT** in the Copilot Chat picker.
 This is the right path for a meta-provider that fronts many models behind a single OpenAI-compatible endpoint, where writing a per-model `vscode.LanguageModelChatProvider` does not buy the user anything (the gateway already forwards the call verbatim).

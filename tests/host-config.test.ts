@@ -226,30 +226,33 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
     const ids = new Set(providers.map((p) => p.id));
     // Spot-check a few well-known ids from each family.
-    expect(ids.has('deepseek-v4-flash')).toBe(true);
+    expect(ids.has('deepseek-flash')).toBe(true);
+    expect(ids.has('deepseek-v4-pro')).toBe(true);
     expect(ids.has('MiniMax-M2.7')).toBe(true);
     expect(ids.has('MiniMax-M3')).toBe(true);
-    expect(ids.has('mimo-v2-omni')).toBe(true);
+    expect(ids.has('mimo-v2.6-pro')).toBe(true);
     expect(ids.has('mimo-v2.5-pro')).toBe(true);
+    expect(ids.has('glm-5.3-flash')).toBe(true);
+    expect(ids.has('kimi-k3')).toBe(true);
   });
 
   it('attaches the family-level indicative pricing to each synthesized provider', () => {
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
     const m3 = providers.find((p) => p.model === 'MiniMax-M3');
     expect(m3?.pricing).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
-    const mimo = providers.find((p) => p.model === 'mimo-v2-omni');
+    const mimo = providers.find((p) => p.model === 'mimo-v2.6-pro');
     expect(mimo?.pricing).toEqual({ inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' });
   });
 
   it('attaches the per-model bundled pricing from the registry (not just the family default)', () => {
     // The bundled registry ships with explicit per-model pricing for
-    // every model (deepseek-v4-flash, MiniMax-M3, mimo-v2-omni,...).
+    // most models (deepseek-flash, MiniMax-M3, mimo-v2.6-pro,...).
     // The synthesis must surface those per-model rates on the
     // synthesized provider so the dashboard's "Estimated cost" /
     // "Pricing" columns and rate tooltips are non-zero and accurate.
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
-    const deepseek = providers.find((p) => p.model === 'deepseek-v4-flash');
-    expect(deepseek?.pricing).toEqual({ inputPerMillion: 0.27, outputPerMillion: 1.1, currency: 'USD' });
+    const deepseek = providers.find((p) => p.model === 'deepseek-flash');
+    expect(deepseek?.pricing).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
   });
 
   it('does not duplicate models already covered by an existing provider', () => {
@@ -259,9 +262,9 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     const m27 = providers.filter((p) => p.model === 'MiniMax-M2.7');
     expect(m27).toHaveLength(1);
     expect(m27[0].id).toBe('MiniMax-M2.7'); // The hand-curated entry wins.
-    // But M3, V2 Omni, etc. should still be added.
+    // But M3, V2.6 Pro, etc. should still be added.
     expect(providers.find((p) => p.model === 'MiniMax-M3')).toBeDefined();
-    expect(providers.find((p) => p.model === 'mimo-v2-omni')).toBeDefined();
+    expect(providers.find((p) => p.model === 'mimo-v2.6-pro')).toBeDefined();
   });
 
   it('synthesizes the new googleaistudio models as openai-compat on the BYOK baseUrl', () => {
@@ -276,7 +279,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     expect(gemini?.kind).toBe('openai-compat');
     expect(gemini?.model).toBe('gemini-3.8-flash');
     expect(gemini?.billing).toBeUndefined();
-    const deepseek = providers.find((p) => p.id === 'deepseek-v4-flash');
+    const deepseek = providers.find((p) => p.id === 'deepseek-flash');
     expect(deepseek?.kind).toBe('openai-compat');
   });
 
@@ -306,11 +309,46 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     // registry lists the googleaistudio family first), followed by
     // the deepseek family.
     expect(providers[1].id).toBe('gemini-3.8-flash');
-    expect(providers.find((p) => p.id === 'deepseek-v4-flash')).toBeDefined();
+    expect(providers.find((p) => p.id === 'deepseek-flash')).toBeDefined();
   });
 
-  it('uses the vendor baseUrl from the configuration override when present', () => {
-    const configWithXiaomiOverride = {
+  it('synthesizes the gateway-only zai and moonshot models as openai-compat on their default baseUrl', () => {
+    // `zai` and `moonshot` are Path B vendors: no provider class, so the
+    // synthesis path in `synthesizeProviderForModel` is the ONLY thing
+    // that makes them reachable. It must tag them `openai-compat` (not
+    // `googleaistudio`, not `antigravity`) and leave the API key to the
+    // runtime key chain, never inline it in the profile.
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    const glm = providers.find((p) => p.id === 'glm-5.3-flash');
+    expect(glm?.kind).toBe('openai-compat');
+    expect(glm?.baseUrl).toBe('https://api.z.ai/api/paas/v4');
+    expect(glm?.billing).toBeUndefined();
+    expect(glm?.apiKey).toBeUndefined();
+    const kimi = providers.find((p) => p.id === 'kimi-k3');
+    expect(kimi?.kind).toBe('openai-compat');
+    expect(kimi?.baseUrl).toBe('https://api.moonshot.ai/v1');
+    expect(kimi?.billing).toBeUndefined();
+    expect(kimi?.apiKey).toBeUndefined();
+  });
+
+  it('honours a zai baseUrl override so Coding Plan subscribers can switch upstream', () => {
+    // GLM Coding Plan keys are only served by
+    // `https://api.z.ai/api/coding/paas/v4`; the bundled default is the
+    // pay-as-you-go `paas` endpoint. The override must reach every
+    // synthesized model of the family.
+    const config = {
+      get: (key: string, fallback?: unknown) => {
+        if (key === 'providers.zai.baseUrl') return 'https://api.z.ai/api/coding/paas/v4';
+        return fallback;
+      },
+    };
+    const providers = synthesizeProvidersFromBuiltInModels([], config as never, loadBundledRegistry());
+    for (const id of ['glm-5.3', 'glm-5.3-flash', 'glm-5.3-flashx']) {
+      expect(providers.find((p) => p.id === id)?.baseUrl).toBe('https://api.z.ai/api/coding/paas/v4');
+    }
+  });
+
+  it('uses the vendor baseUrl from the configuration override when present', () => {    const configWithXiaomiOverride = {
       get: (key: string, fallback?: unknown) => {
         if (key === 'providers.xiaomi.baseUrl') return 'https://token-plan-sgp.xiaomimimo.com/v1';
         return fallback;
@@ -344,15 +382,15 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
   it('falls back to the family-level indicative pricing when a model in the registry has no pricing', () => {
     // Family-level fallback is what guarantees un-priced models still
     // show a non-zero "Estimated cost" in the dashboard. We strip
-    // pricing from `mimo-v2-omni` in the registry; the synthesis
+    // pricing from `mimo-v2.6-flash` in the registry; the synthesis
     // must use the indicative xiaomi family default ({0.1, 0.3}).
     const registry = loadBundledRegistry();
     const stripped = {
       ...registry,
-      models: registry.models.map((model) => (model.id === 'mimo-v2-omni' ? { ...model, pricing: undefined } : model)),
+      models: registry.models.map((model) => (model.id === 'mimo-v2.6-flash' ? { ...model, pricing: undefined } : model)),
     };
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, stripped);
-    const om = providers.find((p) => p.model === 'mimo-v2-omni');
+    const om = providers.find((p) => p.model === 'mimo-v2.6-flash');
     expect(om?.pricing).toEqual({ inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' });
   });
 });
@@ -371,6 +409,22 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
     'minimax-m2', 'xiaomi-mimo', 'openrouter-ai', 'aiflowbridge',
   ]);
 
+  /**
+   * Real upstream ids that the lowercase-letters-and-dashes heuristic
+   * cannot tell apart from a vendor name. The heuristic is deliberately
+   * NOT widened: it is the regression guard for the historical
+   * `id: 'minimax'` / `id: 'xiaomi'` bug. Each entry below is a genuine
+   * upstream id, kept here so the guard stays useful:
+   *   - `deepseek-flash` is the real id of DeepSeek V4.1-Flash
+   *     (https://api-docs.deepseek.com/quick_start/pricing); the retired
+   *     `deepseek-v4-flash` alias must not come back.
+   *   - `gemini-flash-latest` / `gemini-flash-lite-latest` are the
+   *     rolling Google AI Studio aliases.
+   */
+  const REAL_UPSTREAM_IDS_WITHOUT_DIGITS = new Set([
+    'deepseek-flash', 'gemini-flash-latest', 'gemini-flash-lite-latest',
+  ]);
+
   function isVendorShaped(id: string): boolean {
     // Heuristic: lowercase letters and dashes only, no uppercase, no digits
     // (most real upstream ids have digits like v4-flash, M2.7, etc.).
@@ -387,10 +441,14 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
 
   it('no hand-curated catalog id looks like a vendor-only string (lowercase letters + dashes only)', () => {
     // Wider heuristic: real upstream ids have digits, dots, or upper-case
-    // (DeepSeek V4, MiniMax-M2.7, mimo-v2.5-pro, openai/gpt-oss-120b:free).
-    // A bare-vendor-shape id without digits is a strong smell.
+    // (DeepSeek V4, MiniMax-M2.7, mimo-v2.5-pro, thinkingmachines/inkling:free).
+    // A bare-vendor-shape id without digits is a strong smell, except for
+    // the documented real upstream ids in the exemption list above.
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
-    const vendorShaped = providers.filter((p) => isVendorShaped(p.id)).map((p) => p.id);
+    const vendorShaped = providers
+      .filter((p) => isVendorShaped(p.id))
+      .map((p) => p.id)
+      .filter((id) => !REAL_UPSTREAM_IDS_WITHOUT_DIGITS.has(id));
     expect(vendorShaped).toEqual([]);
   });
 
@@ -401,48 +459,36 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
     // the alias convention was abandoned because shipping the vendor name
     // as a catalog id is misleading; this test pins the new convention.
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
-    // The hand-curated entries are the first 4 (deepseek-flash, deepseek-pro,
-    // MiniMax-M2.7, mimo-v2.5-pro). For MiniMax + Xiaomi, `id` MUST equal
-    // `model` exactly. For DeepSeek, the alias is allowed but the picked
-    // test below asserts the MiniMax + Xiaomi invariant.
+    // The hand-curated entries are the first entries of the array
+    // (deepseek-flash, deepseek-v4-pro, MiniMax-M2.7, mimo-v2.5-pro,
+    // glm-5.3-flash, kimi-k3). Every one of them uses `id === model`, the
+    // verbatim upstream id. The two tests below cover DeepSeek explicitly.
     const minimax = providers.find((p) => p.model === 'MiniMax-M2.7');
     expect(minimax?.id).toBe('MiniMax-M2.7');
     const xiaomi = providers.find((p) => p.model === 'mimo-v2.5-pro');
     expect(xiaomi?.id).toBe('mimo-v2.5-pro');
   });
 
-  it('whitelists the historical DeepSeek alias convention (deepseek-flash, deepseek-pro)', () => {
-    // The 2.13.0 catalog-id regression test (above) asserts that
-    // MiniMax + Xiaomi hand-curated entries use `id === model`. The
-    // audit also flagged that the DeepSeek hand-curated entries
-    // historically used `id: 'deepseek-flash'` with `model:
-    // 'deepseek-v4-flash'` - a friendly alias, not a vendor name leak.
-    // The alias is documented as an allowed exception in
-    // `docs/agent-instructions/tasks.md` (Path A, step 9). Without an
-    // explicit whitelist, a future contributor could "fix" the alias
-    // to match `model`, rename the catalog id, and break every Kilo
-    // Code / Continue config that pinned `deepseek-flash` in the
-    // picker. This test pins the whitelist so the alias stays
-    // intentional, not accidental.
-    //
-    // The hand-curated `DEFAULT_GATEWAY_PROFILES` array is internal to
-    // `host-config.ts`; we mirror the two DeepSeek entries here as
-    // the `existing` provider list (this matches what
-    // `loadConfigFromContext` builds via `buildDefaultGatewayProfiles`)
-    // so the synthesis step runs over them and the assertion below
-    // verifies the alias is preserved.
+  it('the hand-curated DeepSeek entries use the verbatim upstream ids (id === model)', () => {
+    // The 2.13.0 catalog-id regression established `id === model` for the
+    // hand-curated gateway entries. 2.19.0 extends it to DeepSeek: the
+    // historical `id: 'deepseek-flash'` with `model: 'deepseek-v4-flash'`
+    // friendly alias is gone, because `deepseek-v4-flash` is a RETIRED
+    // upstream id (still accepted upstream but served by V4.1-Flash) and
+    // the hand-curated `deepseek-pro` alias matched no upstream id at
+    // all. Both entries now carry the real upstream id.
     const registry = loadBundledRegistry();
     const handCurated: ProviderProfile[] = [
       {
         id: 'deepseek-flash',
-        label: 'DeepSeek V4 Flash',
+        label: 'DeepSeek V4.1 Flash',
         kind: 'openai-compat',
         baseUrl: registry.vendors.deepseek.baseUrl,
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-flash',
         enabled: true,
       },
       {
-        id: 'deepseek-pro',
+        id: 'deepseek-v4-pro',
         label: 'DeepSeek V4 Pro',
         kind: 'openai-compat',
         baseUrl: registry.vendors.deepseek.baseUrl,
@@ -451,34 +497,40 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
       },
     ];
     const providers = synthesizeProvidersFromBuiltInModels(handCurated, fakeConfig() as never, registry);
-    const deepseekFlash = providers.find((p) => p.model === 'deepseek-v4-flash');
+    const deepseekFlash = providers.find((p) => p.model === 'deepseek-flash');
     expect(deepseekFlash?.id).toBe('deepseek-flash');
-    expect(deepseekFlash?.model).toBe('deepseek-v4-flash');
     const deepseekPro = providers.find((p) => p.model === 'deepseek-v4-pro');
-    expect(deepseekPro?.id).toBe('deepseek-pro');
-    expect(deepseekPro?.model).toBe('deepseek-v4-pro');
+    expect(deepseekPro?.id).toBe('deepseek-v4-pro');
   });
 
-  it('DeepSeek alias catalog ids still route to the real upstream model via selectProvider', () => {
-    // The DeepSeek alias `deepseek-flash` must still resolve to the
-    // upstream `deepseek-v4-flash` via `selectProvider` so a client
-    // that pinned the friendly alias in its config (Kilo Code model
-    // picker, Continue config.json) keeps working. selectProvider
-    // already matches `id` / `model` / `label`, so this assertion is
-    // a regression guard for the documented exception: a future
-    // change that breaks the alias resolution would surface here.
+  it('the retired deepseek-v4-flash upstream id is gone from the bundled catalog', () => {
+    // Upstream still accepts `deepseek-v4-flash` but serves it with the
+    // V4.1-Flash model, so the 2.19.0 refresh purges it. A client config
+    // pinning it now gets `503 No gateway provider matches model`, which
+    // is announced in the CHANGELOG. This test keeps it from creeping
+    // back into the bundled registry.
+    const registry = loadBundledRegistry();
+    expect(registry.models.find((m) => m.id === 'deepseek-v4-flash')).toBeUndefined();
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, registry);
+    expect(providers.find((p) => p.model === 'deepseek-v4-flash')).toBeUndefined();
+  });
+
+  it('DeepSeek catalog ids route to the real upstream model via selectProvider', () => {
+    // selectProvider matches `id` / `model` / `label`, so a client that
+    // pins either the catalog id or the upstream model id reaches the
+    // same profile.
     const registry = loadBundledRegistry();
     const handCurated: ProviderProfile[] = [
       {
         id: 'deepseek-flash',
-        label: 'DeepSeek V4 Flash',
+        label: 'DeepSeek V4.1 Flash',
         kind: 'openai-compat',
         baseUrl: registry.vendors.deepseek.baseUrl,
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-flash',
         enabled: true,
       },
       {
-        id: 'deepseek-pro',
+        id: 'deepseek-v4-pro',
         label: 'DeepSeek V4 Pro',
         kind: 'openai-compat',
         baseUrl: registry.vendors.deepseek.baseUrl,
@@ -487,13 +539,8 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
       },
     ];
     const providers = synthesizeProvidersFromBuiltInModels(handCurated, fakeConfig() as never, registry);
-    const routedFlash = selectProvider(providers, 'deepseek-flash', '');
-    expect(routedFlash?.model).toBe('deepseek-v4-flash');
-    const routedPro = selectProvider(providers, 'deepseek-pro', '');
-    expect(routedPro?.model).toBe('deepseek-v4-pro');
-    // And the real upstream ids still route via the `model` alias.
-    const routedReal = selectProvider(providers, 'deepseek-v4-flash', '');
-    expect(routedReal?.model).toBe('deepseek-v4-flash');
+    expect(selectProvider(providers, 'deepseek-flash', '')?.model).toBe('deepseek-flash');
+    expect(selectProvider(providers, 'deepseek-v4-pro', '')?.model).toBe('deepseek-v4-pro');
   });
 
   it('GET /v1/models catalog (built from synthesized providers) lists real upstream ids, never vendor names', () => {

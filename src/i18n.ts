@@ -89,6 +89,13 @@ const en: Translations = {
   'provider.deepseek.name': 'DeepSeek',
   'provider.minimax.name': 'MiniMax',
   'provider.xiaomi.name': 'Xiaomi MiMo',
+  'provider.openrouter.name': 'OpenRouter',
+  'provider.googleaistudio.name': 'Google AI Studio',
+  // Gateway-only vendors (Path B): no `vscode.LanguageModelChatProvider`
+  // class, but the `Set API Key` / `Clear API Key` commands still name
+  // them in their toasts.
+  'provider.zai.name': 'Z.ai GLM',
+  'provider.moonshot.name': 'MoonshotAI Kimi',
 
   // Commands
   'command.setApiKey': '{0}: Set API Key',

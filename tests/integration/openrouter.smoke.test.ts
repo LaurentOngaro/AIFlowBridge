@@ -34,15 +34,30 @@ describe('OpenRouter smoke - registry shape', () => {
     expect(openrouter?.apiKeySecret).toBe('aiflowbridge.providers.openrouter.apiKey');
   });
 
-  it('bundled registry lists at least 5 of the 7 OpenRouter flagship models', () => {
+  it('bundled registry lists the current OpenRouter free tier', () => {
+    // The free-tier selection is rebuilt from the live
+    // `GET https://openrouter.ai/api/v1/models` catalogue (2026-10-01).
+    // Ids that left the free tier (openai/gpt-oss-120b, meta-llama/llama-3.3-70b-instruct,
+    // qwen/qwen3-coder, qwen/qwen3-next-80b-a3b-instruct) were purged, and
+    // `nvidia/nemotron-3.5-content-safety:free` was left out on purpose:
+    // it is a guardrail classifier, not a chat model.
     const models = (bundled.models as Array<{ id: string; family: string }>).filter((m) => m.family === 'openrouter');
-    expect(models.length).toBeGreaterThanOrEqual(5);
+    expect(models.length).toBeGreaterThanOrEqual(10);
     const ids = models.map((m) => m.id);
-    // Spot-check a handful of flagship ids (OpenRouter verbatim, July 2026 free-tier selection).
+    // Spot-check a handful of flagship ids (OpenRouter verbatim, October 2026 free-tier selection).
     expect(ids).toContain('nvidia/nemotron-3-ultra-550b-a55b:free');
-    expect(ids).toContain('openai/gpt-oss-120b:free');
+    expect(ids).toContain('nvidia/nemotron-3.5-lightning:free');
     expect(ids).toContain('google/gemma-4-31b-it:free');
-    expect(ids).toContain('qwen/qwen3-coder:free');
+    expect(ids).toContain('qwen/qwen3.8-27b:free');
+    expect(ids).toContain('thinkingmachines/inkling:free');
+  });
+
+  it('bundled registry no longer lists the OpenRouter ids that left the free tier', () => {
+    const models = (bundled.models as Array<{ id: string; family: string }>).filter((m) => m.family === 'openrouter');
+    const ids = models.map((m) => m.id);
+    for (const retired of ['openai/gpt-oss-120b:free', 'meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free', 'qwen/qwen3-next-80b-a3b-instruct:free']) {
+      expect(ids, `retired free-tier id "${retired}" is still bundled`).not.toContain(retired);
+    }
   });
 
   it('all openrouter models use family="openrouter" and a positive context window', () => {

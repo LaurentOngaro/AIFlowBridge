@@ -40,6 +40,8 @@ export const SECRET_KEY_TO_ENV_NAME: Readonly<Record<string, string>> = {
   // managed by `AntigravityTokenManager`). Audit BUG-07: this entry was
   // missing, so `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY` was silently ignored.
   'aiflowbridge.providers.googleaistudio.apiKey': 'AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY',
+  'aiflowbridge.providers.zai.apiKey': 'AIFLOWBRIDGE_ZAI_API_KEY',
+  'aiflowbridge.providers.moonshot.apiKey': 'AIFLOWBRIDGE_MOONSHOT_API_KEY',
 };
 
 /** Env var name for a secret key, or `undefined` when the key has no env mapping. */
@@ -59,6 +61,8 @@ const SECRET_SHORT_TO_FULL: Readonly<Record<string, string>> = {
   'xiaomi.apiKey': 'aiflowbridge.providers.xiaomi.apiKey',
   'openrouter.apiKey': 'aiflowbridge.providers.openrouter.apiKey',
   'googleaistudio.apiKey': 'aiflowbridge.providers.googleaistudio.apiKey',
+  'zai.apiKey': 'aiflowbridge.providers.zai.apiKey',
+  'moonshot.apiKey': 'aiflowbridge.providers.moonshot.apiKey',
 };
 
 /**

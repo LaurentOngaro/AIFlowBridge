@@ -36,6 +36,13 @@ export const API_KEY_SECRETS = {
   // always works against `generativelanguage.googleapis.com` (factured on
   // the user's own GCP project, NOT on the AI Studio Pro subscription).
   googleaistudio: 'aiflowbridge.providers.googleaistudio.apiKey',
+  // Gateway-only vendors (Path B, no `vscode.LanguageModelChatProvider`
+  // class): Z.ai GLM and MoonshotAI Kimi are reached through the
+  // OpenAI-compatible gateway, so the key still needs a SecretStorage
+  // slot for the `Set API Key` / `Clear API Key` commands and for the
+  // unified key chain (`src/aiflowbridge/api-key-sources.ts`).
+  zai: 'aiflowbridge.providers.zai.apiKey',
+  moonshot: 'aiflowbridge.providers.moonshot.apiKey',
   // OAuth vendors have no API-key setting (`aiflowbridge.providers.*.apiKey`
   // is meaningless for them - auth lives in `secrets.json` via
   // `AntigravityTokenManager`). They are intentionally absent from this

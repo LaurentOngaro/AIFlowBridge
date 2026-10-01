@@ -68,6 +68,8 @@
   "provider.openrouter.name": "OpenRouter",
   "provider.googleaistudio.name": "Google AI Studio",
   "provider.antigravity.name": "Antigravity",
+  "provider.zai.name": "Z.ai GLM",
+  "provider.moonshot.name": "MoonshotAI Kimi",
   "model.gemini-3.8-flash.detail": "Gemini 3.8 Flash via Google AI Studio (API key, BYOK pay-as-you-go) - configuration separate from the Antigravity OAuth route",
   "model.gemini-3.7-flash.detail": "Gemini 3.7 Flash via Google AI Studio (API key, BYOK pay-as-you-go) - configuration separate from the Antigravity OAuth route",
   "model.gemini-3.6-flash.detail": "Gemini 3.6 Flash via Google AI Studio (API key, BYOK pay-as-you-go) - configuration separate from the Antigravity OAuth route",

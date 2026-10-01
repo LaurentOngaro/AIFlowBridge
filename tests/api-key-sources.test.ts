@@ -81,6 +81,9 @@ afterEach(() => {
   delete process.env.AIFLOWBRIDGE_MINIMAX_API_KEY;
   delete process.env.AIFLOWBRIDGE_XIAOMI_API_KEY;
   delete process.env.AIFLOWBRIDGE_OPENROUTER_API_KEY;
+  delete process.env.AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY;
+  delete process.env.AIFLOWBRIDGE_ZAI_API_KEY;
+  delete process.env.AIFLOWBRIDGE_MOONSHOT_API_KEY;
 });
 
 describe('env var mapping', () => {
@@ -102,6 +105,18 @@ describe('env var mapping', () => {
     const source = new EnvSecretStorage();
     expect(await source.get(OPENROUTER_FULL)).toBe('sk-openrouter');
   });
+
+  it('resolves the gateway-only vendor keys from their env vars', async () => {
+    // Regression guard for the silent-failure mode: `SECRET_KEY_TO_ENV_NAME`
+    // is a plain `Record<string, string>`, not compile-checked against
+    // `API_KEY_SECRETS`, so a missing entry makes the env var be ignored
+    // without any error (same class of bug as the Google AI Studio one).
+    process.env.AIFLOWBRIDGE_ZAI_API_KEY = 'zai-env';
+    process.env.AIFLOWBRIDGE_MOONSHOT_API_KEY = 'moonshot-env';
+    const source = new EnvSecretStorage();
+    expect(await source.get('aiflowbridge.providers.zai.apiKey')).toBe('zai-env');
+    expect(await source.get('aiflowbridge.providers.moonshot.apiKey')).toBe('moonshot-env');
+  });
 });
 
 describe('normalizeSecretsObject', () => {
@@ -114,6 +129,15 @@ describe('normalizeSecretsObject', () => {
   it('mirrors short-form keys to the full-prefix form', () => {
     const result = normalizeSecretsObject({ 'minimax.apiKey': 'sk-short' });
     expect(result[MINIMAX_FULL]).toBe('sk-short');
+  });
+
+  it('mirrors the gateway-only vendor short forms too', () => {
+    // `SECRET_SHORT_TO_FULL` is a plain `Record<string, string>` as
+    // well, so a missing entry makes the documented short form
+    // silently unreadable in `secrets.json`.
+    const result = normalizeSecretsObject({ 'zai.apiKey': 'zai-short', 'moonshot.apiKey': 'moonshot-short' });
+    expect(result['aiflowbridge.providers.zai.apiKey']).toBe('zai-short');
+    expect(result['aiflowbridge.providers.moonshot.apiKey']).toBe('moonshot-short');
   });
 
   it('keeps the full-prefix form when both forms are present', () => {

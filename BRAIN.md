@@ -63,8 +63,10 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 - **Projet** : AIFlowBridge — assistant de code IA multi-providers pour VS Code,
   avec proxy vision, métriques d'usage et **gateway locale OpenAI-compatible
   déjà fonctionnelle** (CLI `aiflowbridge-server`).
-- **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek, OpenRouter
-  (+ gateway openai-compat/ollama générique).
+- **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek (picker Copilot Chat) ;
+  OpenRouter, Google AI Studio (BYOK), Z.ai GLM, MoonshotAI Kimi (passerelle
+  seule) ; + gateway openai-compat/ollama générique. 38 entrées bundleées au
+  snapshot 2026-10-01 (2.19.0).
 - **Chantier actif** : provider Antigravity / Google Cloud Code Assist afin
   d'utiliser Gemini via le compte Google AI Pro dans Kilo CLI, en parallèle
   de MiniMax-M3 via le plan MiniMax.
@@ -134,6 +136,17 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
    (`resources/models.json` < globalStorage < workspace) ; checklist vendor dans
    `docs/agent-instructions/tasks.md` ; `VENDOR_ALIASES` (`api-key-resolver.ts`),
    `VENDOR_CHOICES`/`VENDOR_LABELS` (`addCustomModel.ts`).
+3. **Path B, vendors passerelle seule** (depuis 2.12.0) : `openrouter`,
+   `googleaistudio` (voie BYOK), `zai` (GLM 5.3) et `moonshot` (Kimi K3) depuis
+   2.19.0. Aucune classe `vscode.LanguageModelChatProvider` : le catalogue
+   passerelle est produit par `synthesizeProvidersFromBuiltInModels` à partir du
+   registry, et le seul registre de clé nécessaire est `API_KEY_SECRETS`. Un
+   vendor Path B a malgré tout besoin de la paire `setApiKey` / `clearApiKey`
+   pour avoir un point d'entrée UI, sans quoi la clé n'est saisissable que via
+   `secrets.json` ou une variable d'environnement. Ajouter un vendor Path B
+   implique **5 zones** non vérifiées à la compilation, chacune avec un test :
+   `KNOWN_FAMILIES`, `models.schema.json` (enum), `package.json` (enum
+   `userModels`), `SECRET_KEY_TO_ENV_NAME`, `SECRET_SHORT_TO_FULL`.
 
 ### Intégration Gemini / Antigravity (spec AP-007 + audits 2026-09-05 v1 et v2)
 
@@ -189,6 +202,32 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 > l'audit v2** dans « Contexte technique clé → Intégration Gemini / Antigravity ».
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
+
+### 2026-10-01 - Kilo (Minor 2.19.0 : rafraîchissement du catalogue + vendors passerelle seule zai / moonshot)
+
+Implémentation du plan `.kilo/plans/1790836404534-model-catalog-refresh.md` dans le worktree `../AIFlowBridge-model-catalog-refresh` (branche `feat/model-catalog-refresh`).
+
+**Gate T0 (partiel, à lire avant toute décision).** Les variables d'environnement `ZAI_KEY` / `MOONSHOT_KEY` / `XIAOMI_KEY` / `DEEPSEEK_KEY` / `MINIMAX_KEY` / `GEMINI_KEY` n'existaient pas sur cette machine, donc les `curl` authentifiés du gate n'ont pas pu être joués.
+Ce qui a pu être vérifié l'a été, contre la source :
+
+- **OpenRouter** (API publique, sans clé) : `GET /api/v1/models` renvoie 462 modèles dont **16 ids `:free`**. 3 des 7 ids bundleés sont toujours présents (`nvidia/nemotron-3-ultra-550b-a55b:free`, `google/gemma-4-31b-it:free`, `nvidia/nemotron-3-super-120b-a12b:free`), 4 ont quitté le free tier (`openai/gpt-oss-120b`, `meta-llama/llama-3.3-70b-instruct`, `qwen/qwen3-coder`, `qwen/qwen3-next-80b-a3b-instruct`) et 12 sont nouveaux. `nvidia/nemotron-3.5-content-safety:free` a été **exclu** de la liste bundleée : c'est un classifieur guardrail, pas un modèle de chat. Le bloc free est reconstruit à chaque refresh car ce tier tourne.
+- **Z.ai** (`docs.z.ai`) : `glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx` confirmés, 1M de contexte, sortie max 128K, thinking non désactivable, `reasoning_effort` `low`/`high`/`max` défaut `max`, prix 1.4/4.4, 0.15/0.50, 0.37/1.25. **Base URL : la doc officielle est ambiguë** - le tableau "How to Use" annonce `https://api.z.ai/api/coding/paas/v4` pour le protocole Chat Completion, mais les 3 exemples de code (cURL, SDK Python, SDK OpenAI) utilisent tous `https://api.z.ai/api/paas/v4`. Le registry prend `paas` (pay-as-you-go) ; un abonné GLM Coding Plan doit basculer via `aiflowbridge.providers.zai.baseUrl`. À trancher avec une vraie clé.
+- **MoonshotAI** (`platform.kimi.ai`) : `kimi-k3` (1 048 576 de contexte, `max_completion_tokens` 131072 par défaut et jusqu'à 1048576, vision image+vidéo, thinking toujours actif, 3.00/15.00), `kimi-k2.7-code` et `-highspeed` (262 144 de contexte, thinking non désactivable, `tool_choice` `auto`/`none` seulement, `temperature` 1.0 / `top_p` 0.95 / `n` 1 / pénalités 0 **figés**, 0.95/4.00 et 1.90/8.00), `kimi-k2.6` (262 144, seul modèle courant qui accepte le mode non-thinking, 0.95/4.00). Les séries `kimi-k2` (arrêtées le 2026-05-25), `kimi-k2.5` et `moonshot-v1` (arrêtées le 2026-08-31) sont retirées par le plan et le smoke test le vérifie.
+- **DeepSeek** (`api-docs.deepseek.com`) : `deepseek-flash` est bien l'id amont de V4.1-Flash, 1M de contexte, sortie max 384K, vision oui, thinking activé par défaut, tarifs peak 0.30/1.20. `deepseek-v4-pro` = V4-Pro-0813, 1M, 384K, **pas de vision**, peak 1.32/3.96. La doc confirme que `deepseek-v4-flash` et `deepseek-v4-flash-vision-exp` restent acceptés mais sont servis par V4.1-Flash.
+- **MiniMax** (`platform.minimax.io`) : `MiniMax-M3.1-Flash-Preview` existe (1M, multimodal, profondeur de raisonnement réglable) mais **uniquement via M Plan et MiniMax Code**. M2 / M2.1 / M2.1-highspeed / M2.5 / M2.5-highspeed sont listés en "Legacy Models" par l'amont, ce qui confirme la purge. **Aucun tarif pay-as-you-go n'est publié pour M3.1** : l'entrée du registry est donc déclarée **sans bloc `pricing`**, et une clé Token Plan legacy recevra un 403.
+- **Non vérifié** : les ids `mimo-v2.6-flash` / `mimo-v2.6-pro` / `mimo-v2.6-pro-ultraspeed` (le endpoint MiMo renvoie 401 sans clé et `platform.xiaomimimo.com` est une SPA sans doc lisible) et les alias `gemini-flash-latest` / `gemini-flash-lite-latest` (les pages `ai.google.dev` n'ont pas pu être récupérées). Ces 5 ids viennent du plan et sont donc **déclarés mais non confirmés**. Le préfixe `mimo` de `VENDOR_ALIASES.xiaomi` matche les 3 ids MiMo quelle que soit leur casse (le matcher compare sur `lowered`), donc une erreur de casse ne casserait pas la résolution de clé ; en cas de 404 amont, corriger l'id ou passer par `aiflowbridge.providers.<vendor>.modelIdOverrides`.
+
+**Rupture assumée.** `deepseek-v4-flash` sort du catalogue bundle (l'id amont réel est `deepseek-flash`) et l'id de catalogue `deepseek-pro` devient `deepseek-v4-pro`.
+Une config cliente qui épingle l'un des deux reçoit `503 No gateway provider matches model`.
+C'est une raison de passer en **minor 2.19.0** et non en patch.
+
+**Autres points non triviaux.**
+- `KNOWN_FAMILIES` (`modelRegistry.schema.ts`) n'est **pas** vérifié à la compilation : une famille non déclarée fait tomber l'entrée en fail-soft (un `warn` dans les logs, le modèle disparaît du catalogue, aucune erreur visible). `SECRET_KEY_TO_ENV_NAME` et `SECRET_SHORT_TO_FULL` (`api-key-sources.ts`) ne sont pas vérifiés non plus : une omission rend la variable d'env silencieusement ignorée (cf BUG-07 pour Google AI Studio). T3 et T4 du plan traitent ces deux zones, chacune avec un test dédié.
+- L'ordre du tableau `models` dans `resources/models.json` est l'ordre de synthèse du catalogue passerelle, et `tests/host-config.test.ts` épingle `gemini-3.8-flash` comme première entrée synthétisée. Les nouveaux modèles sont donc ajoutés en fin de tableau, sauf les 2 alias Gemini `-latest` placés juste après le bloc `gemini-3.x` (l'invariant "3.8 en premier" reste respecté).
+- `provider.googleaistudio.name` manquait dans `src/i18n.ts` alors que `src/runtime/provider.ts` l'appelle via `t()` : les toasts des commandes de clé Google AI Studio affichaient le littéral de la clé. Corrigé au passage, et les 3 vendors sans classe provider (googleaistudio BYOK, zai, moonshot) passent maintenant par un helper `registerApiKeyCommands` commun au lieu de 3 blocs inline dupliqués.
+- `maxOutputTokens` n'est consommé que par le chemin Copilot Chat (`src/config.ts`), pas par la synthèse passerelle : pour les vendors Path B c'est de la métadonnée d'affichage, donc les valeurs non publiées par l'amont (série Kimi K2.7) n'ont aucun risque de troncature.
+
+**Portée de la release.** Le picker Copilot Chat reste inchangé (DeepSeek / MiniMax / Xiaomi uniquement, cf AP-013) : `zai` et `moonshot` sont Path B, visibles dans le dashboard et `GET /v1/models` uniquement.
 
 ### 2026-09-05 — Kilo (Bug : Muse spark 1.3 (id OpenRouter) 401 "No cookie auth credentials found")
 

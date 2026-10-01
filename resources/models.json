@@ -29,6 +29,24 @@
         "tokenPlanCn": "https://token-plan-cn.xiaomimimo.com/v1"
       }
     },
+    "zai": {
+      "baseUrl": "https://api.z.ai/api/paas/v4",
+      "apiKeySecret": "aiflowbridge.providers.zai.apiKey",
+      "externalUrls": {
+        "apiKeys": "https://z.ai/manage-api/apikey",
+        "codingPlan": "https://z.ai/subscribe",
+        "docs": "https://docs.z.ai/guides/llm/glm-5.3"
+      }
+    },
+    "moonshot": {
+      "baseUrl": "https://api.moonshot.ai/v1",
+      "apiKeySecret": "aiflowbridge.providers.moonshot.apiKey",
+      "externalUrls": {
+        "apiKeys": "https://platform.kimi.ai/console/api-keys",
+        "usage": "https://platform.kimi.ai/console",
+        "docs": "https://platform.kimi.ai/docs/models"
+      }
+    },
     "openrouter": {
       "baseUrl": "https://openrouter.ai/api/v1",
       "apiKeySecret": "aiflowbridge.providers.openrouter.apiKey",
@@ -117,22 +135,62 @@
       }
     },
     {
-      "id": "deepseek-v4-flash",
-      "name": "DeepSeek V4 Flash",
-      "family": "deepseek",
-      "version": "v4",
-      "detail": "Fast, general-purpose model",
-      "maxInputTokens": 655360,
-      "maxOutputTokens": 393216,
+      "id": "gemini-flash-latest",
+      "name": "Gemini Flash Latest (Google AI)",
+      "family": "googleaistudio",
+      "version": "latest",
+      "detail": "Rolling alias: the upstream id always resolves to the current Gemini Flash generation, so behaviour and pricing can change without an AIFlowBridge release. Pin gemini-3.6-flash / 3.7 / 3.8 for a stable generation. BYOK via Google AI Studio API key.",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 65536,
       "capabilities": {
         "toolCalling": 128,
         "imageInput": true,
         "thinking": true
       },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 2.5,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "gemini-flash-lite-latest",
+      "name": "Gemini Flash-Lite Latest (Google AI)",
+      "family": "googleaistudio",
+      "version": "latest",
+      "detail": "Rolling alias: the upstream id always resolves to the current Gemini Flash-Lite generation, so behaviour and pricing can change without an AIFlowBridge release. Lightest / cheapest Gemini tier. BYOK via Google AI Studio API key.",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "toolCalling": 128,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.4,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "deepseek-flash",
+      "name": "DeepSeek V4.1 Flash",
+      "family": "deepseek",
+      "version": "v4.1",
+      "detail": "DeepSeek V4.1 Flash (upstream id deepseek-flash). Fast, general-purpose, 1M context, vision, thinking on by default. Peak hours are 01:00-04:00 and 06:00-10:00 UTC on weekdays, when the rates below double (off-peak is half). The retired ids deepseek-v4-flash and deepseek-v4-flash-vision-exp are still accepted upstream but are served by this model.",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 393216,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
       "requiresThinkingParam": true,
       "pricing": {
-        "inputPerMillion": 0.27,
-        "outputPerMillion": 1.1,
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 1.2,
         "currency": "USD"
       }
     },
@@ -140,119 +198,19 @@
       "id": "deepseek-v4-pro",
       "name": "DeepSeek V4 Pro",
       "family": "deepseek",
-      "version": "v4",
-      "detail": "Most capable reasoning model",
-      "maxInputTokens": 655360,
+      "version": "v4-pro-0813",
+      "detail": "DeepSeek V4 Pro 0813. Most capable reasoning model, 1M context, text-only (no vision). Peak hours are 01:00-04:00 and 06:00-10:00 UTC on weekdays, when the rates below double (off-peak is half).",
+      "maxInputTokens": 1048576,
       "maxOutputTokens": 393216,
       "capabilities": {
-        "toolCalling": 128,
-        "imageInput": true,
+        "toolCalling": true,
+        "imageInput": false,
         "thinking": true
       },
       "requiresThinkingParam": true,
       "pricing": {
-        "inputPerMillion": 0.55,
-        "outputPerMillion": 2.19,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "MiniMax-M2",
-      "name": "MiniMax M2",
-      "family": "minimax",
-      "version": "m2",
-      "detail": "MiniMax first-generation reasoning model",
-      "maxInputTokens": 204800,
-      "maxOutputTokens": 128000,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": true,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0.3,
-        "outputPerMillion": 1.2,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax M2.1",
-      "family": "minimax",
-      "version": "m2.1",
-      "detail": "MiniMax second-generation reasoning model",
-      "maxInputTokens": 204800,
-      "maxOutputTokens": 128000,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": true,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0.3,
-        "outputPerMillion": 1.2,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "MiniMax-M2.1-highspeed",
-      "name": "MiniMax M2.1 Highspeed",
-      "family": "minimax",
-      "version": "m2.1-highspeed",
-      "detail": "MiniMax M2.1 optimized for low latency",
-      "maxInputTokens": 204800,
-      "maxOutputTokens": 128000,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": true,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0.3,
-        "outputPerMillion": 1.2,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "MiniMax-M2.5",
-      "name": "MiniMax M2.5",
-      "family": "minimax",
-      "version": "m2.5",
-      "detail": "MiniMax third-generation model",
-      "maxInputTokens": 204800,
-      "maxOutputTokens": 128000,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": true,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0.3,
-        "outputPerMillion": 1.2,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "MiniMax-M2.5-highspeed",
-      "name": "MiniMax M2.5 Highspeed",
-      "family": "minimax",
-      "version": "m2.5-highspeed",
-      "detail": "MiniMax M2.5 optimized for low latency",
-      "maxInputTokens": 204800,
-      "maxOutputTokens": 128000,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": true,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0.3,
-        "outputPerMillion": 1.2,
+        "inputPerMillion": 1.32,
+        "outputPerMillion": 3.96,
         "currency": "USD"
       }
     },
@@ -317,44 +275,19 @@
       }
     },
     {
-      "id": "mimo-v2-omni",
-      "name": "Xiaomi MiMo V2 Omni",
-      "family": "xiaomi",
-      "version": "v2-omni",
-      "detail": "Xiaomi MiMo multimodal omni model",
-      "maxInputTokens": 917504,
-      "maxOutputTokens": 131072,
+      "id": "MiniMax-M3.1-Flash-Preview",
+      "name": "MiniMax M3.1 Flash Preview",
+      "family": "minimax",
+      "version": "m3.1-flash-preview",
+      "detail": "Preview model: frontier multimodal coding model, 1M context, tunable thinking depth. Access is gated - upstream serves it through M Plan and MiniMax Code only, so a legacy Token Plan key gets 403. No pay-as-you-go rate is published yet, so no pricing is declared here.",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 128000,
       "capabilities": {
         "toolCalling": true,
         "imageInput": true,
         "thinking": true
       },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0.1,
-        "outputPerMillion": 0.3,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "mimo-v2-pro",
-      "name": "Xiaomi MiMo V2 Pro",
-      "family": "xiaomi",
-      "version": "v2-pro",
-      "detail": "Xiaomi MiMo V2 Pro reasoning model",
-      "maxInputTokens": 917504,
-      "maxOutputTokens": 131072,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": true,
-        "thinking": true
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0.1,
-        "outputPerMillion": 0.3,
-        "currency": "USD"
-      }
+      "requiresThinkingParam": false
     },
     {
       "id": "mimo-v2.5",
@@ -397,11 +330,371 @@
       }
     },
     {
-      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "name": "NVIDIA Nemotron 3 Ultra 550B A55B (free via OpenRouter)",
+      "id": "mimo-v2.6-flash",
+      "name": "Xiaomi MiMo V2.6 Flash",
+      "family": "xiaomi",
+      "version": "v2.6",
+      "detail": "Xiaomi MiMo V2.6 fast tier. Token Plan rates.",
+      "maxInputTokens": 917504,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.3,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "mimo-v2.6-pro",
+      "name": "Xiaomi MiMo V2.6 Pro",
+      "family": "xiaomi",
+      "version": "v2.6-pro",
+      "detail": "Xiaomi MiMo V2.6 reasoning tier. Token Plan rates.",
+      "maxInputTokens": 917504,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.3,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "mimo-v2.6-pro-ultraspeed",
+      "name": "Xiaomi MiMo V2.6 Pro UltraSpeed",
+      "family": "xiaomi",
+      "version": "v2.6-pro-ultraspeed",
+      "detail": "Xiaomi MiMo V2.6 Pro optimized for minimum latency. Token Plan rates.",
+      "maxInputTokens": 917504,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.3,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "glm-5.3",
+      "name": "Z.ai GLM 5.3",
+      "family": "zai",
+      "version": "5.3",
+      "detail": "Z.ai flagship reasoning model, 1M context, 128K max output, text-only input. Thinking is ALWAYS on and cannot be disabled: a request sending thinking.type=disabled is rejected, use reasoning_effort low / high / max (default max) instead. Pay-as-you-go at https://api.z.ai/api/paas/v4; GLM Coding Plan subscribers must switch aiflowbridge.providers.zai.baseUrl to https://api.z.ai/api/coding/paas/v4.",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": true,
+      "pricing": {
+        "inputPerMillion": 1.4,
+        "outputPerMillion": 4.4,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "glm-5.3-flash",
+      "name": "Z.ai GLM 5.3 Flash",
+      "family": "zai",
+      "version": "5.3-flash",
+      "detail": "First native multimodal model of the GLM 5 series: image / video / file input, 1M context, 128K max output, and roughly 3x cheaper than GLM 5.3. Thinking is always on, reasoning_effort low / high / max (default max).",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": true,
+      "pricing": {
+        "inputPerMillion": 0.15,
+        "outputPerMillion": 0.5,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "glm-5.3-flashx",
+      "name": "Z.ai GLM 5.3 FlashX",
+      "family": "zai",
+      "version": "5.3-flashx",
+      "detail": "GLM 5.3 Flash tuned for throughput (about 200 tokens/s), same multimodal capabilities and 1M context, priced above Flash. Thinking is always on, reasoning_effort low / high / max (default max). Not yet included in the GLM Coding Plan.",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": true,
+      "pricing": {
+        "inputPerMillion": 0.37,
+        "outputPerMillion": 1.25,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "kimi-k3",
+      "name": "MoonshotAI Kimi K3",
+      "family": "moonshot",
+      "version": "k3",
+      "detail": "Kimi flagship: 2.8T parameters, native visual understanding (image and video), 1M context, max_completion_tokens up to 1M (131072 by default). Thinking is always on, reasoning_effort low / high / max (default max). Vision needs base64 or an uploaded ms:// file, not a public image URL. temperature 1.0 / top_p 0.95 / n 1 / penalties 0 are fixed and must be omitted from the request. Requires a top-up of at least 1 USD.",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 1048576,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": true,
+      "pricing": {
+        "inputPerMillion": 3,
+        "outputPerMillion": 15,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "kimi-k2.7-code",
+      "name": "MoonshotAI Kimi K2.7 Code",
+      "family": "moonshot",
+      "version": "k2.7-code",
+      "detail": "Kimi dedicated coding model, multimodal input, 256K context, upstream default of 32K for max_tokens. Thinking cannot be disabled, tool_choice accepts auto or none only, and temperature 1.0 / top_p 0.95 / n 1 / penalties 0 are fixed. The upstream documents no separate max-output ceiling for this series.",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": true,
+      "pricing": {
+        "inputPerMillion": 0.95,
+        "outputPerMillion": 4,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "kimi-k2.7-code-highspeed",
+      "name": "MoonshotAI Kimi K2.7 Code Highspeed",
+      "family": "moonshot",
+      "version": "k2.7-code-highspeed",
+      "detail": "Same model as Kimi K2.7 Code served at about 180 tokens/s (up to 260 in short contexts), 256K context, at roughly twice the price. Thinking cannot be disabled and the sampling parameters are fixed, like K2.7 Code.",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": true,
+      "pricing": {
+        "inputPerMillion": 1.9,
+        "outputPerMillion": 8,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "kimi-k2.6",
+      "name": "MoonshotAI Kimi K2.6",
+      "family": "moonshot",
+      "version": "k2.6",
+      "detail": "Kimi K2.6: visual and text input, both thinking and non-thinking modes, dialogue and agent tasks, 256K context. The only current MoonshotAI model where thinking can be turned off.",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 131072,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0.95,
+        "outputPerMillion": 4,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "cohere/north-mini-code:free",
+      "name": "Cohere North Mini Code (free via OpenRouter)",
       "family": "openrouter",
-      "version": "nemotron-3-ultra",
-      "detail": "NVIDIA flagship 550B-parameter hybrid Transformer-Mamba MoE (55B active) - frontier reasoning and orchestration, free tier",
+      "version": "north-mini-code",
+      "detail": "Cohere first agentic coding model, sparse MoE with 30B total / 3B active parameters, free tier",
+      "maxInputTokens": 256000,
+      "maxOutputTokens": 64000,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "dots-studio/dots-3-note-preview:free",
+      "name": "Dots Studio Dots3-Note Preview (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "dots-3-note-preview",
+      "detail": "Open-weight MoE from Dots Studio, 280B total / 16B active, lightest member of the Dots 3 family, multimodal, free tier",
+      "maxInputTokens": 512000,
+      "maxOutputTokens": 460800,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it:free",
+      "name": "Google Gemma 4 26B A4B IT (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "gemma-4-26b-a4b-it",
+      "detail": "Google DeepMind instruction-tuned MoE, 25.2B total / 3.8B active, multimodal (image and video input), free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "google/gemma-4-31b-it:free",
+      "name": "Google Gemma 4 31B Instruct (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "gemma-4-31b-it",
+      "detail": "Google DeepMind 30.7B dense multimodal model (text, image and video input), configurable thinking, free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "inclusionai/ling-3.0-flash-sante:free",
+      "name": "InclusionAI Ling 3.0 Flash Sante (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "ling-3.0-flash-sante",
+      "detail": "Health and medicine focused MoE from InclusionAI, 124B total / 5.1B active, text only, free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "liquid/lfm-2.5-2.6b:free",
+      "name": "LiquidAI LFM2.5-2.6B (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "lfm-2.5-2.6b",
+      "detail": "Compact 2.6B reasoning model from Liquid AI, aimed at agent workflows, extraction, RAG and long context, free tier",
+      "maxInputTokens": 65536,
+      "maxOutputTokens": 8192,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "name": "NVIDIA Nemotron 3 Nano Omni (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "nemotron-3-nano-omni-30b-a3b-reasoning",
+      "detail": "NVIDIA 30B-A3B open multimodal model for perception and context work in agent stacks, accepts text, image, video and audio, free tier",
+      "maxInputTokens": 256000,
+      "maxOutputTokens": 65536,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "name": "NVIDIA Nemotron 3 Super (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "nemotron-3-super-120b-a12b",
+      "detail": "NVIDIA 120B hybrid Mamba-Transformer MoE (12B active) for multi-agent orchestration, free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 235929,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "name": "NVIDIA Nemotron 3 Ultra (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "nemotron-3-ultra-550b-a55b",
+      "detail": "NVIDIA frontier-reasoning and orchestration MoE, 550B total / 55B active, free tier",
       "maxInputTokens": 1000000,
       "maxOutputTokens": 65536,
       "capabilities": {
@@ -417,13 +710,13 @@
       }
     },
     {
-      "id": "openai/gpt-oss-120b:free",
-      "name": "OpenAI gpt-oss-120b (free via OpenRouter)",
+      "id": "nvidia/nemotron-3.5-lightning:free",
+      "name": "NVIDIA Nemotron 3.5 Lightning (free via OpenRouter)",
       "family": "openrouter",
-      "version": "gpt-oss-120b",
-      "detail": "OpenAI open-weight 117B-parameter MoE (5.1B active) - high-reasoning, agentic, general-purpose, free tier",
-      "maxInputTokens": 131072,
-      "maxOutputTokens": 131072,
+      "version": "nemotron-3.5-lightning",
+      "detail": "NVIDIA 30B total / 3B active MoE for high-throughput agentic workloads, free tier",
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 65536,
       "capabilities": {
         "toolCalling": true,
         "imageInput": false,
@@ -437,13 +730,53 @@
       }
     },
     {
-      "id": "google/gemma-4-31b-it:free",
-      "name": "Google Gemma 4 31B Instruct (free via OpenRouter)",
+      "id": "poolside/laguna-s-2.1:free",
+      "name": "Poolside Laguna S 2.1 (free via OpenRouter)",
       "family": "openrouter",
-      "version": "gemma-4-31b",
-      "detail": "Google DeepMind 30.7B dense multimodal model (text + image input), configurable thinking, free tier",
+      "version": "laguna-s-2.1",
+      "detail": "Poolside coding agent model, 118B total / 8B active, free tier",
       "maxInputTokens": 262144,
-      "maxOutputTokens": 8192,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "poolside/laguna-xs-2.1:free",
+      "name": "Poolside Laguna XS 2.1 (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "laguna-xs-2.1",
+      "detail": "Poolside coding agent model in the 33B-A3B class, free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 32768,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": false,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "qwen/qwen3.8-27b:free",
+      "name": "Qwen Qwen3.8 27B (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "qwen3.8-27b",
+      "detail": "Alibaba dense vision-language model for coding, professional workflows and long-running agent tasks, flexible thinking, free tier",
+      "maxInputTokens": 262144,
+      "maxOutputTokens": 235929,
       "capabilities": {
         "toolCalling": true,
         "imageInput": true,
@@ -457,76 +790,36 @@
       }
     },
     {
-      "id": "meta-llama/llama-3.3-70b-instruct:free",
-      "name": "Meta Llama 3.3 70B Instruct (free via OpenRouter)",
+      "id": "thinkingmachines/inkling:free",
+      "name": "Thinking Machines Inkling (free via OpenRouter)",
       "family": "openrouter",
-      "version": "llama-3.3-70b",
-      "detail": "Meta's reference open-weights 70B instruction-tuned model, free tier (kept for ecosystem compatibility)",
-      "maxInputTokens": 131072,
-      "maxOutputTokens": 16384,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": false,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0,
-        "outputPerMillion": 0,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "qwen/qwen3-coder:free",
-      "name": "Qwen3 Coder 480B A35B (free via OpenRouter)",
-      "family": "openrouter",
-      "version": "qwen3-coder-480b",
-      "detail": "Alibaba flagship 480B MoE coding agent (35B active) - function calling, tool use, repository-scale reasoning, free tier",
+      "version": "inkling",
+      "detail": "Open-weight multimodal MoE from Thinking Machines Lab, 975B total / 41B active, for general reasoning, coding, agentic and tool-use systems, free tier",
       "maxInputTokens": 1048576,
-      "maxOutputTokens": 262000,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": false,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0,
-        "outputPerMillion": 0,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "qwen/qwen3-next-80b-a3b-instruct:free",
-      "name": "Qwen3 Next 80B A3B Instruct (free via OpenRouter)",
-      "family": "openrouter",
-      "version": "qwen3-next-80b",
-      "detail": "Alibaba Qwen3-Next 80B MoE (3B active) - fast stable responses, no thinking traces, free tier",
-      "maxInputTokens": 262144,
-      "maxOutputTokens": 16384,
-      "capabilities": {
-        "toolCalling": true,
-        "imageInput": false,
-        "thinking": false
-      },
-      "requiresThinkingParam": false,
-      "pricing": {
-        "inputPerMillion": 0,
-        "outputPerMillion": 0,
-        "currency": "USD"
-      }
-    },
-    {
-      "id": "nvidia/nemotron-3-super-120b-a12b:free",
-      "name": "NVIDIA Nemotron 3 Super 120B A12B (free via OpenRouter)",
-      "family": "openrouter",
-      "version": "nemotron-3-super",
-      "detail": "NVIDIA 120B-parameter hybrid Mamba-Transformer MoE (12B active) - multi-agent orchestration, free tier",
-      "maxInputTokens": 1000000,
       "maxOutputTokens": 262144,
       "capabilities": {
         "toolCalling": true,
-        "imageInput": false,
+        "imageInput": true,
+        "thinking": true
+      },
+      "requiresThinkingParam": false,
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "id": "thinkingmachines/inkling-small:free",
+      "name": "Thinking Machines Inkling Small (free via OpenRouter)",
+      "family": "openrouter",
+      "version": "inkling-small",
+      "detail": "Smaller and more efficient Inkling, 276B total / 12B active multimodal MoE, free tier",
+      "maxInputTokens": 1048576,
+      "maxOutputTokens": 262144,
+      "capabilities": {
+        "toolCalling": true,
+        "imageInput": true,
         "thinking": true
       },
       "requiresThinkingParam": false,

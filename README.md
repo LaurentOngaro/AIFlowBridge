@@ -217,11 +217,13 @@ export AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY=AIzaSy...     # Gemini 3.8/3.7/3.6 Fl
 export AIFLOWBRIDGE_DEEPSEEK_API_KEY=sk-...
 export AIFLOWBRIDGE_MINIMAX_API_KEY=...
 export AIFLOWBRIDGE_XIAOMI_API_KEY=...
+export AIFLOWBRIDGE_ZAI_API_KEY=...                   # GLM 5.3 / 5.3 Flash / 5.3 FlashX
+export AIFLOWBRIDGE_MOONSHOT_API_KEY=...              # Kimi K3 / K2.7 Code / K2.6
 ```
 
 ### 3. Use it
 
-**Copilot Chat (VS Code):** open Copilot Chat (`Ctrl+Shift+I`), pick a model in the chat header (DeepSeek V4 Pro / Flash, MiniMax M2 -> M3, Xiaomi MiMo V2 Omni / Pro / V2.5 / V2.5 Pro).
+**Copilot Chat (VS Code):** open Copilot Chat (`Ctrl+Shift+I`), pick a model in the chat header (DeepSeek V4.1 Flash / V4 Pro, MiniMax M2.7 -> M3, Xiaomi MiMo V2.5 / V2.5 Pro / V2.6).
 Gemini models and OpenRouter models reach Copilot Chat via Kilo Code or Continue, not the Copilot picker.
 
 **Any OpenAI-compatible client (gateway), 100+ models via OpenRouter or direct:**
@@ -386,14 +388,17 @@ Full reference: [docs/providers.md](docs/providers.md#openrouter-100-models-via-
 | `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`                                                                         |
 | `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                                               |
 | `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                                           |
+| `Z.ai GLM: Set API Key` / `Clear API Key`                 | Manage Z.ai GLM credentials (gateway-only vendor)                                                                        |
+| `MoonshotAI Kimi: Set API Key` / `Clear API Key`          | Manage MoonshotAI Kimi credentials (gateway-only vendor)                                                                 |
 
 Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by design - it is exposed through the gateway path only (works from Kilo Code, Continue, Open WebUI, curl).
+Z.ai and MoonshotAI are gateway-only too, but they do ship the `Set API Key` / `Clear API Key` pair: without it there would be no UI entry point at all for a vendor that has no provider class.
 Store the key via the `AIFLOWBRIDGE_OPENROUTER_API_KEY` env var (PowerShell: `[Environment]::SetEnvironmentVariable("AIFLOWBRIDGE_OPENROUTER_API_KEY", "sk-or-v1-...", "User")`) or via `<globalStorageUri>/secrets.json`.
 Full procedure (including the 401 fix and a copy-paste Kilo Code config): see [step 4 above](#4-add-a-custom-openrouter-model-the-part-that-bites-if-you-forget-it).
 
 ## Roadmap (extract)
 
-- Alibaba Qwen (DashScope) + ZAI GLM as first-class vendors - dedicated picker entries, per-vendor `setApiKey` / `clearApiKey`, gateway profiles, bundled flagship models (Qwen3 Coder / Qwen3 Max, GLM-4.6 / GLM-4.5).
+- Alibaba Qwen (DashScope) as a first-class vendor - dedicated picker entry, per-vendor `setApiKey` / `clearApiKey`, gateway profile, bundled flagship models (Qwen3 Coder / Qwen3 Max). Z.ai GLM is done as of 2.19.0 (gateway-only, GLM 5.3 / 5.3 Flash / 5.3 FlashX bundled).
 - Ollama local upstream - the next "single-key unlocks N models" milestone, on par with OpenRouter in terms of breadth per key
 - web-based dashboard at `http://127.0.0.1:8787/dashboard`
 - auto-routing with failover across providers - ordered fallback list so an outage on one upstream does not block the agent

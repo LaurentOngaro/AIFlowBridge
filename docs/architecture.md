@@ -80,7 +80,7 @@ src/
 └── extension.ts                        # activate()/deactivate()
 
 resources/
-├── models.json                         # Bundled model registry (21 entries across 4 vendors; OpenRouter adds 100+ model ids reachable verbatim through userModels / registry override)
+├── models.json                         # Bundled model registry (38 entries across 7 vendors; OpenRouter adds 100+ model ids reachable verbatim through userModels / registry override)
 └── models.schema.json                  # JSON Schema for editor autocompletion
 ```
 
@@ -101,9 +101,9 @@ The runtime reads it from a 3-tier chain on activation:
 resources/models.json              (bundled with the extension, source of truth on first run)
 ```
 
-- **Bundled** - `resources/models.json` lists the 21 bundled models and the 4 vendors (baseUrl, apiKeySecret, external URLs, indicative token-plan rates).
-  - The OpenRouter bundled entries advertise seven flagships in `GET /v1/models`; the 100+ other OpenRouter model ids are reachable verbatim by adding them to `aiflowbridge.userModels` or a registry override - see [docs/providers.md](providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint).
-  - Data snapshot **2026-09-05** (AIFlowBridge **2.18.3**); see [docs/providers.md#data-freshness](providers.md#data-freshness) for the refresh policy.
+- **Bundled** - `resources/models.json` lists the 38 bundled models and the 7 vendors with models (baseUrl, apiKeySecret, external URLs, indicative token-plan rates); `antigravity` is an eighth vendor entry with no bundled model (OAuth-only).
+  - The OpenRouter bundled entries advertise the 15 models on the current free tier in `GET /v1/models`; the 100+ other OpenRouter model ids are reachable verbatim by adding them to `aiflowbridge.userModels` or a registry override - see [docs/providers.md](providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint).
+  - Data snapshot **2026-10-01** (AIFlowBridge **2.19.0**); see [docs/providers.md#data-freshness](providers.md#data-freshness) for the refresh policy.
 - **Per-user override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user across all workspaces.
 - **Per-project override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
 

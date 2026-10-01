@@ -58,6 +58,14 @@ const VENDOR_ALIASES: Record<KnownVendor | 'antigravity' | 'googleaistudio', rea
   deepseek: ['deepseek'],
   minimax: ['minimax'],
   xiaomi: ['xiaomi', 'mimo'],
+  // Gateway-only vendors (Path B). `glm` and `kimi` are the upstream
+  // model-id prefixes; the matcher is `lowered === alias ||
+  // lowered.startsWith(alias + '-')`, so `glm-5.3-flash` and
+  // `kimi-k3` resolve here. The OpenRouter id `z-ai/glm-5.3` contains a
+  // slash and therefore misses both aliases, falling through to the
+  // OpenRouter family fallback below - correct in both directions.
+  zai: ['zai', 'glm'],
+  moonshot: ['moonshot', 'kimi'],
   openrouter: ['openrouter'],
   antigravity: ['antigravity'],
   googleaistudio: ['googleaistudio', 'gemini'],

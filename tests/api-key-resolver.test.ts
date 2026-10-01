@@ -25,6 +25,8 @@ describe('resolveVendorApiKey', () => {
       [API_KEY_SECRETS.xiaomi]: 'sk-xiaomi',
       [API_KEY_SECRETS.openrouter]: 'sk-openrouter',
       [API_KEY_SECRETS.googleaistudio]: 'sk-gemini',
+      [API_KEY_SECRETS.zai]: 'sk-zai',
+      [API_KEY_SECRETS.moonshot]: 'sk-moonshot',
     });
   });
 
@@ -113,5 +115,16 @@ describe('resolveVendorApiKey', () => {
       [API_KEY_SECRETS.minimax]: 'sk-minimax',
     });
     expect(await resolveVendorApiKey('meta/muse-spark-1.3', emptySecrets)).toBeUndefined();
+  });
+
+  it('resolves gateway-only vendor and model aliases for zai and moonshot', async () => {
+    expect(await resolveVendorApiKey('zai', secrets)).toBe('sk-zai');
+    expect(await resolveVendorApiKey('glm-5.3-flash', secrets)).toBe('sk-zai');
+    expect(await resolveVendorApiKey('moonshot', secrets)).toBe('sk-moonshot');
+    expect(await resolveVendorApiKey('kimi-k3', secrets)).toBe('sk-moonshot');
+  });
+
+  it('does NOT route the OpenRouter id z-ai/glm-5.3 to the zai key', async () => {
+    expect(await resolveVendorApiKey('z-ai/glm-5.3', secrets)).toBe('sk-openrouter');
   });
 });

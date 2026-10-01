@@ -21,7 +21,7 @@ powershell -ExecutionPolicy Bypass -File docs\autostart\windows-task.ps1 `
   -TaskName "AIFlowBridge Standalone Gateway"
 ```
 
-The API keys must already be set as user environment variables (`AIFLOWBRIDGE_DEEPSEEK_API_KEY`, etc.) for the script to inherit them.
+The API keys must already be set as user environment variables (`AIFLOWBRIDGE_DEEPSEEK_API_KEY`, `AIFLOWBRIDGE_MINIMAX_API_KEY`, `AIFLOWBRIDGE_XIAOMI_API_KEY`, `AIFLOWBRIDGE_ZAI_API_KEY`, `AIFLOWBRIDGE_MOONSHOT_API_KEY`, `AIFLOWBRIDGE_OPENROUTER_API_KEY`, `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY`) for the script to inherit them.
 Use `sysdm.cpl` -> Advanced -> Environment Variables to set them.
 
 ## 3. Verify

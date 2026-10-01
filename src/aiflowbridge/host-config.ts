@@ -33,8 +33,12 @@ interface DefaultGatewayProfileEntry {
 }
 
 const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
-  { id: 'deepseek-flash', label: 'DeepSeek V4 Flash', vendorConfigKey: 'deepseek', model: 'deepseek-v4-flash' },
-  { id: 'deepseek-pro', label: 'DeepSeek V4 Pro', vendorConfigKey: 'deepseek', model: 'deepseek-v4-pro' },
+  // DeepSeek ids are the verbatim upstream ids (`deepseek-flash` is the
+  // real id of DeepSeek V4.1-Flash, not a friendly alias; the historical
+  // `deepseek-v4-flash` entry is retired upstream). Peak-hour rates,
+  // see https://api-docs.deepseek.com/quick_start/pricing.
+  { id: 'deepseek-flash', label: 'DeepSeek V4.1 Flash', vendorConfigKey: 'deepseek', model: 'deepseek-flash', pricing: { inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' } },
+  { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', vendorConfigKey: 'deepseek', model: 'deepseek-v4-pro' },
   // Indicative token-plan rates (USD per 1M tokens). Override via
   // `aiflowbridge.providers[].pricing` if your tier differs. See
   // https://platform.minimax.io/user-center/payment/token-plan.
@@ -63,6 +67,26 @@ const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
     vendorConfigKey: 'xiaomi',
     model: 'mimo-v2.5-pro',
     pricing: { inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' },
+  },
+  // Family anchors for the two gateway-only vendors added with the
+  // 2.19.0 catalog refresh (`zai`, `moonshot`). They exist so the
+  // gateway catalog gets a friendly label and so `getFamilyPricing()`
+  // hands a default rate to every synthesized model of those families.
+  // See https://docs.z.ai/guides/overview/pricing and
+  // https://platform.kimi.ai/docs/pricing/chat.
+  {
+    id: 'glm-5.3-flash',
+    label: 'Z.ai GLM 5.3 Flash',
+    vendorConfigKey: 'zai',
+    model: 'glm-5.3-flash',
+    pricing: { inputPerMillion: 0.15, outputPerMillion: 0.5, currency: 'USD' },
+  },
+  {
+    id: 'kimi-k3',
+    label: 'MoonshotAI Kimi K3',
+    vendorConfigKey: 'moonshot',
+    model: 'kimi-k3',
+    pricing: { inputPerMillion: 3, outputPerMillion: 15, currency: 'USD' },
   },
 ];
 

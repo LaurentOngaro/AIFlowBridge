@@ -20,6 +20,8 @@
 The list of test files is changing constantly with new features and refactors.
 The current inventory must be build dynamically by reading the files from the `tests/` folder.
 In the same order of idea, mentioning the number of available tests is unreliable.
+The `tests/integration/` folder holds the VS-Code-free smoke tests, one per gateway-only (Path B) vendor: `openrouter.smoke.test.ts`, `zai.smoke.test.ts`, `moonshot.smoke.test.ts`.
+A new Path B vendor gets its own smoke test there, because the four edits that silently break such a vendor (`KNOWN_FAMILIES`, the `SECRET_KEY_TO_ENV_NAME` / `SECRET_SHORT_TO_FULL` maps, the two JSON/package schema enums) produce no compile error and at most a log warning.
 
 ## Adding a test
 
