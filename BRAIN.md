@@ -461,6 +461,43 @@ La ligne de décision du 2026-09-02 sur la répartition des rôles est conservé
 **Non touché : `resources/pricing.json`.** Les 5 occurrences de « perplexity » y sont des **ids de modèles OpenRouter** (`perplexity/sonar`, `perplexity/sonar-pro`, `perplexity/sonar-reasoning-pro`, `perplexity/sonar-pro-search`, `perplexity/sonar-deep-research`), pas des mentions de rôle.
 Les supprimer casserait le calcul de coût de ces modèles.
 
+### 2026-10-01 - Kilo (Patch 2.19.2 : trois défauts silencieux corrigés + ménage Git)
+
+Audit de `main` après fusion des deux sessions de travail et suppression des worktrees. Quatre points traités, puis bump patch en 2.19.2.
+
+**1.
+Trois clés i18n jamais définies.** `vision.configuredMissing`, `vision.configuredMissingVendor` et `vision.configuredModelMissing` sont référencées depuis `src/provider/vision/model.ts` (lignes 62, 139, 140) mais n'ont **jamais** été ajoutées à `src/i18n.ts` (`git log -S` ne renvoie aucun commit d'ajout ; premier usage `b44537b9`, juillet 2026).
+Le mode d'échec est silenceux : `t()` retourne la clé brute pour une entrée inconnue, et **avant** d'appliquer les substitutions `{0}`.
+Symptômes réels : un toast affichant `vision.configuredModelMissing` avec l'id de modèle configuré silencieusement perdu, et une ligne du Quick Pick vision dont le libellé « vendor: » affichait `vision.configuredMissingVendor`.
+C'est exactement le mode d'échec du bug `provider.googleaistudio.name` corrigé en 2.19.0 : ni erreur de compilation, ni test en échec. **Leçon structurelle** : une clé i18n manquante est un bug invisible, il faut un garde-fou.
+
+**Garde-fou ajouté : `tests/i18n.test.ts`.** Il parcourt `src/`, extrait chaque littéral passé à `t()` et échoue si l'un manque dans la table.
+Cela impose d'exporter la table (`export const en`) pour permettre l'assertion.
+Un test de non-vacuité vérifie que le scanner trouve bien plus de 40 clés et que la table en contient plus de 60 : sans lui, une régression de la regex ferait passer le test pour la mauvaise raison.
+**Le test figeait le bug, ce qui est la partie la plus instructive.** `tests/vision.test.ts:161` attendait explicitement `showWarningMessage('vision.configuredModelMissing')`, avec un commentaire qui justifiait l'attente par le fait que la clé manquait dans la table.
+Ajouter la clé a cassé cette assertion : résultat correct, mais il a fallu réécrire le test pour qu'il asserte le **comportement** plutôt que la copie - l'id de modèle doit être interpolé dans le message, la clé brute ne doit pas être ce que voit l'utilisateur, et aucun `{0}` ne doit subsister.
+Une telle assertion « le bug est le comportement attendu » est pire qu'une absence de test : elle empêche la correction et donne une fausse confiance.
+
+Les tests restants couvrent le fallback de `t()`, la substitution `{0}`, les 7 libellés de vendors utilisés par les commandes de clé, et l'absence de `{` parasite dans les nouvelles clés.
+
+**2. Test instable.** `tests/gateway-antigravity.test.ts` dérivait le port de la gateway du port de l'upstream mock (`mockUpstreamPort + 10`).
+Le mock écoute sur un port éphémère choisi par l'OS, et six autres fichiers de test lient des ports en parallèle : le port dérivé pouvait être déjà pris.
+Observed : un échec sur ~10 exécutions complètes, puis 6 exécutions propres d'affilée.
+Le test lie maintenant `port: 0` et relit le port réel via `config.gateway.port` après `start()` - mécanisme déjà documenté dans `docs/architecture.md` pour le cas `port: 0`.
+La config étant stockée par référence dans `GatewayService`, la relecture est fiable.
+
+**3. Ancre morte.** Deux liens du README pointaient vers `docs/architecture.md#workspace-context`, section supprimée.
+La documentation réelle est dans `docs/gateway.md#workspace-context-get-v1context`.
+Après correction, un script de vérification des ancres sur 33 fichiers markdown ne trouve plus aucun lien cassé. **Piège méthodologique rencontré** : ma première version du script collapsait les espaces multiples, alors que l'algorithme de `github-slugger` ne le fait pas (chaque espace devient un tiret).
+J'ai obtenu 4 faux positifs avant de corriger le script et de retomber à 1 seul vrai lien cassé.
+
+**4.
+Ménage Git.** Les 6 enregistrements de worktree périmés ont été supprimés (`git worktree prune`), les 3 branches de feature fusionnées (`feat/model-catalog-refresh`, `-v2`) supprimées, et le `stash@{0}` droppé. `git branch -d` a refusé `feat/model-catalog-refresh-2` parce qu'elle portait 1 commit non fusionné : vérification faite, deux éléments continuaient d'exister uniquement là et ont été rapatriés dans `main` avant la suppression forcée - la distinction Path A / Path B dans `AGENTS.md`, et la section README « Gateway-only vendors » (matrice contexte / vision / prix des 4 vendors passerelle seule + les 5 comportements amont qui sont des erreurs dures).
+Le reste de ce commit docs avait été refait à l'identique par le travail parallèle déjà fusionné.
+
+**Point de méthode.** `git branch -d` a fait son travail de garde-fou : il m'a empêché de supprimer une branche qui contenait encore du contenu non repris.
+Force-delete aveugle aurait perdu la section README et la mise à jour d'AGENTS.md sans que rien ne le signale.
+
 ### 2026-09-02 (AP-007 : cartographie + spec Antigravity)
 
 Cartographie complète de `server.ts`, livrable

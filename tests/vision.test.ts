@@ -149,16 +149,25 @@ describe('createVisionModelGetter - copilotVisionModel length cap', () => {
     const model = await getter.get();
     expect(model?.id).toBe('oswe-vscode-prime');
     expect(mockShowWarning).toHaveBeenCalledTimes(1);
-    // The runtime calls `t('vision.configuredModelMissing', id)`,
-    // which in production resolves to the localised message via
-    // VS Code's `vscode.l10n.t` (the strings live in
-    // `package.nls.json`). In the test environment, the i18n
-    // catalog from `src/i18n.ts` does not include the new key,
-    // so the helper returns the key verbatim with the
-    // interpolation applied. The contract we assert is therefore
-    // on the structure: a single string argument that is the
-    // `t()` result for the new i18n key.
-    expect(mockShowWarning).toHaveBeenCalledWith('vision.configuredModelMissing');
+
+    // The runtime calls `t('vision.configuredModelMissing', id)`. This test
+    // used to assert the raw key was displayed, which locked the bug in
+    // place: the key had never been added to `src/i18n.ts`, `t()` falls back
+    // to returning the key verbatim for an unknown entry, and that fallback
+    // returns *before* applying the `{0}` substitutions - so the configured
+    // model id never reached the user.
+    //
+    // The contract asserted here is behavioural rather than a copy of the
+    // string, so editing the message does not break it:
+    //   - the configured id is interpolated into the message,
+    //   - the raw i18n key is not what the user sees,
+    //   - no `{0}` placeholder is left behind.
+    const warning = mockShowWarning.mock.calls[0]?.[0] as unknown;
+    expect(typeof warning).toBe('string');
+    const message = warning as string;
+    expect(message).toContain('gpt-99-unknown');
+    expect(message).not.toContain('vision.configuredModelMissing');
+    expect(message).not.toContain('{0}');
   });
 
   it('returns undefined when no model is available (no config, no default)', async () => {

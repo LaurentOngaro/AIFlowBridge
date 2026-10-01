@@ -7,7 +7,7 @@
 
 type Translations = Record<string, string>;
 
-const en: Translations = {
+export const en: Translations = {
   // Model descriptions
   'model.flash.detail': 'Fast, general-purpose model',
   'model.pro.detail': 'Most capable reasoning model',
@@ -42,6 +42,9 @@ const en: Translations = {
   'vision.noModel': 'No non-vendor vision proxy models are available in the current environment',
   'vision.pickPlaceholder': 'Select a model for image description (default: {0})',
   'vision.current': 'Current',
+  'vision.configuredMissing': 'Not registered with VS Code, so the proxy falls back to the default vision model',
+  'vision.configuredMissingVendor': 'not registered',
+  'vision.configuredModelMissing': 'Configured vision model "{0}" is not registered with VS Code, falling back to the default',
   'vision.unavailable': 'No vision models available, image(s) ignored',
   'vision.proxyError': 'Vision proxy error:',
 

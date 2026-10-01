@@ -70,7 +70,12 @@ describe('GatewayService — Antigravity / Google AI Studio integration', () => 
       });
     });
 
-    gatewayPort = mockUpstreamPort + 10;
+    // The gateway binds to an OS-assigned port (0), then `start()` writes the
+    // real bound port back into `config.gateway.port` / `config.gateway.baseUrl`
+    // (documented in docs/architecture.md). Deriving the gateway port from
+    // `mockUpstreamPort + N` instead made this test flaky: six other test
+    // files bind 127.0.0.1 ports in parallel, so the derived port could
+    // already be taken by a concurrent worker.
   });
 
   afterEach(async () => {
@@ -100,9 +105,9 @@ describe('GatewayService — Antigravity / Google AI Studio integration', () => 
     const config = { telemetryEnabled: true, visionProxy: { excludedVendors: [], copilotVisionModel: '' },
       gateway: {
         enabled: true,
-        port: gatewayPort,
+        port: 0,
         host: '127.0.0.1',
-        baseUrl: `http://127.0.0.1:${gatewayPort}`,
+        baseUrl: 'http://127.0.0.1:0',
         defaultModel: 'gemini-3.8-flash',
         probeTimeoutMs: 500,
         autoRestart: false,
@@ -142,6 +147,7 @@ describe('GatewayService — Antigravity / Google AI Studio integration', () => 
     ) as GatewayService;
     gateway.init();
     await gateway.start();
+    gatewayPort = config.gateway.port;
 
     // Send chat completion request to gateway
     const res = await fetch(`http://127.0.0.1:${gatewayPort}/v1/chat/completions`, {
@@ -201,9 +207,9 @@ describe('GatewayService — Antigravity / Google AI Studio integration', () => 
     const config = { telemetryEnabled: true, visionProxy: { excludedVendors: [], copilotVisionModel: '' },
       gateway: {
         enabled: true,
-        port: gatewayPort,
+        port: 0,
         host: '127.0.0.1',
-        baseUrl: `http://127.0.0.1:${gatewayPort}`,
+        baseUrl: 'http://127.0.0.1:0',
         defaultModel: 'gemini-3.8-flash',
         probeTimeoutMs: 500,
         autoRestart: false,
@@ -243,6 +249,7 @@ describe('GatewayService — Antigravity / Google AI Studio integration', () => 
     ) as GatewayService;
     gateway.init();
     await gateway.start();
+    gatewayPort = config.gateway.port;
 
     const res = await fetch(`http://127.0.0.1:${gatewayPort}/v1/chat/completions`, {
       method: 'POST',

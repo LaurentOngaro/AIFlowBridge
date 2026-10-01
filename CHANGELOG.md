@@ -6,6 +6,27 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.19.2
+
+Patch release that closes three silent defects found while auditing the merged 2.19.0 / 2.19.1 work, and removes the residual Git housekeeping left behind by the parallel sessions.
+
+### Fixed
+
+- **Three untranslated i18n keys.** `vision.configuredMissing`, `vision.configuredMissingVendor` and `vision.configuredModelMissing` were referenced from `src/provider/vision/model.ts` but had never been added to the table in `src/i18n.ts` (introduced 2026-07-12). `t()` returns the key verbatim for an unknown entry, and returns it *before* applying the `{0}` substitutions, so the visible symptoms were a warning toast reading `vision.configuredModelMissing` with the configured model id silently dropped, and a vision-model Quick Pick whose "vendor:" label showed `vision.configuredMissingVendor`. This is the same failure mode as the missing `provider.googleaistudio.name` fixed in 2.19.0, and it produces neither a compile error nor a failing test.
+- **Flaky Antigravity gateway test.** `tests/gateway-antigravity.test.ts` derived the gateway port from the mock upstream port (`mockUpstreamPort + 10`). The mock upstream binds an OS-assigned ephemeral port, and six other test files bind loopback ports in parallel, so the derived port could already be taken and the test failed intermittently (observed once in ~10 full runs). It now binds port 0 and reads the real port back from `config.gateway.port` after `start()`, the mechanism the architecture already documents for `port: 0`.
+- **A test that had locked the i18n bug in place.** `tests/vision.test.ts` asserted that the warning toast received the raw string `vision.configuredModelMissing`, on the reasoning that the key was missing from the table and `t()` therefore returned it verbatim. Adding the key broke that assertion, which is the correct outcome: the test was pinning the defect. It now asserts the behaviour instead of the copy - the configured model id must be interpolated into the message, the raw key must not be what the user sees, and no `{0}` placeholder may be left behind - so editing the message later does not break it.
+- **Dead documentation anchor.** Two README links pointed at `docs/architecture.md#workspace-context`, a section that no longer exists; the workspace context documentation lives in `docs/gateway.md#workspace-context-get-v1context`.
+
+### Added
+
+- **`tests/i18n.test.ts`.** Walks `src/`, extracts every literal passed to `t()` and fails if any is absent from the table, which turns the bug class above into a build failure instead of a runtime surprise. The table is now exported (`en`) to make that assertion possible. A non-vacuity check guards the scanner itself, so a broken regex cannot make the test pass for the wrong reason.
+- **README section "Gateway-only vendors".** Matrix of the four gateway-only vendors (context window, vision, in/out price per M) plus the five upstream behaviours that are hard errors if met blind: GLM 5.3 and Kimi K3 always reason, Kimi K2.7 Code hard-fixes its sampling parameters, Kimi K3 vision needs base64 or an `ms://` file, GLM Coding Plan keys need a different base URL, and MiniMax M3.1 Flash Preview is gated behind M Plan / MiniMax Code.
+- **`AGENTS.md`** now states the Path A / Path B split (DeepSeek, MiniMax, Xiaomi MiMo are first-class; Z.ai, MoonshotAI, Google AI Studio and OpenRouter are gateway-only).
+
+### Changed
+
+- Removed the three merged feature branches (`feat/model-catalog-refresh`, `-2`, `-v2`), the `gateway-antigravity` stash and all stale worktree registrations left behind by the parallel sessions. No commit was lost: the two useful changes living only on `-2` are folded into this release.
+
 ## 2.19.1
 
 Patch release that resolves 401 `Invalid API Key` errors on Xiaomi MiMo requests by adding intelligent dynamic base URL routing based on the API key prefix.
