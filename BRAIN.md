@@ -1,29 +1,23 @@
 # BRAIN.md — Mémoire du projet AIFlowBridge
 
 > Journal partagé et fil rouge du projet. Ce fichier est la **mémoire commune**
-> entre les agents IA (Perplexity via connecteur GitHub, Kilo Code, Kilo CLI)
-> et le mainteneur humain.
+> entre les agents IA (Kilo Code, Kilo CLI) et le mainteneur humain.
 >
 > ⚠️ **Ce dépôt est public** : ce fichier ne doit contenir QUE des informations
 > techniques publiables. Voir « Règles de contenu » ci-dessous.
 
 ---
 
-## Répartition des rôles (validée par l'utilisateur le 2026-09-02)
+## Répartition des rôles (validée par l'utilisateur le 2026-10-01)
 
-| Acteur                             | Rôle            | Périmètre                                                                                                                                                           |
-| ---------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Perplexity** (connecteur GitHub) | Tech lead       | Conception, spécifications, écriture de code/docs/tests, audit et revue de code, gestion du backlog (`ACTION_PLAN.md`), branches et PR                              |
-| **Kilo** (VS Code / CLI local)     | Exécutant local | `npm install/build/test`, scripts, lancement de la gateway, flux OAuth réel, tests Kilo CLI ; remonte les résultats **assainis** dans `BRAIN.md` / `ACTION_PLAN.md` |
-| **l'utilisateur**                  | Décideur        | Arbitrage, validation des décisions d'architecture, gestion des secrets locaux, revue finale des PR                                                                 |
+| Acteur                         | Rôle           | Périmètre                                                                                                                                                                             |
+| ------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **l'agent IA** (Kilo)          | Exécution      | Conception, spécifications, code, docs, tests, audit, `npm install/build/test`, scripts, gateway, flux OAuth réel, backlog (`ACTION_PLAN.md`), branches et PR ; remonte des résultats **assainis** dans `BRAIN.md` / `ACTION_PLAN.md` |
+| **l'utilisateur**              | Décideur       | Arbitrage, validation des décisions d'architecture, gestion des secrets locaux, revue finale                                                                                     |
 
-Capacités réelles de Perplexity (mesurées le 2026-09-02) :
-
-- ✅ lister l'arborescence, lire des fragments de fichiers via la recherche de
-  code GitHub (`search_code`), créer/modifier des fichiers, créer branches et PR ;
-- ⚠️ lecture par fragments ciblés (pas de fichier intégral garanti ; index de
-  recherche parfois en léger retard sur le dernier commit) ;
-- ❌ aucune exécution : build, tests, terminal, OAuth réel → toujours Kilo.
+L'exécution est **mono-agent** depuis le 2026-10-01.
+La répartition tech lead / exécutant qui existait auparavant est caduque : un seul agent couvre tout le cycle, de la conception à la PR.
+Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` et `BRAIN.md`, et les arbitrages passent par la section « Questions / Blocages » adressée à l'utilisateur.
 
 ## Règles d'usage (obligatoires pour tout agent)
 
@@ -66,7 +60,7 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 - **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek (picker Copilot Chat) ;
   OpenRouter, Google AI Studio (BYOK), Z.ai GLM, MoonshotAI Kimi (passerelle
   seule) ; + gateway openai-compat/ollama générique. 38 entrées bundleées au
-  snapshot 2026-10-01 (2.19.0).
+  snapshot 2026-10-01 (2.19.1).
 - **Chantier actif** : provider Antigravity / Google Cloud Code Assist afin
   d'utiliser Gemini via le compte Google AI Pro dans Kilo CLI, en parallèle
   de MiniMax-M3 via le plan MiniMax.
@@ -78,10 +72,10 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 | Date       | Décision                                                                                                                                                                                                 | Motif                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-09-02 | Passerelle locale OpenAI-compatible plutôt que plugin Kilo natif                                                                                                                                         | Réutilisable, isole le risque des endpoints Antigravity, préserve le provider MiniMax officiel                                                                                                                                                                                                                                                                                                                          |
-| 2026-09-02 | Mémoire publique `BRAIN.md` + canal privé `AIFlowBridge-Private` + secrets locaux hors git                                                                                                               | Seul canal commun Perplexity↔Kilo ; dépôt public donc contenu assaini                                                                                                                                                                                                                                                                                                                                                   |
+| 2026-09-02 | Mémoire publique `BRAIN.md` + canal privé `AIFlowBridge-Private` + secrets locaux hors git                                                                                                               | Seul canal commun entre agents et mainteneur ; dépôt public donc contenu assaini                                                                                                                                                                                                                                                                                                                                                   |
 | 2026-09-02 | Hooks git versionnés dans `.githooks/` + `core.hooksPath`                                                                                                                                                | Partage des hooks via le dépôt                                                                                                                                                                                                                                                                                                                                                                                          |
 | 2026-09-02 | Hook pre-commit : pull obligatoire + mise à jour du journal                                                                                                                                              | Éviter toute perte de modifications, journal incontournable                                                                                                                                                                                                                                                                                                                                                             |
-| 2026-09-02 | Répartition des rôles : Perplexity tech lead / Kilo exécutant local / l'utilisateur décideur                                                                                                             | Maximiser l'autonomie de Perplexity, ne déléguer que l'exécution                                                                                                                                                                                                                                                                                                                                                        |
+| 2026-09-02 | Répartition des rôles : tech lead / exécutant local / l'utilisateur décideur (**caduque depuis le 2026-10-01**, exécution mono-agent)                                                                       | Historique : maximiser l'autonomie, ne déléguer que l'exécution                                                                                                              |                                                                                                                                                                                                                                                                                                                                                        |
 | 2026-09-02 | Antigravity = nouveau `ProviderKind` dans la gateway existante (pas de nouvelle passerelle)                                                                                                              | La gateway OpenAI-compatible existe et vise déjà Kilo Code (audit du 2026-09-02)                                                                                                                                                                                                                                                                                                                                        |
 | 2026-09-04 | Mode de facturation par profil `billing: 'token' \| 'plan'` + `RequestTelemetry.billedTo`                                                                                                                | Distinguer coût réel au token (BYOK) d'équivalent plan (OAuth AGY, MiniMax token plan) ; le dashboard marque `plan` avec badge + tooltip + notice                                                                                                                                                                                                                                                                       |
 | 2026-09-04 | Voie BYOK Gemini comme défaut, OAuth AGY opt-in pour comptes whitelistés Cloud Code Assist                                                                                                               | Quota AI Studio Pro indépendant du quota Cloud Code Assist (`aicode-consumers` lockout personnel) ; BYOK `AIzaSy...` ne dépend d'aucune whitelist                                                                                                                                                                                                                                                                       |
@@ -202,6 +196,13 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 > l'audit v2** dans « Contexte technique clé → Intégration Gemini / Antigravity ».
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
+
+### 2026-10-01 - Antigravity (Release patch 2.19.1 et actualisation du CHANGELOG)
+
+Publication du correctif patch 2.19.1 :
+- **Version** : passage en 2.19.1 dans `package.json` et `package-lock.json`.
+- **CHANGELOG.md** : ajout de la section `## 2.19.1` documentant la résolution des erreurs 401 sur Xiaomi MiMo via l'auto-routage intelligent par préfixe de clé (`sk-*` vers `https://api.xiaomimimo.com/v1`, `tp-*` vers `https://token-plan-ams.xiaomimimo.com/v1`).
+- **Documentation** : synchronisation des métadonnées de version (2.19.1) dans `README.md`, `docs/cost.md`, `docs/architecture.md` et `docs/providers.md`.
 
 ### 2026-10-01 - Antigravity (Fix Xiaomi MiMo : auto-routage des clés Pay-as-you-go sk-* vs Token Plan tp-*)
 
@@ -418,20 +419,41 @@ Catalogue et plomberie : extension `ProviderKind`, alias vendor, catalogue
 bundled, commande CLI standalone `auth googleaistudio`. Raccordement
 Gateway reporté en AP-008b (puis traité le 2026-09-05). Spec AP-007 source.
 
-### 2026-09-02 — Perplexity (AP-007 : cartographie + spec Antigravity)
+### 2026-10-01 - Kilo (Mono-agent : suppression de la référence Perplexity)
+
+L'utilisateur a acté que Perplexity n'est **plus du tout** utilisé dans la gestion du projet. Toutes les mentions ont été retirées de la documentation interne.
+
+**Ce qui a changé.** Le modèle « tech lead / exécutant » a été remplacé par une exécution **mono-agent** : un seul agent IA couvre conception, code, docs, tests, audit, build, gateway, branches et PR.
+La répartition des capacités ne mérite plus d'être décrite, puisqu'il n'y a plus qu'un acteur de chaque côté : l'agent, et l'utilisateur qui arbitre.
+
+Fichiers touchés :
+
+- `.kilocode/rules/00-brain-protocol.md` : section « Répartition des rôles » réécrite en mono-agent, et « Communication entre agents » (« il n'y a plus d'échange entre agents ») à la place d'un dialogue à deux.
+- `ACTION_PLAN.md` : titre (« File d'attente opérationnelle du projet »), protocole d'échange, colonne responsable d'AP-013, et les 4 questions ouvertes réorientées de `Kilo → Perplexity :` vers `En attente d'arbitrage utilisateur :`.
+- `BRAIN.md` : en-tête, section « Répartition des rôles », 2 lignes de la table des décisions, et les 3 entrées de journal du 2026-09-02.
+- `docs/plans/antigravity-gateway-integration-spec.md` : ligne « Auteur ».
+
+**Sur les entrées de journal du 2026-09-02.** Elles ont été réécrites (le préfixe d'auteur `Perplexity` a été retiré du titre `### 2026-09-02 (...)`) plutôt que supprimées : le contenu utile - la spec AP-007, l'audit AP-005/006, le plan initial - est conservé, seule l'attribution d'auteur disparaît.
+Raison : un journal qui mentionne un acteur inexistant invite un agent à chercher un partenaire de revue qui n'a plus lieu d'être.
+La ligne de décision du 2026-09-02 sur la répartition des rôles est conservée et marquée **caduque depuis le 2026-10-01** plutôt qu'effacée, pour que l'historique reste lisible.
+
+**Non touché : `resources/pricing.json`.** Les 5 occurrences de « perplexity » y sont des **ids de modèles OpenRouter** (`perplexity/sonar`, `perplexity/sonar-pro`, `perplexity/sonar-reasoning-pro`, `perplexity/sonar-pro-search`, `perplexity/sonar-deep-research`), pas des mentions de rôle.
+Les supprimer casserait le calcul de coût de ces modèles.
+
+### 2026-09-02 (AP-007 : cartographie + spec Antigravity)
 
 Cartographie complète de `server.ts`, livrable
 `docs/plans/antigravity-gateway-integration-spec.md` (design kind `antigravity`,
 10 modules, fichiers touchés, risques, 4 questions ouvertes).
 
-### 2026-09-02 — Perplexity (Audit, rôles et infrastructure)
+### 2026-09-02 (Audit, rôles et infrastructure)
 
 Audit AP-005/AP-006 confirmant la réutilisation de la gateway existante ;
-répartition des rôles Perplexity/Kilo/utilisateur. Infrastructure de
+définition de la répartition des rôles de l'époque. Infrastructure de
 collaboration : `BRAIN.md`, `ACTION_PLAN.md`, hook `pre-commit`,
 `scripts/install-hooks.js`, règles Kilo, canal privé `AIFlowBridge-Private`.
 
-### 2026-09-02 — Perplexity (Plan initial Antigravity)
+### 2026-09-02 (Plan initial Antigravity)
 
 Plan initial `docs/plans/antigravity-provider-kilo-cli.md`, révisé ensuite
 par la spec AP-007.

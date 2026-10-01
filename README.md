@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, Z.ai GLM 5.3, MoonshotAI Kimi K3, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.19.0** - data snapshot **2026-10-01**.
+> **AIFlowBridge 2.19.1** - data snapshot **2026-10-01**.
 > Model ids and pricing throughout this README are pinned to this snapshot.
 > Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
@@ -86,19 +86,19 @@ The OpenRouter path trades a small upstream markup for access to 100+ frontier m
 The direct-vendor path squeezes the last cents out of token cost.
 The local path is free forever.
 
-| Stack                                                                                            | Monthly cost (heavy use) |
-| ------------------------------------------------------------------------------------------------ | ------------------------ |
-| GitHub Copilot Pro                                                                               | $10 / month              |
-| Cursor Pro                                                                                       | $20 / month              |
-| Kilo Code + OpenAI direct                                                                        | ~$15-30 / month          |
-| **Kilo Code + AIFlowBridge + Xiaomi MiMo V2.6 Flash**                                            | **~$5.50 / month**       |
-| **Kilo Code + AIFlowBridge + Xiaomi MiMo V2.5 / V2.6 Pro**                                       | **~$11 / month**         |
-| **Kilo Code + AIFlowBridge + Z.ai GLM 5.3 Flash**                                                | **~$17.50 / month**      |
-| **Kilo Code + AIFlowBridge + DeepSeek V4.1 Flash**                                               | **~$39 / month**         |
-| **Kilo Code + AIFlowBridge + MiniMax M3**                                                        | **~$39 / month**         |
-| **Kilo Code + AIFlowBridge + Google Gemini 3.8 Flash (BYOK / Plan)**                             | **~$0-3 / month**        |
-| **Kilo Code + AIFlowBridge + OpenRouter free tier (15 models)**                                  | **$0 / month**           |
-| **Kilo Code + AIFlowBridge + Ollama local**                                                      | **$0 / month**           |
+| Stack                                                                | Monthly cost (heavy use) |
+| -------------------------------------------------------------------- | ------------------------ |
+| GitHub Copilot Pro                                                   | $10 / month              |
+| Cursor Pro                                                           | $20 / month              |
+| Kilo Code + OpenAI direct                                            | ~$15-30 / month          |
+| **Kilo Code + AIFlowBridge + Xiaomi MiMo V2.6 Flash**                | **~$5.50 / month**       |
+| **Kilo Code + AIFlowBridge + Xiaomi MiMo V2.5 / V2.6 Pro**           | **~$11 / month**         |
+| **Kilo Code + AIFlowBridge + Z.ai GLM 5.3 Flash**                    | **~$17.50 / month**      |
+| **Kilo Code + AIFlowBridge + DeepSeek V4.1 Flash**                   | **~$39 / month**         |
+| **Kilo Code + AIFlowBridge + MiniMax M3**                            | **~$39 / month**         |
+| **Kilo Code + AIFlowBridge + Google Gemini 3.8 Flash (BYOK / Plan)** | **~$0-3 / month**        |
+| **Kilo Code + AIFlowBridge + OpenRouter free tier (15 models)**      | **$0 / month**           |
+| **Kilo Code + AIFlowBridge + Ollama local**                          | **$0 / month**           |
 
 For occasional use, the cheapest stacks (Gemini BYOK, MiMo, GLM Flash, Ollama, OpenRouter free tier) cut your AI bill by 40-100% vs Copilot.
 The full breakdown lives in [docs/cost.md](docs/cost.md).
@@ -396,8 +396,8 @@ Full reference: [docs/providers.md](docs/providers.md#openrouter-100-models-via-
 | `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`                                                                         |
 | `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                                               |
 | `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                                           |
-| `Z.ai GLM: Set API Key` / `Clear API Key`                 | Manage Z.ai GLM credentials (gateway-only vendor)                                                                        |
-| `MoonshotAI Kimi: Set API Key` / `Clear API Key`          | Manage MoonshotAI Kimi credentials (gateway-only vendor)                                                                 |
+| `Z.ai GLM: Set API Key` / `Clear API Key`                | Manage Z.ai GLM credentials (gateway-only vendor)                                                                        |
+| `MoonshotAI Kimi: Set API Key` / `Clear API Key`         | Manage MoonshotAI Kimi credentials (gateway-only vendor)                                                                 |
 
 Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by design - it is exposed through the gateway path only (works from Kilo Code, Continue, Open WebUI, curl).
 Z.ai and MoonshotAI are gateway-only too, but they do ship the `Set API Key` / `Clear API Key` pair: without it there would be no UI entry point at all for a vendor that has no provider class.

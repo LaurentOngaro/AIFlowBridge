@@ -6,6 +6,14 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.19.1
+
+Patch release that resolves 401 `Invalid API Key` errors on Xiaomi MiMo requests by adding intelligent dynamic base URL routing based on the API key prefix.
+
+### Fixed
+
+- **Xiaomi MiMo API key prefix-based dynamic base URL routing.** Standard pay-as-you-go / open platform keys (`sk-*`) automatically route to `https://api.xiaomimimo.com/v1`, while Token Plan keys (`tp-*`, `ttp-*`) route to `https://token-plan-ams.xiaomimimo.com/v1`. Users configuring standard platform keys no longer need to manually override `aiflowbridge.providers.xiaomi.baseUrl`. Applies across both Copilot Chat provider sessions and gateway OpenAI-compatible chat completion proxying.
+
 ## 2.19.0
 
 Minor release that refreshes the bundled model catalog against current upstream generations, adds two direct gateway-only vendors (`zai` and `moonshot`), and expands the bundled registry from 21 to 38 entries.

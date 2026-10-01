@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - 100+ AI models via OpenRouter, plus DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1, alongside the gateway-only Z.ai GLM 5.3, MoonshotAI Kimi K3 and Google AI Studio Gemini vendors. Six direct vendors (DeepSeek V4.1 Flash at $0.30/M in, DeepSeek V4 Pro, MiniMax M3, Xiaomi MiMo V2.6, Z.ai GLM 5.3, MoonshotAI Kimi) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) per-vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.19.0",
+  "version": "2.19.1",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -36,7 +36,13 @@
     "minimax",
     "minimax-m3",
     "xiaomi",
-    "mimo", "zai", "glm", "kimi", "moonshot", "minimax-m3-1", "deepseek-v4-1",
+    "mimo",
+    "zai",
+    "glm",
+    "kimi",
+    "moonshot",
+    "minimax-m3-1",
+    "deepseek-v4-1",
     "copilot",
     "copilot-chat",
     "copilot-alternative",

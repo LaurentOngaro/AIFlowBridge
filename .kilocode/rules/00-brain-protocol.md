@@ -3,18 +3,24 @@
 Ces règles s'appliquent à tout agent travaillant sur ce dépôt (Kilo Code,
 Kilo CLI, ou autre). Elles rendent la mémoire de projet incontournable.
 
-## Répartition des rôles (décision l'utilisateur, 2026-09-02)
+## Répartition des rôles (décision l'utilisateur, 2026-10-01)
 
-- **Perplexity** (via connecteur GitHub) est le tech lead : conception,
-  spécifications, écriture de code/docs/tests, audit et revue de code
-  (lecture par fragments via la recherche GitHub), gestion du backlog,
-  branches et PR.
-- **Kilo** (VS Code / CLI local) est l'exécutant : `npm install/build/test`,
-  scripts, lancement de la gateway, flux OAuth réel, tests CLI. Kilo remonte
-  les résultats **assainis** (jamais de secrets) dans `BRAIN.md` et
-  `ACTION_PLAN.md`.
+L'exécution est désormais **mono-agent**. La répartition tech lead / exécutant
+qui existait jusqu'au 2026-10-01 est caduque : il n'y a plus de second agent
+sur ce projet.
+
+- **L'agent IA** (Kilo Code ou Kilo CLI, dans le worktree qui lui est assigné)
+  couvre désormais **tout** le cycle : conception, spécifications, écriture de
+  code, docs et tests, audit, `npm install/build/test`, scripts, lancement de la
+  gateway, flux OAuth réel, tests CLI, branches et PR. Il remonte les résultats
+  **assainis** (jamais de secrets) dans `BRAIN.md` et `ACTION_PLAN.md`.
 - **l'utilisateur** arbitre, valide les décisions d'architecture et gère les
   secrets locaux.
+
+Conséquence pratique : il n'y a plus de répartition de capacités à negotiated
+entre agents. Un agent ne délègue rien et ne doit pas chercher un partenaire
+de revue. Les points qui demandaient une validation croisée sont désormais des
+décisions utilisateur, listées en « Questions / Blocages » de `ACTION_PLAN.md`.
 
 ## Avant toute tâche
 
@@ -42,11 +48,14 @@ Kilo CLI, ou autre). Elles rendent la mémoire de projet incontournable.
 4. Contournements (rare, à justifier dans le message de commit) :
    `git commit --no-verify`, ou `git config hooks.brainMode warn`.
 
-## Communication entre agents
+## Communication
 
-- Question ou blocage destiné à Perplexity → section « Questions / Blocages »
-  de `ACTION_PLAN.md`, préfixée `Kilo → Perplexity :`.
-- Réponse ou nouvelle consigne de Perplexity → préfixe `Perplexity → Kilo :`.
-- Kilo colle les extraits de logs pertinents (assainis) dans le journal
+Il n'y a plus d'échange entre agents. Tout passe par `ACTION_PLAN.md` et
+`BRAIN.md`, qui sont la seule mémoire partagée du projet.
+
+- Question, arbitrage ou blocage → section « Questions / Blocages » de
+  `ACTION_PLAN.md`, avec le contexte nécessaire pour que l'utilisateur puisse
+  trancher sans rouvrir le dépôt.
+- L'agent colle les extraits de logs pertinents (assainis) dans le journal
   plutôt que de décrire vaguement une erreur.
 - l'utilisateur arbitre et valide les décisions d'architecture.

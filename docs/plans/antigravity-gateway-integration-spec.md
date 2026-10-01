@@ -1,7 +1,7 @@
 # Spec d'intégration : kind `antigravity` dans la gateway AIFlowBridge
 
 - Livrable : AP-007 (cartographie de `server.ts` + spec d'intégration)
-- Auteur : Perplexity (lecture par fragments via recherche GitHub)
+- Auteur : agent IA
 - Date : 2026-09-02
 - Référence : `docs/plans/antigravity-provider-kilo-cli.md` (plan initial,
   désormais révisé : la gateway existe, ce document la remplace comme spec
