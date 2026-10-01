@@ -39,14 +39,14 @@ décisions utilisateur, listées en « Questions / Blocages » de `ACTION_PLAN.m
   (`AIFlowBridge-Private/BRAIN-PRIVATE.md`) ; les credentials restent
   locaux, hors git.
 
-## Avant tout commit
+## Règles sur les commits
 
-1. Ajouter une entrée datée au journal de `BRAIN.md` (agent, action, résultat).
-2. Mettre à jour `ACTION_PLAN.md` (statuts, nouvelles actions, blocages).
-3. Le hook `pre-commit` bloque par défaut tout commit ne touchant ni
-   `BRAIN.md` ni `ACTION_PLAN.md` — c'est voulu.
-4. Contournements (rare, à justifier dans le message de commit) :
-   `git commit --no-verify`, ou `git config hooks.brainMode warn`.
+- **Aucun commit automatique :** L'agent ne doit **JAMAIS** exécuter `git commit` de sa propre initiative. Seul l'utilisateur décide du moment de commiter, ou donne une consigne explicite (ex: "fais le commit", "commite les modifications"). Terminer une tâche, faire passer les tests ou mettre à jour la documentation ne constitue en aucun cas une autorisation de commiter.
+- **Avant tout commit (lorsqu'explicitement demandé par l'utilisateur) :**
+  1. Ajouter une entrée datée au journal de `BRAIN.md` (agent, action, résultat).
+  2. Mettre à jour `ACTION_PLAN.md` (statuts, nouvelles actions, blocages).
+  3. Le hook `pre-commit` bloque par défaut tout commit ne touchant ni `BRAIN.md` ni `ACTION_PLAN.md` - c'est voulu.
+  4. Contournements (rare, à justifier dans le message de commit) : `git commit --no-verify`, ou `git config hooks.brainMode warn`.
 
 ## Communication
 

@@ -19,6 +19,7 @@ The gateway also runs as a standalone Node.js CLI (`aiflowbridge-server`) withou
 
 - **Read `BRAIN.md` and `ACTION_PLAN.md` before starting any task.** `BRAIN.md` holds long-term project memory, architecture decisions, and sanitized context; `ACTION_PLAN.md` tracks short-term actions and blockers.
 - **Update `BRAIN.md` and `ACTION_PLAN.md` before every commit.** The git `pre-commit` hook blocks commits that touch neither file.
+- **Never commit automatically.** Never run `git commit` unless the user explicitly requests it in the current prompt (e.g. "commit", "fais le commit"). Completing a task, passing tests, updating documentation or bumping versions does NOT authorize creating a git commit. The user always reviews changes and decides when to commit.
 
 ## Style rules (apply to every task)
 

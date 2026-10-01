@@ -87,6 +87,14 @@ This is the right path for a meta-provider that fronts many models behind a sing
 
 See [testing.md](testing.md#adding-a-test).
 
+## Committing
+
+**Agents must NEVER run `git commit` automatically.**
+Only commit when the user explicitly instructs you to do so (e.g. "commit", "fais le commit").
+Completing a task, passing tests, bumping versions, or updating documentation is NOT an authorization to commit.
+The user reviews changes first and decides when and what to commit.
+When committing upon explicit user request, ensure `BRAIN.md` and `ACTION_PLAN.md` are updated first to satisfy the `pre-commit` hook.
+
 ## Debugging
 
 | Symptom                    | Where to look                                                                                              |

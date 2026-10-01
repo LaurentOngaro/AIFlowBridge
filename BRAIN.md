@@ -10,10 +10,10 @@
 
 ## Répartition des rôles (validée par l'utilisateur le 2026-10-01)
 
-| Acteur                         | Rôle           | Périmètre                                                                                                                                                                             |
-| ------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **l'agent IA** (Kilo)          | Exécution      | Conception, spécifications, code, docs, tests, audit, `npm install/build/test`, scripts, gateway, flux OAuth réel, backlog (`ACTION_PLAN.md`), branches et PR ; remonte des résultats **assainis** dans `BRAIN.md` / `ACTION_PLAN.md` |
-| **l'utilisateur**              | Décideur       | Arbitrage, validation des décisions d'architecture, gestion des secrets locaux, revue finale                                                                                     |
+| Acteur                | Rôle      | Périmètre                                                                                                                                                                                                                             |
+| --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **l'agent IA** (Kilo) | Exécution | Conception, spécifications, code, docs, tests, audit, `npm install/build/test`, scripts, gateway, flux OAuth réel, backlog (`ACTION_PLAN.md`), branches et PR ; remonte des résultats **assainis** dans `BRAIN.md` / `ACTION_PLAN.md` |
+| **l'utilisateur**     | Décideur  | Arbitrage, validation des décisions d'architecture, gestion des secrets locaux, revue finale                                                                                                                                          |
 
 L'exécution est **mono-agent** depuis le 2026-10-01.
 La répartition tech lead / exécutant qui existait auparavant est caduque : un seul agent couvre tout le cycle, de la conception à la PR.
@@ -30,6 +30,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
    (sauf erreur sensible, voir règles de contenu).
 5. Les décisions nouvelles sont d'abord proposées dans le journal, puis
    consolidées dans « Décisions d'architecture » une fois validées par l'utilisateur.
+6. **Aucun commit automatique :** Ne JAMAIS exécuter `git commit` sans demande explicite de l'utilisateur (ex: « fais le commit »). L'agent prépare le code, les tests et le journal, mais l'utilisateur conserve toujours la main sur la validation et l'historique git.
 
 ## Règles de contenu (dépôt public)
 
@@ -72,10 +73,10 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 | Date       | Décision                                                                                                                                                                                                 | Motif                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-09-02 | Passerelle locale OpenAI-compatible plutôt que plugin Kilo natif                                                                                                                                         | Réutilisable, isole le risque des endpoints Antigravity, préserve le provider MiniMax officiel                                                                                                                                                                                                                                                                                                                          |
-| 2026-09-02 | Mémoire publique `BRAIN.md` + canal privé `AIFlowBridge-Private` + secrets locaux hors git                                                                                                               | Seul canal commun entre agents et mainteneur ; dépôt public donc contenu assaini                                                                                                                                                                                                                                                                                                                                                   |
+| 2026-09-02 | Mémoire publique `BRAIN.md` + canal privé `AIFlowBridge-Private` + secrets locaux hors git                                                                                                               | Seul canal commun entre agents et mainteneur ; dépôt public donc contenu assaini                                                                                                                                                                                                                                                                                                                                        |
 | 2026-09-02 | Hooks git versionnés dans `.githooks/` + `core.hooksPath`                                                                                                                                                | Partage des hooks via le dépôt                                                                                                                                                                                                                                                                                                                                                                                          |
 | 2026-09-02 | Hook pre-commit : pull obligatoire + mise à jour du journal                                                                                                                                              | Éviter toute perte de modifications, journal incontournable                                                                                                                                                                                                                                                                                                                                                             |
-| 2026-09-02 | Répartition des rôles : tech lead / exécutant local / l'utilisateur décideur (**caduque depuis le 2026-10-01**, exécution mono-agent)                                                                       | Historique : maximiser l'autonomie, ne déléguer que l'exécution                                                                                                              |                                                                                                                                                                                                                                                                                                                                                        |
+| 2026-09-02 | Répartition des rôles : tech lead / exécutant local / l'utilisateur décideur (**caduque depuis le 2026-10-01**, exécution mono-agent)                                                                    | Historique : maximiser l'autonomie, ne déléguer que l'exécution                                                                                                                                                                                                                                                                                                                                                         |  |
 | 2026-09-02 | Antigravity = nouveau `ProviderKind` dans la gateway existante (pas de nouvelle passerelle)                                                                                                              | La gateway OpenAI-compatible existe et vise déjà Kilo Code (audit du 2026-09-02)                                                                                                                                                                                                                                                                                                                                        |
 | 2026-09-04 | Mode de facturation par profil `billing: 'token' \| 'plan'` + `RequestTelemetry.billedTo`                                                                                                                | Distinguer coût réel au token (BYOK) d'équivalent plan (OAuth AGY, MiniMax token plan) ; le dashboard marque `plan` avec badge + tooltip + notice                                                                                                                                                                                                                                                                       |
 | 2026-09-04 | Voie BYOK Gemini comme défaut, OAuth AGY opt-in pour comptes whitelistés Cloud Code Assist                                                                                                               | Quota AI Studio Pro indépendant du quota Cloud Code Assist (`aicode-consumers` lockout personnel) ; BYOK `AIzaSy...` ne dépend d'aucune whitelist                                                                                                                                                                                                                                                                       |
@@ -197,16 +198,34 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-10-01 - Antigravity (Clôture et nettoyage des questions/blocages de l'ACTION_PLAN)
+
+Nettoyage de la section « Questions / Blocages » de `ACTION_PLAN.md` :
+
+- Confirmation que la base URL Z.ai `paas/v4` fonctionne en production (testé par l'utilisateur avec succès).
+- Clôture de l'arbitrage de release (minor 2.19.0 et patch 2.19.1 livrés).
+- Statut MiMo v2.6 clarifié avec l'auto-routage `sk-*` validé sur `api.xiaomimimo.com`.
+- MiniMax M3.1 stabilisé sans pricing (réservé M Plan).
+
+### 2026-10-01 - Antigravity (Interdiction stricte de tout commit automatique par les agents)
+
+Mise à jour formelle des instructions pour interdire catégoriquement tout commit automatique :
+
+- **Documents mis à jour** : `AGENTS.md` (règle obligatoire sous *Project memory and workflow*), `docs/agent-instructions/tasks.md` (section dédiée *Committing*), `.kilocode/rules/00-brain-protocol.md` (section *Règles sur les commits*) et `BRAIN.md` (règle d'usage 6).
+- **Règle absolue** : Les agents IA ne doivent JAMAIS exécuter `git commit` de leur propre initiative. Seul l'utilisateur décide du moment de commiter ou donne une consigne explicite (ex: « fais le commit »). La réussite des tests, la fin d'une tâche ou la préparation de la documentation ne valent en aucun cas autorisation de commiter.
+
 ### 2026-10-01 - Antigravity (Release patch 2.19.1 et actualisation du CHANGELOG)
 
 Publication du correctif patch 2.19.1 :
+
 - **Version** : passage en 2.19.1 dans `package.json` et `package-lock.json`.
 - **CHANGELOG.md** : ajout de la section `## 2.19.1` documentant la résolution des erreurs 401 sur Xiaomi MiMo via l'auto-routage intelligent par préfixe de clé (`sk-*` vers `https://api.xiaomimimo.com/v1`, `tp-*` vers `https://token-plan-ams.xiaomimimo.com/v1`).
 - **Documentation** : synchronisation des métadonnées de version (2.19.1) dans `README.md`, `docs/cost.md`, `docs/architecture.md` et `docs/providers.md`.
 
-### 2026-10-01 - Antigravity (Fix Xiaomi MiMo : auto-routage des clés Pay-as-you-go sk-* vs Token Plan tp-*)
+### 2026-10-01 - Antigravity (Fix Xiaomi MiMo : auto-routage des clés Pay-as-you-go sk-*vs Token Plan tp-*)
 
 Correction du bug 401 "Invalid API Key" rencontré avec les clés Xiaomi MiMo standard :
+
 - **Cause racine** : Xiaomi sépare strictement ses clusters d'API : les clés standard Pay-as-you-go (`sk-*`) sont valides uniquement sur `https://api.xiaomimimo.com/v1`, tandis que les clés de forfaits Token Plan (`tp-*` ou `ttp-*`) sont valides uniquement sur les clusters Token Plan (ex: `https://token-plan-ams.xiaomimimo.com/v1`). Le catalogue bundle utilisait `token-plan-ams.xiaomimimo.com`, rejetant silencieusement les clés `sk-*` avec un HTTP 401 d'invalidité de clé.
 - **Solution implémentée** : création de `resolveXiaomiBaseUrl` dans `src/config.ts` et intégration dans `resolveUpstreamUrl` (passerelle gateway) ainsi que dans `XiaomiChatProvider.sendRequest` (Copilot Chat direct). L'auto-routage inspecte le préfixe de la clé résolue : si la clé commence par `sk-*` et que l'URL cible un cluster `token-plan-*.xiaomimimo.com`, elle est automatiquement redirigée vers `https://api.xiaomimimo.com/v1` ; inversement, si la clé commence par `tp-*`/`ttp-*` et que l'URL est `api.xiaomimimo.com`, elle bascule sur `token-plan-ams.xiaomimimo.com`. Les relais privés personnalisés hors domaine `xiaomimimo.com` sont préservés intacts.
 - **Tests** : 5 tests unitaires ajoutés dans `tests/config.test.ts` et assertions ajoutées dans `tests/gateway.test.ts`. 73 suites de tests sur 73 réussies (1 214 tests).
@@ -218,6 +237,7 @@ Dépendances installées via `npm ci` dédié (garantit la compatibilité du pac
 Bump mineur 2.19.0 consolidé (`package.json`, `package-lock.json`).
 
 Livrables réalisés sur cette étape :
+
 - **`CHANGELOG.md`** : restructuré selon la convention Keep a Changelog avec sections explicites `Breaking Changes` (retrait de `deepseek-v4-flash` au profit de `deepseek-flash`, renommage `deepseek-pro` en `deepseek-v4-pro`, purges des modèles obsolètes M2/M2.1/M2.5/MiMo-V2-omni/pro), `Added` (vendors `zai` et `moonshot`, MiMo V2.6 suite, DeepSeek V4.1 Flash, MiniMax M3.1 Flash Preview, 15 modèles OpenRouter free récents, smoke tests), `Changed` (catalogue étendu à 38 modèles, gestion du thinking obligatoire), `Fixed` (label toast i18n pour Google AI Studio).
 - **`README.md`** : refonte du bandeau de nouveautés v2.19.0 (mise en avant de Z.ai GLM 5.3 et MoonshotAI Kimi K3, 38 modèles au catalogue, 15 modèles free), intégration des clés Z.ai / Moonshot dans le Quick Start (commandes VS Code et variables d'env), actualisation du comparatif de coûts (MiMo V2.6 Flash à 0.05 $/M in, GLM 5.3 Flash à 0.15 $/M in), mise à jour des commandes et du bloc Roadmap / Historique de release.
 - **`docs/cost.md`** : horodatage et version portés à `2026-10-01 / 2.19.0`, intégration des grilles tarifaires indicatives des 7 familles de modèles (incluant Z.ai GLM et MoonshotAI Kimi), simulation de dépenses mensuelles actualisée avec MiMo V2.6 Flash et GLM 5.3 Flash, volume de catalogue synchronisé à 38 modèles.
@@ -246,6 +266,7 @@ Une config cliente qui épingle l'un des deux reçoit `503 No gateway provider m
 C'est une raison de passer en **minor 2.19.0** et non en patch.
 
 **Autres points non triviaux.**
+
 - `KNOWN_FAMILIES` (`modelRegistry.schema.ts`) n'est **pas** vérifié à la compilation : une famille non déclarée fait tomber l'entrée en fail-soft (un `warn` dans les logs, le modèle disparaît du catalogue, aucune erreur visible). `SECRET_KEY_TO_ENV_NAME` et `SECRET_SHORT_TO_FULL` (`api-key-sources.ts`) ne sont pas vérifiés non plus : une omission rend la variable d'env silencieusement ignorée (cf BUG-07 pour Google AI Studio). T3 et T4 du plan traitent ces deux zones, chacune avec un test dédié.
 - L'ordre du tableau `models` dans `resources/models.json` est l'ordre de synthèse du catalogue passerelle, et `tests/host-config.test.ts` épingle `gemini-3.8-flash` comme première entrée synthétisée. Les nouveaux modèles sont donc ajoutés en fin de tableau, sauf les 2 alias Gemini `-latest` placés juste après le bloc `gemini-3.x` (l'invariant "3.8 en premier" reste respecté).
 - `provider.googleaistudio.name` manquait dans `src/i18n.ts` alors que `src/runtime/provider.ts` l'appelle via `t()` : les toasts des commandes de clé Google AI Studio affichaient le littéral de la clé. Corrigé au passage, et les 3 vendors sans classe provider (googleaistudio BYOK, zai, moonshot) passent maintenant par un helper `registerApiKeyCommands` commun au lieu de 3 blocs inline dupliqués.
