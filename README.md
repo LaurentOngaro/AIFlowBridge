@@ -58,7 +58,7 @@ Smart routing, shared session replay, and live cost tracking included.
 >
 > Swap the `model` field for any id at [openrouter.ai/models](https://openrouter.ai/models), direct providers (`MiniMax-M3`, `deepseek-v4-pro`, `mimo-v2.5`), or Gemini (`gemini-3.8-flash`) - the gateway forwards it verbatim. No AIFlowBridge update needed for new models.
 
-AIFlowBridge is the **multi-model local AI gateway you control**, bridging OpenRouter (100+ models) and direct frontier providers (Google Gemini, DeepSeek, MiniMax, Xiaomi MiMo) with zero middleman markup.
+AIFlowBridge is the **multi-model local AI gateway you control**, bridging OpenRouter (100+ models) and direct frontier providers (Google Gemini, DeepSeek, MiniMax, Xiaomi MiMo, Z.ai GLM, MoonshotAI Kimi) with zero middleman markup.
 The gateway forwards every prompt to the model you (or your client) pick - no surprises, no hidden re-routing.
 One OpenRouter key unlocks 100+ frontier models behind a single endpoint; one direct key per vendor unlocks the cheapest available rate.
 Mix both worlds in the same Copilot Chat picker, the same `http://127.0.0.1:8787/v1` gateway, the same dashboard.

@@ -20,7 +20,7 @@
 
 Notes:
 
-- All 23 direct-vendor models in the table above expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [vision-proxy.md](vision-proxy.md)).
+- The 11 direct Copilot Chat models in the table above (DeepSeek, MiniMax, Xiaomi) expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [vision-proxy.md](vision-proxy.md)).
 - **Google AI Studio (Gemini 3.8 / 3.7 / 3.6 Flash)** is gateway-only like OpenRouter. Two distinct routes are available; the bundled default uses the BYOK API-key path on `generativelanguage.googleapis.com` (always available), the Antigravity / Cloud Code Assist OAuth path is an opt-in for users with whitelisted Cloud Code Assist tenants. See [Google AI Studio via API key (BYOK)](#google-ai-studio-via-api-key-byok-pay-as-you-go) below for setup, and [Antigravity via Cloud Code Assist OAuth (advanced)](#google-ai-studio--antigravity-via-cloud-code-assist-oauth-advanced) for the Antgravity-side path. Gemini models do not appear in the Copilot Chat picker (see AP-013); Kilo Code / Continue / `curl` reach them via the gateway.
 - **Thinking** indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2.7 does not expose a thinking selector. **MiniMax M3 exposes a "Thinking Effort" selector** (None / High / Max) that maps to the upstream `reasoning_split` boolean - see [reasoning.md](reasoning.md).
 - **Z.ai and MoonshotAI are gateway-only**, like OpenRouter and Google AI Studio: no Copilot Chat picker entry, reached from Kilo Code / Continue / `curl` through `http://127.0.0.1:8787/v1`. GLM 5.3 and Kimi K3 always reason and cannot be switched off; the gateway forwards the payload unchanged, so let `reasoning_effort` (`low` / `high` / `max`) through instead of sending `thinking.type: disabled`, which GLM 5.3 rejects.
@@ -44,29 +44,35 @@ No protocol adapter is required - it plugs into AIFlowBridge the same way DeepSe
 
    Then add a vendor entry, OR for the gateway path, set the key via the `aiflowbridge.providers.openrouter.apiKey` SecretStorage slot (the standalone CLI reads `AIFLOWBRIDGE_OPENROUTER_API_KEY` from the environment).
 
-3. **Restart the gateway** so the new vendor is picked up. The gateway advertises the seven flagship models below in `GET /v1/models`. The other 100+ models are reachable by name - set the model id in your OpenAI-compatible client (Kilo Code picker, Continue config, `curl -d '{"model": "..."}'`) and the gateway forwards the call verbatim.
+3. **Restart the gateway** so the new vendor is picked up. The gateway advertises the 15 free-tier models below in `GET /v1/models`. The other 100+ models are reachable by name - set the model id in your OpenAI-compatible client (Kilo Code picker, Continue config, `curl -d '{"model": "..."}'`) and the gateway forwards the call verbatim.
 
-### Bundled flagship subset (7 of 100+, all free tier)
+### Bundled free-tier subset (15 of 100+, all free tier)
 
-The bundled registry ships seven recent flagships - chosen to maximise coverage of the top labs (NVIDIA, OpenAI, Google, Meta, Alibaba) and to ship on the OpenRouter **free tier** (pricing = $0 / $0 per 1M tokens for all seven).
-They appear in `GET /v1/models` and the dashboard reads their `pricing` block to compute "Est. cost" - in their case, the dashboard always shows $0. **Capabilities shown below apply only to these seven entries** - the full 100+ catalog at [openrouter.ai/models](https://openrouter.ai/models) handles them per its own documentation; consult the upstream listings for any model id not in this table.
-All data below was pulled from `https://openrouter.ai/api/v1/models` (August 2026 snapshot).
+The bundled registry ships 15 recent free-tier models on OpenRouter (pricing = $0 / $0 per 1M tokens for all 15).
+They appear in `GET /v1/models` and the dashboard reads their `pricing` block to compute "Est. cost" - in their case, the dashboard always shows $0. **Capabilities shown below apply only to these 15 entries** - the full 100+ catalog at [openrouter.ai/models](https://openrouter.ai/models) handles them per its own documentation; consult the upstream listings for any model id not in this table.
+All data below was pulled from `https://openrouter.ai/api/v1/models` (October 2026 snapshot).
 
-| Model id (use verbatim in `model` field)                        | Context window | Output cap | Vision | Reasoning | Tool calling |
-| --------------------------------------------------------------- | -------------- | ---------- | ------ | --------- | ------------ |
-| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active) | 1 000 000      | 65 536     | No     | Yes       | Yes          |
-| `openai/gpt-oss-120b:free` (117B MoE, 5.1B active)              | 131 072        | 131 072    | No     | Yes       | Yes          |
-| `google/gemma-4-31b-it:free` (30.7B dense multimodal)           | 262 144        | 8 192      | Yes    | Yes       | Yes          |
-| `meta-llama/llama-3.3-70b-instruct:free`                        | 131 072        | 16 384     | No     | No        | Yes          |
-| `qwen/qwen3-coder:free` (480B MoE, 35B active)                  | 1 048 576      | 262 000    | No     | No        | Yes          |
-| `qwen/qwen3-next-80b-a3b-instruct:free` (80B MoE, 3B active)    | 262 144        | 16 384     | No     | No        | Yes          |
-| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active) | 1 000 000      | 262 144    | No     | Yes       | Yes          |
-
-The mix covers the major OpenRouter axes: a frontier-reasoning workhorse (Nemotron 3 Ultra 550B), an OpenAI open-weight flagship (gpt-oss-120b), a multimodal option (Gemma 4 31B), the reference 70B instruct (Llama 3.3 70B), the leading free coding agent (Qwen3 Coder 480B with 1M context), a low-latency MoE (Qwen3 Next 80B), and a multi-agent orchestrator (Nemotron 3 Super 120B).
+| Model id (use verbatim in `model` field)                                    | Context window | Output cap | Vision | Reasoning | Tool calling |
+| --------------------------------------------------------------------------- | -------------- | ---------- | ------ | --------- | ------------ |
+| `cohere/north-mini-code:free` (30B MoE, 3B active)                          | 256 000        | 64 000     | No     | Yes       | Yes          |
+| `dots-studio/dots-3-note-preview:free` (280B MoE, 16B active)               | 512 000        | 460 800    | Yes    | Yes       | Yes          |
+| `google/gemma-4-26b-a4b-it:free` (25.2B MoE, 3.8B active)                   | 262 144        | 32 768     | Yes    | Yes       | Yes          |
+| `google/gemma-4-31b-it:free` (30.7B dense multimodal)                       | 262 144        | 32 768     | Yes    | Yes       | Yes          |
+| `inclusionai/ling-3.0-flash-sante:free`                                     | 262 144        | 32 768     | No     | Yes       | Yes          |
+| `liquid/lfm-2.5-2.6b:free` (2.6B dense)                                     | 65 536         | 8 192      | No     | No        | Yes          |
+| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (30B MoE, 3B active)   | 256 000        | 65 536     | Yes    | Yes       | Yes          |
+| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active)             | 262 144        | 235 929    | No     | Yes       | Yes          |
+| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active)             | 1 000 000      | 65 536     | No     | Yes       | Yes          |
+| `nvidia/nemotron-3.5-lightning:free`                                        | 1 000 000      | 65 536     | No     | Yes       | Yes          |
+| `poolside/laguna-s-2.1:free`                                                | 262 144        | 32 768     | No     | Yes       | Yes          |
+| `poolside/laguna-xs-2.1:free`                                               | 262 144        | 32 768     | No     | Yes       | Yes          |
+| `qwen/qwen3.8-27b:free` (27B dense)                                         | 262 144        | 235 929    | No     | Yes       | Yes          |
+| `thinkingmachines/inkling:free` (1M context)                                | 1 048 576      | 262 144    | No     | Yes       | Yes          |
+| `thinkingmachines/inkling-small:free` (1M context)                          | 1 048 576      | 262 144    | No     | Yes       | Yes          |
 
 **Using a non-bundled OpenRouter model:** the same gateway path works - no AIFlowBridge update needed. Three options:
 
-1. **Use one of the 7 bundled ids verbatim** (the IDs above are exact OpenRouter strings).
+1. **Use one of the 15 bundled ids verbatim** (the IDs above are exact OpenRouter strings).
 2. **Add the unknown id to `aiflowbridge.userModels`** with `family: "openrouter"`. The gateway synthesizes a virtual provider with `vendors.openrouter.baseUrl` and the new id is now visible in `GET /v1/models`. Attach a `pricing` block to get an "Est. cost" tariff in the dashboard.
 3. **Override the bundled registry** via `<globalStorageUri>/models.json` or `<workspaceFolder>/.vscode/aiflowbridge.models.json` if you want the new id to ship as part of a curated registry tier.
 
@@ -81,10 +87,56 @@ In all three cases, the gateway forwards the model id verbatim to `openrouter.ai
 
 ### Pricing
 
-All 7 bundled flagships are **free** on OpenRouter's free tier (USD 0.00 / USD 0.00 per 1M tokens, per the OpenRouter `/v1/models` snapshot).
+All 15 bundled models are **free** on OpenRouter's free tier (USD 0.00 / USD 0.00 per 1M tokens, per the OpenRouter `/v1/models` snapshot).
 The dashboard's "Est. cost" column therefore always shows $0 for these entries.
 For non-bundled model ids, the dashboard does not show a tariff unless you supply a `pricing` block in the `aiflowbridge.userModels` entry.
 Override per-profile via `aiflowbridge.providers[].pricing` if you have a custom OpenRouter plan or want to budget against a paid upstream model.
+
+## Z.ai GLM (GLM 5.3 flagship and multimodal models)
+
+Z.ai exposes frontier reasoning and multimodal models through an OpenAI-compatible endpoint (`https://api.z.ai/api/paas/v4`).
+Like OpenRouter and Google AI Studio, Z.ai is a **gateway-only vendor (Path B)**: it is reached from Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, and `curl` through `http://127.0.0.1:8787/v1`, not from the Copilot Chat picker.
+
+### Setup
+
+1. **Get an API key** from [z.ai/manage-api/apikey](https://z.ai/manage-api/apikey).
+2. **Store it**:
+   - **VS Code extension**: `Ctrl+Shift+P` -> `Z.ai GLM: Set API Key` -> paste your key. Revoke with `Z.ai GLM: Clear API Key`.
+   - **Standalone**: set `AIFLOWBRIDGE_ZAI_API_KEY` in the environment, or add `"zai.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
+3. **Use it**: send completion requests with `model: "glm-5.3"`, `"glm-5.3-flash"`, or `"glm-5.3-flashx"`. All three ids appear in `GET /v1/models`.
+
+### Models and endpoints
+
+- **`glm-5.3`**: Flagship reasoning model, 1M context, 131 072 max output, text-only input ($1.40 / $4.40 per 1M tokens).
+- **`glm-5.3-flash`**: Multimodal model (image, video, file input), 1M context, 131 072 output ($0.15 / $0.50 per 1M tokens).
+- **`glm-5.3-flashx`**: High-efficiency multimodal reasoning model, 1M context, 131 072 output ($0.37 / $1.25 per 1M tokens).
+
+Notes:
+- **Thinking cannot be disabled**: On GLM 5.3 models, reasoning is always active. Sending `thinking.type: "disabled"` causes the upstream API to reject the request with HTTP 400. To adjust reasoning intensity, pass `reasoning_effort` (`low`, `high`, `max`; default `max`).
+- **Coding Plan endpoint**: The default baseUrl is the pay-as-you-go endpoint (`https://api.z.ai/api/paas/v4`). If you subscribe to the Z.ai GLM Coding Plan, set `aiflowbridge.providers.zai.baseUrl` to `https://api.z.ai/api/coding/paas/v4` in `settings.json`.
+
+## MoonshotAI Kimi (Kimi K3 and K2.7 Code models)
+
+MoonshotAI provides the Kimi series of reasoning and coding models via an OpenAI-compatible endpoint (`https://api.moonshot.ai/v1`).
+MoonshotAI is a **gateway-only vendor (Path B)** reached through `http://127.0.0.1:8787/v1`.
+
+### Setup
+
+1. **Get an API key** from [platform.kimi.ai/console/api-keys](https://platform.kimi.ai/console/api-keys).
+2. **Store it**:
+   - **VS Code extension**: `Ctrl+Shift+P` -> `MoonshotAI Kimi: Set API Key` -> paste your key. Revoke with `MoonshotAI Kimi: Clear API Key`.
+   - **Standalone**: set `AIFLOWBRIDGE_MOONSHOT_API_KEY` in the environment, or add `"moonshot.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
+3. **Use it**: send completion requests with `model: "kimi-k3"`, `"kimi-k2.7-code"`, `"kimi-k2.7-code-highspeed"`, or `"kimi-k2.6"`. All four ids appear in `GET /v1/models`.
+
+### Models
+
+- **`kimi-k3`**: Flagship multimodal reasoning model (text, image, video), 1M context window, configurable `reasoning_effort` (low / high / max) ($3.00 / $15.00 per 1M tokens).
+- **`kimi-k2.7-code`**: Specialized coding model, 262 144 context window ($0.95 / $4.00 per 1M tokens).
+- **`kimi-k2.7-code-highspeed`**: Low-latency coding tier, 262 144 context window ($1.90 / $8.00 per 1M tokens).
+- **`kimi-k2.6`**: Versatile multimodal reasoning and non-reasoning model, 262 144 context window ($0.95 / $4.00 per 1M tokens).
+
+Notes:
+- **Legacy Kimi models**: The `kimi-k2` and `kimi-k2.5` series have been retired upstream and are purged from the catalog.
 
 ## Google AI Studio via API key (BYOK, pay-as-you-go)
 

@@ -229,6 +229,8 @@ C'est une raison de passer en **minor 2.19.0** et non en patch.
 
 **Portée de la release.** Le picker Copilot Chat reste inchangé (DeepSeek / MiniMax / Xiaomi uniquement, cf AP-013) : `zai` et `moonshot` sont Path B, visibles dans le dashboard et `GET /v1/models` uniquement.
 
+**Documentation T8 finalisée.** Ajout des sections dédiées Z.ai GLM et MoonshotAI Kimi dans `docs/providers.md`, mise à jour du tableau OpenRouter avec les 15 modèles free réels, affinement du compte de modèles Copilot Chat directs (11 modèles), exemple standalone mis à jour avec `zai.apiKey` et `moonshot.apiKey`, et tests unitaires `tests/api-key-resolver.test.ts` étendus avec les 4 cas et le non-leak OpenRouter (14 tests au total).
+
 ### 2026-09-05 — Kilo (Bug : Muse spark 1.3 (id OpenRouter) 401 "No cookie auth credentials found")
 
 L'utilisateur a sélectionné `meta/muse-spark-1.3` (ajouté via `aiflowbridge.userModels` avec `family: "openrouter"`) et a obtenu un 401 `No cookie auth credentials found` sur `http://127.0.0.1:8787/v1/chat/completions`.

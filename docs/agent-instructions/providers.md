@@ -6,11 +6,11 @@
 
 Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point (`contributes.languageModelChatProviders` in `package.json`):
 
-| Vendor         | Models                                                                           | Implementation                                                   |
-| -------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `aiflowbridge` | DeepSeek V4 Pro, V4 Flash                                                        | `src/provider/index.ts` + `src/provider/unified.ts` (delegating) |
-| `minimax`      | MiniMax M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3 | `src/provider/minimax.ts`                                        |
-| `xiaomi`       | Xiaomi MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro                                      | `src/provider/xiaomi.ts`                                         |
+| Vendor         | Models                                                                               | Implementation                                                   |
+| -------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `aiflowbridge` | DeepSeek V4.1 Flash (`deepseek-flash`), V4 Pro (`deepseek-v4-pro`)                   | `src/provider/index.ts` + `src/provider/unified.ts` (delegating) |
+| `minimax`      | MiniMax M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview                                 | `src/provider/minimax.ts`                                        |
+| `xiaomi`       | Xiaomi MiMo V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                | `src/provider/xiaomi.ts`                                         |
 
 `src/provider/unified.ts` exports `UnifiedChatProvider` - a single `vscode.LanguageModelChatProvider` implementation that delegates each model id to the correct per-vendor sub-provider, so the registry's mixed-vendor model list is exposed under one vendor label.
 

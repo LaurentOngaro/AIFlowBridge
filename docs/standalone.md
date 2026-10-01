@@ -92,7 +92,9 @@ API keys are resolved in this order (the same unified chain as the VS Code exten
 {
   "deepseek.apiKey": "sk-...",
   "minimax.apiKey": "...",
-  "xiaomi.apiKey": "..."
+  "xiaomi.apiKey": "...",
+  "zai.apiKey": "...",
+  "moonshot.apiKey": "..."
 }
 ```
 
