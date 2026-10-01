@@ -40,10 +40,38 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStandaloneContext } from '../../src/standalone/context';
+import { bareEnvNameForVendor, ENV_NAME_PREFIX } from '../../src/aiflowbridge/api-key-sources';
+import { API_KEY_SECRETS } from '../../src/consts';
 
 let tempDir: string;
+let envBackup: NodeJS.ProcessEnv;
+
+/**
+ * Drop every env var the key chain can read, canonical prefixed names and
+ * bare `<VENDOR>_API_KEY` names alike. A developer machine (or CI runner)
+ * exporting `MINIMAX_API_KEY` for another tool would otherwise leak into
+ * the resolution and make these tests non-hermetic.
+ */
+function clearApiKeyEnv(): void {
+  for (const vendor of Object.keys(API_KEY_SECRETS)) {
+    const bare = bareEnvNameForVendor(vendor) as string;
+    delete process.env[`${ENV_NAME_PREFIX}${bare}`];
+    delete process.env[bare];
+  }
+}
+
+function restoreEnv(): void {
+  for (const name of Object.keys(process.env)) {
+    if (!(name in envBackup)) {
+      delete process.env[name];
+    }
+  }
+  Object.assign(process.env, envBackup);
+}
 
 beforeEach(() => {
+  envBackup = { ...process.env };
+  clearApiKeyEnv();
   tempDir = join(tmpdir(), `aiflowbridge-ctx-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(tempDir, { recursive: true });
 });
@@ -53,9 +81,8 @@ afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true });
   }
   // Clear any test-injected env vars so they don't leak between tests.
-  delete process.env.AIFLOWBRIDGE_DEEPSEEK_API_KEY;
-  delete process.env.AIFLOWBRIDGE_MINIMAX_API_KEY;
-  delete process.env.AIFLOWBRIDGE_XIAOMI_API_KEY;
+  clearApiKeyEnv();
+  restoreEnv();
 });
 
 describe('createStandaloneContext', () => {

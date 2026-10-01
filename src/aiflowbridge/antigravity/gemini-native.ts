@@ -43,6 +43,7 @@
  * via vitest with fixture JSON inputs.
  */
 
+import { cleanJsonSchema } from './json-schema-clean';
 import { randomBytes } from 'node:crypto';
 import { logDroppedImageUrls, openAiContentToGeminiParts } from './content-parts';
 
@@ -134,60 +135,6 @@ export interface GeminiNativeResponse {
     message: string;
     status?: string;
   };
-}
-
-const FORBIDDEN_SCHEMA_KEYS = new Set([
-  '$schema',
-  '$id',
-  '$ref',
-  '$defs',
-  'definitions',
-  'examples',
-  'patternProperties',
-  'additionalProperties',
-  'exclusiveMinimum',
-  'exclusiveMaximum',
-  'minLength',
-  'maxLength',
-  'minimum',
-  'maximum',
-  'multipleOf',
-  'pattern',
-  'format',
-  'minItems',
-  'maxItems',
-  'uniqueItems',
-  'minProperties',
-  'maxProperties',
-]);
-
-/**
- * Recursively strips JSON-Schema keywords the Gemini `OpenApi` dialect
- * rejects (see `src/aiflowbridge/antigravity/envelope.ts` for the same
- * logic on the AGY OAuth surface). The native surface accepts more
- * keywords than the AGY one, but the high-risk overlap is the same.
- */
-function cleanJsonSchema(schema: unknown): Record<string, unknown> {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-    return { type: 'object' };
-  }
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
-    if (FORBIDDEN_SCHEMA_KEYS.has(key)) continue;
-    if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
-      const cleaned: Record<string, unknown> = {};
-      for (const [propName, propSchema] of Object.entries(value as Record<string, unknown>)) {
-        cleaned[propName] = cleanJsonSchema(propSchema);
-      }
-      result.properties = cleaned;
-    } else if (key === 'items') {
-      result.items = cleanJsonSchema(value);
-    } else {
-      result[key] = value;
-    }
-  }
-  if (!result.type) result.type = 'object';
-  return result;
 }
 
 interface OpenAiChatMessage {

@@ -198,6 +198,105 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-10-01 - Kilo (Gemini : mots-clés JSON Schema refusés par l'upstream)
+
+Erreur remontée par l'utilisateur sur Gemini 3.8 Flash via la gateway : `Invalid JSON payload received.
+Unknown name "propertyNames" at 'tools[0].function_declarations[45].parameters.properties[3].value': Cannot find field.`, HTTP 400 `INVALID_ARGUMENT`.
+
+**Cause.** Le chemin Gemini natif (`generativelanguage.googleapis.com`, `isGenerativeLanguageBaseUrl`) nettoie les schémas d'outils via `cleanJsonSchema`, mais sa liste de mots-clés refusés ne contenait pas `propertyNames`, un mot-clé de validation JSON Schema draft-06+ présent dans les schémas d'outils envoyés par les clients.
+Un seul mot-clé inconnu fait tomber la requête entière, même si l'outil est valide.
+
+**Vraie cause structurelle : la liste était dupliquée.** `gemini-native.ts` (BYOK natif) et `envelope.ts` (OAuth AGY) avaient chacun leur `FORBIDDEN_SCHEMA_KEYS`, et elles avaient déjà divergé : la copie d'`envelope.ts` documentait `exclusiveMinimum` / `exclusiveMaximum` dans un commentaire, celle de `gemini-native.ts` non.
+Deux listes, aucune ne fait autorité, c'est exactement ce que BRAIN signale pour BUG-07.
+Correction : un module unique `src/aiflowbridge/antigravity/json-schema-clean.ts` porte le sanitiseur et ses listes, réexporté par `envelope.ts` pour ne pas casser sa surface publique.
+Le doublon disparaît, donc le même écart ne peut plus se reproduire.
+
+**Source de vérité pour la liste, pas mémoire.** Interrogation de la discovery API officielle de Google (`$discovery/rest?version=v1beta`, puis `v1` pour contrôle) : les 22 champs de `Schema` sont identiques dans les deux versions. `propertyNames` n'y est pas, ce qui confirme le diagnostic.
+La liste des mots-clés refusés a été complétée avec les frères de la même famille qui échoueraient de la même façon : `const`, `oneOf` / `allOf` / `not` (Gemini n'accepte que `anyOf`), `patternProperties`, `prefixItems`, `contains`, `uniqueItems`, `additionalItems`, `unevaluated*`, `dependent*`, `if` / `then` / `else`, `content*`, `$anchor` / `$comment` / `$vocabulary`.
+
+**Décision de ne pas élargir au-delà du bug, assumée et documentée.** La discovery indique que Gemini accepte `format`, `pattern`, `minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties`, `maxProperties`, et l'ancien sanitiseur les retirait quand même.
+Les conserver gagnerait en précision d'appel d'outil, mais le document de découverte est la surface *documentée*, et un mot-clé ne vaut pas le risque d'un 400 sur la requête entière pour un gain marginal.
+Le code sépare donc explicitement `GEMINI_SCHEMA_FORBIDDEN_KEYS` (rejet upstream, la.base du correctif) de `GEMINI_SCHEMA_STRIPPED_KEYWORDS` (prudence historique, conservée), avec le raisonnement écrit dans les constantes.
+**Aucun appel réel n'a pu être fait vers Gemini** : aucune clé AI Studio n'est configurée sur cette machine.
+La transformation est donc prouvée par test unitaire et non par un appel upstream, ce qui est une limite assumée de cette vérification.
+
+**Garde-fou ajouté.** `tests/gemini-json-schema.test.ts` vérifie que l'ensemble « acceptés » et l'ensemble « refusés » ne peuvent jamais se recouvrir (invariant), que le recouvrement avec l'ensemble « retirés par prudence » est exactement la liste attendue (donc toute dérive est visible), et que les mots-clés du rapport restent refusés (donc le correctif ne peut pas être défait par une édition bien intentionnée).
+
+**Vérifié.** `npm run validate` : 1276 tests verts (13 nouveaux dans `gemini-json-schema.test.ts`, 1 nouveau dans `gemini-native.test.ts` qui rejoue le schéma exact du rapport, imbriqué au même niveau `properties[3]`), `build:standalone` vert.
+Le chemin Gemini 3.8 est bien celui corrigé (`vendors.googleaistudio.baseUrl` = `https://generativelanguage.googleapis.com/v1beta`).
+**Validation par l'utilisateur le 2026-10-01** : la requête qui échouait passe désormais, donc le correctif est confirmé contre l'API Gemini réelle, ce que je ne pouvais pas faire faute de clé AI Studio sur la machine.
+**Une affirmation non vérifiée a été retirée au passage, dans les deux sens.** Je ne disposais d'aucun moyen de tester Z.ai ni Moonshot, donc l'énoncé « GLM 5.3 et Kimi K3 rejettent `thinking.type: disabled` » ne venait que de la doc existante, pas d'une vérification.
+Le CHANGELOG le dit maintenant explicitement (parenthèse : leur refus provient du drapeau du registre et de la documentation, il n'a pas été reconfirmé contre l'upstream), et `docs/providers.md` a été reformulé pour ne plus affirmer un 400 côté GLM/Kimi mais décrire le seul comportement réellement garanti, la réécriture par la gateway.
+Un changelog qui présente une déduction comme une mesure est le même défaut que le `requiresThinkingParam` jamais lu : une affirmation que rien ne vérifie.
+**Non commité** : règle « aucun commit automatique ».
+
+### 2026-10-01 - Kilo (MiniMax M3.1 Flash Preview : le raisonnement ne peut pas être coupé)
+
+Erreur remontée par l'utilisateur via Kilo Code sur la gateway : `invalid params, model "MiniMax-M3.1-Flash-Preview" requires adaptive thinking; thinking.type="disabled" (including reasoning.effort=none) is not allowed (2013)`, HTTP 400.
+
+**Diagnostic empirique, pas documentaire.** Une sonde contre l'API MiniMax (`api.minimax.io/v1/chat/completions`) a établi le refus exact avant d'écrire la moindre ligne : `reasoning_split: false` -> 400 `requires reasoning_split=true`, `thinking.type: "disabled"` -> 400, `reasoning_effort: "none"` -> 400, alors que l'absence de paramètre, `reasoning_split: true`, `thinking.type: "enabled"`, `thinking.type: "adaptive"` et `reasoning_effort: "high"` passent tous. `reasoning: {effort: "none"}` (objet) est ignoré par l'upstream.
+MiniMax-M3 accepte `reasoning_split: false`, donc la contrainte est propre à M3.1.
+Conséquence de conception : l'upstream ne laisse aucun choix, donc renvoyer une erreur à l'utilisateur le priverait de la seule chose qui marche.
+La gateway sert la requête qu'elle peut réellement servir.
+
+**Découverte : `requiresThinkingParam` existait déjà et n'était lu par personne.** Le champ est dans le registre, validé, fusionné, documenté, et déjà positionné à `true` sur GLM 5.3, Kimi K3 et DeepSeek, mais propagé dans `src/provider/base.ts` vers une structure dont aucun code ne le consomme.
+Plutôt que d'inventer un drapeau ou une liste de noms codée en dur, la correction câble ce champ existant, ce qui referme au passage un trou déjà consigné comme « déclaré mais non branché ».
+
+**Deux chemins de même symptôme, deux corrections.** La gateway traduisait déjà `reasoning: false` et `reasoning_effort: "none"` en `reasoning_split: false` (donc produisait elle-même le refus), et laissait passer `thinking` tel quel (donc l'erreur de l'utilisateur, venue d'un client qui envoie `thinking.type`).
+Le provider Copilot Chat MiniMax, lui, obtenait `reasoning_split: false` du picker « Thinking Effort = None » ou du setting global.
+Les deux sont traités, avec le même drapeau.
+
+**Ordre d'application, une erreur de parcours.** Appliquer la politique avant la traduction supprimait `reasoning_effort: "none"`, que la traduction MiniMax doit précisément lire pour produire `reasoning_split` ; le test l'a révélé (`reasoning_split` undefined).
+La traduction passe donc d'abord, la politique ensuite, dans les deux branches vendor.
+
+**La politique est une propriété du modèle, pas du vendor.** Elle s'applique aussi aux providers non-MiniMax, ce qui répare au passage le cas que la documentation décrivait pour GLM 5.3 (« le gateway relaie le payload inchangé, évitez `thinking.type: disabled` »).
+Cette phrase de la doc était une consigne de contournement là où le produit peut faire le travail.
+Un corps qui ne dit rien du raisonnement n'est jamais touché : l'upstream garde son défaut, la gateway n'invente pas de paramètre.
+
+**Vérifié de bout en bout, deux fois.** Gateway standalone relancée après refactor, 5 cas : `reasoning_effort: none`, `reasoning: false`, `thinking.type: disabled`, `reasoning_effort: high`, et absence totale de signal sur M3.1, plus `reasoning_effort: none` sur M3.
+Les 6 répondent 200.
+Les logs montrent les 3 forcages avec le message d'info, l'absence de forçage pour `high` et pour l'absence de signal, et `reasoning_split=false` inchangé sur M3.
+
+**Constat hors périmètre, non corrigé.** Le catalogue affiche `MiniMax-M3.1-Flash-Preview pricing=in=0.3/M out=1.2/M` alors que le registre déclare explicitement l'absence de tarif publié pour ce modèle : le prix vient de `DEFAULT_GATEWAY_PROFILES` (`src/aiflowbridge/host-config.ts`), en dur et non aligné sur l'entrée du registre.
+À trancher par l'utilisateur, hors du correctif demandé.
+
+Gate : `npm run validate` (compile + 1262 tests + `typecheck:tests`) et `npm run build:standalone` verts.
+**Non commité** : règle « aucun commit automatique ».
+
+### 2026-10-01 - Kilo (Alias env nus pour les clés d'API, découverte générique)
+
+Demande utilisateur, en deux temps : accepter les variables nues `DEEPSEEK_API_KEY`, `GOOGLEAISTUDIO_API_KEY`, `MINIMAX_API_KEY`, `MOONSHOT_API_KEY`, `OPENROUTER_API_KEY`, `XIAOMI_API_KEY`, `ZAI_API_KEY`, puis généraliser la recherche pour qu'un provider ajouté ultérieurement trouve sa clé sans code.
+
+**L'ordre de priorité de la chaîne de clés est inchangé** : env (source 1) > `secrets.json` > `SecretStorage` VS Code.
+L'alias est lu au même rang que le nom préfixé, pas à un rang inférieur : c'est la même source, donc un alias défini doit continuer à gagner sur le fichier.
+Quand les deux sont définis, le nom préfixé gagne, ce qui préserve strictement le comportement de toute configuration existante.
+
+**Deux mécanismes, pas un.** `envAliasForSecretKey()` dérive l'alias du nom canonique en retirant `AIFLOWBRIDGE_` (O(1), chemin nominal). `findBareEnvNameForSecretKey()` scanne l'environnement et valide qu'un nom est exactement `<VENDOR>_API_KEY` pour un vendor déclaré.
+Le second est le filet générique demandé : il fonctionne même si le nom canonique d'un futur vendor ne suit pas la convention de retrait du préfixe.
+Les deux positions sont complémentaires, pas redondantes.
+
+**La source de vérité du scan est `API_KEY_SECRETS` (`src/consts.ts`), pas une table dédiée.** C'est la décision structurante : un vendor ajouté là est détecté automatiquement, et il n'existe pas de seconde liste où l'oublier pourrait se traduire par une clé lue comme « non configurée » sans erreur visible (la classe BUG-07 signalée plus haut dans ce fichier).
+`SECRET_KEY_TO_ENV_NAME` reste la source de vérité du seul nom **préfixé**, qui n'est pas couvert par le scan.
+`bareEnvNameForVendor()` est exportée pour que la couverture puisse être affirmée en itérant `API_KEY_SECRETS` : un test fait exactement cela, donc un vendor ajouté sans son nom nu câblé donne un test rouge plutôt qu'une panne silencieuse.
+
+**Validations du nom, testées.** Rejet de `DEEPSEEK_KEY`, `DEEPSEEK_API_KEY_EXTRA`, `MY_DEEPSEEK_API_KEY`, `_API_KEY`, et de `AIFLOWBRIDGE_DEEPSEEK_API_KEY` (le token `AIFLOWBRIDGE_DEEPSEEK` ne correspond à aucun vendor).
+La comparaison est insensible à la casse, car les noms d'environnement Windows le sont.
+
+**Scan paresseux, pas de cache.** `get()` essaie d'abord les noms déclarés, et ne scanne l'environnement qu'ensuite ; le scan est refait à chaque lookup plutôt que mis en index, pour préserver la garantie documentée qu'un `dotenv` chargé après le démarrage est pris en compte.
+Le coût (un `Object.keys(process.env)` filtré) est sans commune mesure avec un appel réseau.
+
+**Hygiène des tests : ce fut le vrai point dur.** Cette machine exporte `MINIMAX_API_KEY` et `OPENROUTER_API_KEY`, ce qui a fait échouer des assertions jusque-là.
+Un simple snapshot/restore de `process.env` ne suffit pas, car le backup capture déjà la pollution.
+La solution retenue est un nettoyage explicite des 2 x N noms dérivés d'`API_KEY_SECRETS` (`clearVendorApiKeyEnv()` / `clearApiKeyEnv()`) en `beforeEach`, doublé d'un restore global en `afterEach` par sécurité.
+Le nettoyage porte sur une liste fermée, alors que le scan est ouvert : c'est le bon partage, car la liste des noms que la chaîne peut lire est dérivée de la même source de vérité que le scan.
+
+**Vérification de bout en bout.** Gateway standalone lancé avec `ZAI_API_KEY=sk-e2e-bare-zai` seul : les logs de démarrage donnent `API key for zai: Env (ZAI_API_KEY)`, les autres vendors préfixés restent sur leur nom `AIFLOWBRIDGE_*`, et `googleaistudio` / `moonshot` sortent `not configured`.
+
+Gate : `npm run validate` (compile + 1245 tests + `typecheck:tests`) et `npm run compile:standalone` verts.
+**Bump mineur 2.20.0 demandé par l'utilisateur** : `package.json`, `package-lock.json`, `resources/pricing.json` (`aiflowbridgeVersion` seul, le catalogue est inchangé donc `pricing:refresh` n'a pas été relancé), CHANGELOG et les 5 docs qui citent la version (README, `docs/providers.md`, `docs/cost.md`, `docs/architecture.md`).
+**Non commité** : règle « aucun commit automatique ».
+Docs mises à jour : `README.md`, `docs/standalone.md`, `docs/providers.md` (3 passages, dont une priorité erronée corrigée), `docs/development.md`, `docs/agent-instructions/{architecture,gateway,tasks}.md`.
+
 ### 2026-10-01 - Antigravity (Clôture et nettoyage des questions/blocages de l'ACTION_PLAN)
 
 Nettoyage de la section « Questions / Blocages » de `ACTION_PLAN.md` :

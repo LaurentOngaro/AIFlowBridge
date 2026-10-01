@@ -95,7 +95,7 @@ The Open VSX counterpart (`.github/workflows/publish.yml`) requires an `OPENVSX_
 
 AIFlowBridge is **local-first** by design:
 
-- **API keys** are stored exclusively in VS Code `SecretStorage` (your OS keychain) on the VS Code side, and in `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars or `~/.aiflowbridge/secrets.json` (`chmod 600` on POSIX) on the standalone side. They never appear in `settings.json`, in Git history, or in any file you commit.
+- **API keys** are stored exclusively in VS Code `SecretStorage` (your OS keychain) on the VS Code side, and in `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars (or the bare `<VENDOR>_API_KEY` name) or `~/.aiflowbridge/secrets.json` (`chmod 600` on POSIX) on the standalone side. They never appear in `settings.json`, in Git history, or in any file you commit.
 - **The gateway binds to `127.0.0.1` only** - it is not reachable from other machines on your network.
 - **Telemetry is local**: request counts, token usage, and cost estimates stay on your machine at `<globalStorageUri>/telemetry.json` (VS Code) or `~/.aiflowbridge/telemetry.json` (standalone). The two files are shared so the dashboard stays in sync across both hosts. There is no remote analytics endpoint.
 - **No third-party tracking**: the extension does not phone home, load remote scripts, or embed analytics SDKs.

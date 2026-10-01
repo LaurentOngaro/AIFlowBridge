@@ -47,6 +47,8 @@ The full recipe - the vendor shows up in the Copilot Chat picker AND in the Open
 8. **Gateway provider normalization** in `src/aiflowbridge/providers.ts` - the default `aiflowbridge.providers` array uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top.
 9. **`DEFAULT_GATEWAY_PROFILES`** in `src/aiflowbridge/host-config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing. **The hand-curated `id` MUST equal the upstream model id** (the same string as `model`) - using a vendor name (e.g. `'minimax'`) or any other fake placeholder here puts a non-existent id in the gateway catalog exposed to Kilo Code / Continue / Open WebUI, making the picker show a model name that no upstream API recognises. The regression test "hand-curated gateway profiles use real upstream model ids as catalog ids" in `tests/host-config.test.ts` is the guard. Catalog IDs are real upstream-facing identifiers on the vendor - never vendor names or fake aliases.
 10. **`API_KEY_SECRETS`** in `src/consts.ts` - add `<vendor>: 'aiflowbridge.providers.<vendor>.apiKey'`.
+This single declaration is enough for the bare `<VENDOR>_API_KEY` env var to be picked up: `src/aiflowbridge/api-key-sources.ts` builds its bare-name table from `API_KEY_SECRETS` and scans the environment against it, so no further entry is needed there.
+The canonical `AIFLOWBRIDGE_<VENDOR>_API_KEY` name still needs its own entry in `SECRET_KEY_TO_ENV_NAME` (same file), which is a separate map and not covered by the scan.
 11. **`VENDOR_ALIASES`** in `src/aiflowbridge/api-key-resolver.ts` - add `<vendor>: ['<vendor>']` (and upstream-style aliases like `xiaomi: ['xiaomi', 'mimo']` if the upstream uses a different prefix).
 12. **`VENDOR_CHOICES` + `VENDOR_LABELS`** in `src/runtime/addCustomModel.ts` - the picker in the "Add a custom model" command must list the vendor.
 13. **API key commands** in `package.json` (`<vendor>: Set API Key` / `Clear API Key`).
@@ -64,6 +66,7 @@ This is the right path for a meta-provider that fronts many models behind a sing
 3. **Schema enum** in `resources/models.schema.json` (`family` enum) - must include the new vendor.
 4. **Runtime validator** in `src/aiflowbridge/modelRegistry.schema.ts` (`KNOWN_FAMILIES`) - must include the new vendor.
 5. **`API_KEY_SECRETS`** in `src/consts.ts` - the gateway needs to resolve the key.
+This is also what makes the bare `<VENDOR>_API_KEY` env var work, since `src/aiflowbridge/api-key-sources.ts` derives its bare-name table from it.
 6. **`VENDOR_ALIASES`** in `src/aiflowbridge/api-key-resolver.ts` - one alias minimum, more if the upstream uses a different id prefix.
 7. **`VENDOR_CHOICES` + `VENDOR_LABELS`** in `src/runtime/addCustomModel.ts` - the picker in the "Add a custom model" command lets users discover unknown model ids from the vendor's `/v1/models`.
 8. **Provider-specific settings** in `package.json` (`aiflowbridge.providers.<vendor>.baseUrl`) - lets users point at a private relay (e.g. a self-hosted OpenRouter-compatible stack).

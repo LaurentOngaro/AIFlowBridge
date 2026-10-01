@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, Z.ai GLM 5.3, MoonshotAI Kimi K3, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.19.3** - data snapshot **2026-10-01**.
+> **AIFlowBridge 2.20.0** - data snapshot **2026-10-01**.
 > Model ids and pricing throughout this README are pinned to this snapshot.
 > Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
@@ -230,6 +230,10 @@ export AIFLOWBRIDGE_ZAI_API_KEY=...                   # GLM 5.3 / 5.3 Flash / 5.
 export AIFLOWBRIDGE_MOONSHOT_API_KEY=...              # Kimi K3 / K2.7 Code / K2.6
 ```
 
+Each variable also answers to its bare vendor name (`OPENROUTER_API_KEY`, `GOOGLEAISTUDIO_API_KEY`, `DEEPSEEK_API_KEY`, `MINIMAX_API_KEY`, `XIAOMI_API_KEY`, `ZAI_API_KEY`, `MOONSHOT_API_KEY`) as a fallback, so an environment that already exports them under those names works without renaming.
+The prefixed name wins when both are set.
+The bare name is discovered by scanning the environment, so a vendor added in a later release is picked up the same way with nothing to configure.
+
 ### 3. Use it
 
 **Copilot Chat (VS Code):** open Copilot Chat (`Ctrl+Shift+I`), pick a model in the chat header (DeepSeek V4.1 Flash / V4 Pro, MiniMax M2.7 -> M3 / M3.1 Preview, Xiaomi MiMo V2.5 / V2.6 Flash / V2.6 Pro).
@@ -275,7 +279,7 @@ Full Kilo Code reference: [docs/kilo-code.md](docs/kilo-code.md).
 
 Some vendors are reachable **only** through `http://127.0.0.1:8787/v1`, never through the Copilot Chat picker.
 That is a deliberate split: a picker entry requires a dedicated `vscode.LanguageModelChatProvider` class, and for a meta-provider or a gateway-only upstream that class buys nothing over forwarding the call verbatim.
-The catalogue as of 2.19.3:
+The catalogue as of 2.20.0:
 
 | Vendor           | Models                                                                          | Context                  | Vision                                   | In / Out per M (USD)                                                               |
 | ---------------- | ------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |

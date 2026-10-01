@@ -86,6 +86,9 @@ See [`./autostart/standalone-config.example.json`](./autostart/standalone-config
 API keys are resolved in this order (the same unified chain as the VS Code extension gateway, backed by `src/aiflowbridge/api-key-sources.ts`):
 
 1. Environment variable: `AIFLOWBRIDGE_<VENDOR>_API_KEY` (e.g. `AIFLOWBRIDGE_DEEPSEEK_API_KEY`, `AIFLOWBRIDGE_MINIMAX_API_KEY`, `AIFLOWBRIDGE_XIAOMI_API_KEY`, `AIFLOWBRIDGE_ZAI_API_KEY`, `AIFLOWBRIDGE_MOONSHOT_API_KEY`, `AIFLOWBRIDGE_OPENROUTER_API_KEY`, `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY`).
+The bare vendor name is accepted at the same priority as a fallback: `DEEPSEEK_API_KEY`, `MINIMAX_API_KEY`, `XIAOMI_API_KEY`, `ZAI_API_KEY`, `MOONSHOT_API_KEY`, `OPENROUTER_API_KEY` and `GOOGLEAISTUDIO_API_KEY` are read when the prefixed one is absent or empty, so an environment that already exports the vendor keys under their short names works unchanged.
+The prefixed name wins when both are set.
+The bare name is found by scanning the environment for a `<VENDOR>_API_KEY` variable whose vendor is declared in `API_KEY_SECRETS`, so a vendor added in a later release is picked up with nothing to configure; a name that is not exactly `<VENDOR>_API_KEY` is ignored.
 2. File: `<globalStorageDir>/secrets.json` (chmod `600`). The file is re-read when it changes on disk, no restart needed. In the VS Code extension, VS Code `SecretStorage` is the last fallback (the target of the "Set API Key" commands); env vars and the file win over it.
 
 ```json
@@ -169,7 +172,7 @@ See [gateway.md](gateway.md#shared-session-log--replay--sse-stream-get-v1session
 
 API keys live in **one** of two places, in priority order (env wins over file):
 
-1. Environment variables `AIFLOWBRIDGE_<VENDOR>_API_KEY`.
+1. Environment variables `AIFLOWBRIDGE_<VENDOR>_API_KEY`, or the bare `<VENDOR>_API_KEY` alias as a fallback.
 2. `~/.aiflowbridge/secrets.json` (mode `0600` on POSIX).
 
 The gateway reads both lazily via `src/standalone/context.ts` and never logs the values.

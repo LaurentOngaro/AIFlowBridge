@@ -7,7 +7,13 @@
  *
  *   1. Environment variable `AIFLOWBRIDGE_<VENDOR>_API_KEY` (highest
  *      priority, read on every lookup so a `dotenv` loaded after startup
- *      is picked up).
+ *      is picked up). The bare `<VENDOR>_API_KEY` name is accepted at
+ *      the same priority as a fallback, so an environment that already
+ *      exports vendor keys under their short names works unchanged. The
+ *      bare name is discovered by scanning the environment against the
+ *      vendors declared in `API_KEY_SECRETS`, so a vendor added there
+ *      is wired with no further declaration. The canonical
+ *      `AIFLOWBRIDGE_` name wins when both are set.
  *   2. `secrets.json` file in the storage dir
  *      (`<globalStorageDir>/secrets.json`). Short-form keys documented in
  *      `docs/standalone.md` (`"minimax.apiKey"`) are mirrored to the
@@ -26,6 +32,7 @@
 
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { API_KEY_SECRETS } from '../consts';
 import { logger } from '../logger';
 import type { SecretStorageLike } from './types';
 
@@ -44,9 +51,127 @@ export const SECRET_KEY_TO_ENV_NAME: Readonly<Record<string, string>> = {
   'aiflowbridge.providers.moonshot.apiKey': 'AIFLOWBRIDGE_MOONSHOT_API_KEY',
 };
 
+/** Prefix carried by every canonical env var name in `SECRET_KEY_TO_ENV_NAME`. */
+export const ENV_NAME_PREFIX = 'AIFLOWBRIDGE_';
+
+/** Suffix a bare vendor env var name must carry to be picked up. */
+export const BARE_ENV_SUFFIX = '_API_KEY';
+
+/**
+ * `<VENDOR>_API_KEY` -> secret key, built from `API_KEY_SECRETS` so a
+ * vendor added there is detected with no extra declaration. This is the
+ * source of truth for the bare-name scan; `SECRET_KEY_TO_ENV_NAME` only
+ * drives the canonical prefixed name.
+ */
+const BARE_ENV_TO_SECRET_KEY: ReadonlyMap<string, string> = new Map(
+  Object.entries(API_KEY_SECRETS).map(([vendor, secretKey]) => [
+    `${vendor.toUpperCase()}${BARE_ENV_SUFFIX}`,
+    secretKey,
+  ])
+);
+
 /** Env var name for a secret key, or `undefined` when the key has no env mapping. */
 export function envNameForSecretKey(key: string): string | undefined {
   return SECRET_KEY_TO_ENV_NAME[key];
+}
+
+/**
+ * The `<VENDOR>_API_KEY` name a secret key would be read from, derived
+ * from the canonical name by stripping the `AIFLOWBRIDGE_` prefix
+ * (`AIFLOWBRIDGE_XIAOMI_API_KEY` -> `XIAOMI_API_KEY`). Pure and O(1);
+ * whether it is actually set is confirmed by
+ * `findBareEnvNameForSecretKey`.
+ */
+export function envAliasForSecretKey(key: string): string | undefined {
+  const canonical = SECRET_KEY_TO_ENV_NAME[key];
+  if (!canonical || !canonical.startsWith(ENV_NAME_PREFIX)) {
+    return undefined;
+  }
+  const alias = canonical.slice(ENV_NAME_PREFIX.length);
+  return alias.toUpperCase().endsWith(BARE_ENV_SUFFIX) ? alias : undefined;
+}
+
+/**
+ * The `<VENDOR>_API_KEY` name for a declared vendor, or `undefined` when
+ * the vendor has no API-key slot (OAuth-only vendors are absent from
+ * `API_KEY_SECRETS` by design).
+ *
+ * Exposed so the coverage of the bare-name lookup can be asserted over
+ * `API_KEY_SECRETS` itself: a vendor added there gets a working
+ * `<VENDOR>_API_KEY` name with no second declaration, and the check
+ * fails loudly if that ever stops being true.
+ */
+export function bareEnvNameForVendor(vendor: string): string | undefined {
+  const name = `${vendor.toUpperCase()}${BARE_ENV_SUFFIX}`;
+  return BARE_ENV_TO_SECRET_KEY.has(name) ? name : undefined;
+}
+
+/**
+ * Scan the environment for a `<VENDOR>_API_KEY` variable that resolves
+ * to this secret key.
+ *
+ * A candidate is accepted only when its name is exactly
+ * `<VENDOR>_API_KEY` (compared case-insensitively, because Windows env
+ * names are case-insensitive) for a vendor declared in
+ * `API_KEY_SECRETS`. Anything else is ignored, which is what keeps
+ * unrelated variables out: `AIFLOWBRIDGE_DEEPSEEK_API_KEY` maps to the
+ * vendor token `AIFLOWBRIDGE_DEEPSEEK` (undeclared) and `FOO_API_KEY`
+ * maps to `FOO` (undeclared), so neither is ever read as a bare
+ * DeepSeek key.
+ *
+ * Returns the first match in sorted order so the result never depends
+ * on the iteration order of the environment object.
+ */
+export function findBareEnvNameForSecretKey(key: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (BARE_ENV_TO_SECRET_KEY.size === 0) {
+    return undefined;
+  }
+  const matches: string[] = [];
+  for (const name of Object.keys(env)) {
+    if (name.length <= BARE_ENV_SUFFIX.length) {
+      continue;
+    }
+    if (!name.toUpperCase().endsWith(BARE_ENV_SUFFIX)) {
+      continue;
+    }
+    if (BARE_ENV_TO_SECRET_KEY.get(name.toUpperCase()) === key) {
+      matches.push(name);
+    }
+  }
+  return matches.length > 0 ? matches.sort()[0] : undefined;
+}
+
+/**
+ * Names reachable without scanning the environment: the canonical
+ * prefixed name and the alias derived from it.
+ */
+function declaredEnvNamesForSecretKey(key: string): string[] {
+  const names: string[] = [];
+  for (const candidate of [envNameForSecretKey(key), envAliasForSecretKey(key)]) {
+    if (candidate && !names.includes(candidate)) {
+      names.push(candidate);
+    }
+  }
+  return names;
+}
+
+/**
+ * Ordered env var candidates for a secret key: the canonical
+ * `AIFLOWBRIDGE_*` name first, then its bare `<VENDOR>_API_KEY` name.
+ * Both are read at the same priority (env is source 1 of the chain);
+ * the canonical name wins when both are set, so no existing
+ * configuration changes behaviour.
+ *
+ * The bare name is looked up in the environment on every call, so a
+ * `dotenv` loaded after startup is still picked up.
+ */
+export function envNamesForSecretKey(key: string, env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  const names = declaredEnvNamesForSecretKey(key);
+  const scanned = findBareEnvNameForSecretKey(key, env);
+  if (scanned && !names.includes(scanned)) {
+    names.push(scanned);
+  }
+  return names;
 }
 
 /**
@@ -121,15 +246,27 @@ export interface ApiKeySourceLike extends SecretStorageLike {
   describe(key: string): string;
 }
 
-/** Read-only source backed by `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars. */
+/** Read-only source backed by the `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars and their bare `<VENDOR>_API_KEY` names. */
 export class EnvSecretStorage implements ApiKeySourceLike {
   async get(key: string): Promise<string | undefined> {
-    const envName = envNameForSecretKey(key);
-    if (!envName) {
-      return undefined;
+    // The declared names are tried first so the environment scan only
+    // runs for a vendor that is not already set under its prefixed
+    // name. The scan stays a last resort rather than a cached index on
+    // purpose: a `dotenv` loaded after startup must still be seen.
+    for (const envName of declaredEnvNamesForSecretKey(key)) {
+      const value = process.env[envName];
+      if (typeof value === 'string' && value.length > 0) {
+        return value;
+      }
     }
-    const value = process.env[envName];
-    return typeof value === 'string' && value.length > 0 ? value : undefined;
+    const scanned = findBareEnvNameForSecretKey(key);
+    if (scanned) {
+      const value = process.env[scanned];
+      if (typeof value === 'string' && value.length > 0) {
+        return value;
+      }
+    }
+    return undefined;
   }
 
   async store(_key: string, _value: string): Promise<void> {
@@ -143,7 +280,14 @@ export class EnvSecretStorage implements ApiKeySourceLike {
   }
 
   describe(key: string): string {
-    return `Env (${envNameForSecretKey(key) ?? 'unknown'})`;
+    const names = envNamesForSecretKey(key);
+    if (names.length === 0) {
+      return 'unknown';
+    }
+    // Name the candidate that actually answers, so the startup log points
+    // at the variable the operator really set.
+    const active = names.find((name) => (process.env[name] ?? '').length > 0);
+    return `Env (${active ?? names[0]})`;
   }
 }
 

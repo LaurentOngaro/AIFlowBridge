@@ -85,6 +85,44 @@ describe('toGeminiNativeRequest', () => {
     expect(params.properties?.city?.exclusiveMaximum).toBeUndefined();
   });
 
+  it('strips propertyNames from a tool schema, which Gemini rejects outright', () => {
+    // Reported failure: `Unknown name "propertyNames" at
+    // 'tools[0].function_declarations[45].parameters.properties[3].value'`.
+    // The keyword comes from the client's JSON Schema, not from the
+    // model, and it takes the whole request down with it.
+    const out = toGeminiNativeRequest({
+      messages: [{ role: 'user', content: 'x' }],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'apply_edits',
+            description: 'Apply edits',
+            parameters: {
+              type: 'object',
+              properties: {
+                edits: {
+                  type: 'object',
+                  propertyNames: { pattern: '^[a-z_]+$' },
+                  additionalProperties: false,
+                  properties: { replacement: { type: 'string' } },
+                },
+              },
+              required: ['edits'],
+            },
+          },
+        },
+      ],
+    });
+    const params = out.tools?.[0]?.functionDeclarations?.[0]?.parameters as
+      | { properties?: { edits?: Record<string, unknown> } }
+      | undefined;
+    expect(params?.properties?.edits).toEqual({
+      type: 'object',
+      properties: { replacement: { type: 'string' } },
+    });
+  });
+
   it('translates assistant tool_calls into model + functionCall parts', () => {
     const out = toGeminiNativeRequest({
       messages: [

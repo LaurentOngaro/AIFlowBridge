@@ -4,7 +4,7 @@
 
 ## Supported models (38 bundled + 100+ reachable via OpenRouter)
 
-> Data snapshot: 2026-10-01 (AIFlowBridge 2.19.3). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
+> Data snapshot: 2026-10-01 (AIFlowBridge 2.20.0). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
 
 | Provider         | Models                                                                                                                                                           | Vision          | Tool Calling |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
@@ -22,8 +22,8 @@ Notes:
 
 - The 11 direct Copilot Chat models in the table above (DeepSeek, MiniMax, Xiaomi) expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [vision-proxy.md](vision-proxy.md)).
 - **Google AI Studio (Gemini 3.8 / 3.7 / 3.6 Flash)** is gateway-only like OpenRouter. Two distinct routes are available; the bundled default uses the BYOK API-key path on `generativelanguage.googleapis.com` (always available), the Antigravity / Cloud Code Assist OAuth path is an opt-in for users with whitelisted Cloud Code Assist tenants. See [Google AI Studio via API key (BYOK)](#google-ai-studio-via-api-key-byok-pay-as-you-go) below for setup, and [Antigravity via Cloud Code Assist OAuth (advanced)](#google-ai-studio--antigravity-via-cloud-code-assist-oauth-advanced) for the Antgravity-side path. Gemini models do not appear in the Copilot Chat picker (see AP-013); Kilo Code / Continue / `curl` reach them via the gateway.
-- **Thinking** indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2.7 does not expose a thinking selector. **MiniMax M3 exposes a "Thinking Effort" selector** (None / High / Max) that maps to the upstream `reasoning_split` boolean - see [reasoning.md](reasoning.md).
-- **Z.ai and MoonshotAI are gateway-only**, like OpenRouter and Google AI Studio: no Copilot Chat picker entry, reached from Kilo Code / Continue / `curl` through `http://127.0.0.1:8787/v1`. GLM 5.3 and Kimi K3 always reason and cannot be switched off; the gateway forwards the payload unchanged, so let `reasoning_effort` (`low` / `high` / `max`) through instead of sending `thinking.type: disabled`, which GLM 5.3 rejects.
+- **Thinking** indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2.7 does not expose a thinking selector. **MiniMax M3 exposes a "Thinking Effort" selector** (None / High / Max) that maps to the upstream `reasoning_split` boolean - see [reasoning.md](reasoning.md). **MiniMax M3.1 Flash Preview cannot switch reasoning off**: its upstream answers HTTP 400 (`requires adaptive thinking`) to `reasoning_split: false`, `thinking.type: "disabled"` and `reasoning_effort: "none"`. AIFlowBridge rewrites the off switch to on, on both the gateway and the Copilot Chat path, and logs an INFO line when it does, so the picker value and the global `aiflowbridge.providers.minimax.reasoningSplit` setting cannot break the request.
+- **Z.ai and MoonshotAI are gateway-only**, like OpenRouter and Google AI Studio: no Copilot Chat picker entry, reached from Kilo Code / Continue / `curl` through `http://127.0.0.1:8787/v1`. GLM 5.3 and Kimi K3 always reason and cannot be switched off, so a request asking for no reasoning would be rejected upstream. **The gateway rewrites those signals to thinking-on for you** before forwarding: `thinking.type: disabled`, `reasoning_split: false` and `reasoning_effort: none` are upgraded, and an INFO line says so. This applies to every model declared `requiresThinkingParam` in the registry, not just the two above, so you no longer have to remember which model forbids the off switch.
 - Configure the proxied vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
 - **OpenRouter** is exposed through the OpenAI-compatible gateway only (port 8787), not through the Copilot Chat picker. The 100+ model ids listed at [openrouter.ai/models](https://openrouter.ai/models) are ALL reachable: pass any of them verbatim in the `model` field of a request to `http://127.0.0.1:8787/v1/chat/completions` and the gateway forwards the call to `openrouter.ai/api/v1/chat/completions` unchanged. The bundled `models.json` ships the 15 entries that were on the free tier at the snapshot date (`nvidia/nemotron-3-ultra-550b-a55b:free`, `nvidia/nemotron-3.5-lightning:free`, `nvidia/nemotron-3-super-120b-a12b:free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`, `google/gemma-4-31b-it:free`, `google/gemma-4-26b-a4b-it:free`, `qwen/qwen3.8-27b:free`, `cohere/north-mini-code:free`, `poolside/laguna-s-2.1:free`, `poolside/laguna-xs-2.1:free`, `thinkingmachines/inkling:free`, `thinkingmachines/inkling-small:free`, `dots-studio/dots-3-note-preview:free`, `inclusionai/ling-3.0-flash-sante:free`, `liquid/lfm-2.5-2.6b:free`) - so the dashboard always shows $0 for them. The free tier rotates: an id that leaves it is purged at the next refresh, and a new one is simply reachable verbatim without a registry change. **All other OpenRouter model ids work exactly the same way** - they are not "limited to the bundled list". Adding a non-bundled id is optional and only changes the dashboard experience (it appears in `GET /v1/models`, you can attach a `pricing` block). The Vision / Native columns do NOT apply to OpenRouter since the gateway forwards image parts unchanged to OpenRouter and each upstream model decides whether to handle them natively. See the [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) below for setup, the bundled flagship table (with their confirmed capabilities), and the indicative tariff.
 
@@ -102,7 +102,7 @@ Like OpenRouter and Google AI Studio, Z.ai is a **gateway-only vendor (Path B)**
 1. **Get an API key** from [z.ai/manage-api/apikey](https://z.ai/manage-api/apikey).
 2. **Store it**:
    - **VS Code extension**: `Ctrl+Shift+P` -> `Z.ai GLM: Set API Key` -> paste your key. Revoke with `Z.ai GLM: Clear API Key`.
-   - **Standalone**: set `AIFLOWBRIDGE_ZAI_API_KEY` in the environment, or add `"zai.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
+   - **Standalone**: set `AIFLOWBRIDGE_ZAI_API_KEY` (or `ZAI_API_KEY`) in the environment, or add `"zai.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
 3. **Use it**: send completion requests with `model: "glm-5.3"`, `"glm-5.3-flash"`, or `"glm-5.3-flashx"`. All three ids appear in `GET /v1/models`.
 
 ### Models and endpoints
@@ -126,7 +126,7 @@ MoonshotAI is a **gateway-only vendor (Path B)** reached through `http://127.0.0
 1. **Get an API key** from [platform.kimi.ai/console/api-keys](https://platform.kimi.ai/console/api-keys).
 2. **Store it**:
    - **VS Code extension**: `Ctrl+Shift+P` -> `MoonshotAI Kimi: Set API Key` -> paste your key. Revoke with `MoonshotAI Kimi: Clear API Key`.
-   - **Standalone**: set `AIFLOWBRIDGE_MOONSHOT_API_KEY` in the environment, or add `"moonshot.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
+   - **Standalone**: set `AIFLOWBRIDGE_MOONSHOT_API_KEY` (or `MOONSHOT_API_KEY`) in the environment, or add `"moonshot.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
 3. **Use it**: send completion requests with `model: "kimi-k3"`, `"kimi-k2.7-code"`, `"kimi-k2.7-code-highspeed"`, or `"kimi-k2.6"`. All four ids appear in `GET /v1/models`.
 
 ### Models
@@ -163,7 +163,7 @@ Setup:
 1. **Create an API key** at https://aistudio.google.com/apikey (one-click in the API key tab).
 2. **Store it**:
    - **VS Code extension**: `Ctrl+Shift+P` -> `Google AI Studio: Set API Key (BYOK pay-as-you-go)` -> paste `AIzaSy...`. Stored in `SecretStorage`. Override the lookup slot per VS Code profile.
-   - **Standalone**: `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`. Stored in `~/.aiflowbridge/secrets.json` (chmod 600). Revoke with `aiflowbridge-server auth googleaistudio clearApiKey`. The environment variable `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY` is also recognized (lowest priority after the file, secret-storage order unchanged).
+   - **Standalone**: `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`. Stored in `~/.aiflowbridge/secrets.json` (chmod 600). Revoke with `aiflowbridge-server auth googleaistudio clearApiKey`. The environment variable `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY` (or `GOOGLEAISTUDIO_API_KEY`) is also recognized and takes priority over the file.
 3. **Use it**: any OpenAI-compatible client on `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`). All three ids appear in `GET /v1/models`.
 
 Notes:
@@ -354,7 +354,7 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 ### Snapshot metadata
 
 - Current snapshot date: **2026-10-01**
-- Current snapshot version: **AIFlowBridge 2.19.3**
+- Current snapshot version: **AIFlowBridge 2.20.0**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 

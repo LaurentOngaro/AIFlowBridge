@@ -9,6 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import { DEFAULT_USER_AGENT } from './constants';
 import { logDroppedImageUrls, openAiContentToGeminiParts } from './content-parts';
+import { cleanJsonSchema } from './json-schema-clean';
 import type {
     CloudCodeContent,
     CloudCodeEnvelope,
@@ -18,74 +19,11 @@ import type {
     CloudCodeRequest,
 } from './types';
 
-const FORBIDDEN_SCHEMA_KEYS = new Set([
-  '$schema',
-  '$id',
-  '$ref',
-  '$defs',
-  'definitions',
-  'examples',
-  'patternProperties',
-  'additionalProperties',
-  // Numeric bounds: `exclusiveMinimum` / `exclusiveMaximum` are OpenAPI
-  // 3.0+ / JSON Schema draft-04+ keywords, but the Gemini
-  // `OpenApi` schema dialect rejects them with
-  // `Unknown name "exclusiveMinimum" at ...`. Strip them alongside the
-  // inclusive versions so Kilo Code / Continue tool schemas (which use
-  // exclusive variants in the OpenAI-compatible path) survive the
-  // translation.
-  'exclusiveMinimum',
-  'exclusiveMaximum',
-  'minLength',
-  'maxLength',
-  'minimum',
-  'maximum',
-  'multipleOf',
-  'pattern',
-  'format',
-  'minItems',
-  'maxItems',
-  'uniqueItems',
-  'minProperties',
-  'maxProperties',
-]);
-
-/**
- * Recursively cleans a JSON schema to ensure compatibility with Gemini tool definitions.
- * Strips unsupported validation keywords while preserving object shapes and properties.
- */
-export function cleanJsonSchema(schema: unknown): Record<string, unknown> {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-    return { type: 'object' };
-  }
-
-  const result: Record<string, unknown> = {};
-  const entries = Object.entries(schema as Record<string, unknown>);
-
-  for (const [key, value] of entries) {
-    if (FORBIDDEN_SCHEMA_KEYS.has(key)) {
-      continue;
-    }
-
-    if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
-      const cleanedProperties: Record<string, unknown> = {};
-      for (const [propName, propSchema] of Object.entries(value as Record<string, unknown>)) {
-        cleanedProperties[propName] = cleanJsonSchema(propSchema);
-      }
-      result.properties = cleanedProperties;
-    } else if (key === 'items' && value) {
-      result.items = cleanJsonSchema(value);
-    } else {
-      result[key] = value;
-    }
-  }
-
-  if (!result.type) {
-    result.type = 'object';
-  }
-
-  return result;
-}
+// The sanitiser and its two keyword sets live in `json-schema-clean.ts`
+// and are shared with the BYOK native surface. The copy that used to
+// sit here had already drifted from the one in `gemini-native.ts`.
+// Re-exported so the module's public surface is unchanged.
+export { cleanJsonSchema };
 
 export interface ToEnvelopeOptions {
   userAgent?: string;

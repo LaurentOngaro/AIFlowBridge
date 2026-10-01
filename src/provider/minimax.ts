@@ -199,9 +199,21 @@ export class MiniMaxChatProvider extends BaseChatProvider {
     // Resolve reasoning_split: the Copilot Chat model picker wins for
     // thinking-capable models (currently MiniMax M3), otherwise fall back
     // to the global `aiflowbridge.providers.minimax.reasoningSplit` setting.
-    const thinkingCapable = tryGetLoadedRegistry()?.models.find((m) => m.id === modelInfo.id)?.capabilities.thinking ?? false;
+    const registryEntry = tryGetLoadedRegistry()?.models.find((m) => m.id === modelInfo.id);
+    const thinkingCapable = registryEntry?.capabilities.thinking ?? false;
     const pickerReasoningEffort = thinkingCapable ? getConfiguredThinkingEffort(_options as ModelConfigurationOptions) : undefined;
-    const reasoningSplit = resolveReasoningSplit(thinkingCapable, pickerReasoningEffort, getProviderReasoningSplit(this.vendor));
+    const resolvedSplit = resolveReasoningSplit(thinkingCapable, pickerReasoningEffort, getProviderReasoningSplit(this.vendor));
+    // A model declared `requiresThinkingParam` in the registry cannot be
+    // called with reasoning off: MiniMax M3.1 Flash Preview answers HTTP
+    // 400 (`requires adaptive thinking`) to `reasoning_split: false`,
+    // whichever of the two inputs above asked for it. The picker has no
+    // way to express that, so force it on once and say so in the log
+    // rather than letting every request fail.
+    const requiresThinking = registryEntry?.requiresThinkingParam ?? false;
+    const reasoningSplit = requiresThinking ? true : resolvedSplit;
+    if (requiresThinking && !resolvedSplit) {
+      logger.warn(`[MiniMax] ${modelInfo.id} cannot disable reasoning; forcing reasoning_split=true (reasoning_effort=${pickerReasoningEffort ?? '<unset>'}, setting=${String(getProviderReasoningSplit(this.vendor))}).`);
+    }
     const modelId = resolveMiniMaxModelId(modelInfo.id);
 
     // MiniMax OpenAI-compatible API expects reasoning_split at the top level,

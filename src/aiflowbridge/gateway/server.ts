@@ -10,6 +10,7 @@ import { accumulateAntigravityResponse, createAntigravityToOpenAiTransformStream
 import { createGeminiNativeToOpenAiSseStream, fromGeminiNativeResponse, toGeminiNativeRequest } from '../antigravity/gemini-native';
 import type { AntigravityTokenManager } from '../antigravity/auth';
 import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../context/language-routing';
+import { tryGetLoadedRegistry } from '../modelRegistry';
 import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
 import { resolveAuthMode } from '../auth-mode';
 import { createThoughtSignatureCache } from '../antigravity/thought-signature-cache';
@@ -1103,7 +1104,8 @@ export class GatewayService {
     // shape (e.g. Kilo Code's `reasoning: true/false` checkbox -> MiniMax's
     // `reasoning_split: true/false`). The translator strips any AIFB-specific
     // fields it consumed so the upstream never sees them.
-    const translatedPayload = translatePayloadForUpstream(payload, provider);
+    const requiresThinking = resolveRequiresThinkingForModel(provider);
+    const { body: translatedPayload, forcedThinkingOn } = translatePayloadForUpstream(payload, provider, requiresThinking);
     // when a translation actually rewrote a field, log the
     // before/after at the debug level so the user can diagnose "I sent
     // reasoning_effort=high but the model did not think" reports.
@@ -1122,6 +1124,15 @@ export class GatewayService {
             `-> reasoning_split=${String(reasoningSplit)}`
         );
       }
+    }
+    if (forcedThinkingOn) {
+      // The caller asked for no reasoning and the model cannot serve
+      // that. Logged at info rather than debug: the answer will contain
+      // reasoning the caller did not ask for, and a warn on every
+      // request would be noise once the operator has seen it.
+      logger.info(
+        `[Gateway] ${requestId} provider=${provider.id} cannot disable thinking; upgraded the request to thinking=on (the upstream rejects reasoning_split=false / thinking.type=disabled with HTTP 400).`
+      );
     }
 
     // optional workspace-context injection. When `aiflowbridge.gateway.workspaceContext.enabled`
@@ -3399,6 +3410,88 @@ function isMinimaxProvider(provider: ProviderProfile): boolean {
 }
 
 /**
+ * Whether the routed model is declared `requiresThinkingParam` in the
+ * registry, i.e. its upstream answers 400 to an explicit "no
+ * reasoning" request.
+ *
+ * Resolved here rather than inside `translatePayloadForUpstream` so the
+ * translator stays a pure function. Both the profile id and its upstream
+ * model id are looked up because a client may address a model by either.
+ */
+function resolveRequiresThinkingForModel(provider: ProviderProfile): boolean {
+  const registry = tryGetLoadedRegistry();
+  if (!registry) {
+    return false;
+  }
+  const candidates = [provider.model, provider.id];
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+    const entry = registry.models.find((m) => m.id === candidate);
+    if (entry?.requiresThinkingParam) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Turn every "thinking off" signal in an upstream body into "thinking
+ * on", for a model whose upstream refuses to be called with reasoning
+ * disabled.
+ *
+ * Some upstream models reject the request outright when reasoning is
+ * explicitly disabled. MiniMax M3.1 Flash Preview is one: it answers
+ * HTTP 400 with `requires adaptive thinking` for `reasoning_split=false`,
+ * `thinking.type="disabled"` and `reasoning_effort=none`, while the same
+ * request with the parameter omitted, set to `true`, or set to
+ * `adaptive` is accepted. Since the upstream leaves the choice no
+ * freedom, the gateway honours the request it can actually serve
+ * instead of bouncing the caller with an error.
+ *
+ * Only the signals that are an explicit refusal are rewritten. A body
+ * with no reasoning field at all is returned untouched, so the upstream
+ * keeps applying its own default. Never mutates the input.
+ */
+export function forceThinkingOnIfRequired(
+  body: Record<string, unknown>,
+  requiresThinking: boolean
+): { body: Record<string, unknown>; forced: boolean } {
+  if (!requiresThinking) {
+    return { body, forced: false };
+  }
+  let forced = false;
+  const next: Record<string, unknown> = { ...body };
+
+  if (next.reasoning_split === false) {
+    next.reasoning_split = true;
+    forced = true;
+  }
+  if (next.reasoning_effort === 'none') {
+    // MiniMax does not recognize the field; the translator already
+    // strips it on this path, so this is a safety net for a caller
+    // that reaches the upstream body another way.
+    delete next.reasoning_effort;
+    forced = true;
+  }
+  const thinking = next.thinking;
+  if (typeof thinking === 'object' && thinking !== null && (thinking as { type?: unknown }).type === 'disabled') {
+    next.thinking = { ...(thinking as Record<string, unknown>), type: 'enabled' };
+    forced = true;
+  }
+  if (next.reasoning === false) {
+    // Kilo Code's AIFB-specific checkbox. Reached only when the model
+    // is not routed through the MiniMax translator, which strips it.
+    delete next.reasoning;
+    next.reasoning_split = true;
+    forced = true;
+  }
+
+  return { body: forced ? next : body, forced };
+}
+
+/**
  * Translate AIFB-specific body fields sent by OpenAI-compatible clients
  * (Kilo Code, Continue,...) into the upstream provider's expected shape.
  *
@@ -3414,6 +3507,13 @@ function isMinimaxProvider(provider: ProviderProfile): boolean {
  *   even though MiniMax's API uses a different field name. `none` maps
  *   to `false`, `high` / `max` map to `true`. The `reasoning_effort`
  *   field is stripped from the upstream body.
+ * - A body asking for no reasoning at all (`reasoning_effort: "none"`
+ *   or `reasoning: false`) is upgraded to `reasoning_split: true`
+ *   when the model is declared `requiresThinkingParam` in the registry,
+ *   because the upstream answers 400 to that combination.
+ *   MiniMax M3.1 Flash Preview is such a model: `reasoning_split=false`
+ *   and `thinking.type="disabled"` are both rejected with
+ *   `requires adaptive thinking` (2013).
  *
  * When BOTH `reasoning` and `reasoning_effort` are present, the explicit
  * `reasoning` boolean wins (it is the AIFB-specific checkbox; clients
@@ -3424,15 +3524,32 @@ function isMinimaxProvider(provider: ProviderProfile): boolean {
  * input payload is undefined/empty so the caller can always safely spread
  * or JSON.stringify the result.
  *
+ * `requiresThinking` comes from the registry entry of the routed model
+ * (resolved by the caller) rather than from a lookup here, so this stays
+ * a pure function with no registry access.
+ *
  * Exported for unit testing - keep the function pure (no side effects, no
  * VS Code dependency) so it stays trivially testable.
  */
-export function translatePayloadForUpstream(payload: Record<string, unknown> | undefined, provider: ProviderProfile): Record<string, unknown> {
+export function translatePayloadForUpstream(
+  payload: Record<string, unknown> | undefined,
+  provider: ProviderProfile,
+  requiresThinking = false
+): { body: Record<string, unknown>; forcedThinkingOn: boolean } {
   if (!payload) {
-    return {};
+    return { body: {}, forcedThinkingOn: false };
   }
+
   if (!isMinimaxProvider(provider)) {
-    return payload;
+    // The "cannot disable thinking" policy is a property of the model,
+    // not of the vendor, so it also runs for a provider that does not go
+    // through the MiniMax translation below: GLM 5.3 and Kimi K3 carry
+    // `requiresThinkingParam` and reject an explicit "no reasoning"
+    // request too. Only the signals that are a refusal are rewritten,
+    // so a body that says nothing about reasoning is left alone and the
+    // upstream keeps applying its own default.
+    const applied = forceThinkingOnIfRequired(payload, requiresThinking);
+    return { body: applied.body, forcedThinkingOn: applied.forced };
   }
 
   // Priority 1: explicit `reasoning: true/false` boolean (Kilo Code's
@@ -3442,7 +3559,7 @@ export function translatePayloadForUpstream(payload: Record<string, unknown> | u
   const reasoning = payload.reasoning;
   if (typeof reasoning === 'boolean') {
     const { reasoning: _r, reasoning_effort: _e, ...rest } = payload;
-    return { ...rest, reasoning_split: reasoning };
+    return finishTranslation({ ...rest, reasoning_split: reasoning }, requiresThinking);
   }
 
   // Priority 2: Kilo Code's DeepSeek-style `reasoning_effort` dropdown.
@@ -3460,14 +3577,25 @@ export function translatePayloadForUpstream(payload: Record<string, unknown> | u
   if (typeof effort === 'string') {
     const reasoningSplit = effort !== 'none';
     const { reasoning_effort: _stripped, ...rest } = payload;
-    return { ...rest, reasoning_split: reasoningSplit };
+    return finishTranslation({ ...rest, reasoning_split: reasoningSplit }, requiresThinking);
   }
 
   // No reasoning signal in the body: pass through unchanged. The gateway
   // has no per-profile default here (the global setting
   // `aiflowbridge.providers.minimax.reasoningSplit` is consumed by the
   // direct VS Code Copilot Chat provider, not the gateway path).
-  return payload;
+  return finishTranslation(payload, requiresThinking);
+}
+
+/**
+ * Apply the "cannot disable thinking" policy to a translated body and
+ * report whether the body had to be upgraded, so the caller can log it
+ * once per request instead of failing the call.
+ *
+ */
+function finishTranslation(body: Record<string, unknown>, requiresThinking: boolean) {
+  const applied = forceThinkingOnIfRequired(body, requiresThinking);
+  return { body: applied.body, forcedThinkingOn: applied.forced };
 }
 
 const defaultUserPrompt: UserPrompt = {
