@@ -171,4 +171,4 @@ The "requests" counter in the status bar increments only when the gateway handle
 
 ## Screenshots
 
-The full gallery (dashboard, pickers, providers, gateway, settings, metrics) lives in [docs/screenshots.md](screenshots.md), grouped by release version in descending order.
+The full gallery (dashboard, pickers, providers, gateway, settings, metrics) lives in [screenshots.md](screenshots.md), grouped by release version in descending order.

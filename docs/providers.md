@@ -4,18 +4,18 @@
 
 ## Supported models (38 bundled + 100+ reachable via OpenRouter)
 
-> Data snapshot: 2026-10-01 (AIFlowBridge 2.19.2). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
+> Data snapshot: 2026-10-01 (AIFlowBridge 2.19.3). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
 
 | Provider         | Models                                                                                                                                                           | Vision          | Tool Calling |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
 | DeepSeek         | V4.1 Flash (`deepseek-flash`), V4 Pro (`deepseek-v4-pro`)                                                                                                        | Proxied         | Yes          |
-| MiniMax          | M2.7, M2.7 Highspeed                                                                                                                                               | Proxied         | Yes          |
+| MiniMax          | M2.7, M2.7 Highspeed                                                                                                                                             | Proxied         | Yes          |
 | MiniMax          | M3, M3.1 Flash Preview (M Plan / MiniMax Code only)                                                                                                              | **Native**      | Yes          |
 | Xiaomi           | MiMo V2.5 Pro                                                                                                                                                    | Proxied         | Yes          |
-| Xiaomi           | MiMo V2.5, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                                                                                                            | **Native**      | Yes          |
+| Xiaomi           | MiMo V2.5, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                                                                                                             | **Native**      | Yes          |
 | Z.ai             | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX (gateway-only)                                                                                                            | varies by model | Yes          |
-| MoonshotAI       | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6 (gateway-only)                                                                                        | **Native**      | Yes          |
-| Google AI Studio | Gemini 3.8 Flash, 3.7 Flash, 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest` (BYOK API key, gateway-only)                                            | **Native**      | Yes          |
+| MoonshotAI       | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6 (gateway-only)                                                                                      | **Native**      | Yes          |
+| Google AI Studio | Gemini 3.8 Flash, 3.7 Flash, 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest` (BYOK API key, gateway-only)                                           | **Native**      | Yes          |
 | OpenRouter       | [100+ models at `openrouter.ai/models`](https://openrouter.ai/models) - see [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) | varies by model | Yes          |
 
 Notes:
@@ -52,23 +52,23 @@ The bundled registry ships 15 recent free-tier models on OpenRouter (pricing = $
 They appear in `GET /v1/models` and the dashboard reads their `pricing` block to compute "Est. cost" - in their case, the dashboard always shows $0. **Capabilities shown below apply only to these 15 entries** - the full 100+ catalog at [openrouter.ai/models](https://openrouter.ai/models) handles them per its own documentation; consult the upstream listings for any model id not in this table.
 All data below was pulled from `https://openrouter.ai/api/v1/models` (October 2026 snapshot).
 
-| Model id (use verbatim in `model` field)                                    | Context window | Output cap | Vision | Reasoning | Tool calling |
-| --------------------------------------------------------------------------- | -------------- | ---------- | ------ | --------- | ------------ |
-| `cohere/north-mini-code:free` (30B MoE, 3B active)                          | 256 000        | 64 000     | No     | Yes       | Yes          |
-| `dots-studio/dots-3-note-preview:free` (280B MoE, 16B active)               | 512 000        | 460 800    | Yes    | Yes       | Yes          |
-| `google/gemma-4-26b-a4b-it:free` (25.2B MoE, 3.8B active)                   | 262 144        | 32 768     | Yes    | Yes       | Yes          |
-| `google/gemma-4-31b-it:free` (30.7B dense multimodal)                       | 262 144        | 32 768     | Yes    | Yes       | Yes          |
-| `inclusionai/ling-3.0-flash-sante:free`                                     | 262 144        | 32 768     | No     | Yes       | Yes          |
-| `liquid/lfm-2.5-2.6b:free` (2.6B dense)                                     | 65 536         | 8 192      | No     | No        | Yes          |
-| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (30B MoE, 3B active)   | 256 000        | 65 536     | Yes    | Yes       | Yes          |
-| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active)             | 262 144        | 235 929    | No     | Yes       | Yes          |
-| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active)             | 1 000 000      | 65 536     | No     | Yes       | Yes          |
-| `nvidia/nemotron-3.5-lightning:free`                                        | 1 000 000      | 65 536     | No     | Yes       | Yes          |
-| `poolside/laguna-s-2.1:free`                                                | 262 144        | 32 768     | No     | Yes       | Yes          |
-| `poolside/laguna-xs-2.1:free`                                               | 262 144        | 32 768     | No     | Yes       | Yes          |
-| `qwen/qwen3.8-27b:free` (27B dense)                                         | 262 144        | 235 929    | No     | Yes       | Yes          |
-| `thinkingmachines/inkling:free` (1M context)                                | 1 048 576      | 262 144    | No     | Yes       | Yes          |
-| `thinkingmachines/inkling-small:free` (1M context)                          | 1 048 576      | 262 144    | No     | Yes       | Yes          |
+| Model id (use verbatim in `model` field)                                  | Context window | Output cap | Vision | Reasoning | Tool calling |
+| ------------------------------------------------------------------------- | -------------- | ---------- | ------ | --------- | ------------ |
+| `cohere/north-mini-code:free` (30B MoE, 3B active)                        | 256 000        | 64 000     | No     | Yes       | Yes          |
+| `dots-studio/dots-3-note-preview:free` (280B MoE, 16B active)             | 512 000        | 460 800    | Yes    | Yes       | Yes          |
+| `google/gemma-4-26b-a4b-it:free` (25.2B MoE, 3.8B active)                 | 262 144        | 32 768     | Yes    | Yes       | Yes          |
+| `google/gemma-4-31b-it:free` (30.7B dense multimodal)                     | 262 144        | 32 768     | Yes    | Yes       | Yes          |
+| `inclusionai/ling-3.0-flash-sante:free`                                   | 262 144        | 32 768     | No     | Yes       | Yes          |
+| `liquid/lfm-2.5-2.6b:free` (2.6B dense)                                   | 65 536         | 8 192      | No     | No        | Yes          |
+| `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (30B MoE, 3B active) | 256 000        | 65 536     | Yes    | Yes       | Yes          |
+| `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active)           | 262 144        | 235 929    | No     | Yes       | Yes          |
+| `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active)           | 1 000 000      | 65 536     | No     | Yes       | Yes          |
+| `nvidia/nemotron-3.5-lightning:free`                                      | 1 000 000      | 65 536     | No     | Yes       | Yes          |
+| `poolside/laguna-s-2.1:free`                                              | 262 144        | 32 768     | No     | Yes       | Yes          |
+| `poolside/laguna-xs-2.1:free`                                             | 262 144        | 32 768     | No     | Yes       | Yes          |
+| `qwen/qwen3.8-27b:free` (27B dense)                                       | 262 144        | 235 929    | No     | Yes       | Yes          |
+| `thinkingmachines/inkling:free` (1M context)                              | 1 048 576      | 262 144    | No     | Yes       | Yes          |
+| `thinkingmachines/inkling-small:free` (1M context)                        | 1 048 576      | 262 144    | No     | Yes       | Yes          |
 
 **Using a non-bundled OpenRouter model:** the same gateway path works - no AIFlowBridge update needed. Three options:
 
@@ -112,6 +112,7 @@ Like OpenRouter and Google AI Studio, Z.ai is a **gateway-only vendor (Path B)**
 - **`glm-5.3-flashx`**: High-efficiency multimodal reasoning model, 1M context, 131 072 output ($0.37 / $1.25 per 1M tokens).
 
 Notes:
+
 - **Thinking cannot be disabled**: On GLM 5.3 models, reasoning is always active. Sending `thinking.type: "disabled"` causes the upstream API to reject the request with HTTP 400. To adjust reasoning intensity, pass `reasoning_effort` (`low`, `high`, `max`; default `max`).
 - **Coding Plan endpoint**: The default baseUrl is the pay-as-you-go endpoint (`https://api.z.ai/api/paas/v4`). If you subscribe to the Z.ai GLM Coding Plan, set `aiflowbridge.providers.zai.baseUrl` to `https://api.z.ai/api/coding/paas/v4` in `settings.json`.
 
@@ -136,6 +137,7 @@ MoonshotAI is a **gateway-only vendor (Path B)** reached through `http://127.0.0
 - **`kimi-k2.6`**: Versatile multimodal reasoning and non-reasoning model, 262 144 context window ($0.95 / $4.00 per 1M tokens).
 
 Notes:
+
 - **Legacy Kimi models**: The `kimi-k2` and `kimi-k2.5` series have been retired upstream and are purged from the catalog.
 
 ## Google AI Studio via API key (BYOK, pay-as-you-go)
@@ -289,7 +291,9 @@ Run **`AIFlowBridge: Add a custom model`** from the Command Palette. The command
 4. Lets you pick its capabilities (tool calling, vision, thinking) with simple Yes/No prompts
 5. Saves the entry to your `aiflowbridge.userModels` setting
 
-The new model appears in the Copilot Chat picker immediately. You can edit or remove the entry in your user settings at any time.
+The new model appears in `GET /v1/models` (and therefore in the Kilo Code / Continue pickers and in the dashboard catalog) as soon as the window is reloaded.
+For a Path A family (`deepseek`, `minimax`, `xiaomi`) it also shows up in the Copilot Chat picker; for the gateway-only families (`openrouter`, `zai`, `moonshot`, `googleaistudio`) the gateway catalog is the only place it appears (AP-013).
+You can edit or remove the entry in your user settings at any time.
 
 ### Option 2 - Direct setting (`aiflowbridge.userModels`)
 
@@ -350,7 +354,7 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 ### Snapshot metadata
 
 - Current snapshot date: **2026-10-01**
-- Current snapshot version: **AIFlowBridge 2.19.2**
+- Current snapshot version: **AIFlowBridge 2.19.3**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 

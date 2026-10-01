@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, Z.ai GLM 5.3, MoonshotAI Kimi K3, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.19.2** - data snapshot **2026-10-01**.
+> **AIFlowBridge 2.19.3** - data snapshot **2026-10-01**.
 > Model ids and pricing throughout this README are pinned to this snapshot.
 > Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
@@ -63,7 +63,8 @@ Smart routing, shared session replay, and live cost tracking included.
 AIFlowBridge is the **multi-model local AI gateway you control**, bridging OpenRouter (100+ models) and direct frontier providers (Google Gemini, DeepSeek, MiniMax, Xiaomi MiMo, Z.ai GLM, MoonshotAI Kimi) with zero middleman markup.
 The gateway forwards every prompt to the model you (or your client) pick - no surprises, no hidden re-routing.
 One OpenRouter key unlocks 100+ frontier models behind a single endpoint; one direct key per vendor unlocks the cheapest available rate.
-Mix both worlds in the same Copilot Chat picker, the same `http://127.0.0.1:8787/v1` gateway, the same dashboard.
+Mix both worlds in the same `http://127.0.0.1:8787/v1` gateway and the same dashboard.
+The Copilot Chat picker natively carries the direct vendors only (DeepSeek, MiniMax, Xiaomi MiMo); OpenRouter, Gemini, Z.ai and MoonshotAI are gateway-only and reach Copilot Chat through Kilo Code or Continue, which sit on top of the same gateway.
 If you opt in via `aiflowbridge.gateway.languageRouting`, polyglot projects can route Python to DeepSeek Flash, Rust to DeepSeek Pro, free-tier OpenRouter models to everything else, all from a single endpoint.
 Pair-programming is built in: the dashboard shows sanitized prompt / response summaries of every recorded request, with one-click replay and a live Server-Sent Events stream so you see new requests land in real time.
 
@@ -109,16 +110,16 @@ You pay only the upstream providers you actually use - OpenRouter, Google AI Stu
 ## Why AIFlowBridge?
 
 - **100+ AI models behind one OpenRouter key.** AIFlowBridge ships OpenRouter as a first-class upstream: GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, Mistral Large 2512, Qwen 3.7 Max, DeepSeek V4 Pro, plus every other model id at [openrouter.ai/models](https://openrouter.ai/models) - all routed through the same local gateway. **15 free-tier models are bundled** (Nemotron 3 Ultra 550B, Gemma 4 31B multimodal, North Mini Code, Inkling, etc.) so they appear in `GET /v1/models` with $0 dashboard pricing; the other 100+ ids are reachable verbatim by passing them in the `model` field or adding them to `aiflowbridge.userModels`. Compare to running bare OpenRouter: no telemetry, no cost dashboard, no Copilot Chat picker, no JetBrains client integration. See [docs/providers.md](docs/providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint)
-- **Go direct when it's cheaper.** The same gateway exposes direct DeepSeek (V4.1 Flash at $0.30/M in, V4 Pro), MiniMax (M2.7 -> M3, M3.1 Flash Preview, $0.30/M in), Xiaomi MiMo (V2.5, V2.6 Flash at $0.05/M in, V2.6 Pro at $0.10/M in), Z.ai (GLM 5.3, GLM 5.3 Flash at $0.15/M in, GLM 5.3 FlashX), and MoonshotAI (Kimi K3 2.8T MoE, Kimi K2.7 Code, Kimi K2.6) - no middleman markup on direct vendors, full control over your API keys. Mix OpenRouter, Gemini, and direct vendors in the same Copilot Chat picker / dashboard - the cheapest model for boilerplate, the smartest for the hard stuff, all from the same chat window. See [docs/providers.md](docs/providers.md)
+- **Go direct when it's cheaper.** The same gateway exposes direct DeepSeek (V4.1 Flash at $0.30/M in, V4 Pro), MiniMax (M2.7 -> M3, M3.1 Flash Preview, $0.30/M in), Xiaomi MiMo (V2.5, V2.6 Flash at $0.05/M in, V2.6 Pro at $0.10/M in), Z.ai (GLM 5.3, GLM 5.3 Flash at $0.15/M in, GLM 5.3 FlashX), and MoonshotAI (Kimi K3 2.8T MoE, Kimi K2.7 Code, Kimi K2.6) - no middleman markup on direct vendors, full control over your API keys. Mix OpenRouter, Gemini, and direct vendors in the same gateway catalog / dashboard - the cheapest model for boilerplate, the smartest for the hard stuff, all from the same client. In the Copilot Chat picker the direct vendors are listed natively (DeepSeek, MiniMax, Xiaomi MiMo); the gateway-only ones are added by Kilo Code or Continue. See [docs/providers.md](docs/providers.md)
 - **Google Gemini 3.8 / 3.7 / 3.6 Flash (BYOK & Cloud Code Assist OAuth).** Access Google's 1M-token context frontier models with real-time streaming, multimodal vision (`inlineData`), and reliable agentic tool calling (with automatic `thought_signature` propagation). Choose direct BYOK via Google AI Studio API key (`AIzaSy...`, pay-as-you-go on your GCP project) or 1-click Antigravity OAuth for Google Cloud Code Assist accounts. See [docs/providers.md](docs/providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go).
 - **Bulletproof Agentic Coding & Real-Time Streaming.** Built specifically for autonomous coding agents (Kilo Code, Continue, Claude Dev). Emits OpenAI-shaped SSE chunks with sub-100ms time-to-first-token, merges consecutive turns seamlessly, and transparently preserves model thought signatures across function calls so complex agent loops never crash. See [docs/gateway.md](docs/gateway.md)
-- **Smart model routing - opt-in, never surprise you.** Out of the box, the gateway routes every request to the model you (or your client) pick in the model picker. If you opt in via `aiflowbridge.gateway.languageRouting` (`"python": "deepseek-flash"`, `"rust": "deepseek-v4-pro"`, `"*": "anthropic/claude-opus-4.8"` - any model id works, OpenRouter or direct), the gateway auto-detects the project language and routes per request. Costs are visible at all times: every routing decision is logged, the dashboard Sessions panel groups requests by provider / model, and the Request details sub-table shows the per-request cost. See [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting) and [docs/architecture.md](docs/gateway.md#workspace-context-get-v1context)
-- **Workspace context - informational only.** The detected context (languages, package managers, linters, formatters) is injected as a system message so the model knows your toolchain upfront. It never overrides the model picker - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context) and [docs/architecture.md](docs/gateway.md#workspace-context-get-v1context)
+- **Smart model routing - opt-in, never surprise you.** Out of the box, the gateway routes every request to the model you (or your client) pick in the model picker. If you opt in via `aiflowbridge.gateway.languageRouting` (`"python": "deepseek-flash"`, `"rust": "deepseek-v4-pro"`, `"*": "anthropic/claude-opus-4.8"` - any model id works, OpenRouter or direct), the gateway auto-detects the project language and routes per request. Costs are visible at all times: every routing decision is logged, the dashboard Sessions panel groups requests by provider / model, and the Request details sub-table shows the per-request cost. See [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting)
+- **Workspace context - informational only.** The detected context (languages, package managers, linters, formatters) is injected as a system message so the model knows your toolchain upfront. It never overrides the model picker - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context)
 - **Pair-programming visibility** - the gateway captures sanitized prompt + response summaries on every request (Bearer / `sk-...` / `x-api-key` redacted before storage). The dashboard's Shared session panel shows the last 20 Q&A pairs with one-click replay. Three loopback HTTP endpoints expose the same data for IDE integrations: `GET /v1/sessions` (list), `GET /v1/replay/{id}` (OpenAI-shaped body), `GET /v1/events` (live SSE stream) - see [docs/gateway.md](docs/gateway.md#shared-session-log--replay--sse-stream-get-v1sessions-get-v1replayid-get-v1events)
 - **Cost control & Auth observability** - per-request token counts, latency, real auth mode (`byok`, `oauth`, `plan`, `token`), and estimated cost in a live dashboard (`Ctrl+Alt+M`). Sessions grouped automatically (inactivity gap configurable 1-60 min). Filter by provider, auth mode, date range, client (Kilo Code vs Continue vs curl), or source (gateway vs Copilot Chat). Paginated, with per-row delete. **Telemetry export**: two buttons (`CSV` and `JSON`) in the Filters panel download the currently filtered entries with a self-describing metadata header (`generatedAt`, `extensionVersion`, `filters`, `totals`). The bundled pricing snapshot is refreshed via `AIFlowBridge: Refresh pricing now` (or the dashboard's `Refresh prices` button) and stamped with `source: ...` on every `Est. cost` tooltip - see [docs/dashboard.md](docs/dashboard.md)
 - **Two ways to run it**: as a VS Code extension or as a standalone Node.js binary - see [docs/standalone.md](docs/standalone.md)
-- **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](vision-proxy.md)
-- **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](reasoning.md)
+- **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](docs/vision-proxy.md)
+- **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](docs/reasoning.md)
 - **Local-first**: API keys in your OS keychain, telemetry on your machine, no remote endpoints
 
 <!-- markdownlint-disable MD033 -->
@@ -127,7 +128,7 @@ You pay only the upstream providers you actually use - OpenRouter, Google AI Stu
 </p>
 <!-- markdownlint-enable MD033 -->
 
-The full gallery (dashboard, pickers, providers, gateway, settings, metrics) lives in [docs/screenshots.md](screenshots.md), grouped by release version in descending order.
+The full gallery (dashboard, pickers, providers, gateway, settings, metrics) lives in [docs/screenshots.md](docs/screenshots.md), grouped by release version in descending order.
 
 ## Features
 
@@ -139,8 +140,8 @@ The full gallery (dashboard, pickers, providers, gateway, settings, metrics) liv
 - **Metrics dashboard with sessions & auth telemetry** - per-request token counts, latency, auth mode (`byok`, `oauth`, `plan`, `token`), and estimated cost. Nine time presets, provider + auth mode + date-range + text filters, pagination, per-row delete. Requests are auto-grouped into sessions (inactivity gap configurable 1-60 min) so you see your daily workflow at a glance. `Ctrl+Alt+M` from anywhere - see [docs/dashboard.md](docs/dashboard.md)
 - **Built-in OpenAI-compatible gateway** - port 8787, runs as a VS Code extension or a standalone CLI, singleton across processes. The gateway is the integration point for OpenRouter, Google Gemini, Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, and any `curl` - see [docs/gateway.md](docs/gateway.md) and [docs/standalone.md](docs/standalone.md)
 - **Zero-conf discovery** - `GET /v1/discovery` returns one-paste config snippets for Continue, Kilo Code, the OpenAI Python SDK, and curl. Optional UDP beacon broadcasts the gateway URL on the LAN (off by default) - see [docs/gateway.md](docs/gateway.md#zero-conf-discovery-get-v1discovery)
-- **Transparent vision proxy** - text-only models handle images via another installed Copilot model. Zero configuration - see [docs/vision-proxy.md](vision-proxy.md)
-- **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](reasoning.md)
+- **Transparent vision proxy** - text-only models handle images via another installed Copilot model. Zero configuration - see [docs/vision-proxy.md](docs/vision-proxy.md)
+- **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](docs/reasoning.md)
 - **Secure by default** - API keys in VS Code's `SecretStorage` (or env vars / `secrets.json` in standalone), never in `settings.json`. Credentials in stored summaries are redacted at extraction time. Telemetry is local, loopback-only. No remote endpoints
 
 ## Quick start
@@ -274,14 +275,14 @@ Full Kilo Code reference: [docs/kilo-code.md](docs/kilo-code.md).
 
 Some vendors are reachable **only** through `http://127.0.0.1:8787/v1`, never through the Copilot Chat picker.
 That is a deliberate split: a picker entry requires a dedicated `vscode.LanguageModelChatProvider` class, and for a meta-provider or a gateway-only upstream that class buys nothing over forwarding the call verbatim.
-The catalogue as of 2.19.2:
+The catalogue as of 2.19.3:
 
-| Vendor         | Models                                                                   | Context | Vision              | In / Out per M (USD) |
-| -------------- | ------------------------------------------------------------------------ | ------- | ------------------- | -------------------- |
-| OpenRouter     | 100+ ids verbatim; 15 free-tier ids bundled                               | varies  | varies              | $0 for the bundled free tier |
-| Google AI Studio | Gemini 3.8 / 3.7 / 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest` | 1M   | native              | 0.30 / 2.50          |
-| Z.ai           | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                   | 1M, 128K out | GLM 5.3 text-only, Flash / FlashX native | 1.40 / 4.40, 0.15 / 0.50, 0.37 / 1.25 |
-| MoonshotAI     | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6             | 1M (K3) and 256K, native | native (K3 reads image *and* video) | 3.00 / 15.00 (K3), 0.95 / 4.00 (K2.7), 1.90 / 8.00 (Highspeed), 0.95 / 4.00 (K2.6) |
+| Vendor           | Models                                                                          | Context                  | Vision                                   | In / Out per M (USD)                                                               |
+| ---------------- | ------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| OpenRouter       | 100+ ids verbatim; 15 free-tier ids bundled                                     | varies                   | varies                                   | $0 for the bundled free tier                                                       |
+| Google AI Studio | Gemini 3.8 / 3.7 / 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest` | 1M                       | native                                   | 0.30 / 2.50                                                                        |
+| Z.ai             | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                          | 1M, 128K out             | GLM 5.3 text-only, Flash / FlashX native | 1.40 / 4.40, 0.15 / 0.50, 0.37 / 1.25                                              |
+| MoonshotAI       | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                    | 1M (K3) and 256K, native | native (K3 reads image *and* video)      | 3.00 / 15.00 (K3), 0.95 / 4.00 (K2.7), 1.90 / 8.00 (Highspeed), 0.95 / 4.00 (K2.6) |
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \

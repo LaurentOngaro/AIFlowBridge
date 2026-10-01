@@ -4,7 +4,7 @@
 >
 > **Data freshness policy.**
 > Every number in this document is a snapshot, not a live feed.
-> Pricing reflects the upstream catalogs as of the **2026-10-01** snapshot, shipped with **AIFlowBridge 2.19.2**.
+> Pricing reflects the upstream catalogs as of the **2026-10-01** snapshot, shipped with **AIFlowBridge 2.19.3**.
 > Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries (mirrored into the bundled `resources/pricing.json` at release time).
 > Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
 
@@ -29,16 +29,16 @@ Anything that says otherwise is marketing.
 
 For a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 20 M output tokens):
 
-| Workload                                                   | Approx. cost                      |
-| ---------------------------------------------------------- | --------------------------------- |
-| All Xiaomi MiMo V2.6 Flash ($0.05/M in, $0.15/M out)       | $5.50                             |
-| All Xiaomi MiMo V2.5 / V2.6 Pro ($0.10/M in, $0.30/M out)  | $11                               |
-| Mixed: 70% MiMo + 30% MiniMax M3                           | $14                               |
+| Workload                                                  | Approx. cost                      |
+| --------------------------------------------------------- | --------------------------------- |
+| All Xiaomi MiMo V2.6 Flash ($0.05/M in, $0.15/M out)      | $5.50                             |
+| All Xiaomi MiMo V2.5 / V2.6 Pro ($0.10/M in, $0.30/M out) | $11                               |
+| Mixed: 70% MiMo + 30% MiniMax M3                          | $14                               |
 | All Z.ai GLM 5.3 Flash ($0.15/M in, $0.50/M out)          | $17.50                            |
-| All DeepSeek V4.1 Flash ($0.30/M in, $1.20/M out)          | $39                               |
-| All MiniMax M3 ($0.30/M in, $1.20/M out)                   | $39                               |
-| Vision-heavy with `oswe-vscode-prime` proxy (Copilot)      | **+ $0** - covered by Copilot sub |
-| AIFlowBridge itself                                        | **$0** + optional sponsorship     |
+| All DeepSeek V4.1 Flash ($0.30/M in, $1.20/M out)         | $39                               |
+| All MiniMax M3 ($0.30/M in, $1.20/M out)                  | $39                               |
+| Vision-heavy with `oswe-vscode-prime` proxy (Copilot)     | **+ $0** - covered by Copilot sub |
+| AIFlowBridge itself                                       | **$0** + optional sponsorship     |
 
 **Calculations** (input rate x 50M + output rate x 20M):
 
@@ -58,15 +58,15 @@ The cheapest AI stack that still gives you Copilot Chat with image paste is AIFl
 
 AIFlowBridge ships with indicative per-million-token rates baked into the bundled model registry ([`resources/models.json`](../resources/models.json)) so the dashboard shows non-zero costs out of the box:
 
-| Family                                       | Input / 1M    | Output / 1M    | Currency | Applies to                                                                                               | Billing posture                                                                                           |
-| -------------------------------------------- | ------------- | -------------- | -------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| DeepSeek                                     | $0.30 - $1.32 | $1.20 - $3.96  | USD      | V4.1 Flash, V4 Pro (per-model rates in the registry)                                                     | Per-token (real charge)                                                                                   |
-| MiniMax                                      | $0.30         | $1.20          | USD      | M2.7, M2.7 Highspeed, M3 (M3.1 Flash Preview on M Plan)                                                  | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                                |
-| Xiaomi MiMo                                  | $0.05 - $0.10 | $0.15 - $0.30  | USD      | V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                                                | Per-token (real charge)                                                                                   |
-| Z.ai                                         | $0.15 - $1.40 | $0.50 - $4.40  | USD      | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                                                   | Per-token (real charge on `sk-...` / Plan-covered on Coding Plan)                                          |
-| MoonshotAI                                   | $0.95 - $3.00 | $4.00 - $15.00 | USD      | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                                             | Per-token (real charge)                                                                                   |
-| Google AI Studio (BYOK, default route)       | $0.10 - $0.30 | $0.40 - $2.50  | USD      | Gemini 3.8 / 3.7 / 3.6 Flash, Flash-Lite Latest, Flash Latest                                            | Per-token (real charge on the user's GCP project; INDEPENDENT from any AI Studio Pro subscription)        |
-| Google AI Studio (Antigravity OAuth, opt-in) | $0.75         | $3.75          | USD      | Gemini 3.8 / 3.7 / 3.6 Flash (introductory through 2026-12-31; standard $1.50 / $7.50 from 2027-01-01)   | Plan-covered (Cloud Code Assist / AGY plan); Est. cost is the pay-as-you-go equivalent, not a real charge |
+| Family                                       | Input / 1M    | Output / 1M    | Currency | Applies to                                                                                             | Billing posture                                                                                           |
+| -------------------------------------------- | ------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| DeepSeek                                     | $0.30 - $1.32 | $1.20 - $3.96  | USD      | V4.1 Flash, V4 Pro (per-model rates in the registry)                                                   | Per-token (real charge)                                                                                   |
+| MiniMax                                      | $0.30         | $1.20          | USD      | M2.7, M2.7 Highspeed, M3 (M3.1 Flash Preview on M Plan)                                                | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                                |
+| Xiaomi MiMo                                  | $0.05 - $0.10 | $0.15 - $0.30  | USD      | V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                                              | Per-token (real charge)                                                                                   |
+| Z.ai                                         | $0.15 - $1.40 | $0.50 - $4.40  | USD      | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                                                 | Per-token (real charge on `sk-...` / Plan-covered on Coding Plan)                                         |
+| MoonshotAI                                   | $0.95 - $3.00 | $4.00 - $15.00 | USD      | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                                           | Per-token (real charge)                                                                                   |
+| Google AI Studio (BYOK, default route)       | $0.10 - $0.30 | $0.40 - $2.50  | USD      | Gemini 3.8 / 3.7 / 3.6 Flash, Flash-Lite Latest, Flash Latest                                          | Per-token (real charge on the user's GCP project; INDEPENDENT from any AI Studio Pro subscription)        |
+| Google AI Studio (Antigravity OAuth, opt-in) | $0.75         | $3.75          | USD      | Gemini 3.8 / 3.7 / 3.6 Flash (introductory through 2026-12-31; standard $1.50 / $7.50 from 2027-01-01) | Plan-covered (Cloud Code Assist / AGY plan); Est. cost is the pay-as-you-go equivalent, not a real charge |
 
 **Important disambiguation**: "Google AI Studio Pro" is a Web subscription for the AI Studio UI and is **independent** from the API-key billing path.
 Activating or canceling AI Studio Pro does NOT change what you pay for Gemini calls made via `https://generativelanguage.googleapis.com/v1beta` (the BYOK route).

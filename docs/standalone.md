@@ -3,7 +3,7 @@
 This document covers installing, configuring, and running the **standalone** AIFlowBridge gateway - the Node.js binary that exposes the same OpenAI-compatible endpoint as the VS Code extension, but without requiring VS Code to be running.
 
 > Looking for the VS Code extension docs?
-> See [`../gateway.md`](../gateway.md) for the extension-side gateway, or [`../architecture.md`](../architecture.md) for the overall architecture.
+> See [`./gateway.md`](./gateway.md) for the extension-side gateway, or [`./architecture.md`](./architecture.md) for the overall architecture.
 
 ## When to use the standalone gateway
 
@@ -81,7 +81,7 @@ ln -s "$(pwd)/dist/standalone/main.js" ~/.local/bin/aiflowbridge-server
 The standalone gateway reads its config from `~/.aiflowbridge/config.json` (override with the `AIFLOWBRIDGE_DATA_DIR` env var).
 The file is optional - when missing the gateway uses sensible defaults.
 
-See [`./standalone-config.example.json`](./standalone-config.example.json) for the full set of keys.
+See [`./autostart/standalone-config.example.json`](./autostart/standalone-config.example.json) for the full set of keys.
 
 API keys are resolved in this order (the same unified chain as the VS Code extension gateway, backed by `src/aiflowbridge/api-key-sources.ts`):
 
@@ -132,12 +132,12 @@ curl http://127.0.0.1:8787/v1/models
 ```
 
 The standalone process and the VS Code extension share the same `gateway.lock` file - if VS Code is already running with the gateway on, the standalone process **joins** the existing gateway instead of starting a second one.
-See [`./lock-and-restart.md`](./lock-and-restart.md).
+See [Singleton behavior](gateway.md#singleton-behavior) and [Version-aware restart](gateway.md#version-aware-restart) in [gateway.md](gateway.md).
 
 ## Auto-start at boot
 
-- Linux: [`./autostart/systemd.md`](./autostart/systemd.md)
-- macOS: [`./autostart/launchd.md`](./autostart/launchd.md)
+- Linux: [`./autostart/linux-systemd.md`](./autostart/linux-systemd.md)
+- macOS: [`./autostart/macos-launchd.md`](./autostart/macos-launchd.md)
 - Windows: [`./autostart/windows-task.md`](./autostart/windows-task.md)
 
 ## Client setup

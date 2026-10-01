@@ -6,6 +6,21 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.19.3
+
+Documentation and tooling corrections from an external audit of `main`. No runtime behaviour change for users, and no vendor capability change.
+
+### Fixed
+
+- **The README promised a capability the project does not ship.** Two passages advertised mixing OpenRouter, Gemini and the direct vendors "in the same Copilot Chat picker". The picker only carries the direct vendors (DeepSeek, MiniMax, Xiaomi MiMo); OpenRouter, Gemini, Z.ai and MoonshotAI are gateway-only and reach Copilot Chat through Kilo Code or Continue. The same overclaim existed twice in `docs/`: `docs/gateway.md` stated that `GET /v1/models` returns the same set as the Copilot Chat picker (it is a superset since the gateway-only vendors landed), and `docs/providers.md` stated that a model added through `AIFlowBridge: Add a custom model` appears in the Copilot Chat picker immediately (true for the three direct families, false for the four gateway-only ones). All four statements now spell out the Path A / Path B boundary. Bringing the gateway-only vendors into the picker remains an open roadmap item.
+- **Link labels that contradicted their target.** Two README links pointed at `docs/gateway.md#workspace-context-get-v1context` while still displaying `docs/architecture.md` as their text. An anchor checker cannot catch this, because the destination was correct. Both labels now match their target.
+- **Eleven dead relative links.** A check of every Markdown link whose text looks like a file path found 5 broken targets introduced or left behind by the previous release (`(vision-proxy.md)`, `(reasoning.md)`, `(screenshots.md)` in the README, the same one in `docs/dashboard.md`) and 6 in `docs/standalone.md` pointing at files that do not exist (`../gateway.md`, `./lock-and-restart.md`, `./autostart/systemd.md` and `./autostart/launchd.md`, whose real names are `linux-systemd.md` and `macos-launchd.md`). All are fixed.
+- **Divergent release gates.** `npm run package` ran `compile` + `test` + `typecheck:tests`, while `npm run publish:vscode` and `npm run publish:openvsx` stopped at `compile` + `test`. The CI and release workflows already went through `npm run package`, so everything published was type-checked; only manual local publication was weaker. A shared `npm run validate` script now backs all three entry points.
+
+### Changed
+
+- **`tests/i18n.test.ts` scanner widened, and its blind spot pinned.** The scan only matched single-quoted literals, so a call such as `t("some.key")` in double quotes was invisible to it (verified by injecting one: the old scanner stayed green, the widened scanner fails with the key named). It now accepts single quotes, double quotes and non-interpolated backtick templates, including a call whose argument is on the next line. Keys computed at runtime cannot be resolved by any regex; instead of ignoring them, `collectDynamicCallSites()` lists the three call sites that use them and an allow-list test fails when a new one appears, so the gap has to be acknowledged rather than inherited.
+
 ## 2.19.2
 
 Patch release that closes three silent defects found while auditing the merged 2.19.0 / 2.19.1 work, and removes the residual Git housekeeping left behind by the parallel sessions.
@@ -65,7 +80,6 @@ Data snapshot **2026-10-01**; upstream IDs, context windows, capabilities, and p
 ### Fixed
 
 - **Missing Google AI Studio toast label.** Added missing `provider.googleaistudio.name` translation to `src/i18n.ts` and `package.nls.json` so API key confirmation toasts show the localized provider title rather than the raw configuration key.
-
 
 ## 2.18.4
 
@@ -429,7 +443,7 @@ Ships three action-plan items in one release: workspace context injection (o eve
   - **`X-AIFlowBridge-Language` header was unbounded.** `resolveLanguageHint()` now rejects headers longer than `MAX_LANGUAGE_HINT_HEADER_LENGTH` (64 chars) and trims once before any `toLowerCase()`. A hostile loopback peer can no longer force an MB-long allocation we would then immediately discard.
   - **`broadcastPort` was not clamped at runtime.** `DiscoveryBeacon` constructor now clamps `broadcastPort` to `[1024, 65535]` and falls back to `8788` with a warning when the value is out of range. The package.json schema already enforced the same range; the runtime used to trust hand-edited config (`broadcastPort: 0` produced OS-dependent UDP behaviour).
   - **`matchesGlob()` did not escape `-` in its character class.** Added `-` to the regex character class in `src/aiflowbridge/context/workspace-context.ts:286`. No current `LANGUAGE_MARKERS` pattern exploits the gap, but the trap was a maintenance footgun.
-  - **A1 - No user-facing docs on the new settings / endpoints.** `docs/gateway.md` now documents `/v1/context` and `/v1/discovery` (request shape + privacy caveats), the full settings table (workspaceContext._, languageRouting, discovery._), and the `AIFLOWBRIDGE_WORKSPACE` env var override. Privacy section now mentions that `/v1/context` exposes the workspace root and `/v1/discovery` exposes the bundled gateway version (both loopback-only, consistent with `/health` / `/version` / `/v1/models`).
+  - **A1 - No user-facing docs on the new settings / endpoints.** `docs/gateway.md` now documents `/v1/context` and `/v1/discovery` (request shape + privacy caveats), the full settings table (workspaceContext.*, languageRouting, discovery.*), and the `AIFLOWBRIDGE_WORKSPACE` env var override. Privacy section now mentions that `/v1/context` exposes the workspace root and `/v1/discovery` exposes the bundled gateway version (both loopback-only, consistent with `/health` / `/version` / `/v1/models`).
   - **`prependSystemMessage` was exported but had no tests.** New 4-case test block in `tests/gateway-actions-2-4-5.test.ts` (prefix inserted as first system message, no input mutation, non-array `messages` field treated as empty, array-typed `content` preserved).
   - **`DiscoveryBeacon` did not validate `broadcastIntervalMs`.** Constructor now clamps the interval to `[500, 300_000]` ms. A hand-edited `broadcastIntervalMs: 2` no longer produces 30 UDP packets per second.
   - **`resolveContextRoot()` silently fell back when the explicit root was invalid.** When `aiflowbridge.gateway.workspaceContext.root` does not resolve to a directory, the gateway now logs a one-shot warning and falls back to `AIFLOWBRIDGE_WORKSPACE` / `process.cwd()` so the user can spot the typo instead of being surprised by an injection on the wrong folder.
@@ -1131,7 +1145,7 @@ Internal renames (`setVisionProxyModel` → `chooseVisionProxyModel`, `TODO_TRAC
 
 ### Changed
 
-- **i18n synchronization**: `package.nls.json` synchronized with `src/i18n.ts`. Added 25+ missing translation keys (auth, request, error.http._, error.action._, error.network.\*, extension, command) and unified punctuation/wording between the two files.
+- **i18n synchronization**: `package.nls.json` synchronized with `src/i18n.ts`. Added 25+ missing translation keys (auth, request, error.http.*, error.action.*, error.network.\*, extension, command) and unified punctuation/wording between the two files.
 - **Vision settings cleanup**: Removed unused `aiflowbridge.vision.enabled` setting. The vision proxy is always-on (opt-out via `aiflowbridge.vision.excludedVendors`).
 - **Documentation overhaul**:
   - `README.md`: Corrected providers table (all models use vision proxy, including DeepSeek and Xiaomi). Added 4 missing settings (`minimax.temperature`, `minimax.topP`, `minimax.reasoningSplit`, `xiaomi.reasoningRequiredForToolCalls`). Removed obsolete references to `aiflowbridge.vision.enabled` and `kiloVisionModel`.

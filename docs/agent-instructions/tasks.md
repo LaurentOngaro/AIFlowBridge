@@ -7,6 +7,7 @@
 ```bash
 npm run compile              # Compile TypeScript (VS Code extension)
 npm run watch                # Watch mode for development
+npm run validate             # Full gate: compile + test + typecheck:tests (backs every package/publish script)
 npm run package              # Build .vsix package (output in dist/)
 npm run build:standalone     # Build the standalone gateway CLI (dist/standalone/main.js)
 npm run start:standalone     # Run the standalone gateway CLI from a build

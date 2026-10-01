@@ -42,6 +42,9 @@ npm run compile:standalone  # 0 errors (if standalone touched)
 npm run typecheck:tests   # 0 errors (type-checks tests/ via tests/tsconfig.json)
 ```
 
+`npm run validate` chains `compile` + `test` + `typecheck:tests` and is the single gate behind `package`, `publish:vscode` and `publish:openvsx`; the CI and release workflows reach the same gate through `npm run package`.
+Add `npm run compile:standalone` on top when `src/standalone/` or `src/aiflowbridge/` is touched, since `validate` does not include it.
+
 ## Test type-checking (`tests/tsconfig.json`)
 
 The root `tsconfig.json` only includes `src/`, so test files are not

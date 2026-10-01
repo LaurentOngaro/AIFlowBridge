@@ -35,13 +35,29 @@ function collectTsFiles(dir: string): string[] {
   return out;
 }
 
-/** Every `'some.key'` literal passed as the first argument of `t(...)`. */
+/** Matches the `t(` of every call site, whatever the argument syntax. */
+const T_CALL = /\bt\s*\(/g;
+
+/** Matches the `t('key')` / `t("key")` / `` t(`key`) `` forms (no interpolation). */
+const T_LITERAL_CALL = /\bt\s*\(\s*(?:'([^']*)'|"([^"]*)"|`([^`$]*)`)/g;
+
+/**
+ * Every string literal passed as the first argument of `t(...)`.
+ *
+ * Three quoting styles are accepted: `'key'`, `"key"`, and a backtick template
+ * without interpolation. A call whose argument is an interpolated template or an
+ * identifier cannot be resolved statically: it is reported by
+ * `collectDynamicCallSites()` instead, which pins the remaining gap.
+ */
 function collectUsedKeys(): Map<string, string[]> {
   const used = new Map<string, string[]>();
   for (const file of collectTsFiles(SRC_DIR)) {
     const src = readFileSync(file, 'utf8');
-    for (const match of src.matchAll(/\bt\(\s*'([^']+)'/g)) {
-      const key = match[1];
+    for (const match of src.matchAll(T_LITERAL_CALL)) {
+      const key = match[1] ?? match[2] ?? match[3];
+      if (!key) {
+        continue;
+      }
       const list = used.get(key) ?? [];
       list.push(file);
       used.set(key, list);
@@ -49,6 +65,43 @@ function collectUsedKeys(): Map<string, string[]> {
   }
   return used;
 }
+
+/**
+ * `t(...)` call sites whose first argument is not a statically resolvable string
+ * literal, i.e. the keys the scan above cannot prove are present in the table.
+ *
+ * Each entry is a potential silent gap, so the list is pinned by an allow-list
+ * test: adding a dynamic call site forces a decision - cover the keys it can
+ * produce with a test, or add it to the allow-list with a justification.
+ */
+function collectDynamicCallSites(): string[] {
+  const sites: string[] = [];
+  for (const file of collectTsFiles(SRC_DIR)) {
+    const src = readFileSync(file, 'utf8');
+    for (const match of src.matchAll(T_CALL)) {
+      // `export function t(key: string, ...)` is the declaration, not a call.
+      if (/(?:export\s+)?function\s+$/.test(src.slice(Math.max(0, match.index - 20), match.index))) {
+        continue;
+      }
+      const after = src.slice(match.index + match[0].length);
+      const literal = /^\s*(?:'[^']*'|"[^"]*"|`[^`$]*`)/.exec(after);
+      if (literal) {
+        continue;
+      }
+      const arg = /^\s*([^\n,)]*)/.exec(after)?.[1].trim() ?? '';
+      const line = src.slice(0, match.index).split('\n').length;
+      sites.push(`${file.slice(SRC_DIR.length + 1)}:${line}  t(${arg.length > 0 ? arg : '?'})`);
+    }
+  }
+  return sites.sort();
+}
+
+/** Dynamic call sites, each one covered by a dedicated assertion. */
+const KNOWN_DYNAMIC_CALL_SITES: Record<string, string> = {
+  'client/error.ts': 'every ErrorActionLink.labelKey listed in the client error tests',
+  'provider/models.ts': '`model.<id>.detail` keys, resolved with a translation-probe fallback to m.detail',
+  'runtime/provider.ts': 'the three provider label keys asserted by the per-vendor label test',
+};
 
 describe('i18n table', () => {
   it('defines every key used with t() somewhere in src/', () => {
@@ -68,6 +121,36 @@ describe('i18n table', () => {
     const used = collectUsedKeys();
     expect(used.size).toBeGreaterThan(40);
     expect(Object.keys(en).length).toBeGreaterThan(60);
+  });
+
+  it('detects a missing key whichever quoting style the call site uses', () => {
+    // The scanner is the only thing standing between a typo and a raw key in a
+    // toast, so the accepted syntaxes are pinned here instead of being assumed.
+    for (const call of [
+      "t('a.single.quoted.key')",
+      't("a.double.quoted.key")',
+      't(`a.backtick.key`)',
+      "t(\n  'a.wrapped.key',\n)",
+    ]) {
+      expect([...call.matchAll(T_LITERAL_CALL)], `not matched: ${call}`).toHaveLength(1);
+    }
+  });
+
+  it('reports every call site whose key cannot be resolved statically', () => {
+    // A dynamic call is a hole in the static scan. Pinning the list means a new
+    // one cannot be introduced silently: it has to be declared here.
+    const sites = collectDynamicCallSites();
+    expect(sites.length, `sites dynamiques non déclarés :\n  ${sites.join('\n  ')}`).toBeGreaterThan(0);
+    const files = [...new Set(sites.map((site) => site.split(':')[0]))].sort();
+    expect(files).toEqual(Object.keys(KNOWN_DYNAMIC_CALL_SITES).sort());
+  });
+
+  it('does not classify a literal call site as dynamic', () => {
+    const dynamic = new Set(collectDynamicCallSites());
+    expect(dynamic.size).toBe(collectDynamicCallSites().length);
+    for (const site of dynamic) {
+      expect(site, `literal key wrongly reported as dynamic: ${site}`).not.toMatch(/t\(['"`]/);
+    }
   });
 
   it('falls back to the key itself for an unknown key', () => {

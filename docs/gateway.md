@@ -266,7 +266,9 @@ The gateway catalog is built from the [model registry](architecture.md#model-reg
 No need to maintain a long list of provider entries by hand - the registry already lists all 38 supported models, and the gateway synthesizes one catalog entry per registry model on activation.
 
 **Auto-synthesized entries** - for every model in the registry, the gateway creates a provider entry using the vendor defaults (from `registry.vendors[<family>].baseUrl`) and the model's per-token pricing.
-The synthesized `id` matches the registry model `id` exactly, so `GET /v1/models` returns the same set you see in the Copilot Chat picker.
+The synthesized `id` matches the registry model `id` exactly, so `GET /v1/models` returns the registry set verbatim.
+It is a superset of the Copilot Chat picker.
+The gateway-only vendors (OpenRouter, Z.ai, MoonshotAI, Google AI Studio) appear in the catalog and in the dashboard, but not in the Copilot Chat picker, which lists the direct Path A vendors only (DeepSeek, MiniMax, Xiaomi MiMo).
 
 **Overriding the catalog** - the priority order is:
 
