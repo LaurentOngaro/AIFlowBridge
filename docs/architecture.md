@@ -165,13 +165,13 @@ Validation is hand-rolled (no `ajv` runtime dependency). See [`src/aiflowbridge/
 
 Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point:
 
-- `aiflowbridge` (DeepSeek V4 Pro / V4 Flash) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors.
-- `minimax` (MiniMax M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3) - HTTP streaming client.
-- `xiaomi` (Xiaomi MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro) - HTTP streaming client.
+- `aiflowbridge` (DeepSeek V4.1 Flash / V4 Pro) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors.
+- `minimax` (MiniMax M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview) - HTTP streaming client.
+- `xiaomi` (Xiaomi MiMo V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed) - HTTP streaming client.
 
 Shared logic lives in `src/provider/unified.ts` (reasoning pass-through, token counting), `src/provider/convert.ts` (vscode.LM message conversion), `src/provider/stream.ts` (SSE parsing), `src/provider/segment.ts` (stream segmentation), `src/provider/errors.ts` (upstream error normalization), `src/provider/tokens.ts` (token counting heuristics), `src/provider/request.ts` (outgoing HTTP request builder).
 
-The model id field in the registry is the **upstream API id** (`MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`), not a kebab-case alias.
+The model id field in the registry is the **upstream API id** (`MiniMax-M2.7`, `mimo-v2.6-pro`, `deepseek-flash`), not a kebab-case alias.
 The picker shows the human-readable `name` field.
 
 ## Gateway singleton + version-aware restart

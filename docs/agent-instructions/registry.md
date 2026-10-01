@@ -58,10 +58,10 @@ The Copilot Chat picker refreshes automatically when either source changes.
 
 ## Model id convention
 
-**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`), NOT a kebab-case alias.
+**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.6-pro`, `deepseek-flash`, `glm-5.3`, `kimi-k3`), NOT a kebab-case alias.
 The human-readable name shows in the Copilot Chat picker (or, for gateway-only models like OpenRouter, in `GET /v1/models` responses).
 This removes the need for any id translation map between VS Code and upstream.
 
-The valid `family` values are the vendor config keys declared in `vendors`: `deepseek`, `minimax`, `xiaomi`, `openrouter`.
+The valid `family` values are the vendor config keys declared in `vendors`: `deepseek`, `minimax`, `xiaomi`, `zai`, `moonshot`, `googleaistudio`, `openrouter`.
 Adding a new vendor means (1) one entry in `resources/models.json` under `vendors`, (2) one entry in `API_KEY_SECRETS` (`src/consts.ts`) if the new vendor needs a SecretStorage slot, (3) one entry in `KNOWN_FAMILIES` (`src/aiflowbridge/modelRegistry.schema.ts`), (4) one entry in the JSON Schema enum in `resources/models.schema.json`.
 Adding any of: per-vendor `OpenRouterChatProvider` (only for Copilot Chat picker integration), `setApiKey`/`clearApiKey` commands (only for VS Code UX parity), or HTTP-Referer injection (already shipped for OpenRouter in `src/aiflowbridge/gateway/openrouter-headers.ts`) - all are optional.

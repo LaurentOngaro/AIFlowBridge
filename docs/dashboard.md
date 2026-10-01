@@ -155,7 +155,7 @@ Sending a single `curl` is enough to verify the pipeline:
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model": "deepseek-v4-flash", "messages": [{"role": "user", "content": "ping"}]}'
+  -d '{"model": "deepseek-flash", "messages": [{"role": "user", "content": "ping"}]}'
 ```
 
 The status bar reflects the same source: it shows the gateway state, not Copilot Chat activity.

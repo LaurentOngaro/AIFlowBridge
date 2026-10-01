@@ -349,8 +349,8 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 
 ### Snapshot metadata
 
-- Current snapshot date: **2026-09-05**
-- Current snapshot version: **AIFlowBridge 2.18.3**
+- Current snapshot date: **2026-10-01**
+- Current snapshot version: **AIFlowBridge 2.19.0**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 
@@ -362,7 +362,7 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 
 ### What does NOT auto-refresh
 
-- The 7 bundled OpenRouter flagships (table above). Picking a new free flagship requires an explicit registry edit + release.
+- The 15 bundled OpenRouter free models (table above). Picking a new free flagship requires an explicit registry edit + release.
 - The `pricing` block of each bundled model (pricing is hardcoded; we do NOT re-fetch on every gateway start to keep the cold-start path zero-network).
 - The "Pick your cost point" table in `README.md` and the "Indicative rates per family" table in `docs/cost.md`.
 

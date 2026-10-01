@@ -52,3 +52,12 @@ To add the thinking-effort selector to M2 / M2.1 / M2.5 / M2.7 (none of which sh
 The 3-tier registry merge picks it up immediately on the next Copilot Chat reload.
 
 **Option B** - Registry override. See [architecture.md](architecture.md#model-registry).
+
+## Always-on reasoning models (Z.ai GLM 5.3 and MoonshotAI Kimi)
+
+Z.ai GLM 5.3 (`glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`) and MoonshotAI Kimi (`kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`) are **always-on thinking models**.
+Their upstream APIs reject any request that attempts to disable thinking (for example sending `thinking: { type: "disabled" }` returns HTTP 400 on GLM 5.3).
+
+- **Gateway behavior**: The gateway forwards the client payload directly without injecting thinking-disable parameters.
+- **Client configuration**: When connecting Kilo Code, Continue, or custom OpenAI SDK scripts, pass `reasoning_effort` (`low` / `high` / `max`, default `max`) to tune reasoning depth rather than attempting to disable reasoning.
+- **MoonshotAI Kimi K2.6 exception**: `kimi-k2.6` is the only current Moonshot model where thinking can be toggled on or off (`requiresThinkingParam: false`).

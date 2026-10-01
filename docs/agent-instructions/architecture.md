@@ -33,10 +33,10 @@ The version-aware probe / cooperative shutdown flow lives in `src/aiflowbridge/g
 
 Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point:
 
-- `aiflowbridge` (DeepSeek V4 Pro / V4 Flash) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors.
-- `minimax` (MiniMax M2, M2.1, M2.1 Highspeed, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed, M3) - HTTP streaming client.
-- `xiaomi` (Xiaomi MiMo V2 Omni, V2 Pro, V2.5, V2.5 Pro) - HTTP streaming client.
-- `openrouter` is **gateway-only** - the bundled registry declares seven free-tier flagships (`nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`, `google/gemma-4-31b-it:free`, `meta-llama/llama-3.3-70b-instruct:free`, `qwen/qwen3-coder:free`, `qwen/qwen3-next-80b-a3b-instruct:free`, `nvidia/nemotron-3-super-120b-a12b:free`) but they are NOT surfaced in the Copilot Chat picker. They reach the bundled gateway through the OpenAI-compatible `/v1/chat/completions` endpoint on port 8787 and the gateway picks them up via the generic per-vendor provider profile synthesis (no per-vendor `OpenRouterChatProvider` class). The 100+ other OpenRouter model ids are reachable by name verbatim through `curl` / Kilo Code / Continue. Attribution headers (`HTTP-Referer`, `X-Title`) are injected by `src/aiflowbridge/gateway/openrouter-headers.ts`.
+- `aiflowbridge` (DeepSeek V4.1 Flash / V4 Pro) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors.
+- `minimax` (MiniMax M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview) - HTTP streaming client.
+- `xiaomi` (Xiaomi MiMo V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed) - HTTP streaming client.
+- `openrouter`, `zai`, `moonshot`, and `googleaistudio` are **gateway-only** - they do NOT appear in the Copilot Chat picker. They reach the bundled gateway through the OpenAI-compatible `/v1/chat/completions` endpoint on port 8787 and the gateway picks them up via the generic per-vendor provider profile synthesis. The 100+ other OpenRouter model ids are reachable by name verbatim through `curl` / Kilo Code / Continue. Attribution headers (`HTTP-Referer`, `X-Title`) are injected by `src/aiflowbridge/gateway/openrouter-headers.ts`.
 
-Model id convention: the `id` field in the registry IS the upstream API id (`MiniMax-M2.7`, `mimo-v2.5-pro`, `deepseek-v4-flash`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `openai/gpt-oss-120b:free`).
+Model id convention: the `id` field in the registry IS the upstream API id (`MiniMax-M2.7`, `mimo-v2.6-pro`, `deepseek-flash`, `glm-5.3`, `kimi-k3`).
 No kebab-case alias, no id translation map.

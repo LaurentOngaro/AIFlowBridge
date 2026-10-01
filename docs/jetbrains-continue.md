@@ -29,9 +29,9 @@ models:
     apiKey: standalone
     roles: [chat, edit, apply]
 
-  - name: DeepSeek V4 Flash (AIFlowBridge)
+  - name: DeepSeek V4.1 Flash (AIFlowBridge)
     provider: openai
-    model: deepseek-v4-flash
+    model: deepseek-flash
     apiBase: http://127.0.0.1:8787/v1
     apiKey: standalone
     roles: [chat, edit, apply]
@@ -43,16 +43,23 @@ models:
     apiKey: standalone
     roles: [chat, edit, apply]
 
-  - name: MiMo V2.5 Pro (AIFlowBridge)
+  - name: MiMo V2.6 Pro (AIFlowBridge)
     provider: openai
-    model: mimo-v2.5-pro
+    model: mimo-v2.6-pro
     apiBase: http://127.0.0.1:8787/v1
     apiKey: standalone
     roles: [chat, edit, apply]
 
-  - name: MiMo V2 Omni (AIFlowBridge)
+  - name: Z.ai GLM 5.3 (AIFlowBridge)
     provider: openai
-    model: mimo-v2-omni
+    model: glm-5.3
+    apiBase: http://127.0.0.1:8787/v1
+    apiKey: standalone
+    roles: [chat, edit, apply]
+
+  - name: MoonshotAI Kimi K3 (AIFlowBridge)
+    provider: openai
+    model: kimi-k3
     apiBase: http://127.0.0.1:8787/v1
     apiKey: standalone
     roles: [chat, edit, apply]

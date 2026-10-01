@@ -8,28 +8,35 @@
 
 ## 2.19.0
 
-Minor release that refreshes the bundled model catalogue against the current upstream generations and adds two gateway-only vendors.
-Data snapshot **2026-10-01**; upstream ids, context windows and prices verified against the vendor documentation and, for OpenRouter, against the live `GET https://openrouter.ai/api/v1/models` catalogue.
+Minor release that refreshes the bundled model catalog against current upstream generations, adds two direct gateway-only vendors (`zai` and `moonshot`), and expands the bundled registry from 21 to 38 entries.
+Data snapshot **2026-10-01**; upstream IDs, context windows, capabilities, and prices verified against vendor documentation and the live OpenRouter catalog (`GET https://openrouter.ai/api/v1/models`).
 
-**Breaking catalog-id change.** `deepseek-v4-flash` is retired from the bundled registry: the real upstream id of DeepSeek V4.1-Flash is `deepseek-flash`, and the hand-curated gateway catalog id `deepseek-pro` matched no upstream id at all (it is now `deepseek-v4-pro`, with `id === model` like every other hand-curated entry).
-A client config that pins `deepseek-v4-flash` gets `503 No gateway provider matches model` and must migrate to `deepseek-flash`.
-The `aiflowbridge.providers[]` array with an explicit `apiKey` remains the escape hatch for a self-hosted relay.
+### Breaking Changes
 
-Added models: `deepseek-flash`, `MiniMax-M3.1-Flash-Preview`, `mimo-v2.6-flash`, `mimo-v2.6-pro`, `mimo-v2.6-pro-ultraspeed`, `glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`, `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`, `kimi-k2.6`, `gemini-flash-latest`, `gemini-flash-lite-latest`, and the current OpenRouter free tier.
+- **DeepSeek upstream catalog ID alignment.** `deepseek-v4-flash` is retired from the bundled registry: the real upstream ID of DeepSeek V4.1-Flash is `deepseek-flash`. The hand-curated gateway profile ID `deepseek-pro` matched no upstream ID and is now `deepseek-v4-pro` (`id === model`). Any client configuration pinning `deepseek-v4-flash` receives `503 No gateway provider matches model` and should switch to `deepseek-flash`.
+- **Legacy model purges.** Outdated upstream models that were retired or superseded are removed from the default registry: `MiniMax-M2`, `MiniMax-M2.1`, `MiniMax-M2.1-highspeed`, `MiniMax-M2.5`, `MiniMax-M2.5-highspeed`, `mimo-v2-omni`, `mimo-v2-pro`, and OpenRouter free-tier entries that rotated out (`openai/gpt-oss-120b:free`, `meta-llama/llama-3.3-70b-instruct:free`, `qwen/qwen3-coder:free`, `qwen/qwen3-next-80b-a3b-instruct:free`).
 
-Purged models: `deepseek-v4-flash`, `MiniMax-M2`, `MiniMax-M2.1`, `MiniMax-M2.1-highspeed`, `MiniMax-M2.5`, `MiniMax-M2.5-highspeed` (all listed as legacy upstream), `mimo-v2-omni`, `mimo-v2-pro`, and the OpenRouter free-tier ids that left the free tier (`openai/gpt-oss-120b:free`, `meta-llama/llama-3.3-70b-instruct:free`, `qwen/qwen3-coder:free`, `qwen/qwen3-next-80b-a3b-instruct:free`).
+### Added
 
-New gateway-only vendors `zai` (GLM 5.3) and `moonshot` (Kimi K3 / K2.7 Code / K2.6) ship the full Path B treatment: registry vendor entry, `Set API Key` / `Clear API Key` commands, `AIFLOWBRIDGE_ZAI_API_KEY` / `AIFLOWBRIDGE_MOONSHOT_API_KEY` env vars, `secrets.json` short forms, `aiflowbridge.providers.*.{baseUrl,maxTokens,modelIdOverrides}` settings, an entry in the `Add a custom model` discovery picker, and a hand-curated gateway profile that supplies the friendly label and the family default pricing.
-Like `openrouter` and `googleaistudio`, they do NOT appear in the Copilot Chat picker: they are reachable from Kilo Code, Continue, Open WebUI, JetBrains AI Assistant and `curl` through `http://127.0.0.1:8787/v1`.
+- **New gateway-only vendor `zai` (GLM 5.3 family).** Direct OpenAI-compatible upstream at `https://api.z.ai/api/paas/v4` with bundled profiles for `glm-5.3` (flagship reasoning, 1M context, text-only), `glm-5.3-flash` (multimodal vision/video/file input, 1M context), and `glm-5.3-flashx` (high-throughput ~200 tokens/s, 1M context). Includes `Z.ai GLM: Set API Key` and `Z.ai GLM: Clear API Key` commands, `AIFLOWBRIDGE_ZAI_API_KEY` env var, `secrets.json` key slot, and `aiflowbridge.providers.zai.*` configuration settings. GLM Coding Plan subscribers can point `baseUrl` to `https://api.z.ai/api/coding/paas/v4`.
+- **New gateway-only vendor `moonshot` (MoonshotAI Kimi family).** Direct OpenAI-compatible upstream at `https://api.moonshot.ai/v1` with bundled profiles for `kimi-k3` (flagship 2.8T MoE, 1M context, multimodal), `kimi-k2.7-code` (dedicated coding model, 256K context), `kimi-k2.7-code-highspeed` (accelerated coding, ~180-260 tokens/s), and `kimi-k2.6` (versatile multimodal). Includes `MoonshotAI Kimi: Set API Key` and `MoonshotAI Kimi: Clear API Key` commands, `AIFLOWBRIDGE_MOONSHOT_API_KEY` env var, `secrets.json` key slot, and `aiflowbridge.providers.moonshot.*` configuration settings.
+- **DeepSeek V4.1 Flash (`deepseek-flash`).** 1M context, multimodal vision, default reasoning enabled, with updated pricing ($0.30/M in, $1.20/M out off-peak).
+- **MiniMax M3.1 Flash Preview (`MiniMax-M3.1-Flash-Preview`).** M Plan and MiniMax Code preview generation with native vision, thinking mode, and 1M context support.
+- **Xiaomi MiMo V2.6 suite.** Added `mimo-v2.6-flash` (ultra-cost-effective $0.05/M in, $0.15/M out, 1M context, multimodal, thinking), `mimo-v2.6-pro` ($0.10/M in, $0.30/M out, 1M context, multimodal, reasoning tier), and `mimo-v2.6-pro-ultraspeed` (low latency optimization).
+- **Google AI Studio rolling aliases.** Added `gemini-flash-latest` and `gemini-flash-lite-latest` aliases alongside stable pinned versions `gemini-3.8-flash`, `gemini-3.7-flash`, and `gemini-3.6-flash`.
+- **Current OpenRouter 15-model free tier.** Rebuilt the bundled $0-cost tier against the October 2026 live catalog: `cohere/north-mini-code:free`, `dots-studio/dots-3-note-preview:free`, `google/gemma-4-26b-a4b-it:free`, `google/gemma-4-31b-it:free`, `inclusionai/ling-3.0-flash-sante:free`, `liquid/lfm-2.5-2.6b:free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`, `nvidia/nemotron-3-super-120b-a12b:free`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `nvidia/nemotron-3.5-lightning:free`, `poolside/laguna-s-2.1:free`, `poolside/laguna-xs-2.1:free`, `qwen/qwen3.8-27b:free`, `thinkingmachines/inkling:free`, and `thinkingmachines/inkling-small:free`.
+- **Integration smoke tests.** Added automated smoke tests for Z.ai (`tests/integration/zai.smoke.test.ts`) and MoonshotAI (`tests/integration/moonshot.smoke.test.ts`) validating request building, authentication headers, error classification, and stream handling.
 
-GLM 5.3 and Kimi K3 always reason and reject a request that disables thinking.
-The gateway forwards the payload unchanged, so clients must pass `reasoning_effort` (`low` / `high` / `max`, default `max`) rather than `thinking.type: disabled`.
-Z.ai GLM Coding Plan subscribers must set `aiflowbridge.providers.zai.baseUrl` to `https://api.z.ai/api/coding/paas/v4`; the bundled default is the pay-as-you-go `https://api.z.ai/api/paas/v4`.
+### Changed
 
-`provider.googleaistudio.name` was missing from the i18n table, so the Google AI Studio key commands printed the raw key as their toast label.
-Fixed, and the same inline command blocks for Google AI Studio, Z.ai and MoonshotAI are now generated by one shared helper.
+- **Model catalog size.** Bundled registry expanded from 21 entries across 5 vendors to 38 entries across 7 vendors with models (`deepseek`, `minimax`, `xiaomi`, `zai`, `moonshot`, `googleaistudio`, `openrouter`), plus `antigravity` metadata.
+- **Always-on reasoning contract.** Clarified and documented behavior for models where thinking cannot be disabled (GLM 5.3, Kimi K3): requests must pass `reasoning_effort` (`low` / `high` / `max`) instead of sending `thinking.type: disabled` (which upstream rejects).
+- **Command generation deduplication.** Unified the registration of API key management commands for Google AI Studio, Z.ai, and MoonshotAI into a shared helper function in `src/runtime/provider.ts`.
 
-The bundled registry goes from 21 to 38 entries; the OpenRouter free-tier block is rebuilt at every refresh because that tier rotates.
+### Fixed
+
+- **Missing Google AI Studio toast label.** Added missing `provider.googleaistudio.name` translation to `src/i18n.ts` and `package.nls.json` so API key confirmation toasts show the localized provider title rather than the raw configuration key.
+
 
 ## 2.18.4
 

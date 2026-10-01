@@ -203,6 +203,22 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-10-01 - Kilo (Worktree V2, Bump mineur 2.19.0, Changelog Keep-a-Changelog et actualisation complète README / docs)
+
+Finalisation et documentation dans le worktree dédié `.kilo/worktree/model-catalog-refresh-V2` (branche `feat/model-catalog-refresh-v2`), sans altération des worktrees existants.
+Dépendances installées via `npm ci` dédié (garantit la compatibilité du packaging vsce sans symlink).
+Bump mineur 2.19.0 consolidé (`package.json`, `package-lock.json`).
+
+Livrables réalisés sur cette étape :
+- **`CHANGELOG.md`** : restructuré selon la convention Keep a Changelog avec sections explicites `Breaking Changes` (retrait de `deepseek-v4-flash` au profit de `deepseek-flash`, renommage `deepseek-pro` en `deepseek-v4-pro`, purges des modèles obsolètes M2/M2.1/M2.5/MiMo-V2-omni/pro), `Added` (vendors `zai` et `moonshot`, MiMo V2.6 suite, DeepSeek V4.1 Flash, MiniMax M3.1 Flash Preview, 15 modèles OpenRouter free récents, smoke tests), `Changed` (catalogue étendu à 38 modèles, gestion du thinking obligatoire), `Fixed` (label toast i18n pour Google AI Studio).
+- **`README.md`** : refonte du bandeau de nouveautés v2.19.0 (mise en avant de Z.ai GLM 5.3 et MoonshotAI Kimi K3, 38 modèles au catalogue, 15 modèles free), intégration des clés Z.ai / Moonshot dans le Quick Start (commandes VS Code et variables d'env), actualisation du comparatif de coûts (MiMo V2.6 Flash à 0.05 $/M in, GLM 5.3 Flash à 0.15 $/M in), mise à jour des commandes et du bloc Roadmap / Historique de release.
+- **`docs/cost.md`** : horodatage et version portés à `2026-10-01 / 2.19.0`, intégration des grilles tarifaires indicatives des 7 familles de modèles (incluant Z.ai GLM et MoonshotAI Kimi), simulation de dépenses mensuelles actualisée avec MiMo V2.6 Flash et GLM 5.3 Flash, volume de catalogue synchronisé à 38 modèles.
+- **`docs/providers.md`** : métadonnées snapshot portées au 2026-10-01 (AIFlowBridge 2.19.0) et mention des 15 modèles OpenRouter free.
+- **`docs/gateway.md`** : exemples de routage linguistique (`deepseek-v4-pro`), exemples de configuration Kilo Code rafraîchis avec les modèles actuels, mention des 38 modèles synthétisés.
+- **`docs/reasoning.md`** : ajout d'une section sur les modèles à raisonnement non désactivable (Z.ai GLM 5.3 et MoonshotAI Kimi) et recommandation de paramétrage `reasoning_effort` (`low`/`high`/`max`) pour éviter les rejets HTTP 400.
+- **`docs/jetbrains-continue.md`**, **`docs/dashboard.md`**, **`docs/architecture.md`**, et guides agents (`docs/agent-instructions/`) : alignement des identifiants réels (`deepseek-flash`, etc.), suppression des références résiduelles aux anciens modèles purgés.
+- **Style et validation** : un paragraphe physique par paragraphe markdown, aucun caractère em-dash ou en-dash (ASCII `-`), guillemets ASCII, diacritiques françaises préservées. Suite de tests validée (73 fichiers, 1 209 tests réussis), typecheck OK, exécutable autonome standalone et package VSIX générés avec succès.
+
 ### 2026-10-01 - Kilo (Minor 2.19.0 : rafraîchissement du catalogue + vendors passerelle seule zai / moonshot)
 
 Implémentation du plan `.kilo/plans/1790836404534-model-catalog-refresh.md` dans le worktree `../AIFlowBridge-model-catalog-refresh` (branche `feat/model-catalog-refresh`).
