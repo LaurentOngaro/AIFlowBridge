@@ -1019,19 +1019,6 @@ export class GatewayService {
     // on the existing Antigravity branch.
     const isGeminiNative = isGenerativeLanguageBaseUrl(provider.baseUrl);
     const isAntigravityBranch = isAntigravity && !isGeminiNative;
-    const upstreamUrl = isAntigravityBranch
-      ? resolveAntigravityStreamUrl(provider)
-      : resolveUpstreamUrl(provider, 'chat/completions');
-
-    // Antigravity / Google AI Studio uses the OAuth token manager instead
-    // of the static key chain (env / secrets.json / SecretStorage).
-    if (isAntigravityBranch) {
-      return this.buildAntigravityUpstreamRequest(payload, provider, requestId, response);
-    }
-
-    if (isGeminiNative) {
-      return this.buildGeminiNativeUpstreamRequest(payload, provider, requestId, response);
-    }
 
     // Resolve API key: use profile key if set, otherwise try the async resolver
     let resolvedKey = provider.apiKey;
@@ -1041,6 +1028,20 @@ export class GatewayService {
       } catch {
         // Ignore resolve errors; request will fail if upstream requires auth
       }
+    }
+
+    const upstreamUrl = isAntigravityBranch
+      ? resolveAntigravityStreamUrl(provider)
+      : resolveUpstreamUrl(provider, 'chat/completions', resolvedKey);
+
+    // Antigravity / Google AI Studio uses the OAuth token manager instead
+    // of the static key chain (env / secrets.json / SecretStorage).
+    if (isAntigravityBranch) {
+      return this.buildAntigravityUpstreamRequest(payload, provider, requestId, response);
+    }
+
+    if (isGeminiNative) {
+      return this.buildGeminiNativeUpstreamRequest(payload, provider, requestId, response);
     }
 
     // Defense-in-depth: refuse to inject a key whose shape is not
@@ -2567,11 +2568,35 @@ export class GatewayService {
 // in `tests/gateway.test.ts` can assert the Gemini public-API /openai
 // path rewrite without booting a full HTTP stack. The integration
 // smoke tests already cover the end-to-end path through the gateway.
-export function resolveUpstreamUrlForTest(provider: ProviderProfile, path: string): string {
-  return resolveUpstreamUrl(provider, path);
+export function resolveUpstreamUrlForTest(provider: ProviderProfile, path: string, resolvedKey?: string): string {
+  return resolveUpstreamUrl(provider, path, resolvedKey);
 }
 
-function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
+function resolveUpstreamUrl(provider: ProviderProfile, path: string, resolvedKey?: string): string {
+  let baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
+
+  // Xiaomi MiMo smart routing:
+  // - Pay-as-you-go keys (sk-*) MUST go to https://api.xiaomimimo.com/v1
+  // - Token Plan keys (tp-*, ttp-*) MUST go to cluster endpoints like https://token-plan-ams.xiaomimimo.com/v1
+  if (resolvedKey) {
+    const trimmedKey = resolvedKey.trim();
+    try {
+      const url = new URL(baseUrl);
+      const host = url.hostname.toLowerCase();
+      if (host.endsWith('xiaomimimo.com')) {
+        if (trimmedKey.startsWith('sk-') && host.startsWith('token-plan')) {
+          url.hostname = 'api.xiaomimimo.com';
+          baseUrl = url.toString().endsWith('/') ? url.toString() : `${url.toString()}/`;
+        } else if ((trimmedKey.startsWith('tp-') || trimmedKey.startsWith('ttp-')) && host === 'api.xiaomimimo.com') {
+          url.hostname = 'token-plan-ams.xiaomimimo.com';
+          baseUrl = url.toString().endsWith('/') ? url.toString() : `${url.toString()}/`;
+        }
+      }
+    } catch {
+      // Keep original baseUrl if URL parsing fails
+    }
+  }
+
   // `new URL(path, base)` interprets the baseUrl's path component as
   // the parent context and replaces it with the new `path`. With the
   // bundled Gemini public-API baseUrl
@@ -2580,7 +2605,6 @@ function resolveUpstreamUrl(provider: ProviderProfile, path: string): string {
   // instead want `/v1beta/openai/chat/completions` (the documented
   // OpenAI-compatible surface for Gemini public API). Construct the
   // URL manually so the trailing `/v1beta` segment stays in place.
-  const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
   const trimmed = path.startsWith('/') ? path.slice(1) : path;
   const combined = `${baseUrl}${trimmed}`;
   try {

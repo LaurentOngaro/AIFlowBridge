@@ -11,6 +11,36 @@ export function getProviderBaseUrl(vendor: string): string {
   return config.get<string>(key) || tryGetLoadedRegistry()?.vendors[vendor]?.baseUrl || '';
 }
 
+/**
+ * Resolve the effective Xiaomi MiMo base URL based on the API key type.
+ * - Pay-as-you-go keys (`sk-*`) require `https://api.xiaomimimo.com/v1`.
+ * - Token Plan keys (`tp-*` or `ttp-*`) require cluster endpoints like `https://token-plan-ams.xiaomimimo.com/v1`.
+ */
+export function resolveXiaomiBaseUrl(baseUrl: string, apiKey?: string): string {
+  if (!apiKey) {
+    return baseUrl;
+  }
+  const trimmedKey = apiKey.trim();
+  try {
+    const url = new URL(baseUrl);
+    const host = url.hostname.toLowerCase();
+    if (host.endsWith('xiaomimimo.com')) {
+      if (trimmedKey.startsWith('sk-') && host.startsWith('token-plan')) {
+        url.hostname = 'api.xiaomimimo.com';
+        return url.toString().replace(/\/+$/, '');
+      }
+      if ((trimmedKey.startsWith('tp-') || trimmedKey.startsWith('ttp-')) && host === 'api.xiaomimimo.com') {
+        url.hostname = 'token-plan-ams.xiaomimimo.com';
+        return url.toString().replace(/\/+$/, '');
+      }
+    }
+  } catch {
+    // Keep original baseUrl if URL parsing fails
+  }
+  return baseUrl;
+}
+
+
 export function getProviderApiModelId(vendor: string, vscodeModelId: string): string {
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   const key = `providers.${vendor}.modelIdOverrides` as const;

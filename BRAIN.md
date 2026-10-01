@@ -203,6 +203,13 @@ Capacités réelles de Perplexity (mesurées le 2026-09-02) :
 > Les entrées ci-dessous documentent les **décisions architecturales** et les
 > **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-10-01 - Antigravity (Fix Xiaomi MiMo : auto-routage des clés Pay-as-you-go sk-* vs Token Plan tp-*)
+
+Correction du bug 401 "Invalid API Key" rencontré avec les clés Xiaomi MiMo standard :
+- **Cause racine** : Xiaomi sépare strictement ses clusters d'API : les clés standard Pay-as-you-go (`sk-*`) sont valides uniquement sur `https://api.xiaomimimo.com/v1`, tandis que les clés de forfaits Token Plan (`tp-*` ou `ttp-*`) sont valides uniquement sur les clusters Token Plan (ex: `https://token-plan-ams.xiaomimimo.com/v1`). Le catalogue bundle utilisait `token-plan-ams.xiaomimimo.com`, rejetant silencieusement les clés `sk-*` avec un HTTP 401 d'invalidité de clé.
+- **Solution implémentée** : création de `resolveXiaomiBaseUrl` dans `src/config.ts` et intégration dans `resolveUpstreamUrl` (passerelle gateway) ainsi que dans `XiaomiChatProvider.sendRequest` (Copilot Chat direct). L'auto-routage inspecte le préfixe de la clé résolue : si la clé commence par `sk-*` et que l'URL cible un cluster `token-plan-*.xiaomimimo.com`, elle est automatiquement redirigée vers `https://api.xiaomimimo.com/v1` ; inversement, si la clé commence par `tp-*`/`ttp-*` et que l'URL est `api.xiaomimimo.com`, elle bascule sur `token-plan-ams.xiaomimimo.com`. Les relais privés personnalisés hors domaine `xiaomimimo.com` sont préservés intacts.
+- **Tests** : 5 tests unitaires ajoutés dans `tests/config.test.ts` et assertions ajoutées dans `tests/gateway.test.ts`. 73 suites de tests sur 73 réussies (1 214 tests).
+
 ### 2026-10-01 - Kilo (Worktree V2, Bump mineur 2.19.0, Changelog Keep-a-Changelog et actualisation complète README / docs)
 
 Finalisation et documentation dans le worktree dédié `.kilo/worktree/model-catalog-refresh-V2` (branche `feat/model-catalog-refresh-v2`), sans altération des worktrees existants.

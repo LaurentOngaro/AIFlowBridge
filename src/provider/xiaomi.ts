@@ -7,6 +7,7 @@ import {
   getProviderReasoningRequiredForToolCalls,
   getProviderTemperature,
   getProviderTopP,
+  resolveXiaomiBaseUrl,
 } from '../config';
 import { API_KEY_SECRETS, LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
 import { t } from '../i18n';
@@ -226,8 +227,10 @@ export class XiaomiChatProvider extends BaseChatProvider {
     const controller = new AbortController();
     const cancelListener = token.onCancellationRequested(() => controller.abort());
 
+    const effectiveBaseUrl = resolveXiaomiBaseUrl(getProviderBaseUrl(this.vendor), apiKey);
+
     try {
-      const response = await fetch(`${getProviderBaseUrl(this.vendor)}/chat/completions`, {
+      const response = await fetch(`${effectiveBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -248,7 +251,7 @@ export class XiaomiChatProvider extends BaseChatProvider {
         } catch {
           // Ignore read errors
         }
-        throw createHttpProviderError(response, getProviderBaseUrl(this.vendor), 'Xiaomi MiMo', detail);
+        throw createHttpProviderError(response, effectiveBaseUrl, 'Xiaomi MiMo', detail);
       }
 
       if (!response.body) {
@@ -256,7 +259,7 @@ export class XiaomiChatProvider extends BaseChatProvider {
           message: 'Xiaomi MiMo API returned no response body',
           kind: 'network',
           provider: 'Xiaomi MiMo',
-          baseUrl: getProviderBaseUrl(this.vendor),
+          baseUrl: effectiveBaseUrl,
         });
       }
 

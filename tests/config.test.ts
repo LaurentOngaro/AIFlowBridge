@@ -51,6 +51,7 @@ import {
   getRequestDumpEnabled,
   getStabilizeToolListEnabled,
   resolveReasoningSplit,
+  resolveXiaomiBaseUrl,
 } from '../src/config';
 
 const BUNDLED_REGISTRY_PATH = resolve(__dirname, '..', 'resources', 'models.json');
@@ -502,5 +503,33 @@ describe('config.ts - resolveReasoningSplit (picker-aware)', () => {
 
   it('thinking-capable model: undefined picker + undefined setting defaults to true', () => {
     expect(resolveReasoningSplit(true, undefined, undefined)).toBe(true);
+  });
+});
+
+describe('config.ts - resolveXiaomiBaseUrl', () => {
+  it('returns baseUrl unchanged when no apiKey is provided', () => {
+    expect(resolveXiaomiBaseUrl('https://token-plan-ams.xiaomimimo.com/v1')).toBe('https://token-plan-ams.xiaomimimo.com/v1');
+    expect(resolveXiaomiBaseUrl('https://api.xiaomimimo.com/v1')).toBe('https://api.xiaomimimo.com/v1');
+  });
+
+  it('routes pay-as-you-go sk-* key to api.xiaomimimo.com', () => {
+    expect(resolveXiaomiBaseUrl('https://token-plan-ams.xiaomimimo.com/v1', 'sk-testkey')).toBe('https://api.xiaomimimo.com/v1');
+    expect(resolveXiaomiBaseUrl('https://token-plan-sgp.xiaomimimo.com/v1', 'sk-testkey')).toBe('https://api.xiaomimimo.com/v1');
+    expect(resolveXiaomiBaseUrl('https://api.xiaomimimo.com/v1', 'sk-testkey')).toBe('https://api.xiaomimimo.com/v1');
+  });
+
+  it('routes token plan tp-* and ttp-* keys to token-plan-ams.xiaomimimo.com when starting from api.xiaomimimo.com', () => {
+    expect(resolveXiaomiBaseUrl('https://api.xiaomimimo.com/v1', 'tp-plan-key')).toBe('https://token-plan-ams.xiaomimimo.com/v1');
+    expect(resolveXiaomiBaseUrl('https://api.xiaomimimo.com/v1', 'ttp-trial-key')).toBe('https://token-plan-ams.xiaomimimo.com/v1');
+  });
+
+  it('preserves specific token plan regional cluster when already configured', () => {
+    expect(resolveXiaomiBaseUrl('https://token-plan-sgp.xiaomimimo.com/v1', 'tp-plan-key')).toBe('https://token-plan-sgp.xiaomimimo.com/v1');
+    expect(resolveXiaomiBaseUrl('https://token-plan-cn.xiaomimimo.com/v1', 'tp-plan-key')).toBe('https://token-plan-cn.xiaomimimo.com/v1');
+  });
+
+  it('preserves non-xiaomimimo.com custom baseUrls verbatim', () => {
+    expect(resolveXiaomiBaseUrl('https://my-proxy.company.internal/v1', 'sk-testkey')).toBe('https://my-proxy.company.internal/v1');
+    expect(resolveXiaomiBaseUrl('https://my-proxy.company.internal/v1', 'tp-testkey')).toBe('https://my-proxy.company.internal/v1');
   });
 });

@@ -216,6 +216,37 @@ describe('GatewayService - HTTP endpoints', () => {
     expect(resolveUpstreamUrlForTest(openrouter, 'chat/completions')).toBe(
       'https://openrouter.ai/api/v1/chat/completions'
     );
+
+    // Xiaomi MiMo smart routing: sk-* keys route to api.xiaomimimo.com, tp-* keys route to token-plan
+    const xiaomiTokenPlan = {
+      id: 'mimo',
+      label: 'Xiaomi MiMo',
+      kind: 'openai-compat',
+      baseUrl: 'https://token-plan-ams.xiaomimimo.com/v1',
+      model: 'mimo-v2.5',
+      enabled: true,
+    } as unknown as ProviderProfile;
+    expect(resolveUpstreamUrlForTest(xiaomiTokenPlan, 'chat/completions', 'sk-test-key')).toBe(
+      'https://api.xiaomimimo.com/v1/chat/completions'
+    );
+    expect(resolveUpstreamUrlForTest(xiaomiTokenPlan, 'chat/completions', 'tp-test-token-plan')).toBe(
+      'https://token-plan-ams.xiaomimimo.com/v1/chat/completions'
+    );
+
+    const xiaomiStandard = {
+      id: 'mimo',
+      label: 'Xiaomi MiMo',
+      kind: 'openai-compat',
+      baseUrl: 'https://api.xiaomimimo.com/v1',
+      model: 'mimo-v2.5',
+      enabled: true,
+    } as unknown as ProviderProfile;
+    expect(resolveUpstreamUrlForTest(xiaomiStandard, 'chat/completions', 'tp-test-token-plan')).toBe(
+      'https://token-plan-ams.xiaomimimo.com/v1/chat/completions'
+    );
+    expect(resolveUpstreamUrlForTest(xiaomiStandard, 'chat/completions', 'sk-test-key')).toBe(
+      'https://api.xiaomimimo.com/v1/chat/completions'
+    );
   });
 
   it('GET /unknown returns 404', async () => {
