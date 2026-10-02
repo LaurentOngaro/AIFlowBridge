@@ -1,10 +1,8 @@
 # BRAIN.md — Mémoire du projet AIFlowBridge
 
-> Journal partagé et fil rouge du projet. Ce fichier est la **mémoire commune**
-> entre les agents IA (Kilo Code, Kilo CLI) et le mainteneur humain.
+> Journal partagé et fil rouge du projet. Ce fichier est la **mémoire commune** entre les agents IA (Kilo Code, Kilo CLI) et le mainteneur humain.
 >
-> ⚠️ **Ce dépôt est public** : ce fichier ne doit contenir QUE des informations
-> techniques publiables. Voir « Règles de contenu » ci-dessous.
+> ⚠️ **Ce dépôt est public** : ce fichier ne doit contenir QUE des informations techniques publiables. Voir « Règles de contenu » ci-dessous.
 
 ---
 
@@ -22,25 +20,16 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 ## Règles d'usage (obligatoires pour tout agent)
 
 1. **Lire ce fichier et `ACTION_PLAN.md` au début de toute session de travail.**
-2. **Mettre à jour le journal à la fin de toute tâche** (le hook `pre-commit`
-   bloque par défaut tout commit qui ne touche ni `BRAIN.md` ni `ACTION_PLAN.md`).
-3. Une entrée de journal = date, agent, action, résultat, liens éventuels.
-   Rester concis et factuel.
-4. Ne jamais réécrire l'historique du journal : on ajoute, on ne supprime pas
-   (sauf erreur sensible, voir règles de contenu).
-5. Les décisions nouvelles sont d'abord proposées dans le journal, puis
-   consolidées dans « Décisions d'architecture » une fois validées par l'utilisateur.
+2. **Mettre à jour le journal à la fin de toute tâche** (le hook `pre-commit` bloque par défaut tout commit qui ne touche ni `BRAIN.md` ni `ACTION_PLAN.md`).
+3. Une entrée de journal = date, agent, action, résultat, liens éventuels. Rester concis et factuel.
+4. Ne jamais réécrire l'historique du journal : on ajoute, on ne supprime pas (sauf erreur sensible, voir règles de contenu).
+5. Les décisions nouvelles sont d'abord proposées dans le journal, puis consolidées dans « Décisions d'architecture » une fois validées par l'utilisateur.
 6. **Aucun commit automatique :** Ne JAMAIS exécuter `git commit` sans demande explicite de l'utilisateur (ex: « fais le commit »). L'agent prépare le code, les tests et le journal, mais l'utilisateur conserve toujours la main sur la validation et l'historique git.
 
 ## Règles de contenu (dépôt public)
 
-- ❌ Jamais de : tokens, clés API privées, codes OAuth secrets, cookies,
-  emails privés, données personnelles, URLs internes/privées, montants de
-  facturation détaillés.
-- ✅ Autorisé : architecture, décisions techniques, état des tâches, erreurs
-  assainies (sans secret), liens publics, noms de modèles et de providers.
-- Toute note sensible va dans le canal privé `AIFlowBridge-Private`
-  (`BRAIN-PRIVATE.md`) ; les vrais secrets restent locaux hors git (`.ai/`).
+- ❌ Jamais de : tokens, clés API privées, codes OAuth secrets, cookies, emails privés, données personnelles, URLs internes/privées, montants de facturation détaillés.
+- ✅ Autorisé : architecture, décisions techniques, état des tâches, erreurs assainies (sans secret), liens publics, noms de modèles et de providers. - Toute note sensible va dans le canal privé `AIFlowBridge-Private` (`BRAIN-PRIVATE.md`) ; les vrais secrets restent locaux hors git (`.ai/`).
 - **Exception documentée pour les credentials OAuth publics de l'AGY CLI**
   (le `client_id` et le `client_secret` sont embarqués dans le binaire
   officiel d'Antigravity, donc techniquement publics) : ils sont hardcodés
@@ -191,12 +180,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 ## Journal (plus recent en haut)
 
-> Note : ce journal a été compacté le 2026-09-05 avant handoff vers une nouvelle
-> session. Les entrées redondantes de micro-débogage (x-goog-api-key, finish_reason,
-> streaming drain, etc.) sont remplacées par les références aux **BUG-01..17 de
-> l'audit v2** dans « Contexte technique clé → Intégration Gemini / Antigravity ».
-> Les entrées ci-dessous documentent les **décisions architecturales** et les
-> **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
+> Les entrées ci-dessous documentent les **décisions architecturales** et les  **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
 ### 2026-10-01 - Kilo (Gemini : mots-clés JSON Schema refusés par l'upstream)
 
