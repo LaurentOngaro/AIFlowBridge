@@ -3,7 +3,7 @@
   "generatedAt": "2026-10-01T13:00:33.013Z",
   "source": "openrouter",
   "sourceUrl": "https://openrouter.ai/api/v1/models",
-  "aiflowbridgeVersion": "2.20.0",
+  "aiflowbridgeVersion": "2.21.0",
   "models": {
     "openai/gpt-6.1-sol-pro": {
       "inputPerMillion": 2,

@@ -6,6 +6,20 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.21.0
+
+Fix for Gemini tool calling when clients send tool results as a content-parts array or JSON array, with automatic resolution of function names from tool call IDs, and cleanup of superseded design specifications.
+
+### Fixed
+
+- **Gemini rejected tool responses sent as a content-parts array with HTTP 400.** Some OpenAI-compatible clients return tool results as an array of content parts (e.g. `content: [{ type: 'text', text: '...' }]`) or as a JSON string holding an array (`'[1,2,3]'`). Upstream Gemini models map `functionResponse.response` to a non-repeating `google.protobuf.Struct`, so sending a list triggered `Proto field is not repeating, cannot start list` (HTTP 400 INVALID_ARGUMENT). Content-parts arrays are now flattened into text and re-parsed so structured payloads remain intact, while array strings and scalar values are safely wrapped into `{ result: ... }`.
+- **Gemini tool responses without an explicit name now resolve their function name from the tool call ID.** OpenAI specification allows tool messages to omit `name` when `tool_call_id` is provided. The Gemini upstream expects the matching function name on each `functionResponse`. Both translator paths now maintain a mapping of `tool_call_id` to function names gathered from preceding assistant turns, only falling back to a placeholder as a last resort.
+- **The two Gemini translation paths duplicated tool response parsing.** The BYOK Google AI Studio route (`gemini-native.ts`) and the Antigravity OAuth route (`envelope.ts`) each had their own copy of the tool message conversion. Normalization is now unified in `toFunctionResponseValue` within `src/aiflowbridge/antigravity/content-parts.ts`.
+
+### Removed
+
+- **Superseded Antigravity implementation planning documents.** Removed `docs/plans/antigravity-gateway-integration-spec.md` and `docs/plans/antigravity-provider-kilo-cli.md`, which were initial architectural proposals now fully implemented and documented in the main documentation tree.
+
 ## 2.20.0
 
 Three independent changes to how a request reaches an upstream, all in the request pipeline: vendor API keys are resolved more leniently from the environment, and two models that refuse to be called with reasoning disabled, or with a tool schema Gemini does not recognise, go through again.

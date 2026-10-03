@@ -8,7 +8,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { DEFAULT_USER_AGENT } from './constants';
-import { logDroppedImageUrls, openAiContentToGeminiParts } from './content-parts';
+import { logDroppedImageUrls, openAiContentToGeminiParts, toFunctionResponseValue } from './content-parts';
 import { cleanJsonSchema } from './json-schema-clean';
 import type {
     CloudCodeContent,
@@ -45,6 +45,12 @@ export interface OpenAiChatMessage {
    * thought_signature`.
    */
   extra_signature?: string;
+  /**
+   * OpenAI identifier of the `tool_calls` entry this result answers.
+   * Used to resolve the native `functionResponse.name` when the client
+   * omits `name`.
+   */
+  tool_call_id?: string;
   tool_calls?: Array<{
     id?: string;
     function?: { name?: string; arguments?: unknown };
@@ -96,6 +102,10 @@ export function toAntigravityEnvelope(
   const messages: OpenAiChatMessage[] = Array.isArray(openaiBody.messages) ? (openaiBody.messages as OpenAiChatMessage[]) : [];
   const contents: CloudCodeContent[] = [];
   const systemParts: Array<{ text: string }> = [];
+  // `tool_call_id` -> function name, filled while scanning assistant
+  // turns, so a tool result that omits `name` still pairs with its
+  // `functionCall` on the Cloud Code envelope.
+  const toolNameByCallId = new Map<string, string>();
 
   const pushMerged = (role: 'user' | 'model', parts: CloudCodePart[]): void => {
     if (parts.length === 0) {
@@ -169,6 +179,9 @@ export function toAntigravityEnvelope(
               args,
             },
           };
+          if (typeof tc.id === 'string' && tc.id.length > 0 && tc.function?.name) {
+            toolNameByCallId.set(tc.id, tc.function.name);
+          }
           // Transparent pass-through of `extra_signature` -> AGY
           // `thoughtSignature` part. The AGY Cloud Code envelope
           // reuses the same part shape as the native surface, so the
@@ -192,20 +205,17 @@ export function toAntigravityEnvelope(
     }
 
     if (role === 'tool') {
-      const toolName = msg.name || 'tool_response';
-      let parsedResponse: Record<string, unknown>;
-      if (typeof msg.content === 'string') {
-        try {
-          const parsed: unknown = JSON.parse(msg.content);
-          parsedResponse = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : { result: msg.content };
-        } catch {
-          parsedResponse = { result: msg.content };
-        }
-      } else if (msg.content && typeof msg.content === 'object') {
-        parsedResponse = msg.content as Record<string, unknown>;
-      } else {
-        parsedResponse = { result: String(msg.content ?? '') };
-      }
+      // `functionResponse.response` is a protobuf Struct upstream, so it
+      // must be a JSON object. A content-parts array (or a JSON array in a
+      // string) is normalized by the shared helper - forwarding it as-is
+      // returns 400 `Proto field is not repeating, cannot start list`.
+      const parsedResponse = toFunctionResponseValue(msg.content, warn) ?? { result: String(msg.content ?? '') };
+      // Prefer the client-supplied name, fall back to the name of the
+      // `tool_calls` entry this result answers, then to a placeholder.
+      const toolName =
+        msg.name ||
+        (typeof msg.tool_call_id === 'string' ? toolNameByCallId.get(msg.tool_call_id) : undefined) ||
+        'tool_response';
 
       const functionResponsePart: CloudCodePart = {
         functionResponse: {

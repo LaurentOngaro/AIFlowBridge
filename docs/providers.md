@@ -4,7 +4,7 @@
 
 ## Supported models (38 bundled + 100+ reachable via OpenRouter)
 
-> Data snapshot: 2026-10-01 (AIFlowBridge 2.20.0). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
+> Data snapshot: 2026-10-01 (AIFlowBridge 2.21.0). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
 
 | Provider         | Models                                                                                                                                                           | Vision          | Tool Calling |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
@@ -354,7 +354,7 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 ### Snapshot metadata
 
 - Current snapshot date: **2026-10-01**
-- Current snapshot version: **AIFlowBridge 2.20.0**
+- Current snapshot version: **AIFlowBridge 2.21.0**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 

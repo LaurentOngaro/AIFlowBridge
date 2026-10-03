@@ -151,6 +151,83 @@ describe('toGeminiNativeRequest', () => {
     });
   });
 
+  it('flattens a content-parts array tool result into a JSON object response', () => {
+    const warnings: string[] = [];
+    const out = toGeminiNativeRequest(
+      {
+        messages: [
+          { role: 'user', content: 'read the file' },
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{ id: 'call_1', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } }],
+          },
+          { role: 'tool', tool_call_id: 'call_1', name: 'read_file', content: [{ type: 'text', text: 'file body' }] },
+        ],
+      },
+      (message: string) => warnings.push(message)
+    );
+    expect(out.contents[2]).toEqual({
+      role: 'user',
+      parts: [{ functionResponse: { name: 'read_file', response: { result: 'file body' } } }],
+    });
+    // The upstream `functionResponse.response` field is a Struct: a JSON
+    // list there returns 400 "Proto field is not repeating".
+    expect(Array.isArray((out.contents[2]?.parts[0] as { functionResponse: { response: unknown } }).functionResponse.response)).toBe(false);
+    expect(warnings.some((line) => line.includes('content-parts array'))).toBe(true);
+  });
+
+  it('keeps a structured payload intact when the tool result is a content-parts array', () => {
+    const out = toGeminiNativeRequest({
+      messages: [
+        { role: 'user', content: 'read the file' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } }],
+        },
+        { role: 'tool', tool_call_id: 'call_1', name: 'read_file', content: [{ type: 'text', text: '{"temp":18}' }] },
+      ],
+    });
+    expect(out.contents[2]?.parts[0]).toEqual({
+      functionResponse: { name: 'read_file', response: { temp: 18 } },
+    });
+  });
+
+  it('wraps a JSON array tool result string instead of forwarding the array', () => {
+    const out = toGeminiNativeRequest({
+      messages: [
+        { role: 'user', content: 'list files' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'list_files', arguments: '{}' } }],
+        },
+        { role: 'tool', tool_call_id: 'call_1', name: 'list_files', content: '[1,2,3]' },
+      ],
+    });
+    expect(out.contents[2]?.parts[0]).toEqual({
+      functionResponse: { name: 'list_files', response: { result: '[1,2,3]' } },
+    });
+  });
+
+  it('resolves the function name from tool_call_id when the tool message omits it', () => {
+    const out = toGeminiNativeRequest({
+      messages: [
+        { role: 'user', content: 'weather in Paris?' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', function: { name: 'get_weather', arguments: '{"city":"Paris"}' } }],
+        },
+        { role: 'tool', tool_call_id: 'call_1', content: '{"temp":18}' },
+      ],
+    });
+    expect(out.contents[2]?.parts[0]).toEqual({
+      functionResponse: { name: 'get_weather', response: { temp: 18 } },
+    });
+  });
+
   it('merges same-role turns so the native contents strictly alternate', () => {
     const out = toGeminiNativeRequest({
       messages: [

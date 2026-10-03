@@ -182,6 +182,36 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 > Les entrées ci-dessous documentent les **décisions architecturales** et les  **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-10-03 - Kilo (Gemini : résultat d'outil en tableau de parts, 400 « Proto field is not repeating »)
+
+Erreur remontée par l'utilisateur sur un chat Gemini 3.8 via la gateway : `Invalid JSON payload received.
+Unknown name "response" at 'contents[2].parts[0].function_response': Proto field is not repeating, cannot start list.`, HTTP 400 `INVALID_ARGUMENT`.
+
+**Cause.** Dans les deux traducteurs Gemini, la branche `role === 'tool'` faisait `msg.content as Record<string, unknown>` sans garde `Array.isArray`.
+`typeof [] === 'object'`, donc un client qui envoie le résultat d'outil sous forme de tableau de content parts (`content: [{ type: 'text', text: '...' }]`, forme OpenAI valide) le voir passer tel quel dans `functionResponse.response`, sérialisé en `"response": [ ... ]`.
+Or `FunctionResponse.response` est une `google.protobuf.Struct` sur les deux surfaces Gemini : un champ non repeated, donc une liste y est un 400.
+Le même chemin accepte aussi une chaîne JSON qui décode en tableau (`'[1,2,3]'`), deuxième source du même 400.
+
+**Preuve.** Repro exécutée sur `toGeminiNativeRequest` avant correctif : `content: [{type:'text',text:'file body'}]` produisait exactement `{"functionResponse":{"name":"tool","response":[{...}]}}` en `contents[2].parts[0]`, le chemin cited par l'erreur utilisateur.
+Aucune mutation de message `tool` n'existe dans la gateway (`server.ts` n'a aucune branche `role === 'tool'`), donc la forme vient bien du client.
+
+**Même cause structurelle que AP-027 : la logique était dupliquée.** `gemini-native.ts` (BYOK `googleaistudio`) et `envelope.ts` (OAuth Antigravity) avaient chacun leur copie de l'analyse du résultat d'outil, donc le même 400 sur les deux surfaces.
+Correction dans le même sens qu'AP-027 : source unique `toFunctionResponseValue()` dans `src/aiflowbridge/antigravity/content-parts.ts` (module déjà partagé par les deux traducteurs), qui aplatit un tableau de parts en texte puis le ré-analyse, garde un objet JSON tel quel, et enveloppe tout le reste en `{ result: ... }`.
+Un payload structuré survit au travers du tableau : `[{ text: '{"temp":18}' }]` donne toujours `{ temp: 18 }`.
+
+**Second défaut latent corrigé au passage.** Le nom de la fonction venait de `msg.name ?? 'tool'` (resp. `'tool_response'`), alors qu'un message `tool` OpenAI porte l'information dans `tool_call_id` et que `name` est facultatif.
+Un placeholder ne correspond à aucun `functionCall` déclaré.
+Les deux traducteurs construisent maintenant une table `tool_call_id` -> nom en parcourant les tours assistant, et ne retombent sur le placeholder qu'en dernier recours.
+
+**Diagnostic observable.** Le helper n'émet un `warn` que dans le cas qui échouait (`[Gemini] tool message content is a content-parts array (N entries) - flattened, functionResponse.response must be a JSON object`), donc `AIFlowBridge: Show logs` révèle désormais quels clients utilisent cette forme.
+Volume faible par construction.
+
+**Vérifié.** `npm run validate` : 1283 tests verts (7 nouveaux, 4 dans `tests/gemini-native.test.ts`, 3 dans `tests/antigravity-envelope.test.ts`, sur les deux surfaces), `compile:standalone` vert.
+**Bump mineur 2.21.0 demandé par l'utilisateur** : `package.json`, `package-lock.json`, `resources/pricing.json` (`aiflowbridgeVersion`), `CHANGELOG.md` et les 4 docs mentionnant la version (`README.md`, `docs/providers.md`, `docs/cost.md`, `docs/architecture.md`).
+Suppression des deux fichiers de plans devenus obsolètes dans `docs/plans/`.
+**Limite assumée** : comme pour AP-027, aucun appel réel vers Gemini (pas de clé AI Studio exploitable depuis cette machine) ; la correction est prouvée par test unitaire sur la forme exacte du rapport, et non par un aller-retour upstream.
+**Non commité** : règle « aucun commit automatique ».
+
 ### 2026-10-01 - Kilo (Gemini : mots-clés JSON Schema refusés par l'upstream)
 
 Erreur remontée par l'utilisateur sur Gemini 3.8 Flash via la gateway : `Invalid JSON payload received.

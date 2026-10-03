@@ -45,7 +45,7 @@
 
 import { cleanJsonSchema } from './json-schema-clean';
 import { randomBytes } from 'node:crypto';
-import { logDroppedImageUrls, openAiContentToGeminiParts } from './content-parts';
+import { logDroppedImageUrls, openAiContentToGeminiParts, toFunctionResponseValue } from './content-parts';
 
 /** Native Gemini request body for `:generateContent` and `:streamGenerateContent?alt=sse`. */
 export interface GeminiNativeRequest {
@@ -209,6 +209,11 @@ export function toGeminiNativeRequest(
 
   const systemParts: Array<{ text: string }> = [];
   const contents: GeminiNativeRequest['contents'] = [];
+  // `tool_call_id` -> function name, filled while scanning assistant
+  // turns. OpenAI tool messages may omit `name`; the native surface needs
+  // the real function name on `functionResponse` to pair it with the
+  // preceding `functionCall`.
+  const toolNameByCallId = new Map<string, string>();
 
   const pushMerged = (role: 'user' | 'model', parts: GeminiNativeRequest['contents'][number]['parts']): void => {
     if (parts.length === 0) {
@@ -259,6 +264,9 @@ export function toGeminiNativeRequest(
             }
           }
           void tc.id;
+          if (typeof tc.id === 'string' && tc.id.length > 0) {
+            toolNameByCallId.set(tc.id, name);
+          }
           // `thoughtSignature` is a SIBLING of `functionCall`, not a
           // child. See the `GeminiNativeRequest` JSDoc above.
           const functionCallPart: {
@@ -289,21 +297,21 @@ export function toGeminiNativeRequest(
       continue;
     }
     if (role === 'tool') {
-      let response: Record<string, unknown> = {};
-      if (typeof msg.content === 'string') {
-        try {
-          const parsed: unknown = JSON.parse(msg.content);
-          response = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : { result: msg.content };
-        } catch {
-          response = { result: msg.content };
-        }
-      } else if (msg.content && typeof msg.content === 'object') {
-        response = msg.content as Record<string, unknown>;
-      }
+      // `functionResponse.response` is a protobuf Struct upstream, so it
+      // must be a JSON object. A content-parts array (or a JSON array in a
+      // string) is normalized by the shared helper - forwarding it as-is
+      // returns 400 `Proto field is not repeating, cannot start list`.
+      const response = toFunctionResponseValue(msg.content, warn) ?? {};
+      // Prefer the client-supplied name, fall back to the name of the
+      // `tool_calls` entry this result answers, then to a placeholder.
+      const name =
+        msg.name ??
+        (typeof msg.tool_call_id === 'string' ? toolNameByCallId.get(msg.tool_call_id) : undefined) ??
+        'tool';
       const functionResponsePart: {
         functionResponse: { name: string; response: Record<string, unknown> };
         thoughtSignature?: string;
-      } = { functionResponse: { name: msg.name ?? 'tool', response } };
+      } = { functionResponse: { name, response } };
       // Transparent pass-through of the tool result's
       // `extra_signature` so the upstream can pair the response
       // with the functionCall it refers to.

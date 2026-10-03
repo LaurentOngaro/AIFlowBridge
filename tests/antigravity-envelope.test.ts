@@ -177,6 +177,76 @@ describe('toAntigravityEnvelope', () => {
     });
   });
 
+  it('flattens a content-parts array tool result into a JSON object response', () => {
+    const warnings: string[] = [];
+    const openaiBody = {
+      model: 'gemini-3.8-flash',
+      messages: [
+        { role: 'user', content: 'read the file' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{}' } }],
+        },
+        { role: 'tool', name: 'read_file', tool_call_id: 'call_1', content: [{ type: 'text', text: 'file body' }] },
+      ],
+    };
+    const envelope = toAntigravityEnvelope(
+      openaiBody,
+      'proj-abc',
+      'gemini-3.8-flash',
+      undefined,
+      (message: string) => warnings.push(message)
+    );
+    // The upstream `functionResponse.response` field is a Struct: a JSON
+    // list there returns 400 "Proto field is not repeating".
+    expect(envelope.request.contents[2]?.parts[0].functionResponse).toEqual({
+      name: 'read_file',
+      response: { result: 'file body' },
+    });
+    expect(warnings.some((line) => line.includes('content-parts array'))).toBe(true);
+  });
+
+  it('wraps a JSON array tool result string instead of forwarding the array', () => {
+    const openaiBody = {
+      model: 'gemini-3.8-flash',
+      messages: [
+        { role: 'user', content: 'list files' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'list_files', arguments: '{}' } }],
+        },
+        { role: 'tool', name: 'list_files', tool_call_id: 'call_1', content: '[1,2,3]' },
+      ],
+    };
+    const envelope = toAntigravityEnvelope(openaiBody, 'proj-abc', 'gemini-3.8-flash');
+    expect(envelope.request.contents[2]?.parts[0].functionResponse).toEqual({
+      name: 'list_files',
+      response: { result: '[1,2,3]' },
+    });
+  });
+
+  it('resolves the function name from tool_call_id when the tool message omits it', () => {
+    const openaiBody = {
+      model: 'gemini-3.8-flash',
+      messages: [
+        { role: 'user', content: 'weather in Paris?' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{}' } }],
+        },
+        { role: 'tool', tool_call_id: 'call_1', content: '{"temp":18}' },
+      ],
+    };
+    const envelope = toAntigravityEnvelope(openaiBody, 'proj-abc', 'gemini-3.8-flash');
+    expect(envelope.request.contents[2]?.parts[0].functionResponse).toEqual({
+      name: 'get_weather',
+      response: { temp: 18 },
+    });
+  });
+
   it('merges consecutive same-role turns so the envelope strictly alternates', () => {
     const openaiBody = {
       model: 'gemini-3.8-flash',

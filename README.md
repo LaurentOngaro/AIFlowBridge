@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, Z.ai GLM 5.3, MoonshotAI Kimi K3, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.20.0** - data snapshot **2026-10-01**.
+> **AIFlowBridge 2.21.0** - data snapshot **2026-10-01**.
 > Model ids and pricing throughout this README are pinned to this snapshot.
 > Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
@@ -279,7 +279,7 @@ Full Kilo Code reference: [docs/kilo-code.md](docs/kilo-code.md).
 
 Some vendors are reachable **only** through `http://127.0.0.1:8787/v1`, never through the Copilot Chat picker.
 That is a deliberate split: a picker entry requires a dedicated `vscode.LanguageModelChatProvider` class, and for a meta-provider or a gateway-only upstream that class buys nothing over forwarding the call verbatim.
-The catalogue as of 2.20.0:
+The catalogue as of 2.21.0:
 
 | Vendor           | Models                                                                          | Context                  | Vision                                   | In / Out per M (USD)                                                               |
 | ---------------- | ------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |

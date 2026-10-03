@@ -116,6 +116,71 @@ export function openAiContentToGeminiParts(content: unknown): ParsedContentParts
   return { parts, droppedImageUrls };
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Normalize an OpenAI `tool` message `content` into the value expected by
+ * the native `functionResponse.response` field.
+ *
+ * The field is a `google.protobuf.Struct` on every Gemini surface (public
+ * native and Cloud Code Assist), so it MUST carry a JSON object. Clients
+ * that send the tool result as a content-parts array
+ * (`content: [{ type: 'text', text: '...' }]`, a valid OpenAI shape) or as
+ * a JSON string holding a JSON array would otherwise be forwarded verbatim
+ * and rejected upstream with
+ * `Invalid JSON payload received ... Proto field is not repeating, cannot
+ * start list.` (400 INVALID_ARGUMENT).
+ *
+ * Rules, in order:
+ *   - `undefined` / `null` -> `undefined` so each call site keeps its own
+ *     empty fallback.
+ *   - content-parts array -> the text parts are joined and re-parsed, so a
+ *     structured payload survives (`[{ text: '{"temp":18}' }]` still
+ *     yields `{ temp: 18 }`); a non-JSON text becomes `{ result: <text> }`.
+ *   - string -> parsed as JSON when it yields a plain object, otherwise
+ *     wrapped as `{ result: <string> }`.
+ *   - plain object -> forwarded untouched (structured tool results keep
+ *     their shape).
+ *   - any other scalar -> `{ result: String(content) }`.
+ *
+ * `warn` is optional and only fires when an array had to be flattened, so
+ * the log output shows which clients use that shape.
+ */
+export function toFunctionResponseValue(content: unknown, warn?: (message: string) => void): Record<string, unknown> | undefined {
+  if (content === undefined || content === null) {
+    return undefined;
+  }
+  if (Array.isArray(content)) {
+    const parsed = openAiContentToGeminiParts(content);
+    logDroppedImageUrls(parsed.droppedImageUrls, 'tool message', warn ?? (() => undefined));
+    warn?.(
+      `[Gemini] tool message content is a content-parts array (${content.length} entries) - flattened, functionResponse.response must be a JSON object`
+    );
+    const text = parsed.parts
+      .map((part) => part.text ?? '')
+      .filter((value) => value.length > 0)
+      .join('\n');
+    return text ? toFunctionResponseValue(text, warn) : undefined;
+  }
+  if (isPlainObject(content)) {
+    return content;
+  }
+  if (typeof content === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(content);
+      if (isPlainObject(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Not JSON - the raw string is the tool result.
+    }
+    return { result: content };
+  }
+  return { result: String(content) };
+}
+
 /**
  * Log a dropped remote image URL warning once per call site.
  * The logger is injected by the caller so this module has no
