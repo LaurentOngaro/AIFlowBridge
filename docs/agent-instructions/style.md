@@ -5,7 +5,7 @@
 ## DO
 
 - **Chat interactions** with the agent (thinking, questions, answers, reflections): French.
-- **Code, comments, docs:** English only.
+- **Code, comments, docs:** English only. The one exception is `_Private/**`: documents there may be written in French (user decision, 2026-10-07), since that tree is gitignored and excluded from the VSIX, so it never leaves the machine. Everything else stays English, including the rule text itself.
 - **Markdown prose:** one paragraph = one physical line. Tables, code blocks, and frontmatter are exempt.
 - **User-facing strings:** English.
 - **TypeScript:** strict typing, ES modules (`import` / `export`), `async/await`, `const` over `let`, `interface` for object shapes, `type` for unions/aliases.

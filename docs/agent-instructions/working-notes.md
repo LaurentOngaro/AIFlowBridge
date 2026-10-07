@@ -45,6 +45,13 @@ Typical layout: `_Private/docs/` for personal notes, `_Private/scripts/` for loc
 Subfolder names are not enforced - use whatever structure matches your workflow.
 See `_Private/README.md` once `SetupPrivateRepo.ps1` has been run.
 
+### Language
+
+Documents under `_Private/` may be written in **French** (user decision, 2026-10-07).
+That tree is gitignored, excluded from the VSIX, and readable only by the author, so the "English only" rule that governs the public repository does not apply there.
+The other style rules still apply: French diacritics are mandatory, ASCII hyphen instead of the em-dash, ASCII quotes, one paragraph per physical line, and the 250-character soft ceiling.
+Writing a document in French under `_Private/` never justifies promoting it as-is: anything that moves to `_helpers/` or `docs/` is translated back to English first.
+
 ## Setup
 
 Run `pwsh -File _helpers/scripts/SetupPrivateRepo.ps1` (one-shot, idempotent).
@@ -70,7 +77,8 @@ Do not put utility scripts at the repo root or in `scripts/` (the latter is rese
 ## Rule for agents
 
 If you generate a document that could be sensitive (audit findings, security post-mortems, strategic plans with personal targets, screenshots of internal tools, anything that is not yet ready to be public), default to `_Private/docs/`.
-Promote to `_helpers/docs/` only when the author decides it is safe to share.
+Write it in French unless the author asks otherwise, per the Language rule above.
+Promote to `_helpers/docs/` only when the author decides it is safe to share, and translate it back to English at that point.
 Never copy from `_Private/` to the public tree without explicit user approval.
 
 If you generate a utility script (something invoked from the terminal, npm, CI, or the VS Code task runner), put it in `_helpers/scripts/`.

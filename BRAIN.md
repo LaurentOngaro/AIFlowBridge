@@ -39,6 +39,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
   qu'à ces 2 valeurs figées (toute autre valeur dans `constants.ts`
   doit rester hors versionné).
 - En cas de doute : ne pas écrire, demander à l'utilisateur.
+- **Langue de `_Private/` (décision utilisateur du 2026-10-07)** : les documents déposés sous `_Private/` peuvent être rédigés en français, cet arbre étant gitignoré, exclu du VSIX et lisible par le seul auteur. Le reste du dépôt reste en anglais, y compris le texte de cette règle. Tout document promu vers `_helpers/` ou `docs/` est retraduit en anglais au moment de la promotion.
 
 ---
 
@@ -181,6 +182,20 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 ## Journal (plus recent en haut)
 
 > Les entrées ci-dessous documentent les **décisions architecturales** et les  **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
+
+### 2026-10-07 - Kilo (Audit de code complet AUD02 + français autorisé dans `_Private/`)
+
+Audit statique de l'intégralité de l'arbre de travail sur AIFlowBridge 2.22.1 : `src/` (100 fichiers), `tests/` (86), `resources/`, `package.json`, `.vscodeignore`, et contenu réel de `dist/aiflowbridge-2.16.1.vsix`.
+Limite assumée : `npm test` et `npm run compile` n'ont pas été exécutés, tous les constats sont statiques et sourcés.
+
+**13 constats, dont 3 de sécurité (majeurs)** : passerelle loopback sans authentification ni contrôle d'`Origin` / `Host` (CSRF via `Content-Type: text/plain` et DNS rebinding sur `/v1/sessions`, `/v1/replay/{id}`), SSRF incomplet (noms de métadonnées résolus par DNS non bloqués, `fetch()` sans `redirect: 'manual'`, `baseUrl` exposed au scope workspace), export CSV sans garde contre l'injection de formule (`responseSummary` provient de la sortie du modèle amont), VSIX publiant 825 Ko d'outillage de dev et le journal de projet IA (`tests/`, `scripts/`, `.githooks/`, `BRAIN.md`, `ACTION_PLAN.md`, `TODO.md`), et table d'alias d'id résiduelle dans `src/provider/models.ts:170` qui contredit l'invariant du registre.
+
+**Décision utilisateur du 2026-10-07** : le français est autorisé pour les documents de `_Private/**`, l'arbre étant local-only et non publié.
+Règle inscrite dans `AGENTS.md`, `docs/agent-instructions/style.md` et `docs/agent-instructions/working-notes.md` (section « Language »).
+Les autres règles de style continuent de s'appliquer (diacritiques obligatoires, pas de tiret cadratin, guillemets ASCII, plafond de 250 caractères par ligne).
+
+Rapport complet : `_Private/docs/2026-10-07_audit-code-review.md` (AUD02, privé).
+Décisions encore ouvertes pour l'utilisateur : le sort des 20 tirets cadratins de `BRAIN.md` (ce fichier reste en français, la règle ne s'appliquant qu'à `_Private/`), et le déplacement de `scripts/` vers `_helpers/scripts/`.
 
 ### 2026-10-07 - Kilo (Kilo Code : le dropdown de raisonnement n'est pas alimenté par AIFlowBridge)
 

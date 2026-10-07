@@ -25,7 +25,7 @@ The gateway also runs as a standalone Node.js CLI (`aiflowbridge-server`) withou
 ## Style rules (apply to every task)
 
 - **Chat interactions:** French (thinking, questions, answers).
-- **Code, comments, docs:** English only.
+- **Code, comments, docs:** English only. Exception: documents stored under `_Private/` may be written in French (user decision, 2026-10-07), because that tree is local-only and never published.
 - **Markdown prose:** one paragraph = one physical line. No line break inside a sentence.
 - **No em-dash (U+2014) or en-dash (U+2013).** Use ASCII `-`.
 - **No smart quotes / ellipsis.** ASCII ' " .... French diacritics stay as-is in French prose (see style.md).
