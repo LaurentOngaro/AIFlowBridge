@@ -17,6 +17,7 @@ import {
   deepMergeVendor,
   mergeTiers,
   nonEmptyString,
+  nonEmptyStringArray,
   nonNegativeNumber,
   positiveInt,
   toolCallingField,
@@ -142,6 +143,23 @@ describe('validateModelEntry (fail-soft)', () => {
     const log: ValidationLog = { skipped: [] };
     expect(validateModelEntry(validEntry({ requiresThinkingParam: 'yes' as never }), 0, log)).toBeNull();
     expect(validateModelEntry(validEntry({ requiresThinkingParam: 1 as never }), 0, log)).toBeNull();
+  });
+
+  it('accepts an ascending list of reasoning-effort levels', () => {
+    const result = validateModelEntry(validEntry({ reasoningEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }), 0);
+    expect(result?.reasoningEffortLevels).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+  });
+
+  it('rejects a reasoning-effort level list that is empty, not an array, or holds a blank or duplicate entry', () => {
+    const log: ValidationLog = { skipped: [] };
+    for (const levels of [[], 'low', {}, ['low', '  '], ['high', 'high'], [1]]) {
+      expect(validateModelEntry(validEntry({ reasoningEffortLevels: levels as never }), 0, log)).toBeNull();
+    }
+    expect(log.skipped.every((entry) => /reasoningEffortLevels/.test(entry.reason))).toBe(true);
+  });
+
+  it('leaves reasoningEffortLevels undefined when the entry omits it', () => {
+    expect(validateModelEntry(validEntry(), 0)?.reasoningEffortLevels).toBeUndefined();
   });
 
   it('rejects capabilities that is not an object', () => {
@@ -349,6 +367,16 @@ describe('Field helpers', () => {
     expect(booleanField(0 as never)).toBeUndefined();
   });
 
+  it('nonEmptyStringArray trims entries and rejects empty, blank, duplicate or non-array input', () => {
+    expect(nonEmptyStringArray(['low', 'high', 'max'])).toEqual(['low', 'high', 'max']);
+    expect(nonEmptyStringArray([' low '])).toEqual(['low']);
+    expect(nonEmptyStringArray([])).toBeUndefined();
+    expect(nonEmptyStringArray('low' as never)).toBeUndefined();
+    expect(nonEmptyStringArray(['low', ''])).toBeUndefined();
+    expect(nonEmptyStringArray(['low', 'high', 'low'])).toBeUndefined();
+    expect(nonEmptyStringArray([1 as never])).toBeUndefined();
+  });
+
   it('positiveInt accepts strictly positive integers', () => {
     expect(positiveInt(1)).toBe(1);
     expect(positiveInt(1000)).toBe(1000);
@@ -416,6 +444,18 @@ describe('Deep merge', () => {
     };
     const merged = deepMergeModel(baseModel(), override as RegistryModelDefinition);
     expect(merged.pricing).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
+  });
+
+  it('deepMergeModel: reasoningEffortLevels falls through when absent in override', () => {
+    const base: RegistryModelDefinition = { ...baseModel(), reasoningEffortLevels: ['low', 'high', 'max'] };
+    const merged = deepMergeModel(base, { capabilities: { toolCalling: true, imageInput: false, thinking: true } });
+    expect(merged.reasoningEffortLevels).toEqual(['low', 'high', 'max']);
+  });
+
+  it('deepMergeModel: override replaces the whole reasoningEffortLevels list', () => {
+    const base: RegistryModelDefinition = { ...baseModel(), reasoningEffortLevels: ['low', 'high', 'max'] };
+    const merged = deepMergeModel(base, { reasoningEffortLevels: ['low', 'xhigh', 'max'] });
+    expect(merged.reasoningEffortLevels).toEqual(['low', 'xhigh', 'max']);
   });
 
   it('deepMergeModel: override can add pricing on a model without one', () => {

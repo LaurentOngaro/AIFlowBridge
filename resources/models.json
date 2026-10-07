@@ -279,7 +279,7 @@
       "name": "MiniMax M3.1 Flash Preview",
       "family": "minimax",
       "version": "m3.1-flash-preview",
-      "detail": "Preview model: frontier multimodal coding model, 1M context, tunable thinking depth. Access is gated - upstream serves it through M Plan and MiniMax Code only, so a legacy Token Plan key gets 403. No pay-as-you-go rate is published yet, so no pricing is declared here. Thinking cannot be turned off: the upstream rejects reasoning_split=false, thinking.type=disabled and reasoning_effort=none with a 400.",
+      "detail": "Preview model: frontier multimodal coding model, 1M context, tunable thinking depth. Access is gated - upstream serves it through M Plan and MiniMax Code only, so a legacy Token Plan key gets 403. No pay-as-you-go rate is published yet, so no pricing is declared here. Thinking always runs and cannot be turned off (the upstream rejects reasoning_split=false, thinking.type=disabled and reasoning_effort=none with a 400), but the depth is tunable through the upstream reasoning_effort field with 5 levels from low to xhigh, plus max.",
       "maxInputTokens": 1000000,
       "maxOutputTokens": 128000,
       "capabilities": {
@@ -287,7 +287,8 @@
         "imageInput": true,
         "thinking": true
       },
-      "requiresThinkingParam": true
+      "requiresThinkingParam": true,
+      "reasoningEffortLevels": ["low", "medium", "high", "xhigh", "max"]
     },
     {
       "id": "mimo-v2.5",

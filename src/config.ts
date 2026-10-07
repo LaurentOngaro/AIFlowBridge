@@ -78,6 +78,20 @@ export function getProviderReasoningSplit(vendor: string): boolean | undefined {
 }
 
 /**
+ * Default reasoning effort applied when the Copilot Chat "Thinking
+ * Effort" selector is left untouched, for MiniMax models that declare a
+ * `reasoningEffortLevels` range (MiniMax M3.1 Flash Preview).
+ * Returns `undefined` when the setting is absent, empty, or not a
+ * usable level, so the caller falls back to the upstream default.
+ */
+export function getProviderReasoningEffort(vendor: string): string | undefined {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+  const key = `providers.${vendor}.reasoningEffort` as const;
+  const value = config.get<unknown>(key);
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/**
  * Picker-driven reasoning effort values emitted by the Copilot Chat model
  * picker's "Thinking Effort" dropdown (see `buildThinkingEffortSchema` in
  * `src/provider/models.ts`). Mirrored here to avoid an import cycle between
@@ -165,6 +179,7 @@ export function getUserModels(): Array<{
     thinking?: boolean;
   };
   requiresThinkingParam?: boolean;
+  reasoningEffortLevels?: string[];
   pricing?: { inputPerMillion: number; outputPerMillion: number; currency: string };
 }> {
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
@@ -206,6 +221,7 @@ export function getUserModels(): Array<{
           ? (e.capabilities as { toolCalling?: boolean | number; imageInput?: boolean; thinking?: boolean })
           : undefined,
       requiresThinkingParam: typeof e.requiresThinkingParam === 'boolean' ? e.requiresThinkingParam : undefined,
+      reasoningEffortLevels: parseUserModelEffortLevels(e.reasoningEffortLevels),
       pricing: parseUserModelPricing(e.pricing),
     });
   });
@@ -217,6 +233,30 @@ function normalizeDebugMode(value: unknown): DebugMode | undefined {
     return value;
   }
   return undefined;
+}
+
+/**
+ * Parse the optional `reasoningEffortLevels` of a user-declared model.
+ * Same loose-validation convention as the other user-model fields: a
+ * malformed list is dropped (the model then falls back to the historical
+ * none / high / max dropdown) rather than rejecting the whole entry.
+ */
+function parseUserModelEffortLevels(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return undefined;
+  }
+  const levels: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string' || item.trim().length === 0) {
+      return undefined;
+    }
+    const level = item.trim();
+    if (levels.includes(level)) {
+      return undefined;
+    }
+    levels.push(level);
+  }
+  return levels;
 }
 
 /**

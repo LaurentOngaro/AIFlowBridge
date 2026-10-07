@@ -1,9 +1,11 @@
 import vscode from 'vscode';
 import { tryGetLoadedRegistry } from '../aiflowbridge/modelRegistry';
+import type { RegistryModelDefinition } from '../aiflowbridge/modelRegistry.schema';
 import {
   getProviderApiModelId,
   getProviderBaseUrl,
   getProviderMaxTokens,
+  getProviderReasoningEffort,
   getProviderReasoningSplit,
   getProviderTemperature,
   getProviderTopP,
@@ -14,7 +16,7 @@ import { t } from '../i18n';
 import { logger } from '../logger';
 import { BaseChatProvider } from './base';
 import { createHttpProviderError, ProviderRequestError } from './errors';
-import { getConfiguredThinkingEffort, type ModelConfigurationOptions } from './models';
+import { getConfiguredThinkingEffort, getRawConfiguredReasoningEffort, resolveEffortLevel, type ModelConfigurationOptions } from './models';
 import { updateCharsPerToken } from './stream';
 import { estimateTokenCount } from './tokens';
 import { createVisionModelGetter, resolveImageMessages } from './vision/index';
@@ -112,6 +114,8 @@ interface MiniMaxRequest {
   tool_choice?: 'auto' | 'none';
   temperature?: number;
   top_p?: number;
+  reasoning_split?: boolean;
+  reasoning_effort?: string;
   extra_body?: {
     reasoning_split?: boolean;
   };
@@ -196,23 +200,18 @@ export class MiniMaxChatProvider extends BaseChatProvider {
     // MiniMax API accepts temperature in (0.0, 1.0]; clamp values outside this range
     const temperature = clampTemperature(getProviderTemperature(this.vendor));
     const topP = getProviderTopP(this.vendor);
-    // Resolve reasoning_split: the Copilot Chat model picker wins for
-    // thinking-capable models (currently MiniMax M3), otherwise fall back
-    // to the global `aiflowbridge.providers.minimax.reasoningSplit` setting.
     const registryEntry = tryGetLoadedRegistry()?.models.find((m) => m.id === modelInfo.id);
-    const thinkingCapable = registryEntry?.capabilities.thinking ?? false;
-    const pickerReasoningEffort = thinkingCapable ? getConfiguredThinkingEffort(_options as ModelConfigurationOptions) : undefined;
-    const resolvedSplit = resolveReasoningSplit(thinkingCapable, pickerReasoningEffort, getProviderReasoningSplit(this.vendor));
-    // A model declared `requiresThinkingParam` in the registry cannot be
-    // called with reasoning off: MiniMax M3.1 Flash Preview answers HTTP
-    // 400 (`requires adaptive thinking`) to `reasoning_split: false`,
-    // whichever of the two inputs above asked for it. The picker has no
-    // way to express that, so force it on once and say so in the log
-    // rather than letting every request fail.
-    const requiresThinking = registryEntry?.requiresThinkingParam ?? false;
-    const reasoningSplit = requiresThinking ? true : resolvedSplit;
-    if (requiresThinking && !resolvedSplit) {
-      logger.warn(`[MiniMax] ${modelInfo.id} cannot disable reasoning; forcing reasoning_split=true (reasoning_effort=${pickerReasoningEffort ?? '<unset>'}, setting=${String(getProviderReasoningSplit(this.vendor))}).`);
+    const reasoning = resolveMiniMaxReasoning(
+      registryEntry,
+      _options as ModelConfigurationOptions,
+      getProviderReasoningSplit(this.vendor),
+      getProviderReasoningEffort(this.vendor)
+    );
+    if (reasoning.warnForcedThinking) {
+      logger.warn(
+        `[MiniMax] ${modelInfo.id} cannot disable reasoning; forcing reasoning_split=true ` +
+          `(reasoning_effort=${reasoning.forcedFrom ?? '<unset>'}, setting=${String(getProviderReasoningSplit(this.vendor))}).`
+      );
     }
     const modelId = resolveMiniMaxModelId(modelInfo.id);
 
@@ -225,7 +224,8 @@ export class MiniMaxChatProvider extends BaseChatProvider {
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
       ...(typeof temperature === 'number' ? { temperature } : {}),
       ...(typeof topP === 'number' ? { top_p: topP } : {}),
-      ...(typeof reasoningSplit === 'boolean' ? { reasoning_split: reasoningSplit } : {}),
+      ...(typeof reasoning.reasoningSplit === 'boolean' ? { reasoning_split: reasoning.reasoningSplit } : {}),
+      ...(reasoning.reasoningEffort ? { reasoning_effort: reasoning.reasoningEffort } : {}),
       ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
     };
 
@@ -354,6 +354,68 @@ export class MiniMaxChatProvider extends BaseChatProvider {
   ): Promise<number> {
     return estimateTokenCount(text, this.charsPerToken);
   }
+}
+
+export interface MiniMaxReasoningFields {
+  /** Value of the upstream `reasoning_split` field, when the model needs one. */
+  reasoningSplit?: boolean;
+  /** Value of the upstream `reasoning_effort` field, when the model declares levels. */
+  reasoningEffort?: string;
+  /** True when the picker or the global setting asked for reasoning off on a model that cannot disable it. */
+  warnForcedThinking: boolean;
+  /** The value that asked for reasoning off, for the log line. */
+  forcedFrom?: string;
+}
+
+/**
+ * Resolve the reasoning fields sent upstream, from the registry entry of
+ * the routed model, the Copilot Chat picker value and the two global
+ * settings. Pure function - the caller supplies everything, so no VS
+ * Code or registry access happens here.
+ *
+ * Two mutually exclusive shapes, decided by the registry entry alone:
+ *
+ * 1. The model declares `reasoningEffortLevels` (MiniMax M3.1 Flash
+ *    Preview: low / medium / high / xhigh / max). Thinking always runs
+ *    and cannot be switched off, but its depth is tunable, so the
+ *    selected level is forwarded verbatim as the upstream
+ *    `reasoning_effort` field and `reasoning_split` is pinned to `true`
+ *    (the upstream rejects `false` there, and separating the thinking
+ *    into `reasoning_content` is what the stream reader consumes).
+ * 2. Otherwise (MiniMax M3), the picker maps to the `reasoning_split`
+ *    boolean and the global
+ *    `aiflowbridge.providers.minimax.reasoningSplit` setting is the
+ *    fallback when the picker is untouched.
+ *
+ * A model declared `requiresThinkingParam` cannot be called with
+ * reasoning off: the upstream answers HTTP 400 (`requires adaptive
+ * thinking`). The picker cannot express that constraint, so the field is
+ * forced on and the caller is asked to log it once instead of letting
+ * every request fail.
+ */
+export function resolveMiniMaxReasoning(
+  registryEntry: Pick<RegistryModelDefinition, 'capabilities' | 'requiresThinkingParam' | 'reasoningEffortLevels'> | undefined,
+  options: ModelConfigurationOptions,
+  globalReasoningSplit: boolean | undefined,
+  globalReasoningEffort: string | undefined
+): MiniMaxReasoningFields {
+  const thinkingCapable = registryEntry?.capabilities.thinking ?? false;
+  const requiresThinking = registryEntry?.requiresThinkingParam ?? false;
+  const effortLevels = registryEntry?.reasoningEffortLevels ?? [];
+
+  if (effortLevels.length > 0) {
+    const effort = resolveEffortLevel(effortLevels, getRawConfiguredReasoningEffort(options), globalReasoningEffort);
+    // The picker offers no "off" entry on such a model, so nothing to warn
+    // about: the upstream default and the forced value are the same field.
+    return { reasoningSplit: true, reasoningEffort: effort, warnForcedThinking: false };
+  }
+
+  const pickerEffort = thinkingCapable ? getConfiguredThinkingEffort(options) : undefined;
+  const resolvedSplit = resolveReasoningSplit(thinkingCapable, pickerEffort, globalReasoningSplit);
+  if (requiresThinking && !resolvedSplit) {
+    return { reasoningSplit: true, warnForcedThinking: true, forcedFrom: pickerEffort };
+  }
+  return { reasoningSplit: resolvedSplit, warnForcedThinking: false };
 }
 
 export interface PendingToolCall {

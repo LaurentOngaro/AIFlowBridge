@@ -155,6 +155,13 @@
           "type": "boolean",
           "description": "Whether the upstream API requires a `thinking` parameter on every request (DeepSeek). When false, the parameter is omitted unless the user opts in."
         },
+        "reasoningEffortLevels": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Upstream reasoning-effort levels offered by the Copilot Chat 'Thinking Effort' dropdown, in ascending order (MiniMax M3.1 Flash Preview: low, medium, high, xhigh, max). When present, the dropdown lists exactly these values and the selected one is forwarded verbatim as the upstream `reasoning_effort` field. When absent, the dropdown keeps the historical none / high / max triple, which maps to MiniMax's `reasoning_split` boolean. A list without `none` means thinking cannot be switched off."
+        },
         "pricing": {
           "type": "object",
           "description": "Indicative token-plan tariff. Used by the dashboard's 'Est. cost' column. Override per-profile via aiflowbridge.providers[].pricing.",

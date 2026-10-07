@@ -107,4 +107,18 @@ export interface ModelDefinition {
     thinking: boolean;
   };
   requiresThinkingParam: boolean;
+  /**
+   * Upstream reasoning-effort levels offered by the Copilot Chat
+   * "Thinking Effort" dropdown, in ascending order. When present, the
+   * dropdown lists exactly these values and the provider forwards the
+   * selected one verbatim as the upstream `reasoning_effort` field
+   * (MiniMax M3.1 Flash Preview: `low`, `medium`, `high`, `xhigh`,
+   * `max`). When absent, the dropdown keeps the historical
+   * `none` / `high` / `max` triple, which maps to the MiniMax
+   * `reasoning_split` boolean.
+   *
+   * A level list without `none` means thinking cannot be switched off,
+   * which is the usual case for an always-reasoning upstream.
+   */
+  reasoningEffortLevels?: string[];
 }

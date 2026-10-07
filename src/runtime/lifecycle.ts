@@ -9,6 +9,7 @@ import { logger } from '../logger';
 import { DeepSeekChatProvider } from '../provider';
 import { registerActionUrls } from './actions';
 import { registerCommands } from './commands';
+import { maybeOfferKiloConfiguration } from './configureKiloCode';
 import { initializeDiagnostics } from './diagnostics';
 import { registerAllProviders, type RegisteredProvider, type RegisteredProviders } from './provider';
 import { showWelcomeIfNeeded } from './welcome';
@@ -61,6 +62,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   await loadModelRegistry(gatewayContext);
   registerCommands(context);
   registerActionUrls(context);
+
+  // Kilo Code builds its reasoning dropdown from its own configuration, so
+  // the declared levels can only reach it by writing that file. Offer to do
+  // it once, after the registry is loaded (the check needs the level-declaring
+  // models) and off the activation path so a slow file read never delays the
+  // window. Fire-and-forget: the offer is a question, not a blocker.
+  void maybeOfferKiloConfiguration().catch((error) => {
+    logger.warn('[AIFlowBridge] Kilo Code configuration offer failed', error);
+  });
 
   try {
     activeProviders = await registerAllProviders(context);

@@ -431,3 +431,82 @@ describe('the policy is a model property, not a vendor property', () => {
     expect(result.body).toEqual({ model: 'glm-5.3', messages: [] });
   });
 });
+
+describe('models with a declared reasoning-effort range (MiniMax M3.1 Flash Preview)', () => {
+  // The registry declares `reasoningEffortLevels` for that model, so
+  // `reasoning_effort` is a real upstream field there: a declared level
+  // is forwarded verbatim instead of being collapsed into the
+  // `reasoning_split` boolean the historical translator produces.
+  const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
+  const provider = () =>
+    makeProvider({ id: 'MiniMax-M3.1-Flash-Preview', label: 'MiniMax M3.1 Flash Preview', model: 'MiniMax-M3.1-Flash-Preview' });
+
+  function translateWithLevels(payload: Record<string, unknown> | undefined, requiresThinking = true) {
+    return translatePayloadForUpstream(payload, provider(), requiresThinking, EFFORT_LEVELS);
+  }
+
+  it('forwards every declared level verbatim with reasoning_split pinned on', () => {
+    for (const level of EFFORT_LEVELS) {
+      const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: level });
+      expect(result.body.reasoning_effort).toBe(level);
+      expect(result.body.reasoning_split).toBe(true);
+      expect(result.forcedThinkingOn).toBe(false);
+    }
+  });
+
+  it('drops a level the model does not declare, letting the upstream apply its own default', () => {
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'ultra' });
+    expect(result.body).not.toHaveProperty('reasoning_effort');
+    expect(result.body.reasoning_split).toBe(true);
+  });
+
+  it('drops reasoning_effort: none, which that upstream answers 400 to', () => {
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'none' });
+    expect(result.body).not.toHaveProperty('reasoning_effort');
+    expect(result.body.reasoning_split).toBe(true);
+  });
+
+  it('still strips the AIFB reasoning checkbox, and keeps a declared level sent alongside it', () => {
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning: false, reasoning_effort: 'low' });
+    expect(result.body).not.toHaveProperty('reasoning');
+    expect(result.body.reasoning_effort).toBe('low');
+    expect(result.body.reasoning_split).toBe(true);
+  });
+
+  it('sends no reasoning_effort when the client said nothing about reasoning', () => {
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [] });
+    expect(result.body).not.toHaveProperty('reasoning_effort');
+    expect(result.body.reasoning_split).toBe(true);
+  });
+
+  it('ignores a non-string reasoning_effort', () => {
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 3 });
+    expect(result.body).not.toHaveProperty('reasoning_effort');
+    expect(result.body.reasoning_split).toBe(true);
+  });
+
+  it('preserves the other fields of the body', () => {
+    const result = translateWithLevels({
+      model: 'MiniMax-M3.1-Flash-Preview',
+      messages: [{ role: 'user', content: 'hi' }],
+      stream: true,
+      temperature: 0.3,
+      reasoning_effort: 'xhigh',
+    });
+    expect(result.body.messages).toEqual([{ role: 'user', content: 'hi' }]);
+    expect(result.body.stream).toBe(true);
+    expect(result.body.temperature).toBe(0.3);
+  });
+
+  it('does not mutate the input payload', () => {
+    const payload: Record<string, unknown> = { model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'low', reasoning: true };
+    translateWithLevels(payload);
+    expect(payload).toEqual({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'low', reasoning: true });
+  });
+
+  it('leaves a model with no declared range on the historical boolean mapping', () => {
+    const result = translate({ model: 'MiniMax-M3', messages: [], reasoning_effort: 'none' }, makeProvider());
+    expect(result.reasoning_split).toBe(false);
+    expect(result).not.toHaveProperty('reasoning_effort');
+  });
+});

@@ -348,6 +348,20 @@ export function validateModelEntry(
     return null;
   }
 
+  // reasoningEffortLevels
+  if (e.reasoningEffortLevels !== undefined) {
+    const levels = nonEmptyStringArray(e.reasoningEffortLevels);
+    if (!levels) {
+      log?.skipped.push({
+        kind: 'model',
+        key: id,
+        reason: '"reasoningEffortLevels" must be an array of at least one non-empty string',
+      });
+      return null;
+    }
+    result.reasoningEffortLevels = levels;
+  }
+
   // capabilities
   if (e.capabilities !== undefined) {
     const capabilities = validateCapabilities(e.capabilities, id, log);
@@ -489,6 +503,27 @@ export function nonEmptyString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/**
+ * Validate a `reasoningEffortLevels` array: a non-empty list of
+ * non-empty strings. Duplicates and blank entries are rejected so a
+ * typo in an override tier surfaces as a skip reason instead of
+ * producing a dropdown with two identical entries.
+ */
+export function nonEmptyStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) {
+    return undefined;
+  }
+  const out: string[] = [];
+  for (const raw of value) {
+    const item = nonEmptyString(raw);
+    if (!item || out.includes(item)) {
+      return undefined;
+    }
+    out.push(item);
+  }
+  return out;
+}
+
 export function booleanField(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
@@ -534,6 +569,7 @@ export function deepMergeModel(base: RegistryModelDefinition, override: Partial<
     maxOutputTokens: override.maxOutputTokens ?? base.maxOutputTokens,
     capabilities: { ...base.capabilities, ...(override.capabilities ?? {}) },
     requiresThinkingParam: override.requiresThinkingParam ?? base.requiresThinkingParam,
+    reasoningEffortLevels: override.reasoningEffortLevels ?? base.reasoningEffortLevels,
     pricing: mergePricing(base.pricing, override.pricing),
   };
 }

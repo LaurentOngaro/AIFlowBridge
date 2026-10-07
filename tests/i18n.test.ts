@@ -99,7 +99,8 @@ function collectDynamicCallSites(): string[] {
 /** Dynamic call sites, each one covered by a dedicated assertion. */
 const KNOWN_DYNAMIC_CALL_SITES: Record<string, string> = {
   'client/error.ts': 'every ErrorActionLink.labelKey listed in the client error tests',
-  'provider/models.ts': '`model.<id>.detail` keys, resolved with a translation-probe fallback to m.detail',
+  'provider/models.ts':
+    '`model.<id>.detail` keys, resolved with a translation-probe fallback to m.detail; `thinking.<level>` and `thinking.<level>.desc` keys built from a registry-declared `reasoningEffortLevels`, resolved with a translation-probe fallback to a capitalized level / empty description',
   'runtime/provider.ts': 'the three provider label keys asserted by the per-vendor label test',
 };
 

@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, Z.ai GLM 5.3, MoonshotAI Kimi K3, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.21.0** - data snapshot **2026-10-01**.
+> **AIFlowBridge 2.22.1** - data snapshot **2026-10-01**.
 > Model ids and pricing throughout this README are pinned to this snapshot.
 > Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
@@ -119,7 +119,7 @@ You pay only the upstream providers you actually use - OpenRouter, Google AI Stu
 - **Cost control & Auth observability** - per-request token counts, latency, real auth mode (`byok`, `oauth`, `plan`, `token`), and estimated cost in a live dashboard (`Ctrl+Alt+M`). Sessions grouped automatically (inactivity gap configurable 1-60 min). Filter by provider, auth mode, date range, client (Kilo Code vs Continue vs curl), or source (gateway vs Copilot Chat). Paginated, with per-row delete. **Telemetry export**: two buttons (`CSV` and `JSON`) in the Filters panel download the currently filtered entries with a self-describing metadata header (`generatedAt`, `extensionVersion`, `filters`, `totals`). The bundled pricing snapshot is refreshed via `AIFlowBridge: Refresh pricing now` (or the dashboard's `Refresh prices` button) and stamped with `source: ...` on every `Est. cost` tooltip - see [docs/dashboard.md](docs/dashboard.md)
 - **Two ways to run it**: as a VS Code extension or as a standalone Node.js binary - see [docs/standalone.md](docs/standalone.md)
 - **Vision proxy** for text-only models (paste an image and the description is injected) - see [docs/vision-proxy.md](docs/vision-proxy.md)
-- **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](docs/reasoning.md)
+- **Reasoning picker** for MiniMax M3 (None/High/Max), MiniMax M3.1 Flash Preview (5 depth levels from Low to Extra high, thinking always on), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](docs/reasoning.md)
 - **Local-first**: API keys in your OS keychain, telemetry on your machine, no remote endpoints
 
 <!-- markdownlint-disable MD033 -->
@@ -141,7 +141,7 @@ The full gallery (dashboard, pickers, providers, gateway, settings, metrics) liv
 - **Built-in OpenAI-compatible gateway** - port 8787, runs as a VS Code extension or a standalone CLI, singleton across processes. The gateway is the integration point for OpenRouter, Google Gemini, Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, and any `curl` - see [docs/gateway.md](docs/gateway.md) and [docs/standalone.md](docs/standalone.md)
 - **Zero-conf discovery** - `GET /v1/discovery` returns one-paste config snippets for Continue, Kilo Code, the OpenAI Python SDK, and curl. Optional UDP beacon broadcasts the gateway URL on the LAN (off by default) - see [docs/gateway.md](docs/gateway.md#zero-conf-discovery-get-v1discovery)
 - **Transparent vision proxy** - text-only models handle images via another installed Copilot model. Zero configuration - see [docs/vision-proxy.md](docs/vision-proxy.md)
-- **Reasoning picker** for MiniMax M3 (None/High/Max), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](docs/reasoning.md)
+- **Reasoning picker** for MiniMax M3 (None/High/Max), MiniMax M3.1 Flash Preview (5 depth levels from Low to Extra high, thinking always on), Qwen 3.7 Max, and Gemini Flash thinking models - see [docs/reasoning.md](docs/reasoning.md)
 - **Secure by default** - API keys in VS Code's `SecretStorage` (or env vars / `secrets.json` in standalone), never in `settings.json`. Credentials in stored summaries are redacted at extraction time. Telemetry is local, loopback-only. No remote endpoints
 
 ## Quick start
@@ -279,7 +279,7 @@ Full Kilo Code reference: [docs/kilo-code.md](docs/kilo-code.md).
 
 Some vendors are reachable **only** through `http://127.0.0.1:8787/v1`, never through the Copilot Chat picker.
 That is a deliberate split: a picker entry requires a dedicated `vscode.LanguageModelChatProvider` class, and for a meta-provider or a gateway-only upstream that class buys nothing over forwarding the call verbatim.
-The catalogue as of 2.21.0:
+The catalogue as of 2.22.1:
 
 | Vendor           | Models                                                                          | Context                  | Vision                                   | In / Out per M (USD)                                                               |
 | ---------------- | ------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -393,7 +393,7 @@ Full reference: [docs/providers.md](docs/providers.md#openrouter-100-models-via-
 | [docs/cost.md](docs/cost.md)                                     | Real cost breakdown, indicative rates, vision savings              |
 | [docs/providers.md](docs/providers.md)                           | Provider table, capabilities, adding a custom model                |
 | [docs/vision-proxy.md](docs/vision-proxy.md)                     | How the transparent image proxy works                              |
-| [docs/reasoning.md](docs/reasoning.md)                           | MiniMax M3 thinking effort selector                                |
+| [docs/reasoning.md](docs/reasoning.md)                           | MiniMax thinking effort selector (M3 on/off, M3.1 depth levels)    |
 | [docs/gateway.md](docs/gateway.md)                               | Local OpenAI-compatible gateway, version handling                  |
 | [docs/dashboard.md](docs/dashboard.md)                           | Metrics dashboard features, filters, pagination                    |
 | [docs/screenshots.md](docs/screenshots.md)                       | Visual gallery across release versions                             |
@@ -403,37 +403,38 @@ Full reference: [docs/providers.md](docs/providers.md#openrouter-100-models-via-
 
 ## Commands
 
-| Command                                                  | Description                                                                                                              |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `AIFlowBridge: Add a custom model`                       | Declare a new model from any `/v1/models` endpoint (OpenRouter is the default pick and unlocks 100+ ids)                 |
-| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor (paste the `vendors.openrouter` block)                                     |
-| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                                                                                                |
-| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                                                                                    |
-| `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                                                                                              |
-| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation)                                                                  |
-| `AIFlowBridge: Purge session log`                        | Clear only the captured prompt / response summaries (totals kept)                                                        |
-| `AIFlowBridge: Refresh pricing now`                      | Hit OpenRouter `/v1/models`, write `<globalStorageUri>/pricing-override.json`, hot-update the in-memory pricing registry |
-| `AIFlowBridge: Open pricing data`                        | Open the bundled `resources/pricing.json` in the editor                                                                  |
-| `AIFlowBridge: Start local gateway`                      | Start proxy                                                                                                              |
-| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                                                                                               |
-| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                                                                                    |
-| `AIFlowBridge: Join external (standalone) gateway`       | Switch to a running standalone gateway                                                                                   |
-| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                                                                                      |
-| `AIFlowBridge: Open settings`                            | Open the AIFlowBridge settings page                                                                                      |
-| `AIFlowBridge: Show logs`                                | Open output log                                                                                                          |
-| `AIFlowBridge: Open request dumps folder`                | Reveal the folder with request dumps for diagnosis                                                                       |
-| `AIFlowBridge: Install standalone gateway`               | Download + extract the standalone CLI for the current OS                                                                 |
-| `Google AI Studio: Set API Key (BYOK pay-as-you-go)`     | Configure Google Gemini API key (`AIzaSy...`) for pay-as-you-go GCP billing                                              |
-| `Google AI Studio: Clear API Key`                        | Revoke locally stored Google Gemini API key                                                                              |
-| `AIFlowBridge: Connect to Google AI Studio`              | 1-click browser OAuth login for Google Cloud Code Assist (Antigravity route)                                             |
-| `AIFlowBridge: Disconnect from Google AI Studio`         | Revoke stored Google Cloud Code Assist OAuth tokens                                                                      |
-| `AIFlowBridge: Switch Google AI Studio route`            | Toggle route between direct BYOK and Antigravity OAuth with 4-tier override cleanup                                      |
-| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials (direct vendor)                                                                              |
-| `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`                                                                         |
-| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                                               |
-| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                                           |
-| `Z.ai GLM: Set API Key` / `Clear API Key`                | Manage Z.ai GLM credentials (gateway-only vendor)                                                                        |
-| `MoonshotAI Kimi: Set API Key` / `Clear API Key`         | Manage MoonshotAI Kimi credentials (gateway-only vendor)                                                                 |
+| Command                                                  | Description                                                                                                                 |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `AIFlowBridge: Add a custom model`                       | Declare a new model from any `/v1/models` endpoint (OpenRouter is the default pick and unlocks 100+ ids)                    |
+| `AIFlowBridge: Edit model registry`                      | Open per-user registry override in the editor (paste the `vendors.openrouter` block)                                        |
+| `AIFlowBridge: Reset model registry to bundled defaults` | Revert to bundled catalog                                                                                                   |
+| `AIFlowBridge: Configure Kilo Code reasoning levels`     | Write the registry-declared reasoning levels into your Kilo Code configuration (also offered once per window on activation) |
+| `AIFlowBridge: Show metrics dashboard`                   | Open metrics dashboard (`Ctrl+Alt+M`)                                                                                       |
+| `AIFlowBridge: Refresh metrics`                          | Reload status bar from disk                                                                                                 |
+| `AIFlowBridge: Reset metrics`                            | Clear cumulative counters and disk (modal confirmation)                                                                     |
+| `AIFlowBridge: Purge session log`                        | Clear only the captured prompt / response summaries (totals kept)                                                           |
+| `AIFlowBridge: Refresh pricing now`                      | Hit OpenRouter `/v1/models`, write `<globalStorageUri>/pricing-override.json`, hot-update the in-memory pricing registry    |
+| `AIFlowBridge: Open pricing data`                        | Open the bundled `resources/pricing.json` in the editor                                                                     |
+| `AIFlowBridge: Start local gateway`                      | Start proxy                                                                                                                 |
+| `AIFlowBridge: Stop local gateway`                       | Stop proxy                                                                                                                  |
+| `AIFlowBridge: Copy gateway URL`                         | Copy URL to clipboard                                                                                                       |
+| `AIFlowBridge: Join external (standalone) gateway`       | Switch to a running standalone gateway                                                                                      |
+| `AIFlowBridge: Set vision proxy model`                   | Choose vision model                                                                                                         |
+| `AIFlowBridge: Open settings`                            | Open the AIFlowBridge settings page                                                                                         |
+| `AIFlowBridge: Show logs`                                | Open output log                                                                                                             |
+| `AIFlowBridge: Open request dumps folder`                | Reveal the folder with request dumps for diagnosis                                                                          |
+| `AIFlowBridge: Install standalone gateway`               | Download + extract the standalone CLI for the current OS                                                                    |
+| `Google AI Studio: Set API Key (BYOK pay-as-you-go)`     | Configure Google Gemini API key (`AIzaSy...`) for pay-as-you-go GCP billing                                                 |
+| `Google AI Studio: Clear API Key`                        | Revoke locally stored Google Gemini API key                                                                                 |
+| `AIFlowBridge: Connect to Google AI Studio`              | 1-click browser OAuth login for Google Cloud Code Assist (Antigravity route)                                                |
+| `AIFlowBridge: Disconnect from Google AI Studio`         | Revoke stored Google Cloud Code Assist OAuth tokens                                                                         |
+| `AIFlowBridge: Switch Google AI Studio route`            | Toggle route between direct BYOK and Antigravity OAuth with 4-tier override cleanup                                         |
+| `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials (direct vendor)                                                                                 |
+| `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`                                                                            |
+| `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                                                  |
+| `Xiaomi MiMo: Set API Key` / `Clear API Key`             | Manage Xiaomi MiMo credentials (direct vendor)                                                                              |
+| `Z.ai GLM: Set API Key` / `Clear API Key`                | Manage Z.ai GLM credentials (gateway-only vendor)                                                                           |
+| `MoonshotAI Kimi: Set API Key` / `Clear API Key`         | Manage MoonshotAI Kimi credentials (gateway-only vendor)                                                                    |
 
 Note: OpenRouter has no per-vendor `Set API Key` / `Clear API Key` commands by design - it is exposed through the gateway path only (works from Kilo Code, Continue, Open WebUI, curl).
 Z.ai and MoonshotAI are gateway-only too, but they do ship the `Set API Key` / `Clear API Key` pair: without it there would be no UI entry point at all for a vendor that has no provider class.

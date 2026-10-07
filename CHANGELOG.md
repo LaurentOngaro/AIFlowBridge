@@ -6,6 +6,24 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.22.1
+
+### Fixed
+
+- **`AIFlowBridge: Configure Kilo Code reasoning levels` writes the levels into the Kilo configuration.** Kilo Code builds its reasoning dropdown from the `variants` declared for each provider model, and its `/models` auto-detection reads only `id` and `name`, so a gateway cannot carry the levels: a user reaching M3.1 Flash Preview through Kilo Code saw a `None` / `Thinking` pair, inherited from the snippet in Kilo's own documentation, where `reasoning_split` is a response-format switch rather than a depth. The new command locates the Kilo configuration, detects the providers pointing at the gateway, and writes one variant per declared level, with `reasoning: true` set on the model. It preserves every other provider, key and model field, writes atomically with mode 600, is idempotent, and refuses to touch a file it cannot parse rather than risk losing a hand-tuned provider block. Reload the Kilo Code window afterwards.
+- **The levels are offered on activation, so nothing is left to do by hand.** Once per window, AIFlowBridge checks whether Kilo Code is set up against the gateway and still does not offer the declared levels, and asks to write them. The check stays silent when it cannot help: no model declares a level range, no Kilo configuration exists, the file cannot be parsed, no Kilo provider points at the gateway, or the levels are already there, so someone who does not use AIFlowBridge through Kilo Code never sees a prompt. Turn it off with `aiflowbridge.kiloCode.promptReasoningLevels`, or with **Don't ask again**, which sets that same setting.
+
+## 2.22.0
+
+A tunable reasoning depth for MiniMax M3.1 Flash Preview, on both the Copilot Chat and gateway paths. No new vendor and no new model.
+
+### Added
+
+- **MiniMax M3.1 Flash Preview exposes its five reasoning levels in Copilot Chat.** The model always thinks and cannot be switched off, which made its "Thinking Effort" selector useless: it offered None / High / Max, and the None entry could only be rewritten to on. The selector now offers **Low / Medium / High / Extra high / Max**, and the chosen level is sent upstream as the real `reasoning_effort` field, which is how that model exposes depth. There is no `None` entry because the upstream answers HTTP 400 to a request that tries to think less than its lowest level. **MiniMax M3 and every earlier model are unchanged**: they keep the None / High / Max selector mapped to the `reasoning_split` boolean.
+- **The depth is a property of the model, declared in the registry.** A new optional `reasoningEffortLevels` field lists the levels a model accepts, in ascending order, and drives the dropdown content and the forwarded value. The bundled registry declares `low`, `medium`, `high`, `xhigh`, `max` for M3.1 Flash Preview. A model without that field keeps the historical dropdown, and a user-defined model can declare it through `aiflowbridge.userModels` or a registry override to get the same treatment.
+- **`aiflowbridge.providers.minimax.reasoningEffort` sets the fallback depth.** Applied when the Copilot Chat selector is left untouched, for the models that declare a level range; when it is unset or holds a level the model does not declare, the upstream default (`max`) applies. Models without a declared range ignore the setting, as they did before.
+- **OpenAI-compatible clients can drive the depth too.** A request to M3.1 Flash Preview carrying `reasoning_effort: "xhigh"` now has that value forwarded upstream instead of being collapsed into `reasoning_split` the way every other value was. A level the model does not declare is dropped rather than forwarded, so a client typo falls back to the upstream default instead of failing.
+
 ## 2.21.0
 
 Fix for Gemini tool calling when clients send tool results as a content-parts array or JSON array, with automatic resolution of function names from tool call IDs, and cleanup of superseded design specifications.

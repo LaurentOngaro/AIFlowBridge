@@ -68,7 +68,10 @@ import {
   convertMiniMaxMessages,
   concatToolResultContent,
   safeJson,
+  resolveMiniMaxReasoning,
 } from '../src/provider/minimax';
+import type { RegistryModelDefinition } from '../src/aiflowbridge/modelRegistry.schema';
+import type { ModelConfigurationOptions } from '../src/provider/models';
 
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../src/consts';
 
@@ -329,5 +332,97 @@ describe('minimax.ts - streaming tool call flow', () => {
     expect(pending.get(0)?.arguments).toBe('{"city": "Paris"}');
 
     expect(isToolCallFinish('tool_calls')).toBe(true);
+  });
+});
+
+describe('minimax.ts - resolveMiniMaxReasoning', () => {
+  const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
+
+  /** `toolMode` is required by the stable VS Code options type but unused here. */
+  function options(config: Record<string, unknown> = {}): ModelConfigurationOptions {
+    return { modelConfiguration: config, toolMode: 1 } as unknown as ModelConfigurationOptions;
+  }
+
+  function entry(overrides: Partial<RegistryModelDefinition> = {}) {
+    return {
+      capabilities: { toolCalling: true, imageInput: true, thinking: true },
+      requiresThinkingParam: false,
+      ...overrides,
+    } as Pick<RegistryModelDefinition, 'capabilities' | 'requiresThinkingParam' | 'reasoningEffortLevels'>;
+  }
+
+  it('forwards the picked level verbatim for a model that declares a range, with reasoning_split pinned on', () => {
+    for (const level of EFFORT_LEVELS) {
+      const result = resolveMiniMaxReasoning(
+        entry({ requiresThinkingParam: true, reasoningEffortLevels: EFFORT_LEVELS }),
+        options({ reasoningEffort: level }),
+        undefined,
+        undefined
+      );
+      expect(result.reasoningEffort).toBe(level);
+      expect(result.reasoningSplit).toBe(true);
+      expect(result.warnForcedThinking).toBe(false);
+    }
+  });
+
+  it('defaults to the highest declared level when the picker sent nothing', () => {
+    const result = resolveMiniMaxReasoning(entry({ reasoningEffortLevels: EFFORT_LEVELS }), options(), undefined, undefined);
+    expect(result.reasoningEffort).toBe('max');
+  });
+
+  it('honours the reasoningEffort setting when the picker is untouched', () => {
+    const result = resolveMiniMaxReasoning(entry({ reasoningEffortLevels: EFFORT_LEVELS }), options(), undefined, 'low');
+    expect(result.reasoningEffort).toBe('low');
+  });
+
+  it('lets the picker win over the setting', () => {
+    const result = resolveMiniMaxReasoning(entry({ reasoningEffortLevels: EFFORT_LEVELS }), options({ reasoningEffort: 'xhigh' }), undefined, 'low');
+    expect(result.reasoningEffort).toBe('xhigh');
+  });
+
+  it('ignores a level the model does not declare and falls back to the setting', () => {
+    const result = resolveMiniMaxReasoning(entry({ reasoningEffortLevels: EFFORT_LEVELS }), options({ reasoningEffort: 'ultra' }), undefined, 'medium');
+    expect(result.reasoningEffort).toBe('medium');
+  });
+
+  it('sends no reasoning_effort at all for a model without a declared range', () => {
+    const result = resolveMiniMaxReasoning(entry(), options({ reasoningEffort: 'low' }), true, 'low');
+    expect(result.reasoningEffort).toBeUndefined();
+    expect(result.reasoningSplit).toBe(true);
+  });
+
+it('maps the picker to reasoning_split for a model without a declared range', () => {
+    expect(resolveMiniMaxReasoning(entry(), options({ reasoningEffort: 'none' }), true, undefined).reasoningSplit).toBe(false);
+    expect(resolveMiniMaxReasoning(entry(), options({ reasoningEffort: 'max' }), true, undefined).reasoningSplit).toBe(true);
+    expect(resolveMiniMaxReasoning(entry(), options(), true, undefined).reasoningSplit).toBe(true);
+  });
+
+  it('ignores the reasoningSplit setting on a thinking-capable model, where the picker decides', () => {
+    // Historical behaviour: a thinking-capable model without a declared
+    // level range is driven by the picker, whose untouched value is
+    // `high`, so `reasoningSplit: false` has no effect on it.
+    expect(resolveMiniMaxReasoning(entry(), options(), false, undefined).reasoningSplit).toBe(true);
+  });
+
+  it('falls back to the reasoningSplit setting for a non-thinking model', () => {
+    const notThinking = entry({ capabilities: { toolCalling: true, imageInput: true, thinking: false } });
+    expect(resolveMiniMaxReasoning(notThinking, options({ reasoningEffort: 'none' }), true, undefined).reasoningSplit).toBe(true);
+    expect(resolveMiniMaxReasoning(notThinking, options(), false, undefined).reasoningSplit).toBe(false);
+  });
+
+  it('forces reasoning on and asks for a log line when a model cannot disable reasoning', () => {
+    const result = resolveMiniMaxReasoning(entry({ requiresThinkingParam: true }), options({ reasoningEffort: 'none' }), true, undefined);
+    expect(result.reasoningSplit).toBe(true);
+    expect(result.warnForcedThinking).toBe(true);
+    expect(result.forcedFrom).toBe('none');
+  });
+
+  it('does not warn when the caller already asked for reasoning', () => {
+    const result = resolveMiniMaxReasoning(entry({ requiresThinkingParam: true }), options({ reasoningEffort: 'max' }), true, undefined);
+    expect(result.warnForcedThinking).toBe(false);
+  });
+
+  it('treats a model missing from the registry as non-thinking', () => {
+    expect(resolveMiniMaxReasoning(undefined, options(), true, 'low')).toEqual({ reasoningSplit: true, warnForcedThinking: false });
   });
 });

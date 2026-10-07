@@ -1105,7 +1105,8 @@ export class GatewayService {
     // `reasoning_split: true/false`). The translator strips any AIFB-specific
     // fields it consumed so the upstream never sees them.
     const requiresThinking = resolveRequiresThinkingForModel(provider);
-    const { body: translatedPayload, forcedThinkingOn } = translatePayloadForUpstream(payload, provider, requiresThinking);
+    const effortLevels = resolveEffortLevelsForModel(provider);
+    const { body: translatedPayload, forcedThinkingOn } = translatePayloadForUpstream(payload, provider, requiresThinking, effortLevels);
     // when a translation actually rewrote a field, log the
     // before/after at the debug level so the user can diagnose "I sent
     // reasoning_effort=high but the model did not think" reports.
@@ -1117,11 +1118,13 @@ export class GatewayService {
       const hasEffort = 'reasoning_effort' in payload;
       if (hasReasoning || hasEffort) {
         const reasoningSplit = (translatedPayload as Record<string, unknown>).reasoning_split;
+        const upstreamEffort = (translatedPayload as Record<string, unknown>).reasoning_effort;
         logger.debug(
           `[Gateway] ${requestId} translated upstream payload: ` +
             `reasoning=${hasReasoning ? String(payload.reasoning) : '<absent>'} ` +
             `reasoning_effort=${hasEffort ? String(payload.reasoning_effort) : '<absent>'} ` +
-            `-> reasoning_split=${String(reasoningSplit)}`
+            `-> reasoning_split=${String(reasoningSplit)} ` +
+            `reasoning_effort=${upstreamEffort === undefined ? '<absent>' : String(upstreamEffort)}`
         );
       }
     }
@@ -3437,6 +3440,33 @@ function resolveRequiresThinkingForModel(provider: ProviderProfile): boolean {
 }
 
 /**
+ * Reasoning-effort levels declared by the routed model in the registry,
+ * e.g. `low`, `medium`, `high`, `xhigh`, `max` for MiniMax M3.1 Flash
+ * Preview. An empty list means the model has no tunable depth, and the
+ * client-supplied `reasoning_effort` keeps being collapsed into the
+ * `reasoning_split` boolean.
+ *
+ * Resolved here rather than inside `translatePayloadForUpstream` so the
+ * translator stays a pure function, same as `requiresThinking`.
+ */
+function resolveEffortLevelsForModel(provider: ProviderProfile): string[] {
+  const registry = tryGetLoadedRegistry();
+  if (!registry) {
+    return [];
+  }
+  for (const candidate of [provider.model, provider.id]) {
+    if (!candidate) {
+      continue;
+    }
+    const levels = registry.models.find((m) => m.id === candidate)?.reasoningEffortLevels;
+    if (levels && levels.length > 0) {
+      return levels;
+    }
+  }
+  return [];
+}
+
+/**
  * Turn every "thinking off" signal in an upstream body into "thinking
  * on", for a model whose upstream refuses to be called with reasoning
  * disabled.
@@ -3534,7 +3564,8 @@ export function forceThinkingOnIfRequired(
 export function translatePayloadForUpstream(
   payload: Record<string, unknown> | undefined,
   provider: ProviderProfile,
-  requiresThinking = false
+  requiresThinking = false,
+  effortLevels: readonly string[] = []
 ): { body: Record<string, unknown>; forcedThinkingOn: boolean } {
   if (!payload) {
     return { body: {}, forcedThinkingOn: false };
@@ -3552,11 +3583,32 @@ export function translatePayloadForUpstream(
     return { body: applied.body, forcedThinkingOn: applied.forced };
   }
 
+  const rawEffort = payload.reasoning_effort;
+  const requestedLevel = typeof rawEffort === 'string' && effortLevels.includes(rawEffort) ? rawEffort : undefined;
+  const reasoning = payload.reasoning;
+
+  if (effortLevels.length > 0) {
+    // The model declares a tunable depth (MiniMax M3.1 Flash Preview:
+    // low / medium / high / xhigh / max). `reasoning_effort` is a real
+    // upstream field there, so a level the model declares is forwarded
+    // verbatim instead of being collapsed into the `reasoning_split`
+    // boolean. Anything else the client sent (`none`, a level the model
+    // does not declare, a non-string) is dropped: thinking always runs on
+    // this model, and the upstream applies its own default (the highest
+    // declared level) when the field is absent. `reasoning_split` is
+    // pinned to `true` so the thinking lands in `reasoning_content`
+    // rather than inside `content` as `<think>` tags.
+    const { reasoning: _r, reasoning_effort: _e, ...rest } = payload;
+    return finishTranslation(
+      { ...rest, ...(requestedLevel ? { reasoning_effort: requestedLevel } : {}), reasoning_split: true },
+      requiresThinking
+    );
+  }
+
   // Priority 1: explicit `reasoning: true/false` boolean (Kilo Code's
   // AiflowBridge provider checkbox). Always wins over `reasoning_effort`.
   // Both AIFB-specific fields are stripped from the upstream body so the
   // MiniMax API never sees an unknown parameter.
-  const reasoning = payload.reasoning;
   if (typeof reasoning === 'boolean') {
     const { reasoning: _r, reasoning_effort: _e, ...rest } = payload;
     return finishTranslation({ ...rest, reasoning_split: reasoning }, requiresThinking);
@@ -3573,9 +3625,8 @@ export function translatePayloadForUpstream(
   // anything else -> true  (defensive: unknown values default to "on"
   // so a typo in the client does not silently
   // disable reasoning)
-  const effort = payload.reasoning_effort;
-  if (typeof effort === 'string') {
-    const reasoningSplit = effort !== 'none';
+  if (typeof rawEffort === 'string') {
+    const reasoningSplit = rawEffort !== 'none';
     const { reasoning_effort: _stripped, ...rest } = payload;
     return finishTranslation({ ...rest, reasoning_split: reasoningSplit }, requiresThinking);
   }

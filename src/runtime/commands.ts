@@ -3,6 +3,7 @@ import { t } from '../i18n';
 import { logger } from '../logger';
 import { ensureRequestDumpRoot } from '../provider/debug';
 import { addCustomModelCommand } from './addCustomModel';
+import { configureKiloCodeCommand } from './configureKiloCode';
 import { editModelRegistryCommand } from './editModelRegistry';
 import { exportTelemetryToFileCommand } from './exportTelemetry';
 import { openPricingDataCommand } from './openPricingData';
@@ -16,6 +17,7 @@ export function registerCommands(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('aiflowbridge.addCustomModel', () => addCustomModelCommand(context)),
     vscode.commands.registerCommand('aiflowbridge.editModelRegistry', () => editModelRegistryCommand(context)),
     vscode.commands.registerCommand('aiflowbridge.resetModelRegistry', () => resetModelRegistryCommand(context)),
+    vscode.commands.registerCommand('aiflowbridge.configureKiloCode', () => configureKiloCodeCommand()),
     // Action plan item #1 / FEAT10: dynamic pricing refresh + open
     // pricing data commands. The dashboard `Refresh prices` button
     // is wired through the runtime (see

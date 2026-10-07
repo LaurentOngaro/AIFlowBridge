@@ -182,6 +182,126 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 > Les entrées ci-dessous documentent les **décisions architecturales** et les  **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-10-07 - Kilo (Kilo Code : le dropdown de raisonnement n'est pas alimenté par AIFlowBridge)
+
+Signalement utilisateur : le sélecteur de mode de raisonnement de l'extension **Kilo Code** propose `Défaut` / `None` / `Thinking` pour `MiniMax-M3.1-Flash-Preview`, au lieu des 5 niveaux ajoutés par AP-029 (capture d'écran à l'appui).
+
+**Ce n'est pas un défaut AIFlowBridge : la liste appartient à Kilo Code.** Vérifié dans la source de Kilo (`Kilo-Org/kilocode`, `main`) :
+
+- `ThinkingSelector` (webview) rend `session.variantList(sessionID)`, plus une ligne `Default` (`common.default`) quand `allowClear` est actif. Le libellé est `value.charAt(0).toUpperCase() + value.slice(1)`, donc `none` -> `None`, `thinking` -> `Thinking`. Aucune clé i18n par variante.
+- `variantList` vient de `model.variants`. Les variantes proviennent de la configuration Kilo (`kilo.json`, `provider.<id>.models.<model>.variants`) et des plugins de catalogue de Kilo. Le seul générateur pour un provider `@ai-sdk/openai-compatible` est `packages/core/src/plugin/variant.ts`, qui ne produit que `high` / `max` **pour GLM 5.2**. Aucun plugin ne génère `none` / `thinking` pour un modèle MiniMax.
+- **`GET /v1/models` ne peut pas servir de source** : `buildModelCatalog()` ne renvoie que `{id, object, created, owned_by, name}`, et Kilo ne lit aucune métadonnée de variante de toute façon.
+
+**Deuxième vérification, celle qui compte pour le correctif :** la valeur d'une variante arrive bien intacte au gateway.
+La migration v1 -> v2 transforme chaque entrée de `variants` en `{ id, body: lowerer.request(options) }`, et le lowerer `@ai-sdk/openai-compatible` fait `result.reasoning_effort = options.reasoningEffort` **sans filtrer les valeurs** (contrairement au lowerer `@ai-sdk/openai`, qui replie l'effort dans `reasoning: { effort }`, et contrairement à `OpenAIReasoningEfforts` de `packages/llm` qui exclut `max`, mais qui ne s'applique pas à ce chemin).
+Donc `xhigh` et `max` passent bien sur le fil, et `translatePayloadForUpstream()` les relaie verbatim pour un modèle qui déclare `reasoningEffortLevels`.
+
+**Conséquence : le correctif est côté `kilo.json`, pas dans ce dépôt.** Le snippet exact est désormais documenté dans `docs/kilo-code.md` (section « Reasoning effort: Kilo Code owns the list, not AIFlowBridge ») avec l'ancre appelée depuis `docs/reasoning.md`, et résumé dans le CHANGELOG 2.22.0.
+Point de vigilance ajouté à la doc : ne pas déclarer de variante `none` pour un modèle qui déclare un range, la gateway abandonnant la valeur non déclarée et épinglant `reasoning_split: true` - l'entrée promettrait ce que le modèle ne peut pas faire.
+
+**Complément utilisateur, même journée.** En sélectionnant directement le provider **minimax** de Kilo pour M3.1 Flash Preview, l'utilisateur voit les bonnes valeurs : c'est cohérent avec le diagnostic, les variantes étant déclarées **par provider et par modèle**.
+Le provider `minimax` natif embarque le catalogue de Kilo Code pour ce modèle, alors qu'un provider custom pointant sur la gateway ne porte que ce que la configuration locale déclare.
+Le chemin natif contourne par ailleurs AIFlowBridge (protocole Anthropic Messages vers `api.minimax.io`, clé MiniMax saisie dans Kilo), ce qui explique qu'il n'ait rien à voir avec notre registre.
+
+**Origine des entrées `None` / `Thinking`, trouvée dans la doc Kilo elle-même.**
+`packages/kilo-docs/pages/code-with-ai/agents/custom-models.md` recommande, pour MiniMax sur un endpoint OpenAI-compatible, `variants: { thinking: { reasoning_split: true } }`.
+C'est donc la doc de Kilo qui a produit la configuration fautive, et non une croyance : `reasoning_split` est un booléen de **format de réponse** (renvoie la réflexion dans `reasoning_content` au lieu de `<think>` inline), pas une profondeur.
+Une paire construite dessus est un sélecteur de mise en forme déguisé, et `Thinking` retombe sur le même comportement amont que `High` dès que la profondeur vient de `reasoning_effort`.
+Point à garder en tête quand une doc d'un tiers propose un snippet : vérifier ce que le champ fait réellement chez l'amont avant de le recopier.
+
+**Le sélecteur d'effort de la boîte de dialogue Kilo s'arrête à `xhigh`.**
+`CustomProviderModelCard.tsx` type `ReasoningEffortValue = "none" | "minimal" | "low" | "medium" | "high" | "xhigh"` : l'entrée `max` du registre M3.1 **n'est pas créable depuis l'UI**, il faut l'ajouter à la main dans `kilo.json`.
+Détour incorrect par ailleurs : le champ `effort` du formulaire est l'effort de **sortie** (`OutputEffortValue` inclut `max`), pas la profondeur de raisonnement, et l'API OpenAI-compatible de MiniMax ne le prend pas.
+En revanche la valeur `max` écrite à la main passe bien sur le fil (lowerer `@ai-sdk/openai-compatible` sans filtre de valeurs, contrairement à `OpenAIReasoningEfforts` de `packages/llm` qui exclut `max` mais ne s'applique pas à ce chemin).
+
+**Leçon de méthode (même famille qu'AP-022 / AP-027).** Le premier réflexe est d'aller chercher un cache périmé ou une liste de niveaux dupliquée dans notre code.
+La vérification utile est de remonter la chaîne jusqu'au propriétaire de la donnée : ici le propriétaire est le client, et la question à poser n'est pas « qu'est-ce qui n'a pas été régénéré ? » mais « qui produit cette liste ? ».
+
+**Limite assumée** : le `kilo.json` en cause est sur la machine Windows de l'utilisateur, inaccessible depuis cet environnement ; le diagnostic repose sur la lecture de la source publique de Kilo Code et non sur l'inspection du fichier local.
+Le contenu exact de la liste affichée par le provider `minimax` natif n'a pas pu être vérifié : ni le dépôt public ni `models.dev` (qui ne liste que `MiniMax-M3` et les M2.x) ne portent d'entrée `MiniMax-M3.1-Flash-Preview`, donc ce catalogue vient du gateway Kilo, hors de portée d'ici.
+**Non commité** : règle « aucun commit automatique ».
+
+### 2026-10-07 - Kilo (commande `Configure Kilo Code reasoning levels` : plus d'édition manuelle)
+
+**Décision utilisateur, explicite :** demander à l'utilisateur d'éditer `kilo.json` à la main est contre-productif, donc ce n'est pas une solution acceptable.
+Il faut que ce soit l'extension qui écrrive la configuration du client.
+
+**Preuve qui ferme la voie « le gateway porte les niveaux ».** `packages/kilo-vscode/src/shared/fetch-models.ts` (Kilo) : `fetchOpenAIModels` lit `body.data` et n'en extrait que `item.id` et `item.name`.
+Tout le reste de la réponse `/v1/models` est ignoré.
+Ajouter `variants` (ou `reasoning_effort_levels`, ou n'importe quelle métadonnée) à notre catalogue OpenAI n'aurait donc **aucun effet** sur le dropdown : ce n'est pas un oubli de notre format, c'est le client qui ne lit pas.
+La seule voie restante est d'écrire le fichier de configuration Kilo, ce que fait désormais la commande.
+
+**Implémentation.**
+
+- `src/aiflowbridge/kilo-code-config.ts` (pur, sans `vscode`) : lecteur JSONC (`stripJsonComments` + `stripTrailingCommas`, scanners sensibles aux littéraux de chaîne pour ne pas casser une URL contenant `//`), `endpointKey` (compare `host:port`, `localhost` = `127.0.0.1`, suffixe `/v1` indifférent), `findGatewayProviderIds`, `buildEffortVariants`, `collectEffortLevelModels`, `applyEffortVariants` (pur, clone, remplace le bloc `variants` du modèle géré, force `reasoning: true`, crée la map `models` si le provider se repose sur l'auto-détection), `isAlreadyConfigured` (idempotence).
+- `src/runtime/configureKiloCode.ts` : localise le fichier dans l'ordre de découverte de Kilo (`.config/kilo`, `.kilo`, `.kilocode` x `kilo.jsonc`, `kilo.json`, premier existant sinon `.config/kilo/kilo.json`), refuse d'écrire un fichier non parsable, détecte le provider (auto, QuickPick si plusieurs, InputBox si aucun), modale de confirmation détaillant le avant/après, écriture atomique tmp+rename puis `chmod 600` (le fichier contient généralement une clé de provider), `$schema` replacé en tête, résumé + révélation du fichier.
+
+**Garde-fous retenus à dessein.** Le helper existant `resetGlobalStorageRegistryOverride` traite un fichier illisible comme `{}` et repart d'une base propre : c'est correct pour *notre* fichier de registre, et catastrophique pour une configuration tierce.
+La version Kilo échoue et affiche le chemin à la place.
+Le réécriture supprime aussi les commentaires d'un `.jsonc`, ce qui est dit dans la modale **avant** écriture plutôt que découvert après.
+19 tests ajoutés dans `tests/kilo-code-config.test.ts` (parseur JSONC, détection de provider, génération, remplacement de la paire `none`/`thinking`, préservation des autres providers et de la clé, non-mutation, provider sans map `models`, idempotence, projection du registre).
+Vérifié en plus par une simulation bout en bout hors VS Code sur un `kilo.jsonc` réaliste (commentaires + paire Kilo + clé MiniMax voisine) : provider détecté, 5 variantes écrites, provider voisin et clé intacts, deuxième passage idempotent.
+`npm run validate` : 1344 tests verts (77 fichiers), compile et `typecheck:tests` verts.
+
+**Limite assumée** : la commande n'a pas été exercée depuis VS Code (pas d'hôte ici) ; la logique métier est couverte par tests unitaires et par la simulation, mais le dialogue utilisateur (modale, QuickPick, révélation) n'a pas été validé en conditions réelles.
+Le `kilo.json` de l'utilisateur est sur sa machine Windows, hors de portée.
+
+**Non commité** : règle « aucun commit automatique ».
+
+### 2026-10-07 - Kilo (automatisation de l'offre : plus rien à faire à la main)
+
+**Retour utilisateur** : la commande fonctionne (« ok cela fonctionne après avoir lancé la nouvelle commande ») et la demande est explicite : « il faut documenter cela ou alors automatiser son exécution lorsque minimax 3.1 est sélectionné ».
+Les deux sont faits, l'automatisation étant la partie qui change la vie.
+
+**Choix du déclencheur : activation, pas moment de la requête.** Kilo Code construit son dropdown **au démarrage d'une session**, donc une écriture déclenchée par une requête arriverait trop tard pour réparer la session qui l'a produite ; elle ne servirait qu'à la suivante, en passant par un callback gateway -> hôte (surface transverse réelle) pour un résultat médiocre.
+Le contrôle à l'activation couvre la session suivante sans que l'utilisateur ait à se souvenir de la commande, coûte une petite lecture de fichier, et n'a pas besoin de plomberie.
+Décision à assumer : l'offre apparaît au (re)chargement de fenêtre, pas au premier envoi de requête.
+
+**Ce qui déclenche, et surtout ce qui ne déclenche pas.** Nouvelle fonction pure `checkEffortVariantsNeeded()` : elle n'offre que si un provider Kilo pointe sur la gateway **et** que ses variantes diffèrent des niveaux déclarés.
+Aucun provider détecté -> silence (à l'activation on ne peut pas deviner quel id l'utilisateur aurait choisi, et deviner et écrire dans un provider non concerné serait pire que de ne rien faire).
+Fichier absent, illisible, aucun modèle à niveaux, configuration déjà correcte -> silence.
+Un test verrouille ce cas limite : un provider id absent du fichier donne `offer: false`, parce qu'il n'y a rien à mettre à jour et que c'est la commande manuelle qui signale proprement le provider manquant.
+
+**Offre, pas écriture silencieuse.** Message non modal listant les modèles concernés, avec trois actions : écrire maintenant / plus tard / ne plus demander (qui passe `aiflowbridge.kiloCode.promptReasoningLevels` à `false` en Global).
+Raison inchangée : réécrire un `.jsonc` supprime ses commentaires, cela se demande, ça ne se fait pas dans le dos de l'utilisateur.
+Le module est monté en fire-and-forget après `loadModelRegistry()` (le contrôle a besoin des modèles à niveaux) et garde un drapeau `offerEvaluated`, donc une fenêtre n'offre qu'une fois.
+
+**Choix du wording** : la documentation ne dit pas « lancez cette commande », elle dit « dans le cas courant, il n'y a rien à faire ».
+Une doc qui décrit une étape manuelle que l'extension fait déjà dévalue le produit ; la commande reste documentée comme le chemin manuel et le filet de sécurité.
+
+7 tests ajoutés dans `tests/kilo-code-config.test.ts` (26 au total dans le fichier, 1351 dans la suite). `npm run validate` : 1351 tests verts, compile et `typecheck:tests` verts, `compile:standalone` vert.
+**Limite assumée** : le dialogue utilisateur (message d'offre, bouton « ne plus demander ») n'a pas été exercé depuis VS Code dans cet environnement ; seul le prédicat est couvert par tests.
+
+**Bump patch 2.22.1 demandé par l'utilisateur**, qui avait lui-même séparé les entrées Kilo dans le CHANGELOG : la livraison M3.1 (2.22.0) reste une section à part entière, le travail Kilo Code devient le patch.
+Raison operationale donnée : le redémarrage cooperative de la gateway ne se déclenche que sur une version **strictement plus récente** que le pair qui tourne, donc sans bump un F5 rejoint l'instance 2.22.0 deja en vie au lieu de la remplacer.
+Leçon utile : en dev loop F5, un bump de version est un mécanisme fonctionnel, pas une formalite de release.
+**Non commité** : règle « aucun commit automatique ».
+
+Demande utilisateur : le thinking de MiniMax M3.1 est toujours actif et le modèle était donc inutilisable avec le sélecteur « Thinking Effort » de Copilot Chat, qui n'offrait que None / High / Max, ce dernier étant un simple booléen `reasoning_split`.
+Or l'upstream M3.1 expose une **profondeur** réglable via un vrai champ `reasoning_effort` à 5 niveaux : `low`, `medium`, `high`, `xhigh`, `max` (`none` y renvoie 400, `max` est le défaut amont).
+
+**Décision : la profondeur est une propriété du modèle, déclarée dans le registre.** Nouveau champ optionnel `reasoningEffortLevels` (liste ordonnée, validée, fusionnée par `deepMergeModel`), qui pilote à la fois le contenu du dropdown et la valeur relayée.
+C'est le même principe que `requiresThinkingParam` en AP-026 : la contrainte est portée par l'entrée de registre du modèle, pas par le vendor, donc un modèle qui expose un vrai `reasoning_effort` en hérite sans code.
+
+**Deux formes mutuellement exclusives, décidées par cette seule déclaration.**
+
+- Modèle **avec** `reasoningEffortLevels` (M3.1) : le sélecteur liste exactement ces niveaux, `reasoning_split` est épinglé à `true` (l'amont refuse `false` sur ce modèle, et c'est ce champ que le lecteur de stream consomme), la valeur est relayée **verbatim** en `reasoning_effort`.
+- Modèle **sans** ce champ (M3 et antérieurs) : comportement inchangé, None / High / Max -> `reasoning_split` booléen, défaut `high`.
+Aucune régression sur les modèles antérieurs, ce que la demande énonçait explicitement.
+
+**Ordre de résolution** (identique sur les deux chemins, deux fonctions pures) : sélection du picker si c'est un niveau déclaré, sinon le setting `aiflowbridge.providers.minimax.reasoningEffort`, sinon le niveau le plus élevé de la liste (défaut amont).
+Un niveau non déclaré est **abandonné** plutôt que relayé : une faute de frappe du client retombe sur le défaut amont au lieu d'envoyer un 400.
+
+**Pourquoi une fonction pure de plus.** La résolution était inline dans `provideLanguageModelChatResponse`, donc testable seulement en instanciant le provider avec un faux `vscode`. `resolveMiniMaxReasoning()` la sort en fonction pure (entrée de registre, options, deux settings en paramètres) : 10 tests sans hôte VS Code.
+C'est le prolongement direct de la leçon AP-026, où la politique « thinking obligatoire » avait été rendue testable de la même façon.
+
+**Extension du test i18n.** Les clés `thinking.<level>` et `thinking.<level>.desc` sont construites dynamiquement depuis le registre, donc invisibles au scan statique.
+Entrée déclarée dans `KNOWN_DYNAMIC_CALL_SITES` (`src/provider/models.ts`), avec repli sur un niveau capitalisé et une description vide pour un niveau sans traduction, afin qu'un registre utilisateur portant un nom de niveau inconnu produise quand même un dropdown lisible.
+
+**Vérifié** : `npm run validate` (1310 tests, 27 nouveaux) et `compile:standalone` verts.
+**Limite assumée** : les 5 niveaux et leur refus de `none` viennent de la documentation officielle MiniMax (`platform.minimax.io`, page OpenAI SDK), pas d'un appel réel, cette machine n'ayant pas de clé M Plan / MiniMax Code servie par M3.1.
+**Non commité** : règle « aucun commit automatique ».
+
 ### 2026-10-03 - Kilo (Gemini : résultat d'outil en tableau de parts, 400 « Proto field is not repeating »)
 
 Erreur remontée par l'utilisateur sur un chat Gemini 3.8 via la gateway : `Invalid JSON payload received.

@@ -44,6 +44,9 @@ export abstract class BaseChatProvider implements vscode.LanguageModelChatProvid
         thinking: m.capabilities?.thinking ?? false,
       },
       requiresThinkingParam: m.requiresThinkingParam ?? false,
+      ...(m.reasoningEffortLevels && m.reasoningEffortLevels.length > 0
+        ? { reasoningEffortLevels: m.reasoningEffortLevels }
+        : {}),
     }));
     return [...builtIn.filter((m) => !userModels.some((u) => u.id === m.id)), ...userModels];
   }
