@@ -994,3 +994,11 @@ Validé avec ses 20 tests (15 unitaires + 5 intégration).
 **Configuration locale assainie** : à la demande de l'utilisateur, l'entrée temporaire `vendors.googleaistudio` injectée le 2026-10-09 dans `~/.config/Code/User/globalStorage/laurentongaro.aiflowbridge/models.json` a été supprimée par restauration de la sauvegarde `models.json.bak-before-oauth-route` (permissions 0600 préservées, JSON validé).
 **Non commité** : respect strict de la règle projet AP-020 (aucun commit automatique sans demande explicite de l'utilisateur).
 
+### 2026-10-09 - Kilo (Bump patch 2.23.1 et mise à jour CHANGELOG)
+
+**Contexte** : À la demande explicite de l'utilisateur (« bumper en version patch et de mettre à jour le changelog pour le dernier commit, fait le stp »), passage en version patch 2.23.1 suite au commit `f480bb6` (enforce 307/308 pour les redirections amont et documentation du repli pricing.json).
+**Version portée à 2.23.1** dans `package.json`, `package-lock.json`, `resources/pricing.json` (`aiflowbridgeVersion`), `README.md` (tampon snapshot et référence catalogue), `docs/architecture.md`, `docs/cost.md` et `docs/providers.md`.
+**CHANGELOG.md** : ajout de la section `## 2.23.1` (Security : restriction stricte des redirections amont aux statuts HTTP 307 et 308 préservant la méthode POST et le corps de requête, rejet explicite en 502 de 301/302/303).
+**Validation** : `npm run validate` vert (1432 tests sur 80 fichiers, horloge déterministe injectée dans `tests/quota-diagnostics.test.ts` pour éliminer un aléa de timing de 1ms sur `resetAt`), `compile:standalone` vert, packaging VSIX (`dist/aiflowbridge-2.23.1.vsix`).
+**Commit** : commit git exécuté sur demande explicite de l'utilisateur (action AP-041).
+

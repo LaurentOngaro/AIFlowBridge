@@ -166,13 +166,15 @@ describe('quota diagnostics - rate limits', () => {
   });
 
   it('prefers the Retry-After header over the body when both are present', () => {
+    const now = Date.parse('2026-10-09T12:00:00Z');
     const diagnosis = diagnoseUpstreamQuota({
       status: 429,
       bodyText: GEMINI_WITH_VIOLATION,
       headers: { 'retry-after': '120' },
+      now,
     });
     expect(diagnosis?.retryAfterSeconds).toBe(120);
-    expect(diagnosis?.resetAt).toBe(new Date(Date.now() + 120_000).toISOString());
+    expect(diagnosis?.resetAt).toBe(new Date(now + 120_000).toISOString());
   });
 
   it('accepts an HTTP-date Retry-After', () => {

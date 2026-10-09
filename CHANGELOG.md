@@ -6,6 +6,12 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.23.1
+
+### Security
+
+- **Upstream redirects are strictly restricted to HTTP 307 and 308.** Only 307 Temporary Redirect and 308 Permanent Redirect (which preserve the HTTP method and request body per RFC 9110) are replayed. Non-preservational redirect statuses (301, 302, 303) are explicitly rejected with HTTP 502, preventing unexpected replay of POST request payloads containing user prompts.
+
 ## 2.23.0
 
 Local clients and local providers are unaffected; the details are in the Security section below, and both new failure modes are logged at WARNING in the `AIFlowBridge: Show logs` channel so the cause is never silent.
