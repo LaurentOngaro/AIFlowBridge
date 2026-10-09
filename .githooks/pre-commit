@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AIFlowBridge — hook pre-commit
+# AIFlowBridge - hook pre-commit
 #
 # 1) BLOQUE le commit si la branche locale est en retard sur son upstream
 #    (ou a divergé) : un `git pull --rebase` est alors requis AVANT de committer.

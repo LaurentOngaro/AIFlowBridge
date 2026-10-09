@@ -196,3 +196,70 @@ describe('i18n table', () => {
     expect(en['vision.configuredMissing']).not.toContain('{');
   });
 });
+
+/**
+ * The model-detail keys are built from the upstream API id verbatim by
+ * `resolveDetailKey()` in `src/provider/models.ts`. That resolver used to
+ * strip a `deepseek-v4-` prefix first, which is the id alias map the
+ * registry rule forbids, and it left the shipped `deepseek-flash` id with
+ * no description at all.
+ */
+describe('model detail keys', () => {
+  const registry = JSON.parse(readFileSync(resolve(__dirname, '..', 'resources', 'models.json'), 'utf8')) as {
+    models: Array<{ id: string; detail?: string }>;
+  };
+
+  it('gives every bundled model a description through the key or the registry', () => {
+    const missing = registry.models
+      .filter((m) => t(`model.${m.id}.detail`) === `model.${m.id}.detail` && !(m.detail ?? '').trim())
+      .map((m) => m.id);
+    expect(missing, 'models with no description in the Copilot Chat picker').toEqual([]);
+  });
+
+  it('defines the DeepSeek keys under their upstream id, not a short alias', () => {
+    // The alias form is the regression this suite pins: `model.flash.detail`
+    // only ever resolved through the prefix strip.
+    expect(Object.prototype.hasOwnProperty.call(en, 'model.deepseek-flash.detail')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(en, 'model.deepseek-v4-pro.detail')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(en, 'model.flash.detail')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(en, 'model.pro.detail')).toBe(false);
+  });
+
+  it('keys every model description on an id the registry actually ships', () => {
+    // Catches the reverse drift: a `model.*.detail` key left behind for a
+    // model id that no longer exists is dead weight in the table.
+    const ids = new Set(registry.models.map((m) => m.id));
+    const orphans = Object.keys(en).filter((key) => key.startsWith('model.') && key.endsWith('.detail')).filter((key) => {
+      const id = key.slice('model.'.length, -'.detail'.length);
+      return !ids.has(id) && !['MiniMax-M2', 'MiniMax-M2.1', 'MiniMax-M2.1-highspeed', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed'].includes(id);
+    });
+    expect(orphans, 'model detail keys with no matching registry id').toEqual([]);
+  });
+});
+
+/**
+ * `package.nls.json` is VS Code's manifest-only translation file: it is
+ * read for the `%key%` placeholders in `package.json` and for nothing
+ * else. The runtime dictionary is `src/i18n.ts`. A previous version of
+ * this file also carried 138 `model.*` / `provider.*` entries that no
+ * placeholder ever referenced, duplicating the runtime table with a
+ * different casing (`model.minimax-M2.7.detail` against
+ * `model.MiniMax-M2.7.detail`) and stale ids, so the two drifted apart
+ * with no signal.
+ */
+describe('package.nls.json manifest dictionary', () => {
+  const manifest = readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8');
+  const nls = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.nls.json'), 'utf8')) as Record<string, string>;
+
+  it('resolves every %key% placeholder used in package.json', () => {
+    const placeholders = [...manifest.matchAll(/%([A-Za-z0-9._-]+)%/g)].map((m) => m[1]);
+    expect(placeholders.length, 'the manifest must still use NLS placeholders').toBeGreaterThan(0);
+    const missing = placeholders.filter((key) => !(key in nls));
+    expect(missing, 'placeholders with no package.nls.json entry').toEqual([]);
+  });
+
+  it('carries no key that the manifest does not reference', () => {
+    const placeholders = new Set([...manifest.matchAll(/%([A-Za-z0-9._-]+)%/g)].map((m) => m[1]));
+    expect(Object.keys(nls).filter((key) => !placeholders.has(key)), 'dead keys in package.nls.json').toEqual([]);
+  });
+});

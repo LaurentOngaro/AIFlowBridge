@@ -24,7 +24,7 @@ import { AntigravityTokenManager } from '../src/aiflowbridge/antigravity';
 import { AntigravityTokenStore } from '../src/aiflowbridge/antigravity/token-store';
 import { GatewayService } from '../src/aiflowbridge/gateway/server';
 
-describe('GatewayService — Antigravity / Google AI Studio integration', () => {
+describe('GatewayService - Antigravity / Google AI Studio integration', () => {
   let mockUpstreamServer: Server;
   let mockUpstreamPort: number;
   let receivedRequests: Array<{ url?: string; headers: Record<string, string | string[] | undefined>; body: unknown }> = [];

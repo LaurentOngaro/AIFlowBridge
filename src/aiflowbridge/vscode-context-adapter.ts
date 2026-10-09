@@ -202,6 +202,18 @@ export function createVSCodeContext(context: vscode.ExtensionContext): IGatewayC
     executeCommand: async (command: string, ...args: unknown[]): Promise<unknown> => {
       return await vscode.commands.executeCommand(command, ...args);
     },
+    pickRoute: async (choices) => {
+      const items = choices.map((choice) => ({
+        label: choice.label,
+        description: choice.description,
+        route: choice.route,
+      }));
+      const picked = await vscode.window.showQuickPick(items, {
+        title: 'AIFlowBridge: Google AI Studio route',
+        placeHolder: 'Which route should Gemini requests use?',
+      });
+      return picked?.route;
+    },
     fs: new VscodeFileSystemAdapter(vscode.workspace.fs),
     extensionUri: new VscodeUriAdapter(context.extensionUri),
     workspaceFolder: vscode.workspace.workspaceFolders?.[0] ? new VscodeUriAdapter(vscode.workspace.workspaceFolders[0].uri) : undefined,

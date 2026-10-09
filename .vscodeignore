@@ -26,6 +26,22 @@ out/**/*.map
 out/**/*.d.ts
 out/**/*.d.ts.map
 
+# Development-only payload. These files are needed to build or to work on
+# the extension, never to run it, and the project journal has no business
+# shipping to every Marketplace user. Measured on the 2.16.1 artifact:
+# tests/ was 753 KB across 64 files, TODO.md 36 KB, BRAIN.md 10.6 KB,
+# ACTION_PLAN.md 8.7 KB, scripts/ 13.4 KB, plus the git hook and the Kilo
+# rule file. `docs/**` is deliberately NOT excluded: it is the end-user
+# documentation that ships with the extension.
+tests/**
+scripts/**
+.githooks/**
+.kilocode/**
+BRAIN.md
+ACTION_PLAN.md
+TODO.md
+.kilo/**
+
 .nvmrc
 .gitignore
 *.vsix

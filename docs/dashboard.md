@@ -46,7 +46,7 @@ The bundled pricing snapshot stamp in the same panel (`generatedAt` + `AIFlowBri
 
 The **Est. cost** column always uses the same formula - `(promptTokens x inputPerMillion + completionTokens x outputPerMillion) / 1_000_000` at the profile's rates - but the number means two different things.
 For per-token billing (DeepSeek / MiniMax / Xiaomi / OpenRouter pay-as-you-go keys, **Google AI Studio API-key (BYOK)** calls billed on the user's GCP project) it is a **real charge estimate**.
-For plan-covered usage (MiniMax token-plan keys, Google AI Studio / Antigravity via OAuth on the AGY baseUrl) it is an **indicative equivalent**: what the same tokens would cost at pay-as-you-go rates - you pay $0 extra, the plan covers it.
+For plan-covered usage (MiniMax token-plan keys, Google AI Studio via the Cloud Code Assist OAuth route) it is an **indicative equivalent**: what the same tokens would cost at pay-as-you-go rates - you pay $0 extra, the plan covers it.
 
 The dashboard makes the distinction visible without any extra configuration step:
 

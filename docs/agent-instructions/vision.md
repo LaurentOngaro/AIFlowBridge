@@ -1,6 +1,6 @@
 # Vision proxy
 
-> Part of the [agent instructions](../AGENTS.md).
+> Part of the [agent instructions](../../AGENTS.md).
 
 The vision proxy is a transparent image-to-text converter that lets text-only models (DeepSeek, Xiaomi MiMo) handle pasted images by routing the description through another installed Copilot model.
 

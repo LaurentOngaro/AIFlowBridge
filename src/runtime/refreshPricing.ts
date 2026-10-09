@@ -8,7 +8,7 @@
  * without a window reload.
  *
  * The bundled `resources/pricing.json` is NEVER updated by this path;
- * that is reserved for the release-time `scripts/refresh-bundled-pricing.mjs`
+ * that is reserved for the release-time `_helpers/scripts/refresh-bundled-pricing.mjs`
  * so the bundled date stamp always tracks a release.
  *
  * Two surfaces, one implementation (action plan item #1 / FEAT10):

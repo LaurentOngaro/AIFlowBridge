@@ -1,6 +1,6 @@
 # Model registry
 
-> Part of the [agent instructions](../AGENTS.md).
+> Part of the [agent instructions](../../AGENTS.md).
 
 The canonical list of models, vendors, capabilities, and per-model pricing is an external JSON file (`resources/models.json`), not a TypeScript constant.
 
@@ -14,7 +14,7 @@ The canonical list of models, vendors, capabilities, and per-model pricing is an
 resources/models.json               (bundled with the extension)
 ```
 
-- **Bundled** (`resources/models.json`) - ships with the extension, lists the 38 bundled models and the 7 vendor defaults with models (`deepseek`, `minimax`, `xiaomi`, `zai`, `moonshot`, `openrouter`, `googleaistudio`; each with `baseUrl`, `apiKeySecret`, `externalUrls`, indicative token-plan rates), plus an `antigravity` vendor entry that carries no bundled model (OAuth-only route). The 38 bundled entries drive the Copilot Chat picker and the gateway catalog; **the OpenRouter vendor makes all 100+ models reachable** - any model id not in the bundled registry works the moment it is declared in `aiflowbridge.userModels` with `family: "openrouter"` (or via a `globalStorage` / `workspace` registry override). No recompile needed.
+- **Bundled** (`resources/models.json`) - ships with the extension, lists the 38 bundled models and the 7 vendor defaults with models (`deepseek`, `minimax`, `xiaomi`, `zai`, `moonshot`, `openrouter`, `googleaistudio`; each with `baseUrl`, `apiKeySecret`, `externalUrls`, indicative token-plan rates), plus an `antigravity` vendor entry that carries no bundled model (metadata-only: it pins the Cloud Code Assist OAuth upstream `baseUrl` and the external URLs so the route switcher and model discovery have a stable reference. No bundled `models[].family` uses it, and the gateway never reads it to pick a route; only `vendors.googleaistudio` selects the route, per `GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS`). The 38 bundled entries drive the Copilot Chat picker and the gateway catalog; **the OpenRouter vendor makes all 100+ models reachable** - any model id not in the bundled registry works the moment it is declared in `aiflowbridge.userModels` with `family: "openrouter"` (or via a `globalStorage` / `workspace` registry override). No recompile needed.
 - **globalStorage override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user.
 - **workspace override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
 

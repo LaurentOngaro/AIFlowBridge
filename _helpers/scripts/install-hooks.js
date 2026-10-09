@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * AIFlowBridge — installation des hooks git versionnés.
+ * AIFlowBridge - installation des hooks git versionnés.
  *
  * Configure `core.hooksPath` pour pointer vers le dossier `.githooks/`
  * du dépôt, afin que les hooks soient partagés et versionnés avec le code.

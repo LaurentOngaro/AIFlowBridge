@@ -109,7 +109,7 @@ aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>            # save 
 aiflowbridge-server auth googleaistudio clearApiKey                        # revoke it
 # ... or set AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY in the environment.
 
-# Antigravity / Cloud Code Assist OAuth (advanced, requires a whitelisted tenant; do NOT use as a stand-in for AI Studio Pro - they are unrelated billing surfaces):
+# Google AI Studio OAuth via Cloud Code Assist (advanced, UNVERIFIED - no successful generation observed; requires the project to be attached to the Cloud Code Assist programme. Do NOT treat it as a stand-in for AI Studio Pro or for the Google AI plan: those are unrelated billing surfaces):
 aiflowbridge-server auth googleaistudio                                    # login (prints the Google consent URL)
 aiflowbridge-server auth googleaistudio --status                           # login state, account, project, expiry
 aiflowbridge-server auth googleaistudio --logout                           # revoke OAuth tokens
@@ -117,10 +117,11 @@ aiflowbridge-server auth googleaistudio --probe                            # tok
 aiflowbridge-server auth googleaistudio --list-models                      # list Cloud Code Assist -permitted model ids
 ```
 
-`auth antigravity` is accepted as an alias. Custom OAuth clients for private Google Cloud tenants via `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET`.
+`auth antigravity` is accepted as an alias (`antigravity` and `googleaistudio` name the same Cloud Code Assist OAuth feature).
+Custom OAuth clients for private Google Cloud tenants via `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET`.
 To enable the OAuth route, also set `aiflowbridge.providers.googleaistudio.baseUrl` to `https://cloudcode-pa.googleapis.com` in `config.json` (the default routes the BYOK path).
 
-Full vendor notes: [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go) (recommended, always works) and [providers.md](providers.md#google-ai-studio--antigravity-via-cloud-code-assist-oauth-advanced) (advanced).
+Full vendor notes: [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go) (recommended, always works) and [providers.md](providers.md#google-ai-studio-via-cloud-code-assist-oauth-advanced-unverified-in-the-field) (advanced, unverified).
 
 ## Run
 

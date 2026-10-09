@@ -11,9 +11,29 @@ import { GLOBAL_STORAGE_PRICING_RELATIVE_PATH, replacePricingEntries } from './p
 import { fetchOpenRouterModels, parseOpenRouterPricing, type PricingEntry } from './pricing/openrouter-fetch';
 import { TelemetryStore } from './telemetry';
 import { TelemetryPersister, defaultTelemetryPaths } from './telemetry/persistence';
-import type { AiFlowBridgeConfig, Disposable, GatewayStatus, IGatewayContext, TelemetrySnapshot } from './types';
+import type { AiFlowBridgeConfig, Disposable, GatewayStatus, IGatewayContext, RouteChoice, TelemetrySnapshot } from './types';
 import { showMetricsDashboard } from './ui/dashboard';
 import { StatusBarController } from './ui/statusbar';
+
+/**
+ * Route picker entries, OAuth first. The description spells out the
+ * billing consequence of each route, because that is the whole point of
+ * the choice: the OAuth route spends the Google account quota and leaves
+ * prepaid credits untouched, while the BYOK route spends the API key's
+ * billing project.
+ */
+const ROUTE_CHOICES: readonly RouteChoice[] = [
+  {
+    route: 'oauth',
+    label: 'Antigravity OAuth (Google account quota)',
+    description: 'Requests run on your signed-in Google account. Does not spend AI Studio prepaid credits.',
+  },
+  {
+    route: 'byok',
+    label: 'BYOK API key (billed)',
+    description: "Requests run against generativelanguage.googleapis.com with your API key, on that project's billing.",
+  },
+];
 
 class AIFlowBridgeRuntime implements Disposable {
   private config!: AiFlowBridgeConfig;
@@ -395,7 +415,7 @@ class AIFlowBridgeRuntime implements Disposable {
     // `docs/providers.md` for the rationale.
     this.ctx.subscriptions.push(
       register('aiflowbridge.switchGoogleAIStudioRoute', async () => {
-        const { decideRouteFromEffective, describeCurrentRoute, resolveEffectiveBaseUrl } = await import('./googleai-studio-route');
+        const { decideRouteFromEffective, describeCurrentRoute, GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS, hostnameRoute, resolveEffectiveBaseUrl } = await import('./googleai-studio-route');
         if (!this.ctx.writeConfiguration) {
           this.ctx.showWarning?.('AIFlowBridge: switching the Google AI Studio route is supported in the VS Code extension only. Edit "aiflowbridge.providers.googleaistudio.baseUrl" in settings.json manually.');
           return;
@@ -412,32 +432,56 @@ class AIFlowBridgeRuntime implements Disposable {
         const fs = this.ctx.fs;
         let workspaceBaseUrl: string | undefined;
         let globalStorageBaseUrl: string | undefined;
+        // Only the `googleaistudio` vendor key is a route signal, and the
+        // list lives in the route module so the switcher and the
+        // gateway cannot drift apart. `vendors.antigravity` is
+        // metadata-only (see GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS).
+        const ROUTE_VENDOR_KEYS = GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS;
         if (fs) {
           try {
             const folder = this.ctx.workspaceFolder;
             const wsPath = folder && 'fsPath' in folder ? (folder as { fsPath: string }).fsPath : undefined;
             workspaceBaseUrl = wsPath
-              ? await readRegistryVendorBaseUrl(fs, wsPath, WORKSPACE_REGISTRY_RELATIVE_PATH, ['googleaistudio', 'antigravity'])
+              ? await readRegistryVendorBaseUrl(fs, wsPath, WORKSPACE_REGISTRY_RELATIVE_PATH, ROUTE_VENDOR_KEYS)
               : undefined;
           } catch {
             // ignore: missing workspace tier means no workspace override.
           }
           try {
-            globalStorageBaseUrl = await readRegistryVendorBaseUrl(fs, this.ctx.globalStorageDir, GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH, [
-              'googleaistudio',
-              'antigravity',
-            ]);
+            globalStorageBaseUrl = await readRegistryVendorBaseUrl(
+              fs,
+              this.ctx.globalStorageDir,
+              GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH,
+              ROUTE_VENDOR_KEYS
+            );
           } catch {
             // ignore: missing globalStorage tier means no override.
           }
         }
         const effective = resolveEffectiveBaseUrl({ settingsBaseUrl, workspaceBaseUrl, globalStorageBaseUrl });
-        const decision = decideRouteFromEffective(effective);
+        const currentRoute = hostnameRoute(effective.baseUrl);
+        // Explicit choice, not a blind toggle. A toggle flips on every
+        // invocation, so "switch twice to check" ends on the route the
+        // user did not ask for - which reads as a broken switch and, on
+        // the OAuth route, silently reintroduces billed API-key traffic.
+        if (!this.ctx.pickRoute) {
+          this.ctx.showWarning?.('AIFlowBridge: the route picker is not available in this host. Edit "aiflowbridge.providers.googleaistudio.baseUrl" in settings.json (https://cloudcode-pa.googleapis.com for Antigravity OAuth).');
+          return;
+        }
+        const targetRoute = await this.ctx.pickRoute(ROUTE_CHOICES);
+        if (!targetRoute) {
+          this.ctx.showInformation?.(`AIFlowBridge: Google AI Studio left on the ${describeCurrentRoute(effective.baseUrl)} route (resolved from ${effective.source}).`);
+          return;
+        }
+        const decision = decideRouteFromEffective(effective, targetRoute);
         if (!decision) {
           this.ctx.showInformation?.(
             `AIFlowBridge: Google AI Studio is already on the ${describeCurrentRoute(effective.baseUrl)} route (resolved from ${effective.source}).`
           );
           return;
+        }
+        if (decision.cleanup.revokeOAuthTokens) {
+          this.ctx.showWarning?.('AIFlowBridge: switching to BYOK revokes the Antigravity OAuth tokens. You will have to sign in again to come back to the OAuth route.');
         }
         try {
           await this.ctx.writeConfiguration('providers.googleaistudio.baseUrl', decision.nextBaseUrl);
@@ -446,16 +490,40 @@ class AIFlowBridgeRuntime implements Disposable {
           this.ctx.showWarning?.(`AIFlowBridge: failed to write the new baseUrl: ${message}`);
           return;
         }
-        // Audit BUG-02: the `globalStorage/models.json` registry
-        // override is higher-priority than the bundled registry and the
-        // `providers.*.baseUrl` setting. A stale override here would
-        // silently re-route the request to the previous surface and
-        // reproduce the failure we just toggled away from. Strip both
-        // `vendors.googleaistudio` and `vendors.antigravity` entries
-        // from the globalStorage AND workspace overrides before they
-        // can override the new bundled default. The next
-        // `Developer: Reload Window` re-runs the registry loader
-        // automatically (the loader caches per activation).
+        // Verify the window actually serves the key we just wrote. A host
+        // whose configuration scope does not carry `aiflowbridge` accepts
+        // the write and keeps resolving the previous value, which turns
+        // the switch into a silent no-op: the gateway rebuilds the same
+        // profile, keeps the old surface, and the user is billed on the
+        // route they just asked to leave.
+        //
+        // When that happens we stop here on purpose. Continuing would run
+        // the stale-vendor cleanup below, deleting a `vendors.googleaistudio`
+        // registry override that may be the only thing actually selecting
+        // the route, leaving the user with no working configuration at all.
+        const readBack = this.ctx.getConfiguration().get<string>('providers.googleaistudio.baseUrl');
+        if (readBack?.trim() !== decision.nextBaseUrl) {
+          logger.warn(
+            `[AIFlowBridge] Switch Google AI Studio route: wrote providers.googleaistudio.baseUrl but this window resolves it to "${readBack ?? '<unset>'}". The registry overrides were left untouched.`
+          );
+          this.ctx.showWarning?.(
+            `AIFlowBridge: "aiflowbridge.providers.googleaistudio.baseUrl" was written to ${decision.nextBaseUrl} but this window does not read it back, so the gateway would keep the previous surface. Set the OAuth route directly in a registry override instead: "vendors": { "googleaistudio": { "baseUrl": "https://cloudcode-pa.googleapis.com", "apiKeySecret": "aiflowbridge.providers.googleaistudio.apiKey" } } in <globalStorageUri>/models.json (or .vscode/aiflowbridge.models.json in the workspace), alongside "version" and "models" keys.`
+          );
+          return;
+        }
+        // Audit BUG-02: a stale `vendors.googleaistudio` override can
+        // re-route the request to the previous surface once the setting is
+        // absent (the synthesizer falls back to the registry when the
+        // setting is empty), and would silently reproduce the failure we
+        // just toggled away from. Strip it from the globalStorage AND
+        // workspace overrides. The next `Developer: Reload Window`
+        // re-runs the registry loader automatically (the loader caches
+        // per activation).
+        //
+        // Precedence note: the setting is read FIRST by the synthesizer
+        // (host-config.ts `providers.<family>.baseUrl || registry.vendors[family].baseUrl`),
+        // so with the setting in place the override cannot win; this
+        // cleanup only matters for the window where the setting is unset.
         try {
           const { GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH, WORKSPACE_REGISTRY_RELATIVE_PATH } = await import('./modelRegistry');
           const { resetGlobalStorageRegistryOverride } = await import('./modelRegistryOverride');
@@ -501,7 +569,18 @@ class AIFlowBridgeRuntime implements Disposable {
           }
         }
         logger.info(`[AIFlowBridge] Google AI Studio baseUrl -> ${decision.nextBaseUrl}`);
-        this.ctx.showInformation?.(`AIFlowBridge: ${decision.message} Reload Window to pick up the new route.`);
+        // The provider profiles (and therefore the effective route) are
+        // built once per activation, so without a reload the running
+        // gateway keeps calling the previous surface and the switch looks
+        // like it failed. Offer the reload rather than only stating it.
+        const reload = await this.ctx.confirm?.(
+          `AIFlowBridge: ${decision.message} The running gateway keeps the previous route until the window reloads. Reload now?`,
+          'Reload Window',
+          'Later'
+        );
+        if (reload === 'Reload Window') {
+          await this.ctx.executeCommand?.('workbench.action.reloadWindow');
+        }
       })
     );
 

@@ -14,7 +14,7 @@ import { tryGetLoadedRegistry } from '../modelRegistry';
 import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
 import { resolveAuthMode } from '../auth-mode';
 import { createThoughtSignatureCache } from '../antigravity/thought-signature-cache';
-import { buildModelCatalog } from '../providers';
+import { buildModelCatalog, resolveProviderRedirect } from '../providers';
 import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
 import { buildPromptSummary, buildResponseSummary } from '../telemetry/summary';
@@ -29,12 +29,23 @@ import type {
     TelemetrySnapshot,
 } from '../types';
 import { isValidBearerKey } from './bearer-key';
+import { inspectLoopbackRequest } from './loopback-guard';
+import { diagnoseUpstreamQuota } from './quota-diagnostics';
 import { buildClientConfigSnippets, DiscoveryBeacon } from './discovery';
 import { applyOpenRouterAttributionHeaders } from './openrouter-headers';
 import { compareSemver, GATEWAY_SERVICE_NAME, isPortInUse, probeServerVersion, requestPeerShutdown, waitUntilPortFree } from './probe';
 
 interface GatewaySnapshotListener {
   (status: GatewayStatus, snapshot: TelemetrySnapshot): void;
+}
+
+/**
+ * The 3xx statuses `fetch` can surface with `redirect: 'manual'`.
+ * 307 and 308 preserve the POST method and body, which is what makes a
+ * safe replay possible; 301/302/303 would need a method rewrite.
+ */
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
 export type ResolveApiKeyFn = (vendor: string) => Promise<string | undefined>;
@@ -652,6 +663,25 @@ export class GatewayService {
     const requestUrl = new URL(request.url ?? '/', this.config.gateway.baseUrl);
     const path = requestUrl.pathname;
 
+    // Binding to 127.0.0.1 keeps the gateway off the network but not away
+    // from a browser running on the same machine: a cross-origin POST with
+    // `Content-Type: text/plain` is a CORS simple request (no preflight,
+    // so the paid API key is spent), and a DNS-rebinding page sends its own
+    // name in `Host` and can then read the responses as same-origin. The
+    // guard refuses both. See `loopback-guard.ts`.
+    const verdict = inspectLoopbackRequest(
+      { host: request.headers.host, origin: request.headers.origin },
+      this.config.gateway.port
+    );
+    if (!verdict.trusted) {
+      logger.warn(`[Gateway] Refused a request on ${path}: untrusted ${verdict.reason} header.`);
+      this.writeJson(response, 403, {
+        error: 'Forbidden',
+        message: `This gateway only serves loopback clients on port ${this.config.gateway.port}.`,
+      });
+      return;
+    }
+
     if (request.method === 'GET' && path === '/version') {
       // The server binds on 127.0.0.1 only, so this endpoint is reachable
       // only from the local machine. Used by cooperative-restart detection
@@ -897,7 +927,79 @@ export class GatewayService {
    * Returns the parsed JSON payload on success, or `undefined` after
    * writing the 400 response + decrementing the counter on failure.
    */
+  /**
+ * Turn an ambiguous upstream 429 / 402 / 503 into an actionable verdict.
+ *
+ * The upstream body is left untouched (clients parse it, and the SSE
+ * surface answers errors with `content-type: text/event-stream`), so the
+ * diagnosis is published two ways instead: a WARN line in the
+ * `AIFlowBridge: Show logs` channel, and two response headers a client can
+ * branch on. Only error statuses are inspected, and only through a
+ * `clone()`, so the streaming and non-streaming paths below still get the
+ * untouched body.
+ */
+private reportQuotaDiagnosis(
+    requestId: string,
+    provider: ProviderProfile,
+    upstreamResponse: Response,
+    response: ServerResponse
+  ): void {
+    if (upstreamResponse.status !== 429 && upstreamResponse.status !== 402 && upstreamResponse.status !== 503) {
+      return;
+    }
+    void (async () => {
+      let bodyText = '';
+      try {
+        bodyText = await upstreamResponse.clone().text();
+      } catch {
+        // body unreadable: the status alone is still worth reporting.
+      }
+      const headerRecord: Record<string, string | undefined> = {};
+      for (const name of ['retry-after']) {
+        const value = upstreamResponse.headers.get(name);
+        if (value !== null) {
+          headerRecord[name] = value;
+        }
+      }
+      const diagnosis = diagnoseUpstreamQuota({
+        status: upstreamResponse.status,
+        bodyText,
+        headers: headerRecord,
+      });
+      if (!diagnosis) {
+        return;
+      }
+      const prefix = `[Gateway] ${requestId} provider=${provider.id} upstream ${upstreamResponse.status}:`;
+      // `zero-allocation` and `billing-exhausted` are the two states that
+      // retrying cannot fix, so they are raised to the channel a user is
+      // most likely to be reading when a model suddenly stops working.
+      const line = `${prefix} ${diagnosis.summary}`;
+      if (diagnosis.state === 'zero-allocation' || diagnosis.state === 'billing-exhausted') {
+        logger.error(line);
+      } else {
+        logger.warn(line);
+      }
+      if (!response.headersSent) {
+        response.setHeader('X-AIFlowBridge-Quota-State', diagnosis.state);
+        if (diagnosis.resetAt) {
+          response.setHeader('X-AIFlowBridge-Quota-Reset', diagnosis.resetAt);
+        }
+        if (diagnosis.retryAfterSeconds !== undefined && !response.hasHeader('Retry-After')) {
+          response.setHeader('Retry-After', String(diagnosis.retryAfterSeconds));
+        }
+      }
+    })().catch(() => undefined);
+  }
+
   private async readAndValidateBody(request: IncomingMessage, requestId: string, response: ServerResponse): Promise<Record<string, unknown> | undefined> {
+    // No content-type check here, on purpose. The CSRF and DNS-rebinding
+    // holes are closed by the `Host` / `Origin` guard at the top of
+    // handleRequest: a page cannot forge either header, and a browser
+    // always sends `Origin` on a cross-origin POST. Adding a strict
+    // `application/json` requirement would only reject real clients
+    // (Kilo Code, Continue, any `fetch(url, { body: JSON.stringify(x) })`
+    // without an explicit header sends `text/plain`) without closing
+    // anything further.
     try {
       const bodyText = await readBody(request);
       // `parseJson` returns `undefined` on both an empty body and a
@@ -1643,12 +1745,51 @@ export class GatewayService {
         }, totalTimeoutMs);
       }
 
-      const upstreamResponse = await fetch(upstreamUrl, {
-        method: 'POST',
-        headers: upstreamHeaders,
-        body: upstreamBody,
-        signal: abortController.signal,
-      });
+      // `redirect: 'manual'` is deliberate. Letting `fetch` follow a redirect
+      // turns an accepted `baseUrl` into an arbitrary-host relay, and a
+      // 307 replays the whole body (the user prompt) to wherever the
+      // upstream points. Each hop is re-validated by
+      // `resolveProviderRedirect`, which keeps only same-host 307/308
+      // targets that still pass the SSRF guard. A refused hop throws and
+      // lands in the catch below as a 502.
+      const callUpstream = async (): Promise<Response> => {
+        let hop = 0;
+        let target = upstreamUrl;
+        for (;;) {
+          const attempt: Response = await fetch(target, {
+            method: 'POST',
+            headers: upstreamHeaders,
+            body: upstreamBody,
+            signal: abortController.signal,
+            redirect: 'manual',
+          });
+          if (!isRedirectStatus(attempt.status)) {
+            return attempt;
+          }
+          const location = attempt.headers.get('location');
+          if (!location) {
+            // A 3xx without Location is the upstream's final answer;
+            // let it flow through as-is.
+            return attempt;
+          }
+          const decision = resolveProviderRedirect(target, location, hop);
+          if (!decision.follow || !decision.url) {
+            logger.warn(
+              `[Gateway] ${requestId} refused an upstream ${attempt.status} from provider=${provider.id}: ${decision.reason}`
+            );
+            throw new Error(`Upstream redirect refused (${decision.reason}).`);
+          }
+          hop += 1;
+          logger.warn(
+            `[Gateway] ${requestId} following a same-host upstream redirect (hop ${hop}) for provider=${provider.id}: ${decision.url}`
+          );
+          target = decision.url;
+          // `upstreamUrl` stays the originally configured URL: the catch
+          // block quotes it when sanitizing an upstream error, and a
+          // redirected URL must not leak into logs.
+        }
+      };
+      const upstreamResponse = await callUpstream();
       // Headers arrived: the connection is healthy enough that the
       // idle watchdog no longer needs to fire. The total watchdog
       // stays armed for the lifetime of the stream / body read.
@@ -1683,6 +1824,13 @@ export class GatewayService {
           response.setHeader(name, value);
         }
       }
+      // A 429 (or 402) is ambiguous on its own: it can be a rate limit
+      // that clears in seconds, an allowance that has been spent, or an
+      // account with no allocation at all, which never clears on its own.
+      // Google's own bodies do not always tell them apart, so classify
+      // here and surface the verdict in the log and in two response
+      // headers, without touching the upstream body the client expects.
+      this.reportQuotaDiagnosis(requestId, provider, upstreamResponse, response);
       // when the upstream returns a non-2xx status on a streaming
       // request, do NOT pipe the upstream body as an SSE stream. The
       // upstream may answer with `content-type: text/event-stream` and

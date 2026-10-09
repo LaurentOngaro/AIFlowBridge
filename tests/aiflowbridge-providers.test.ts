@@ -4,7 +4,15 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { buildModelCatalog, isValidProviderBaseUrl, normalizeHost, normalizeProviderProfiles, selectProvider } from '../src/aiflowbridge/providers';
+import {
+  buildModelCatalog,
+  isValidProviderBaseUrl,
+  MAX_UPSTREAM_REDIRECTS,
+  normalizeHost,
+  normalizeProviderProfiles,
+  resolveProviderRedirect,
+  selectProvider,
+} from '../src/aiflowbridge/providers';
 
 describe('normalizeProviderProfiles', () => {
   it('returns empty array for non-array input', () => {
@@ -385,6 +393,23 @@ describe('isValidProviderBaseUrl (SSRF protection)', () => {
     expect(isValidProviderBaseUrl('http://100.100.100.200/latest/meta-data/')).toBe(false);
   });
 
+  it('rejects Oracle Cloud metadata (192.0.0.192)', () => {
+    expect(isValidProviderBaseUrl('http://192.0.0.192/opc/v2/instance/')).toBe(false);
+  });
+
+  it('rejects the metadata endpoints that are reachable only by name', () => {
+    // An IP-literal block list can never close these: the name resolves to
+    // 169.254.169.254 only after the check has already passed.
+    expect(isValidProviderBaseUrl('http://metadata.google.internal/computeMetadata/v1/')).toBe(false);
+    expect(isValidProviderBaseUrl('http://metadata/computeMetadata/v1/')).toBe(false);
+    expect(isValidProviderBaseUrl('http://metadata.goog/computeMetadata/v1/')).toBe(false);
+    expect(isValidProviderBaseUrl('http://metadata.google.internal:80/')).toBe(false);
+  });
+
+  it('still accepts a public host whose name merely starts with metadata', () => {
+    expect(isValidProviderBaseUrl('https://metadata-api.example.com/v1')).toBe(true);
+  });
+
   // Scheme whitelist.
   it('rejects non-http(s) schemes', () => {
     expect(isValidProviderBaseUrl('file:///etc/passwd')).toBe(false);
@@ -396,6 +421,57 @@ describe('isValidProviderBaseUrl (SSRF protection)', () => {
   it('rejects unparseable URLs', () => {
     expect(isValidProviderBaseUrl('not a url')).toBe(false);
     expect(isValidProviderBaseUrl('')).toBe(false);
+  });
+});
+
+describe('resolveProviderRedirect (upstream redirect guard)', () => {
+  const UPSTREAM = 'https://api.example.com/v1/chat/completions';
+
+  it('follows a same-host absolute hop', () => {
+    const decision = resolveProviderRedirect(UPSTREAM, 'https://api.example.com/v2/chat/completions', 0);
+    expect(decision.follow).toBe(true);
+    expect(decision.url).toBe('https://api.example.com/v2/chat/completions');
+  });
+
+  it('follows a same-host relative hop and resolves it against the current URL', () => {
+    const decision = resolveProviderRedirect(UPSTREAM, '/v3/chat/completions', 0);
+    expect(decision.follow).toBe(true);
+    expect(decision.url).toBe('https://api.example.com/v3/chat/completions');
+  });
+
+  it('follows an http to https upgrade on the same host', () => {
+    const decision = resolveProviderRedirect('http://api.example.com/v1/chat/completions', 'https://api.example.com/v1/chat/completions', 0);
+    expect(decision.follow).toBe(true);
+  });
+
+  it('refuses a hop to another host', () => {
+    // The exact SSRF shape: an accepted baseUrl that relays to a host the
+    // user never configured, which would replay the whole prompt.
+    const decision = resolveProviderRedirect(UPSTREAM, 'https://attacker.test/collect', 0);
+    expect(decision.follow).toBe(false);
+    expect(decision.reason).toContain('leaves the upstream host');
+  });
+
+  it('refuses a hop to a cloud metadata endpoint', () => {
+    expect(resolveProviderRedirect(UPSTREAM, 'http://169.254.169.254/latest/meta-data/', 0).follow).toBe(false);
+    expect(resolveProviderRedirect(UPSTREAM, 'http://metadata.google.internal/', 0).follow).toBe(false);
+    expect(resolveProviderRedirect(UPSTREAM, 'http://192.0.0.192/', 0).follow).toBe(false);
+  });
+
+  it('refuses a hop that only looks same-host through an IP-mapped form', () => {
+    const decision = resolveProviderRedirect(UPSTREAM, 'http://[::ffff:169.254.169.254]/', 0);
+    expect(decision.follow).toBe(false);
+  });
+
+  it('refuses a hop once the redirect budget is spent', () => {
+    expect(resolveProviderRedirect(UPSTREAM, '/v2', MAX_UPSTREAM_REDIRECTS).follow).toBe(true);
+    const decision = resolveProviderRedirect(UPSTREAM, '/v2', MAX_UPSTREAM_REDIRECTS + 1);
+    expect(decision.follow).toBe(false);
+    expect(decision.reason).toContain('redirect budget');
+  });
+
+  it('refuses an unparseable location', () => {
+    expect(resolveProviderRedirect(UPSTREAM, 'http://[', 0).follow).toBe(false);
   });
 });
 

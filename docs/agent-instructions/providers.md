@@ -1,16 +1,14 @@
 # Providers
 
-> Part of the [agent instructions](../AGENTS.md).
+> Part of the [agent instructions](../../AGENTS.md).
 
 ## Provider pattern
 
-Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point (`contributes.languageModelChatProviders` in `package.json`):
+The extension registers a **single** vendor through VS Code's `languageModelChatProviders` contribution point (`contributes.languageModelChatProviders` in `package.json`, vendor id `aiflowbridge`), and one `vscode.LanguageModelChatProvider` instance behind it.
 
-| Vendor         | Models                                                                               | Implementation                                                   |
-| -------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| `aiflowbridge` | DeepSeek V4.1 Flash (`deepseek-flash`), V4 Pro (`deepseek-v4-pro`)                   | `src/provider/index.ts` + `src/provider/unified.ts` (delegating) |
-| `minimax`      | MiniMax M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview                                 | `src/provider/minimax.ts`                                        |
-| `xiaomi`       | Xiaomi MiMo V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                | `src/provider/xiaomi.ts`                                         |
+| Vendor id      | Copilot Chat picker | Models served by the unified provider                                              | Sub-provider                             |
+| -------------- | ------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| `aiflowbridge` | Yes (one entry)     | DeepSeek, MiniMax and Xiaomi MiMo, selected per model id from the bundled registry | `src/provider/{index,minimax,xiaomi}.ts` |
 
 `src/provider/unified.ts` exports `UnifiedChatProvider` - a single `vscode.LanguageModelChatProvider` implementation that delegates each model id to the correct per-vendor sub-provider, so the registry's mixed-vendor model list is exposed under one vendor label.
 
@@ -18,6 +16,8 @@ DeepSeek-specific helpers live next to the DeepSeek provider (`src/provider/{mod
 MiniMax and Xiaomi providers reuse what is reusable and implement vendor-specific behavior in their own files.
 
 The abstract base class is `src/provider/base.ts`, which reads from the registry cache (`getLoadedRegistry()`).
+
+**Adding a Copilot Chat picker entry therefore means adding a model to the registry, not registering a new vendor.** A new vendor only needs its own `vendor` entry in `resources/models.json` plus a sub-provider that the unified provider can delegate to.
 
 ## Sub-modules
 

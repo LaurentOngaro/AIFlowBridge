@@ -47,8 +47,8 @@ const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
   // Using a vendor name (e.g. `'minimax'`) here would put a non-existent
   // id in the gateway catalog exposed to Kilo Code / Continue / Open WebUI,
   // making the picker show a fake model name that no upstream API recognises.
-  // The unit test `DEFAULT_GATEWAY_PROFILES catalog ids match upstream model ids`
-  // in `tests/aiflowbridge-config.test.ts` is the regression guard.
+  // The unit test `hand-curated gateway profiles use real upstream model ids
+  // as catalog ids` in `tests/host-config.test.ts` is the regression guard.
   {
     id: 'MiniMax-M2.7',
     label: 'MiniMax V2.7',
@@ -60,7 +60,7 @@ const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
   // `aiflowbridge.providers[].pricing` if your tier or region differs.
   // See https://token-plan-ams.xiaomimimo.com (or -sgp / -cn).
   // Same `id == upstream model id` invariant as above; see the regression
-  // test in `tests/aiflowbridge-config.test.ts`.
+  // test in `tests/host-config.test.ts`.
   {
     id: 'mimo-v2.5-pro',
     label: 'Xiaomi MiMo V2.5 Pro',
@@ -604,7 +604,7 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
           : '')
       : '';
     logger.info(
-      `[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} apiKey=${provider.apiKeyPresent ? '***' : '<none>'} pricing=${pricingStr}${pricingTag ? ' ' + pricingTag : ''}`
+      `[AIFlowBridge]   provider id=${provider.id.padEnd(20)} model=${provider.model.padEnd(20)} base=${provider.baseUrl} apiKey=${provider.apiKeyPresent ? '***' : '<none>'} pricing=${pricingStr}${pricingTag ? ' ' + pricingTag : ''}`
     );
   }
 

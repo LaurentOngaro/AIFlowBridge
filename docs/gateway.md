@@ -257,12 +257,16 @@ This lets you access DeepSeek, MiniMax, Xiaomi MiMo, and Google AI Studio (Gemin
 | Model        | `deepseek-flash`, `deepseek-v4-pro`, `MiniMax-M3`, `mimo-v2.6-pro`, `glm-5.3`, `kimi-k3`, `gemini-3.8-flash`, ... |
 
 The gateway routes requests to the correct upstream provider based on the model name. Streaming (`stream: true`) is fully supported.
-The three Gemini ids require either a Google AI Studio API key (`Google AI Studio: Set API Key (BYOK pay-as-you-go)` or `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`, the always-available public-API route) or, for accounts with whitelisted Cloud Code Assist tenants, the Antigravity OAuth flow (`AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)` plus `aiflowbridge.providers.googleaistudio.baseUrl = https://cloudcode-pa.googleapis.com`) - see [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go).
-Gemini and Antigravity upstream frames stream to the client in real time by default (first OpenAI chunk readable before the upstream closes); on lossy links set `aiflowbridge.gateway.bufferGeminiStream` to `true` for the buffered drain-then-replay fallback.
+The three Gemini ids require a Google AI Studio API key (`Google AI Studio: Set API Key (BYOK pay-as-you-go)` or `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`).
+That is the only route verified to work.
+The alternative is the Google AI Studio **OAuth** route on `https://cloudcode-pa.googleapis.com` (Cloud Code Assist; the project calls it Antigravity - same feature), activated by `AIFlowBridge: Connect to Google AI Studio` plus `aiflowbridge.providers.googleaistudio.baseUrl = https://cloudcode-pa.googleapis.com`.
+It requires the Cloud project to be attached to the Cloud Code Assist programme, and **no successful generation call has been observed on it**; a project without the attachment answers `429` with `X-AIFlowBridge-Quota-State: zero-allocation`.
+See [providers.md](providers.md#google-ai-studio-via-cloud-code-assist-oauth-advanced-unverified-in-the-field) and [troubleshooting](troubleshooting.md).
+Gemini upstream frames stream to the client in real time by default (first OpenAI chunk readable before the upstream closes); on lossy links set `aiflowbridge.gateway.bufferGeminiStream` to `true` for the buffered drain-then-replay fallback.
 
 ## Configuring gateway providers
 
-The gateway catalog is built from the [model registry](architecture.md#model-registry) and a few optional `settings.json` overrides.
+The gateway catalog is built from the [model registry](architecture.md#model-registry-3-tier) and a few optional `settings.json` overrides.
 No need to maintain a long list of provider entries by hand - the registry already lists all 38 supported models, and the gateway synthesizes one catalog entry per registry model on activation.
 
 **Auto-synthesized entries** - for every model in the registry, the gateway creates a provider entry using the vendor defaults (from `registry.vendors[<family>].baseUrl`) and the model's per-token pricing.
@@ -273,7 +277,7 @@ The gateway-only vendors (OpenRouter, Z.ai, MoonshotAI, Google AI Studio) appear
 **Overriding the catalog** - the priority order is:
 
 1. **Your overrides** in `aiflowbridge.providers` (highest priority - you take full control and replace the synthesized entry). Use this to point a specific model at a different region/cluster, or to disable it.
-2. **Auto-synthesized** entries from the [model registry](architecture.md#model-registry) - one per `registry.models` entry, with the vendor default `baseUrl` and the per-model `pricing` block.
+2. **Auto-synthesized** entries from the [model registry](architecture.md#model-registry-3-tier) - one per `registry.models` entry, with the vendor default `baseUrl` and the per-model `pricing` block.
 
 To override the rate or endpoint for a single model (e.g.
 Xiaomi on the Singapore cluster, billed in EUR), add an entry to `aiflowbridge.providers` with the matching `model` field.
@@ -297,10 +301,10 @@ The first entry that matches the model wins.
 ```
 
 The dashboard and the `GET /v1/models` catalog will skip any provider with `"enabled": false`.
-Removing an entry from the array does **not** disable the corresponding model - use `"enabled": false` instead, or override it in the [model registry](architecture.md#model-registry).
+Removing an entry from the array does **not** disable the corresponding model - use `"enabled": false` instead, or override it in the [model registry](architecture.md#model-registry-3-tier).
 
 **For pricing-only changes** that should apply to all your workspaces (e.g. you have a custom MiniMax rate that you pay via a reseller), prefer editing the registry instead of `aiflowbridge.providers`.
-See [architecture.md](architecture.md#model-registry) for the full schema and override rules.
+See [architecture.md](architecture.md#model-registry-3-tier) for the full schema and override rules.
 
 ## Settings
 
@@ -336,6 +340,9 @@ When the explicit `root` setting does not resolve to a directory, the gateway lo
 The gateway binds to `127.0.0.1` only - it is not reachable from other machines on your network. Outbound requests go only to the upstream API endpoints you configure.
 The `/v1/context` endpoint exposes the workspace root as an absolute path; the `/v1/discovery` endpoint exposes the bundled gateway version plus one-paste client config snippets; the `/v1/replay/{id}` endpoint returns the stored prompt + response summaries (already redacted for credentials).
 All three are loopback-only (the bind on `127.0.0.1` is the gate), so the same info is already reachable through `/health`, `/version`, `/v1/models`.
+Since 2.23.0 the bind is no longer the only gate: every request must also carry a `Host` on the bound port (`127.0.0.0/8`, `localhost`, `[::1]`) and, when present, an `Origin` on the same port, otherwise the gateway answers 403 without calling any upstream.
+That closes what binding alone cannot: a page on any origin could otherwise POST a CORS "simple request" and spend your API key, and a DNS-rebinding page (its own name in `Host`, its DNS pointed at `127.0.0.1`) could read `/v1/sessions`, `/v1/replay/{id}` and `/v1/events` as same-origin.
+Local clients (Kilo Code, Continue, `curl`, the standalone CLI) send neither a foreign `Host` nor a foreign `Origin`, so they are unaffected.
 When `aiflowbridge.gateway.discovery.enabled` is `true`, the UDP broadcast announces the gateway's existence to every host on the LAN.
 The payload is intentionally tiny (host, port, version) and contains no API key, no workspace path, no model name.
 The `promptSummary` / `responseSummary` captured for the Shared Session feature are redacted for Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob before being persisted, so a developer pasting a `curl` one-liner with their upstream key does not leak it via `/v1/replay/{id}` or the dashboard.

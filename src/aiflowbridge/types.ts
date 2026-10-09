@@ -1,3 +1,5 @@
+import type { GoogleAIStudioRoute } from './googleai-studio-route';
+
 export type BridgeMode = 'proxy' | 'vision' | 'proxy+vision';
 export type ProviderKind = 'openai-compat' | 'ollama' | 'antigravity' | 'googleaistudio';
 export type OutputMode = 'clipboard' | 'insert' | 'copilot';
@@ -193,6 +195,22 @@ export interface IGatewayContext {
    *  delegates to `vscode.commands.executeCommand`; standalone has no
    *  command palette and leaves this undefined. */
   executeCommand?(command: string, ...args: unknown[]): Promise<unknown>;
+  /** Ask the user to pick between the two Google AI Studio routes.
+   *  Optional - the VS Code adapter implements it with
+   *  `vscode.window.showQuickPick`; standalone leaves it undefined.
+   *
+   *  The choice is explicit rather than a blind toggle: a toggle makes a
+   *  second invocation flip the route back, which reads as "the switch
+   *  does not work" and lands the user on the opposite route than the
+   *  one they asked for. Resolves to `undefined` when dismissed. */
+  pickRoute?(choices: readonly RouteChoice[]): Promise<GoogleAIStudioRoute | undefined>;
+}
+
+/** One entry of the Google AI Studio route picker. */
+export interface RouteChoice {
+  route: GoogleAIStudioRoute;
+  label: string;
+  description?: string;
 }
 
 export interface ProviderProfile {

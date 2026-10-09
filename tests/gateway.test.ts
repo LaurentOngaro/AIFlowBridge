@@ -42,7 +42,7 @@ vi.mock('vscode', () => {
 });
 
 // Import after mocking
-import { createServer, IncomingMessage } from 'node:http';
+import { createServer, IncomingMessage, request as httpRequest } from 'node:http';
 import { PassThrough } from 'node:stream';
 import { GatewayService, MAX_BODY_SIZE, readBody } from '../src/aiflowbridge/gateway/server';
 import type { AiFlowBridgeConfig, ProviderProfile } from '../src/aiflowbridge/types';
@@ -85,6 +85,121 @@ async function findListeningPort(server: { address: () => unknown }): Promise<nu
   const addr = server.address() as { port: number };
   return addr.port;
 }
+
+// A 429 is ambiguous: it can be a rate limit that clears in seconds, an
+// allowance that has been spent, or an account with no allocation at all,
+// which never clears on its own. Google does not always tell them apart
+// in the body, so the gateway classifies the refusal and publishes the
+// verdict. The upstream body is left untouched for the client.
+describe('GatewayService - upstream quota diagnosis', () => {
+  let service: GatewayService;
+  let baseUrl: string;
+  let upstream: ReturnType<typeof vi.fn>;
+
+  function stubUpstream(status: number, body: unknown, headers: Record<string, string> = {}): void {
+    upstream = vi.fn(async () => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers }));
+    vi.stubGlobal('fetch', upstream);
+  }
+
+  beforeEach(async () => {
+    service = new GatewayService(makeConfig());
+    baseUrl = (await service.start()).baseUrl;
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await service.stop();
+  });
+
+  function post(body: Record<string, unknown>): Promise<{ status: number; headers: Record<string, string>; text: string }> {
+    return new Promise((resolve, reject) => {
+      const target = new URL('/v1/chat/completions', baseUrl);
+      const req = httpRequest(
+        {
+          hostname: target.hostname,
+          port: target.port,
+          path: target.pathname,
+          method: 'POST',
+          headers: { Host: `127.0.0.1:${target.port}`, 'Content-Type': 'application/json' },
+        },
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            data += chunk;
+          });
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers as Record<string, string>, text: data }));
+        }
+      );
+      req.on('error', reject);
+      req.end(JSON.stringify(body));
+    });
+  }
+
+  const CHAT = { model: 'model-1', messages: [{ role: 'user', content: 'ping' }] };
+
+  it('labels a bare RESOURCE_EXHAUSTED as zero allocation and passes the body through', async () => {
+    const body = {
+      error: { code: 429, message: 'Resource has been exhausted (e.g. check quota).', status: 'RESOURCE_EXHAUSTED' },
+    };
+    stubUpstream(429, body);
+    const res = await post(CHAT);
+
+    expect(res.status).toBe(429);
+    expect(res.headers['x-aiflowbridge-quota-state']).toBe('zero-allocation');
+    // The client keeps the upstream payload it would have parsed before.
+    expect(JSON.parse(res.text).error.status).toBe('RESOURCE_EXHAUSTED');
+  });
+
+  it('labels a spent allowance as quota exhausted and publishes the reset time', async () => {
+    const body = {
+      error: {
+        code: 429,
+        message: 'Resource has been exhausted (e.g. check quota).',
+        status: 'RESOURCE_EXHAUSTED',
+        details: [
+          { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaMetric: 'm', quotaValue: '1500' }] },
+        ],
+      },
+    };
+    stubUpstream(429, body, { 'retry-after': '90' });
+    const res = await post(CHAT);
+
+    expect(res.headers['x-aiflowbridge-quota-state']).toBe('quota-exhausted');
+    expect(res.headers['x-aiflowbridge-quota-reset']).toBeTruthy();
+    expect(res.headers['retry-after']).toBe('90');
+  });
+
+  it('labels depleted credits as billing exhaustion', async () => {
+    const body = {
+      error: { code: 402, message: 'Your prepayment credits are depleted.', status: 'RESOURCE_EXHAUSTED' },
+    };
+    stubUpstream(402, body);
+    const res = await post(CHAT);
+
+    expect(res.status).toBe(402);
+    expect(res.headers['x-aiflowbridge-quota-state']).toBe('billing-exhausted');
+  });
+
+  it('stays silent on a 400, which is not a quota refusal', async () => {
+    stubUpstream(400, { error: { message: 'bad request' } });
+    const res = await post(CHAT);
+
+    expect(res.status).toBe(400);
+    expect(res.headers['x-aiflowbridge-quota-state']).toBeUndefined();
+  });
+
+  it('consumes the upstream body exactly once', async () => {
+    // The diagnosis reads through `clone()`; the streaming and
+    // non-streaming paths must still get an intact body.
+    stubUpstream(429, {
+      error: { code: 429, message: 'Resource has been exhausted (e.g. check quota).', status: 'RESOURCE_EXHAUSTED' },
+    });
+    const res = await post({ ...CHAT, stream: true });
+    expect(res.status).toBe(429);
+    expect(res.text).toContain('RESOURCE_EXHAUSTED');
+  });
+});
 
 describe('GatewayService - lifecycle', () => {
   let service: GatewayService;
@@ -317,6 +432,84 @@ describe('GatewayService - HTTP endpoints', () => {
     expect(body.error).toContain('mimo-v2.5');
     expect(body.requestedModel).toBe('mimo-v2.5');
     expect(body.availableProviderIds).toContain('p1');
+  });
+});
+
+// Binding to 127.0.0.1 keeps the gateway off the network, but a browser
+// on the same machine can still reach it. The regression this pins: an
+// unauthenticated page could POST a cross-origin "simple request" and
+// spend the user's paid API key, and a DNS-rebinding page could read
+// /v1/sessions, /v1/replay/{id} and /v1/events as same-origin. Raw
+// `http.request` is used instead of `fetch` because undici enforces the
+// fetch forbidden-header list and silently drops a forged `Host`.
+describe('GatewayService - loopback-only enforcement', () => {
+  let service: GatewayService;
+  let baseUrl: string;
+  let boundPort: number;
+
+  beforeEach(async () => {
+    service = new GatewayService(makeConfig());
+    const status = await service.start();
+    baseUrl = status.baseUrl;
+    boundPort = Number(new URL(baseUrl).port);
+  });
+
+  afterEach(async () => {
+    await service.stop();
+  });
+
+  function rawGet(pathname: string, headers: Record<string, string>): Promise<{ status: number; body: string }> {
+    const target = new URL(pathname, baseUrl);
+    return new Promise((resolve, reject) => {
+      const req = httpRequest(
+        { hostname: target.hostname, port: target.port, path: target.pathname, method: 'GET', headers },
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk: string) => {
+            data += chunk;
+          });
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, body: data }));
+        }
+      );
+      req.on('error', reject);
+      req.end();
+    });
+  }
+
+  it('serves a loopback client carrying no Origin header', async () => {
+    const res = await rawGet('/health', { Host: `127.0.0.1:${boundPort}` });
+    expect(res.status).toBe(200);
+  });
+
+  it('refuses a rebound Host, which is the DNS rebinding vector', async () => {
+    const res = await rawGet('/v1/sessions', { Host: 'aiflowbridge.attacker.test' });
+    expect(res.status).toBe(403);
+    expect(res.body).toContain('Forbidden');
+  });
+
+  it('refuses a foreign Origin on an otherwise loopback request', async () => {
+    const res = await rawGet('/v1/sessions', { Host: `127.0.0.1:${boundPort}`, Origin: 'https://evil.test' });
+    expect(res.status).toBe(403);
+    expect(res.body).toContain('Forbidden');
+  });
+
+  it('refuses the sensitive read endpoints a rebinding page would target', async () => {
+    for (const pathname of ['/v1/sessions', '/v1/replay/abc', '/v1/events', '/v1/metrics']) {
+      const res = await rawGet(pathname, { Host: `127.0.0.1:${boundPort}`, Origin: 'http://127.0.0.1:1' });
+      expect(res.status, `${pathname} must be refused`).toBe(403);
+    }
+  });
+
+  it('refuses a cross-origin chat completion before it reaches any upstream', async () => {
+    // The provider baseUrl is unreachable in this test, so a 403 proves
+    // the request never made it past the guard.
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain', Origin: 'https://evil.test' },
+      body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'hi' }] }),
+    });
+    expect(res.status).toBe(403);
   });
 });
 

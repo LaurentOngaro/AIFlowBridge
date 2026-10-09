@@ -1,4 +1,4 @@
-# Protocole BRAIN — règles obligatoires pour les agents IA
+# Protocole BRAIN - règles obligatoires pour les agents IA
 
 Ces règles s'appliquent à tout agent travaillant sur ce dépôt (Kilo Code,
 Kilo CLI, ou autre). Elles rendent la mémoire de projet incontournable.
@@ -32,7 +32,7 @@ décisions utilisateur, listées en « Questions / Blocages » de `ACTION_PLAN.m
 ## Pendant la tâche
 
 - Respecter les « Décisions d'architecture » de `BRAIN.md` ; ne pas les
-  contredire silencieusement — proposer le changement dans le journal.
+  contredire silencieusement - proposer le changement dans le journal.
 - Ne jamais écrire de secret (token, clé API, code OAuth, cookie, donnée
   personnelle) dans un fichier versionné. Ce dépôt est public.
 - Toute information non publique va dans le canal privé

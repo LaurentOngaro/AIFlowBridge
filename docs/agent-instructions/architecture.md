@@ -1,6 +1,6 @@
 # Architecture
 
-> Part of the [agent instructions](../AGENTS.md).
+> Part of the [agent instructions](../../AGENTS.md).
 
 ## File structure (current as of 2.1.1)
 
@@ -31,12 +31,11 @@ The version-aware probe / cooperative shutdown flow lives in `src/aiflowbridge/g
 
 ## Provider pattern
 
-Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point:
+Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point, under a **single** `aiflowbridge` vendor id that fronts one unified provider:
 
-- `aiflowbridge` (DeepSeek V4.1 Flash / V4 Pro) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors.
-- `minimax` (MiniMax M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview) - HTTP streaming client.
-- `xiaomi` (Xiaomi MiMo V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed) - HTTP streaming client.
+- `aiflowbridge` - one `vscode.LanguageModelChatProvider` instance (`src/provider/unified.ts`) that delegates per model id to the matching sub-provider: `src/provider/index.ts` (DeepSeek V4.1 Flash / V4 Pro), `src/provider/minimax.ts` (MiniMax M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview) and `src/provider/xiaomi.ts` (Xiaomi MiMo V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed). Both MiniMax and Xiaomi are HTTP streaming clients.
 - `openrouter`, `zai`, `moonshot`, and `googleaistudio` are **gateway-only** - they do NOT appear in the Copilot Chat picker. They reach the bundled gateway through the OpenAI-compatible `/v1/chat/completions` endpoint on port 8787 and the gateway picks them up via the generic per-vendor provider profile synthesis. The 100+ other OpenRouter model ids are reachable by name verbatim through `curl` / Kilo Code / Continue. Attribution headers (`HTTP-Referer`, `X-Title`) are injected by `src/aiflowbridge/gateway/openrouter-headers.ts`.
+- **The `googleaistudio` vendor carries two auth routes over the same model ids.** BYOK (native Gemini surface, `generativelanguage.googleapis.com`, an `AIzaSy...` key) is the default and the only route verified to work. The OAuth route (Cloud Code Assist, `cloudcode-pa.googleapis.com`; the project historically called it Antigravity - same feature) requires the Cloud project to be attached to the Cloud Code Assist programme and **has never produced a successful generation call**. Upstream quota refusals are classified by `src/aiflowbridge/gateway/quota-diagnostics.ts` into `rate-limited` / `quota-exhausted` / `zero-allocation` / `billing-exhausted`, logged, and published as `X-AIFlowBridge-Quota-State`. See `docs/providers.md`.
 
 Model id convention: the `id` field in the registry IS the upstream API id (`MiniMax-M2.7`, `mimo-v2.6-pro`, `deepseek-flash`, `glm-5.3`, `kimi-k3`).
 No kebab-case alias, no id translation map.

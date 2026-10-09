@@ -1,6 +1,6 @@
 # Testing
 
-> Part of the [agent instructions](../AGENTS.md).
+> Part of the [agent instructions](../../AGENTS.md).
 
 ## Framework
 

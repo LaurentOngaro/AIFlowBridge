@@ -2026,6 +2026,40 @@ describe('AFF07 telemetry export helpers', () => {
     expect(escapeCsvValue('plain', true)).toBe('"plain"');
   });
 
+  it('escapeCsvValue neutralises a value opening with a spreadsheet formula trigger', async () => {
+    // Quoting does not stop Excel / LibreOffice from evaluating a
+    // formula, so a leading `=`, `+`, `-` or `@` must be defused with a
+    // single-quote prefix. `promptSummary` and `responseSummary` carry
+    // upstream model output, so they are attacker-influenceable.
+    const { escapeCsvValue } = await import('../src/aiflowbridge/ui/dashboard');
+    // The guard runs first, then RFC 4180 quoting still applies, so the
+    // HYPERLINK payload comes out quoted with doubled inner quotes and
+    // a single-quote prefix.
+    expect(escapeCsvValue('=HYPERLINK("http://evil.test","x")')).toBe('"\'=HYPERLINK(""http://evil.test"",""x"")"');
+    expect(escapeCsvValue('=cmd|\'/c calc\'!A0')).toBe('\'=cmd|\'/c calc\'!A0');
+    expect(escapeCsvValue('+1+1')).toBe("'+1+1");
+    expect(escapeCsvValue('-2+3')).toBe("'-2+3");
+    expect(escapeCsvValue('@SUM(A1)')).toBe("'@SUM(A1)");
+    expect(escapeCsvValue('\tleading tab')).toBe('\'\tleading tab');
+    // A leading CR triggers both the guard and RFC 4180 quoting.
+    expect(escapeCsvValue('\rleading cr')).toBe('"\'\rleading cr"');
+  });
+
+  it('escapeCsvValue leaves a trigger character that is not in first position alone', async () => {
+    // `deepseek-v4-pro` and every id that starts with a letter must
+    // stay byte-identical, otherwise every export changes shape.
+    const { escapeCsvValue } = await import('../src/aiflowbridge/ui/dashboard');
+    expect(escapeCsvValue('a=b')).toBe('a=b');
+    expect(escapeCsvValue('status=200')).toBe('status=200');
+  });
+
+  it('escapeCsvValue guards the trigger before applying RFC 4180 quoting', async () => {
+    const { escapeCsvValue } = await import('../src/aiflowbridge/ui/dashboard');
+    // A formula trigger plus a comma: the guard runs first, then the
+    // field is quoted, and the embedded apostrophe is doubled-safe.
+    expect(escapeCsvValue('=1,a')).toBe('"\'=1,a"');
+  });
+
   it('buildCsvExport emits a header row + one row per entry + trailing CRLF', async () => {
     const { buildCsvExport, toExportedEntry } = await import('../src/aiflowbridge/ui/dashboard');
     const entries = [

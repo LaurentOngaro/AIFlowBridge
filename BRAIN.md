@@ -1,4 +1,4 @@
-# BRAIN.md — Mémoire du projet AIFlowBridge
+# BRAIN.md - Mémoire du projet AIFlowBridge
 
 > Journal partagé et fil rouge du projet. Ce fichier est la **mémoire commune** entre les agents IA (Kilo Code, Kilo CLI) et le mainteneur humain.
 >
@@ -45,7 +45,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 ## État du projet (résumé courant)
 
-- **Projet** : AIFlowBridge — assistant de code IA multi-providers pour VS Code,
+- **Projet** : AIFlowBridge - assistant de code IA multi-providers pour VS Code,
   avec proxy vision, métriques d'usage et **gateway locale OpenAI-compatible
   déjà fonctionnelle** (CLI `aiflowbridge-server`).
 - **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek (picker Copilot Chat) ;
@@ -85,7 +85,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 - Stack : TypeScript, extension VS Code, mode standalone Node.js.
 - Langue de travail : français pour la documentation projet, anglais pour le code.
 
-## Contexte technique clé — état consolidé après la 2.17.0
+## Contexte technique clé - état consolidé après la 2.17.0
 
 ### Gateway standalone (déjà fonctionnelle)
 
@@ -113,7 +113,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 ### Providers (deux chemins d'exposition)
 
-1. **Copilot Chat (VS Code LM API)** : `vscode.LanguageModelChatProvider` —
+1. **Copilot Chat (VS Code LM API)** : `vscode.LanguageModelChatProvider` -
    `BaseChatProvider`, MiniMax, Xiaomi, DeepSeek, `UnifiedChatProvider` ; clés
    en SecretStorage (`API_KEY_SECRETS`, `src/consts.ts`). Gemini absent (AP-013).
 2. **Gateway** : `ProviderProfile { id, label, kind, model, baseUrl, billing? }`,
@@ -183,6 +183,152 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 > Les entrées ci-dessous documentent les **décisions architecturales** et les  **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
 
+### 2026-10-09 - Kilo (ACTION_PLAN : six entrees terminees restees dans « A faire »)
+
+L'utilisateur signale que `ACTION_PLAN.md` n'etait pas a jour.
+Cause reelle, plus structurelle que le contenu : **six entrees marquees `fait` siégeaient encore dans le tableau « A faire »** (AP-029reports de la session precedente, AP-033 / AP-035 / AP-036 / AP-037 / AP-038 de cejour).
+Le protocole du fichier (ligne 11) exige de dater et de deplacer une action terminee, et le tableau « Fait » a une colonne Date que « A faire » n'a pas.
+
+**Deux bugs de rendu en prime**, invisibles a la lecture du texte mais visibles au rendu :
+
+- Une ligne vide au milieu du tableau « A faire » (introduite quand j'y ai insere AP-033) **coupait le tableau markdown en deux** : le rendu Markdown ne propage pas les colonnes d'un bloc a l'autre, donc une partie des lignes s'affichait sans entete.
+- Une ligne vide au milieu du tableau « Fait », entre AP-034 et les entrees deplacees, meme effet.
+
+**Restructuration** : « A faire » ne contient plus que les 2 entrees reellement en attente (AP-013, AP-025, les deux en attente d'une decision utilisateur), les 6 terminees sont passees dans « Fait » avec leur date reelle (AP-029 -> 2026-10-01, AP-033 -> 2026-10-07, AP-035 a AP-038 -> 2026-10-09).
+Les dates ont ete relues dans le journal `BRAIN.md`, pas inventees.
+
+**Leçon de methode** : mes deux premieres tentatives de reconstruction ont echoue (lignes dupliquees, puis lignes vides mal placees) parce que je recollais des plages de lignes brutes au lieu de reconstruire par section.
+Il fallait parser, filtrer, puis reassembler.
+La verification par blocs contigus de lignes `|` est celle qui prouve qu'un tableau n'est pas coupe.
+
+**Note mise a jour** : la mention des captures perimees (`screenshots_v1.1.1` / `v1.4.0`) disait que `docs/screenshots.md` pointait vers un chemin inexistant ; c'etait vrai avant AP-038, plus maintenant.
+Reformule pour distinguer le lien (corrige) de l'archive (toujours presente).
+
+### 2026-10-09 - Kilo (Liens internes de la doc : 37 liens casses corriges, tous verifies)
+
+En开启了 a la demande sur les ancres `architecture.md#model-registry` restees cassees.
+La section existe bien dans `docs/architecture.md` ligne 91 (`## Model registry (3-tier)`) : l'ancre correcte est `#model-registry-3-tier`, les 9 liens pointaient vers un titre qui n'a jamais existe.
+Corrections : `cost.md`, `gateway.md` (x4), `providers.md` (x3), `reasoning.md`.
+
+**Deux autres familles de liens casses decouvertes au passage**, en elargissant le verificateur a tout le markdown du depot :
+
+- Les 10 fichiers de `docs/agent-instructions/` pointaient vers `../AGENTS.md`, qui resout vers `docs/AGENTS.md` : un cran de trop bas, cible inexistante. Corrige en `../../AGENTS.md`. Ce sont les fichiers les plus lus du depot (contributeurs et agents), et chacun avait son lien racine casse.
+- Les 18 images de `docs/screenshots.md` pointaient vers `screenshots_v2.15.5/...`, qui resout vers `docs/screenshots_v2.15.5/` : le repertoire reel est `resources/`. Corrige en `../resources/...`. Le README, lui, utilisait deja le bon prefixe, d'ou l'asymetrie. Impact : les images du doc screenshots etaient casseees sur GitHub et dans le VSIX.
+
+**Verificateur ecrit pour l'occasion** (non commite, a relancer apres toute renommage de section) : calcule les ancres selon l'algorithme GitHub (minuscules, on retire tout sauf lettres/chiffres/espace/tiret, espaces -> tirets), ignore les blocs de code, decode le `%20` des URLs, et verifie ancres + existence des cibles sur les 35 fichiers markdown du depot.
+Resultat final : 169 liens de fichier et 47 ancres, **0 casse**.
+Les `src="..."` HTML du README sont verifies separement (le verificateur ne voit que les liens markdown).
+
+Le premier passage avait produit 17 faux positifs sur des PNG : `resources/screenshots_v1.1.1/10_antigravity_connect.png` contient par hasard la sequence d'octets `\r\n`, et le scan de type fichier le prenait pour un fichier texte.
+Le scan est desormais restreint aux extensions markdown, et `%20` est decode avant resolution.
+
+### 2026-10-09 - Kilo (FormulationuniverselledelamaturitedelrouteOAuth)
+
+Suite d'une question de l'utilisateur : la note « Field maturity » de `docs/providers.md` parlait de « very few users » et de « one user hitting the feature in production ».
+C'etait exact au moment de l'ecriture, mais **une statistique d'effectif dans une documentation publique devient fausse** et un lecteur la prendrait pour un etat durable.
+
+Reformulee sans aucun effectif : « This route has not been exercised at scale and its failure modes are not fully characterised.
+Both routing defects described above were found in the field, after the feature had already shipped, which means parts of it may still be untested rather than merely unproven. »
+
+La nuance utile est conservee : le defaut n'est pas « la route est fausse » mais « la route a des zones non testees ». **Regle a retenir** : une doc publique ne doit pas contenir de mesure d'audience ; les mesures restent dans le journal (`BRAIN.md`), qui est date et fait pour cela.
+
+### 2026-10-09 - Kilo (Clarification documentaire Gemini + disclaimer honnete sur la route OAuth)
+
+L'utilisateur signale l'ambiguite permanente entre « Google AI Studio OAuth » et « Antigravity », et demande un disclaimer honnete sur le fait que, jusqu'a aujourd'hui, l'usage d'OAuth a souvent ete en realite du routage BYOK.
+Il note aussi etre probablement le seul cas d'usage reel, AIFlowBridge etant peu telecharge.
+
+**Faits etablis avant redaction** (pour ne rien affirming de travers) :
+
+- La route OAuth est livree en **2.17.0** ; le champ `authMode` de la telemetrie n'existe que depuis **2.18.2**. Les requetes anterieures sont `unknown` et ne permettent **pas** de determiner quelle route les a servies.
+- Les profils sont construits une fois par activation : un changement de route ne prend effet qu'au rechargement de fenetre (comportement documente, la commande propose de recharger).
+- Chez l'utilisateur : 151 requetes sur la branche OAuth, **0 succes** ; 120 succes sur la branche BYOK. La branche OAuth a donc ete empruntee, mais jamais avec succes.
+- Les deux defauts de routage de 2.23.0 expliquent le « BYOK deguise en OAuth » : le selecteur pouvait annoncer OAuth alors que la gateway servait BYOK (donc facturation au token alors que l'utilisateur croyait etre sur son plan), et il ne verifiait pas que l'ecriture du reglage etait lisible.
+
+**Documentation touchee** : `providers.md` (section OAuth reecrite avec encadre de nommage, statut « jamais observe fonctionnel », piege de facturation, et note de maturite terrain), `gateway.md`, `cost.md`, `dashboard.md`, `standalone.md`, `README.md`, `agent-instructions/registry.md` (nature metadata-only de `vendors.antigravity`), `agent-instructions/architecture.md` (les deux routes du vendor).
+Vocabulaire uniformise : « Antigravity » = « Google AI Studio OAuth via Cloud Code Assist », jamais un backend separe.
+
+**Note de maturite assumee** : ecrite explicitement dans la doc.
+Le projet a tres peu d'utilisateurs, aucun retour sur cette route, et les deux defauts de routage ont ete trouves par un seul utilisateur en production.
+La route est donc documentee comme non exercee a l'echelle, a diagnostiquer a la main en cas d'echec.
+
+**Point d'honnetete** : le disclaimer indique qu'avant 2.23.0 selectionner OAuth ne garantissait pas le routage, et que `authMode` dans le dashboard est le moyen de verifier apres bascule.
+Je n'affirme pas que « tout le monde a ete en BYOK » : la branche OAuth a bien ete empruntee chez cet utilisateur, c'est son resultat qui etait systematiquement un echec.
+
+### 2026-10-09 - Kilo (Diagnostic de quota amont : distinguer un 429 récupérable d'un 429 sans allocation)
+
+Origine : l'utilisateur signalait des `429 resource exhausted` sur Gemini via la route OAuth AGY, sans comprendre pourquoi la même version du modèle fonctionnait dans l'extension Antigravity.
+Enquête : **la route OAuth n'a jamais fonctionné sur ce compte** (151 tentatives du 04-09 au 09-10, zéro succès 200 dans la télémétrie, contre 120 succès sur la route BYOK).
+L'extension Antigravity consomme une autre source de quota que l'API Cloud Code Assist.
+
+**Une hypothèse testée et infirmée** : le quota serait dimensionné par `x-goog-api-client`, notre valeur étant `gl-kiloCode/10.4.1`.
+Rejeu de la même requête avec trois valeurs d'en-tête (la nôtre, absente, générique) : 429 dans les trois cas.
+L'hypothèse est fausse, je l'ai énoncée puis retirée.
+
+**Livrable** : `src/aiflowbridge/gateway/quota-diagnostics.ts`, module pur qui classe un refus amont en `rate-limited`, `quota-exhausted`, `zero-allocation` ou `billing-exhausted`, sur la présence du bloc `google.rpc.QuotaFailure` et d'une `RetryInfo`.
+Le point dur : le corps Cloud Code Assist d'un projet sans allocation est **identique** à celui d'un budget épuisé, sans métrique ni date de réinitialisation.
+Le module refuse de deviner quand il n'a pas de preuve (un 429 au corps illisible reste non classifié), parce qu'orienter vers la console pour un simple rate-limit serait pire que de ne rien dire.
+
+Câblage : lecture via `clone()` pour ne pas consommer le corps des chemins aval, ligne actionnable dans `AIFlowBridge: Show logs` (niveau ERROR pour les deux états incurables), en-têtes `X-AIFlowBridge-Quota-State` et `X-AIFlowBridge-Quota-Reset`, corps amont laissé intact pour le client.
+
+**Deux bugs trouvés par les tests** : la regex de détection de rate-limit matchait `rate`, donc `gene-rate-` de `generate_content_free_tier_requests` reclassait un quota journalier en rate-limit ; et le module affirmait `zero-allocation` sur un 429 au corps vide, sans preuve.
+Corrigés tous les deux. 20 tests (15 unitaires + 5 de bout en bout), `npm run validate` vert (1428 tests, 80 fichiers).
+
+### 2026-10-09 - Kilo (Clôture du dernier arbitrage : STYLE-1 dans BRAIN.md)
+
+L'utilisateur tranche l'arbitrage ouvert par l'audit AUD02 : nettoyage plutôt qu'exemption.
+
+Les 20 occurrences de U+2014 de `BRAIN.md` sont remplacées par un tiret ASCII.
+Le remplacement est exact (réécriture = chaîne d'origine avec substitution), le contenu des entrées de journal est inchangé, seule la ponctuation l'est, et les fins de ligne LF sont préservées.
+Le scan de `git ls-files` ne trouve plus aucun tiret cadratin ni demi-cadratin dans le dépôt suivi : c'était le dernier fichier concerné.
+
+`.vscode/aiflowbridge.models.json`, un `{}` vide créé par la commande **Edit model registry** le 2026-10-09 et non suivi par git, est supprimé (il aurait été ajouté au dépôt par un `git add -A`).
+
+### 2026-10-09 - Kilo (Correctif de routage Google AI Studio : GATE-1 et GATE-2)
+
+Incident utilisateur sur Gemini : 402 « prepayment credits depleted » alors que l'utilisateur croyait être sur la route OAuth.
+Diagnostic de bout en bout, puis correction de deux défauts hors périmètre de l'audit.
+
+**GATE-1 (majeur)** : la commande `Switch Google AI Studio route` résolvait la route effective avec les clés vendor `['googleaistudio', 'antigravity']` alors que la gateway la résout avec `vendors['googleaistudio']` seul.
+Or `vendors.antigravity` est documenté comme « metadata-only » (il épingle l'URL OAuth et les URLs externes pour la bascule et la découverte de modèlesustom).
+Un override portant l'OAuth sous `antigravity` faisait donc conclure à la commande « déjà sur OAuth » et refusait d'agir, pendant que la gateway servait la surface BYOK.
+Corrigé encentralisant la liste dans `GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS` (`googleaistudio` seul), plus une relecture de la valeur écrite : si la fenêtre ne sert pas le réglage, la commande le signale et nomme l'override à éditer au lieu de procéder, et **ne supprime pas** les vendors périmés, qui seraient le seul choix de route actif.
+
+**GATE-2 (mineur)** : `validateRegistryContent` était appelé hors du `try/catch` de `loadTier`.
+La passe de structure garantit les formes itérées, donc rien ne lève aujourd'hui, mais la garantie fail-soft reposait sur une invariant accidentelle.
+Les deux passes partagent maintenant une seule frontière.
+
+**Correction d'une affirmation** : j'avais avancé que le palier de registre était ignoré « silencieusement ».
+Faux, et le test existant le prouve déjà : `validateRegistryStructure` valide `version` et `models`, et `loadTier` journalise le palier ignoré en WARN avec son chemin.
+
+**Preuve de la logique** : exécution de `loadConfigFromContext` hors VS Code avec le même `settings.json` → les 7 modèles Gemini ressortent en `kind: 'googleaistudio'`, `billing: 'plan'`, `base=cloudcode`.
+La logique était donc correcte, l'écart venait de ce que l'hôte servait.
+
+**Ajouts** : `baseUrl` résolu ajouté à la ligne de diagnostic de synthèse des providers, 4 tests de garde, `npm run validate` vert (1408 tests, 79 fichiers).
+Correctif appliqué aussi à la configuration locale de l'utilisateur : entrée `vendors.googleaistudio` ajoutée à son override `globalStorage/models.json` (sauvegarde `models.json.bak-before-oauth-route`).
+
+### 2026-10-07 - Kilo (Implémentation de l'audit AUD02, bump mineur 2.23.0)
+
+Les 13 constats de l'audit AUD02 sont traités. Trois corrections de sécurité d'abord, qui change le comportement observable du gateway.
+
+**Boucle de garde loopback** (nouveau module pur `src/aiflowbridge/gateway/loopback-guard.ts`, VS-Code-free) : `Host` sur le port lié et `Origin` eventuellement présent doivent être loopback, sinon 403 sans appel amont.
+C'est le `Host` qui arrête le DNS rebinding, l'`Origin` qui ferme le CSRF navigateur. **Écart assumé** : exiger `Content-Type: application/json`, comme le recommandait l'audit, aurait cassé des clients réels (`fetch` avec un corps string sans en-tête envoie `text/plain`, cas de 15 des 17 POST des tests existants) sans rien fermer de plus.
+Le motif est écrit dans `readAndValidateBody()` et dans l'en-tête du module pour qu'un agent futur ne le réintroduise pas.
+
+**SSRF** : `BLOCKED_HOSTS` couvre les endpoints par nom (`metadata`, `metadata.google.internal`, `metadata.goog`) et `192.0.0.192`, qu'une liste d'IP ne peut pas fermer puisque la résolution DNS a lieu après le contrôle. `fetch` passe en `redirect: 'manual'` et chaque saut est revalidé par `resolveProviderRedirect()` : budget 2 hops, `307`/`308` uniquement, garde SSRF, **même hostname** (c'est ce qui préserve la montée `http:` vers `https:` d'un relais).
+Enfin `aiflowbridge.providers` passe en scope `application`, donc le `.vscode/settings.json` d'un dépôt cloné ne peut plus repointer un `baseUrl`.
+
+**Export CSV** : `escapeCsvValue()` préfixe d'une apostrophe toute valeur ouvrant sur `=`, `+`, `-`, `@`, TAB ou CR, avant le quoting RFC 4180 qui n'empêche pas Excel d'évaluer un champ entre guillemets.
+Appliqué au TypeScript et au miroir navigateur, où `\t` et `\r` doivent rester `\\t` / `\\r` sous peine de casser le littéral de regex dans le script injecté.
+
+**Packaging** : `.vscodeignore` exclut `tests/`, `scripts/`, `.githooks/`, `.kilocode/`, `BRAIN.md`, `ACTION_PLAN.md`, `TODO.md`.
+Artefact mesuré de 533 entrées / 8,9 Mo à **468 entrées / 4,7 Mo**. `tests/extension-bundle.test.ts` n'affirmait que des inclusions, il gagne les assertions d'exclusion.
+
+**Divers** : alias d'id supprimé de `resolveDetailKey()` (les clés sont désormais `model.deepseek-flash.detail` et `model.deepseek-v4-pro.detail`), `package.nls.json` réduit de 143 à ses 5 clés réellement référencées par le manifeste, réglage `aiflowbridge.providers.googleaistudio.apiKey` supprimé (jamais lu, contraire à l'invariant SecretStorage), `scripts/` déplacé sous `_helpers/scripts/` avec ses 4 références, et les instructions d'agent alignées sur le vendor unique `aiflowbridge`.
+
+**50 tests ajoutés** (25 dans les 2 nouveaux fichiers `tests/loopback-guard.test.ts` et `tests/integration/googleaistudio.smoke.test.ts`, 25 blocs dans 5 fichiers existants), suite de 1351 à 1401 tests. `npm run validate` vert (79 fichiers), `compile:standalone` vert, bundle standalone vérifié. **Bump mineur 2.23.0 demandé par l'utilisateur** (et non patch : la garde `Host` / `Origin` renvoie 403 là où la gateway répondait 200, et le refus de redirection change un comportement observable), sur `package.json`, `package-lock.json`, tampon `aiflowbridgeVersion` de `resources/pricing.json`, CHANGELOG et 5 docs. **Non commité** : règle « aucun commit automatique » (AP-020).
+
+Reste ouvert, et c'est le seul point non tranché par moi : les 20 tirets cadratins de `BRAIN.md` (voir « Questions / Blocages »).
+
 ### 2026-10-07 - Kilo (Audit de code complet AUD02 + français autorisé dans `_Private/`)
 
 Audit statique de l'intégralité de l'arbre de travail sur AIFlowBridge 2.22.1 : `src/` (100 fichiers), `tests/` (86), `resources/`, `package.json`, `.vscodeignore`, et contenu réel de `dist/aiflowbridge-2.16.1.vsix`.
@@ -239,7 +385,7 @@ Le contenu exact de la liste affichée par le provider `minimax` natif n'a pas p
 ### 2026-10-07 - Kilo (commande `Configure Kilo Code reasoning levels` : plus d'édition manuelle)
 
 **Décision utilisateur, explicite :** demander à l'utilisateur d'éditer `kilo.json` à la main est contre-productif, donc ce n'est pas une solution acceptable.
-Il faut que ce soit l'extension qui écrrive la configuration du client.
+Il faut que ce soit l'extension qui écrive la configuration du client.
 
 **Preuve qui ferme la voie « le gateway porte les niveaux ».** `packages/kilo-vscode/src/shared/fetch-models.ts` (Kilo) : `fetchOpenAIModels` lit `body.data` et n'en extrait que `item.id` et `item.name`.
 Tout le reste de la réponse `/v1/models` est ignoré.
@@ -524,7 +670,7 @@ C'est une raison de passer en **minor 2.19.0** et non en patch.
 
 **Documentation T8 finalisée.** Ajout des sections dédiées Z.ai GLM et MoonshotAI Kimi dans `docs/providers.md`, mise à jour du tableau OpenRouter avec les 15 modèles free réels, affinement du compte de modèles Copilot Chat directs (11 modèles), exemple standalone mis à jour avec `zai.apiKey` et `moonshot.apiKey`, et tests unitaires `tests/api-key-resolver.test.ts` étendus avec les 4 cas et le non-leak OpenRouter (14 tests au total).
 
-### 2026-09-05 — Kilo (Bug : Muse spark 1.3 (id OpenRouter) 401 "No cookie auth credentials found")
+### 2026-09-05 - Kilo (Bug : Muse spark 1.3 (id OpenRouter) 401 "No cookie auth credentials found")
 
 L'utilisateur a sélectionné `meta/muse-spark-1.3` (ajouté via `aiflowbridge.userModels` avec `family: "openrouter"`) et a obtenu un 401 `No cookie auth credentials found` sur `http://127.0.0.1:8787/v1/chat/completions`.
 Cause racine : `resolveVendorApiKey` matche uniquement les IDs commençant par `openrouter-` (préfixe canonique AIFlowBridge) ou par le vendor canonique (`openrouter` exact).
@@ -538,7 +684,7 @@ Tests : `tests/api-key-resolver.test.ts` étendu de 9 à 12 (3 nouveaux : family
 Gates : compile OK, 71 fichiers / 1180 tests verts, typecheck tests OK, standalone OK.
 SANS committer (validation utilisateur requise).
 
-### 2026-09-05 — Kilo (Coverage thought_signature en debug : le 100% MISSING reste un 200)
+### 2026-09-05 - Kilo (Coverage thought_signature en debug : le 100% MISSING reste un 200)
 
 L'utilisateur rapporte un dernier warning `36/36 MISSING` qui aboutit quand même en 200 : l'upstream accepte en pratique les bursts first-turn sans signature préalable.
 Le warn systématique est donc du bruit même à 100%.
@@ -547,7 +693,7 @@ Valeurs jamais loggées, inchangé.
 Gates : compile OK, 71 fichiers / 1177 tests verts, typecheck tests OK, standalone OK.
 SANS committer (validation utilisateur requise).
 
-### 2026-09-05 — Kilo (Coverage partielle tolérée : warn seulement si 100% MISSING)
+### 2026-09-05 - Kilo (Coverage partielle tolérée : warn seulement si 100% MISSING)
 
 L'utilisateur confirme que ça fonctionne malgré les warnings : le log montre des couvertures partielles (`1/3`, `2/4`, `2/7` MISSING) qui aboutissent toutes en 200.
 L'upstream tolère donc les turns rejoués où seules certaines calls portent une signature (les first-time calls n'en ont jamais eu).
@@ -557,7 +703,7 @@ Valeurs jamais loggées, inchangé.
 Gates : compile OK, 71 fichiers / 1177 tests verts, typecheck tests OK, standalone OK.
 SANS committer (validation utilisateur requise).
 
-### 2026-09-05 — Kilo (Fix racine du 400 thought_signature : shape sibling + snoop streaming + log coverage)
+### 2026-09-05 - Kilo (Fix racine du 400 thought_signature : shape sibling + snoop streaming + log coverage)
 
 Le 400 persistait malgré le cache opt-in pour deux raisons cumulées, confirmées par le log coverage (`3/3 functionCall parts MISSING signature [read:MISSING...]`) :
 
@@ -568,7 +714,7 @@ Gates : compile OK, 71 fichiers / 1177 tests verts, typecheck tests OK, standalo
 SANS committer (validation utilisateur requise).
 Pour vérifier : recharger, relancer la tâche Kilo, chercher `thought_signature coverage` : `sig` partout = la signature part au bon shape et le 400 doit disparaître.
 
-### 2026-09-05 — Kilo (Fix racine du 400 thought_signature : snoop streaming + log coverage)
+### 2026-09-05 - Kilo (Fix racine du 400 thought_signature : snoop streaming + log coverage)
 
 Le 400 persistait malgré le cache opt-in parce que (1) le cache n'était alimenté que sur le chemin non-streaming alors que Kilo streame toujours (`stream: true`), et (2) aucun log ne montrait si la signature partait vraiment vers l'amont.
 Analyse du debug.log utilisateur (assaini) : activation 2.18.2 OK, registry OK, OAuth connecté, gateway redémarrée sur 8787. Séquence : 400 initial, puis 200, puis 400 à nouveau.
@@ -579,7 +725,7 @@ Gates : compile OK, 71 fichiers / 1177 tests verts, typecheck tests OK, standalo
 SANS committer (validation utilisateur requise).
 Pour vérifier : recharger la fenêtre, relancer la tâche Kilo, ouvrir "AIFlowBridge: Show logs", chercher `thought_signature coverage` : `MISSING` = le client n'a rien envoyé et le cache était vide ; `sig` partout = la signature part et le 400 doit disparaître.
 
-### 2026-09-05 — Kilo (Analyse poussée alternatives au cache opt-in + implémentation)
+### 2026-09-05 - Kilo (Analyse poussée alternatives au cache opt-in + implémentation)
 
 L'utilisateur a demandé une analyse poussée des alternatives au cache gateway opt-in avant d'implémenter.
 Analyse effectuée :
@@ -595,7 +741,7 @@ Tests : `tests/thought-signature-cache.test.ts` (5 tests), extension `gemini-tho
 Gates : compile OK, 71 fichiers / 1177 tests verts, typecheck tests OK, standalone OK.
 Aucun commit (validation utilisateur requise). Aucun secret versionné.
 
-### 2026-09-05 — Kilo (Patch 2.18.2 : dashboard authMode BYOK / OAuth / plan / token)
+### 2026-09-05 - Kilo (Patch 2.18.2 : dashboard authMode BYOK / OAuth / plan / token)
 
 L'utilisateur a demandé une confirmation avant tout commit : ce patch reste en working tree, non commité.
 Contenu ajouté :
@@ -614,7 +760,7 @@ Bump `package.json` + `package-lock.json` en 2.18.2, snapshots `2.18.2 / 2026-09
 Docs `docs/dashboard.md` : section "By auth" ajoutée, panel count passé de 9 à 10.
 Aucun secret dans les fichiers versionnés ni dans les logs (extraits assainis uniquement).
 
-### 2026-09-05 — Kilo (Patch 2.18.1 : docs gateway + README + thought_signature)
+### 2026-09-05 - Kilo (Patch 2.18.1 : docs gateway + README + thought_signature)
 
 L'utilisateur a demandé une confirmation avant tout commit : ce patch reste en working tree, non commité.
 Contenu ajouté : `docs/gateway.md` documente `aiflowbridge.gateway.bufferGeminiStream` (table settings + note streaming temps réel sous la section Kilo Code), `README.md` surface le streaming temps réel par défaut et le résolveur effective-route dans la section OAuth.
@@ -628,7 +774,7 @@ Vérif chaîne exacte `AIFlowBridge 2.15.7 - data snapshot 2026-08-06` : absente
 Gates 2026-09-05 : compile OK, typecheck tests OK, standalone OK, 69 fichiers / 1160 tests verts.
 Aucun secret dans les fichiers versionnés ni dans les logs (extraits assainis uniquement).
 
-### 2026-09-05 — Kilo (Implémentation plan Gemini BUG-13 à BUG-17 + release 2.18.0)
+### 2026-09-05 - Kilo (Implémentation plan Gemini BUG-13 à BUG-17 + release 2.18.0)
 
 Plan `_Private/archives/2026-09-05-gemini-bug13-17-implementation-plan.md` exécuté dans l'ordre P0 → P2 + docs.
 P0 : alternance user/model native (`pushMerged`, texte + `functionCall` dans une seule entrée model, `tool` consécutifs fusionnés) sur `gemini-native.ts` et `envelope.ts` via parser partagé `content-parts.ts`.
@@ -640,10 +786,10 @@ SCHEMA-01 (`kind` + `family` enums), DISCOVERY-01 (`x-goog-api-key` + 401 explic
 Nouveaux `tests/gemini-vision.test.ts` (7 tests) + `tests/gateway-streaming-ttft.test.ts` (2 tests), extensions `gemini-native` / `envelope` / `sse-transform` / `switch-route` / `registry-override`.
 Gates : `npm run compile` OK, `npm test` 68 fichiers / 1152 tests verts, `npm run typecheck:tests` OK, `npm run compile:standalone` OK.
 Bump 2.18.0 (`package.json`, snapshot `2026-09-05` sur README/providers/architecture/cost, entrée CHANGELOG).
-Vérif manuelle BYOK (chat + 2 tools + image + TTFT + toggle aller/retour avec override stale) : non exécutée ici, clé réelle requise — à faire par l'utilisateur avant merge.
+Vérif manuelle BYOK (chat + 2 tools + image + TTFT + toggle aller/retour avec override stale) : non exécutée ici, clé réelle requise - à faire par l'utilisateur avant merge.
 Aucun secret dans les fichiers versionnés ni dans les logs (extraits assainis uniquement).
 
-### 2026-09-05 — Kilo (Bypass Secret Scanning pour les credentials publics AGY)
+### 2026-09-05 - Kilo (Bypass Secret Scanning pour les credentials publics AGY)
 
 Pour débloquer le push du 2.17.0 bloqué par GitHub Secret Scanning sur
 le `client_secret` OAuth d'Antigravity, l'utilisateur a autorisé
@@ -655,7 +801,7 @@ correspondant dans `.github/secret_scanning.yml` (`paths-ignore` +
 contenu » et dans la table « Décisions d'architecture ». Tous les autres
 secrets restent exclus du versionné.
 
-### 2026-09-05 — Kilo (Handoff vers nouvelle session : audit v2 + version 2.17.0)
+### 2026-09-05 - Kilo (Handoff vers nouvelle session : audit v2 + version 2.17.0)
 
 Contexte : utilisateur `laurent`, code en `2.17.0`, branche feature Gemini/AGY.
 Build actuelle : 1093/1093 → 1106/1106 → 1124/1124 tests verts au fil des fixes
@@ -667,20 +813,20 @@ OAuth AGY actif, `generativelanguage.googleapis.com/v1beta` = BYOK native).
 Clé API `AIzaSy...` stockée dans `SecretStorage`. Le détail des bugs ouverts
 (BUG-06, 13-17) est dans l'audit v2.
 
-### 2026-09-05 — Kilo (Release 2.17.0 : voie BYOK Gemini + correctifs audit v1)
+### 2026-09-05 - Kilo (Release 2.17.0 : voie BYOK Gemini + correctifs audit v1)
 
 Nouvelle voie BYOK vers Gemini (`x-goog-api-key`, surface native), audit externe
 intégral des routes OAuth + BYOK, switcher de route sécurisé, OAuth UX avec
 ouverture navigateur, support vision documenté (mais BUG-14 images stipees
-en BYOK — fix prévu 2.18.0). Détails des fixes dans l'audit v2 section 6.1.
+en BYOK - fix prévu 2.18.0). Détails des fixes dans l'audit v2 section 6.1.
 
-### 2026-09-04 — Kilo (BYOK Gemini initial + facturation plan vs token)
+### 2026-09-04 - Kilo (BYOK Gemini initial + facturation plan vs token)
 
 Ajout de la voie BYOK `googleaistudio` avec prix publics, mode `billing` par
 profil, dashboard avec badge `plan` + tooltip + notice, exports CSV/JSON avec
 colonne `billedTo`. Modèles Gemini 3.8/3.7/3.6 Flash remplacent les ids 2.5.
 
-### 2026-09-03 — Kilo (Implémentation initiale Antigravity / Google AI Studio)
+### 2026-09-03 - Kilo (Implémentation initiale Antigravity / Google AI Studio)
 
 Modules purs sous `src/aiflowbridge/antigravity/` (constants, types, pkce,
 auth, token-store, project, catalog, envelope, sse-transform, index).
@@ -799,3 +945,30 @@ collaboration : `BRAIN.md`, `ACTION_PLAN.md`, hook `pre-commit`,
 
 Plan initial `docs/plans/antigravity-provider-kilo-cli.md`, révisé ensuite
 par la spec AP-007.
+
+### 2026-10-07 - Kilo (bascule de route Google AI Studio : bascule aveugle, donc inutilisable)
+
+**Signalement utilisateur** : la commande `AIFlowBridge: Switch Google AI Studio route` est utilisée, mais « dans les 2 cas, je retombe sur la route BYOK », clé supprimée, requêtes en erreur.
+L'utilisateur veut pouvoir rebasculer et **choisir** OAuth.
+
+**Cause exacte, lisible en dix lignes.** La couche pure était correcte : `decideGoogleAIStudioRouteSwitch(currentBaseUrl, targetRoute?)` accepte déjà un `targetRoute` explicite, et le test « returns null when the effective route already matches the target » couvrait ce cas.
+Le défaut était dans l'appelant (`src/aiflowbridge/index.ts`), qui appelait `decideRouteFromEffective(effective)` **sans cible**.
+La cible était donc déduite comme l'inverse de la route courante à chaque invocation : BYOK -> OAuth -> BYOK.
+Relancer la commande « pour vérifier » suffisait à retomber sur BYOK, ce qui se lit exactement comme « la bascule ne marche pas ».
+Aggravant : la gateway construit ses profils de provider une fois par activation, donc après une bascule réussie les requêtes continuent de partir sur l'ancienne surface jusqu'au rechargement - l'utilisateur voyait le même symptôme et rebasculait.
+Boucle fermée par le symptôme, pas par le code.
+
+**Deux faiblesses de conception derrière, à retenir.**
+
+- **Une bascule dont l'état n'est pas nommé est une source de flip.** Le nom de la commande dit « Switch », l'effet dit « l'inverse de ce qui existe ». Une commande dont l'effet est ambigu doit exposer l'état et la cible, sinon chaque vérification détruit le résultat.
+- **Un changement qui n'a pas d'effet visible immédiat doit proposer l'étape suivante.** « Reload Window to pick up the new route » était dit dans un toast que personne ne voit avant que le problème ne se manifeste. Le correctif propose maintenant le rechargement au lieu de l'annoncer.
+
+**Correctif.** Nouveau capacité optionnelle `IGatewayContext.pickRoute()` (+ `RouteChoice`), implémentée côté VS Code avec `vscode.window.showQuickPick`, absente en standalone où la commande est déjà refusée.
+La commande présente les deux routes avec leur conséquence de facturation (OAuth = quota du compte, BYOK = facturé sur la clé), applique la route choisie, donc un second passage est un no-op, ne fait rien et signale la route courante si la boîte est fermée, et propose le rechargement de fenêtre via `confirm()`.
+Passer sur BYOK avertit que les tokens OAuth sont révoqués, donc le retour exigera une nouvelle authentification. `hostnameRoute()` devient exportée pour que l'UI puisse étiqueter l'état courant.
+**Non-régression rendue explicite par un test** : les deux routes demandées deux fois de suite restent stables, alors que la bascule aveugle demonstrativement rebascule - le test qui verrouille le défaut est celui qui échouerait si on revenait à l'inférence.
+
+3 tests ajoutés dans `tests/runtime-switch-route.test.ts` (18 dans le fichier). `npm run validate` : 1404 tests verts (79 fichiers), compile et `typecheck:tests` verts, `compile:standalone` vert.
+Docs : section « Switching between routes » de `docs/providers.md` réécrite (choix explicite, stabilité, rechargement, révocation), README (paragraphe et table des commandes), entrée CHANGELOG dans la section Fixed de la 2.23.0.
+**Limite assumée** : le dialogue (QuickPick, modale de rechargement) n'a pas été exercé depuis VS Code dans cet environnement ; seul le comportement de décision est couvert par tests.
+**Non commité** : règle « aucun commit automatique ».

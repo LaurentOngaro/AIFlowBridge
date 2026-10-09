@@ -14,6 +14,32 @@ const VSIXIGNORE = resolve(REPO, '.vscodeignore');
 // execute under Fedora and other non-Windows hosts.
 const VSCE_BIN = resolve(REPO, 'node_modules', '.bin', process.platform === 'win32' ? 'vsce.cmd' : 'vsce');
 
+/**
+ * Paths that must never reach a user. Each entry is the exact rule
+ * expected in `.vscodeignore`, checked against the packaged archive
+ * below as well.
+ */
+const DEV_ONLY_RULES: readonly string[] = [
+  'tests/**',
+  'scripts/**',
+  '.githooks/**',
+  '.kilocode/**',
+  'BRAIN.md',
+  'ACTION_PLAN.md',
+  'TODO.md',
+];
+
+/** VSIX entry prefixes that correspond to {@link DEV_ONLY_RULES}. */
+const DEV_ONLY_PREFIXES: readonly string[] = [
+  'extension/tests/',
+  'extension/scripts/',
+  'extension/.githooks/',
+  'extension/.kilocode/',
+  'extension/BRAIN.md',
+  'extension/ACTION_PLAN.md',
+  'extension/TODO.md',
+];
+
 interface PackageJson {
   readonly bundledDependencies?: ReadonlyArray<string>;
   readonly dependencies?: Record<string, string>;
@@ -50,6 +76,17 @@ describe('extension VSIX bundle completeness', () => {
     const ignore = readFileSync(VSIXIGNORE, 'utf8');
     expect(ignore).toMatch(/^!node_modules\/adm-zip\/\*\*/m);
     expect(ignore).toMatch(/^!node_modules\/tar\/\*\*/m);
+  });
+
+  // The mirror of the assertion above. The previous list only checked
+  // inclusions, so the payload grew silently: the published 2.16.1 VSIX
+  // carried 753 KB of test files, 55 KB of project journal (BRAIN.md,
+  // ACTION_PLAN.md, TODO.md), the release scripts and the git hook.
+  it('.vscodeignore excludes the development-only payload', () => {
+    const ignore = readFileSync(VSIXIGNORE, 'utf8');
+    for (const rule of DEV_ONLY_RULES) {
+      expect(ignore, `${rule} must be excluded from the VSIX`).toMatch(new RegExp(`^${rule.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+    }
   });
 
   it('the packaged VSIX carries node_modules/adm-zip and node_modules/tar', () => {
@@ -114,6 +151,12 @@ describe('extension VSIX bundle completeness', () => {
     if (tarPkg.main) {
       const main = stripDotSlash(tarPkg.main);
       expect(entryNames, `tar entry ${main} missing`).toContain(`extension/node_modules/tar/${main}`);
+    }
+
+    // And the exclusions: a dev-only entry in the archive fails here.
+    for (const prefix of DEV_ONLY_PREFIXES) {
+      const leaked = entryNames.filter((n) => n === prefix || n.startsWith(prefix));
+      expect(leaked, `${prefix} must not be packaged`).toEqual([]);
     }
 
     rmSync(tmp, { recursive: true, force: true });

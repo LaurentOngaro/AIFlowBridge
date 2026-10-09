@@ -166,9 +166,18 @@ function capitalize(level: string): string {
   return level.length === 0 ? level : level[0].toUpperCase() + level.slice(1);
 }
 
+/**
+ * Resolve the `model.<id>.detail` translation key for a model.
+ *
+ * The key is built from the upstream API id verbatim: `deepseek-flash`
+ * resolves `model.deepseek-flash.detail`, `MiniMax-M3` resolves
+ * `model.MiniMax-M3.detail`. A previous version stripped a `deepseek-v4-`
+ * prefix first, which was an id alias map and contradicted the registry
+ * rule that the id IS the upstream id. Returns `undefined` when no key
+ * exists, which lets the caller fall back to the registry `detail`.
+ */
 function resolveDetailKey(m: ModelDefinition): string | undefined {
-  const suffix = m.id.startsWith('deepseek-v4-') ? m.id.slice('deepseek-v4-'.length) : m.id;
-  const key = `model.${suffix}.detail`;
+  const key = `model.${m.id}.detail`;
   const translated = t(key);
   return translated !== key ? key : undefined;
 }

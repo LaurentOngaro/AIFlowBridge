@@ -2,7 +2,7 @@
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - 100+ AI models via OpenRouter, plus DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
   "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1, alongside the gateway-only Z.ai GLM 5.3, MoonshotAI Kimi K3 and Google AI Studio Gemini vendors. Six direct vendors (DeepSeek V4.1 Flash at $0.30/M in, DeepSeek V4 Pro, MiniMax M3, Xiaomi MiMo V2.6, Z.ai GLM 5.3, MoonshotAI Kimi) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) per-vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
-  "version": "2.22.1",
+  "version": "2.23.0",
   "galleryBanner": {
     "color": "#0f172a",
     "theme": "dark"
@@ -430,8 +430,9 @@
         },
         "aiflowbridge.providers": {
           "type": "array",
+          "scope": "application",
           "default": [],
-          "description": "Logical upstream provider profiles routed by the proxy",
+          "description": "Logical upstream provider profiles routed by the proxy. User-level only: a workspace or folder settings.json must not be able to repoint a baseUrl, otherwise a cloned repository could redirect the user's API key.",
           "items": {
             "type": "object",
             "required": [
@@ -592,10 +593,6 @@
           "type": "string",
           "default": "https://generativelanguage.googleapis.com/v1beta",
           "description": "Google AI Studio (Gemini) API base URL for the BYOK API-key route. OAuth / Antigravity / Cloud Code Assist uses a separate path - see docs/providers.md. The default targets the public Gemini API (not the Antigravity OAuth endpoint)."
-        },
-        "aiflowbridge.providers.googleaistudio.apiKey": {
-          "type": "string",
-          "description": "Google AI Studio (Gemini) API key for the BYOK route. Create one at https://aistudio.google.com/apikey. Distinct from the Antigravity OAuth tokens (which live in secrets.json under the antigravity key)."
         },
         "aiflowbridge.providers.googleaistudio.maxTokens": {
           "type": "number",
@@ -780,7 +777,7 @@
     }
   },
   "scripts": {
-    "prepare": "node scripts/install-hooks.js",
+    "prepare": "node _helpers/scripts/install-hooks.js",
     "clean": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
     "clean:standalone": "node -e \"require('node:fs').rmSync('dist/standalone', { recursive: true, force: true })\" && node -e \"require('node:fs').rmSync('dist/aiflowbridge', { recursive: true, force: true })\" && node -e \"require('node:fs').rmSync('dist/logger.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/config.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/consts.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/types.js', { force: true })\" && node -e \"require('node:fs').rmSync('dist/json.js', { force: true })\"",
     "compile": "npm run clean && tsc -p ./",
@@ -788,7 +785,7 @@
     "watch": "npm run clean && tsc -watch -p ./",
     "build:standalone": "npm run compile:standalone",
     "start:standalone": "node dist/standalone/main.js",
-    "pricing:refresh": "node scripts/refresh-bundled-pricing.mjs",
+    "pricing:refresh": "node _helpers/scripts/refresh-bundled-pricing.mjs",
     "validate": "npm run compile && npm test && npm run typecheck:tests",
     "package": "npm run validate && vsce package -o dist/",
     "publish:vscode": "npm run validate && vsce publish",

@@ -1908,6 +1908,13 @@ export function buildDashboardHtml(
       function escapeCsvValue(value, forceQuote) {
         if (forceQuote === void 0) forceQuote = false;
         var s = String(value == null ? "" : value);
+        // Formula-injection guard, mirroring the TypeScript
+        // implementation: quoting alone does not stop Excel or
+        // LibreOffice from evaluating a value that opens with an
+        // equals, plus, minus or at sign. TAB and CR are part of the
+        // trigger set and are double-escaped for the same reason as the
+        // quoting check below.
+        if (/^[=+\-@\\t\\r]/.test(s)) s = "'" + s;
         // The regex literal escapes CR and LF as the source-code
         // sequences backslash-r and backslash-n. Inside the
         // enclosing TypeScript template literal each must be
@@ -3238,21 +3245,35 @@ export function toExportedEntry(entry: RequestTelemetry): ExportedRequestEntry {
 }
 
 /**
+ * Leading characters a spreadsheet treats as the start of a formula.
+ * RFC 4180 quoting does NOT stop that: `"=1+1"` is still a formula in
+ * Excel and LibreOffice, so a quoted field is not a mitigation.
+ */
+const CSV_FORMULA_TRIGGERS = /^[=+\-@\t\r]/;
+
+/**
  * Escape a single CSV field value per RFC 4180:
  *   - Wraps the value in double quotes if it contains a comma,
  *     double quote, CR or LF.
  *   - Doubles embedded double quotes.
+ *   - Prefixes a single quote when the value opens with a formula
+ *     trigger (`=`, `+`, `-`, `@`, TAB, CR), which is how a
+ *     prompt-injected model output would reach the spreadsheet as a
+ *     live formula or a DDE payload. `promptSummary` and
+ *     `responseSummary` come straight from the upstream model, so the
+ *     value is attacker-influenceable.
  *
  * Always quotes when the caller opts in via `forceQuote`, which the
  * JSON column uses to keep the trailing-newline literal visible
  * inside the field.
  */
 export function escapeCsvValue(value: string, forceQuote = false): string {
-  const needsQuoting = forceQuote || /[",\r\n]/.test(value);
+  const guarded = CSV_FORMULA_TRIGGERS.test(value) ? `'${value}` : value;
+  const needsQuoting = forceQuote || /[",\r\n]/.test(guarded);
   if (!needsQuoting) {
-    return value;
+    return guarded;
   }
-  return `"${value.replaceAll('"', '""')}"`;
+  return `"${guarded.replaceAll('"', '""')}"`;
 }
 
 /**

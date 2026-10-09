@@ -31,6 +31,24 @@ The API key is missing, invalid, or for the wrong endpoint. Check:
 2. The `baseUrl` setting points to the right region (DeepSeek/MiniMax/Xiaomi each have regional endpoints)
 3. The key has the required permissions on the provider's dashboard
 
+## `429 Resource has been exhausted` from an upstream provider
+
+`RESOURCE_EXHAUSTED` covers three situations that need opposite reactions, and Google does not always tell them apart.
+AIFlowBridge classifies the refusal and writes the verdict to `AIFlowBridge: Show logs`, also publishing it as the `X-AIFlowBridge-Quota-State` response header.
+
+| State               | Meaning                                         | What to do                                                                                                  |
+| ------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `rate-limited`      | Per-minute or per-second cap                    | Wait. A `Retry-After` is forwarded when the upstream supplies one.                                          |
+| `quota-exhausted`   | A real allowance has been spent                 | Wait for the reset time in `X-AIFlowBridge-Quota-Reset`, or raise the quota in the provider console.        |
+| `zero-allocation`   | The account or project has no allocation at all | Retrying will never help. Grant the quota in the provider console, or switch the provider to another route. |
+| `billing-exhausted` | The project's billing credit is gone            | Top up or enable billing. Waiting does not help.                                                            |
+
+`zero-allocation` and `billing-exhausted` are logged at ERROR level because they are the two states no amount of retrying can clear.
+Gemini reports both, and they look identical from the outside: the Cloud Code Assist surface answers a project with no entitlement with a bare `{"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}`, with no quota metric to tell it apart from a spent budget.
+The Google AI Studio OAuth route in particular requires the project to be attached to the Cloud Code Assist programme; a personal GCP project that is not attached will report `zero-allocation` on every generation call while `fetchAvailableModels` keeps working.
+
+The upstream body is forwarded untouched, so clients that parse the provider's own error shape keep working.
+
 ## `404 No gateway provider matches model "..."` from the gateway
 
 Since 1.2.0, the gateway no longer silently routes a request for an unknown model to the first enabled provider (which used to label DeepSeek as "mimo-v2.5" in the dashboard).

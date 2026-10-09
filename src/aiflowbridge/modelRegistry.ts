@@ -260,8 +260,17 @@ async function loadTier(
 
   const fsPath = (uri as { fsPath?: string }).fsPath ?? uri.toString();
 
+  // Structure AND content validation share one fail-soft boundary for the
+  // override tiers. `validateRegistryStructure` guarantees the shapes the
+  // content pass iterates over (root object, integer version, `models`
+  // array, object `vendors`), so it cannot throw here today, but the
+  // content validators are per-entry and would take the whole activation
+  // down if one ever did. The contract documented on this loader is that a
+  // broken override is warned about and skipped, never fatal.
+  let result: ReturnType<typeof validateRegistryContent>;
   try {
     validateRegistryStructure(raw);
+    result = validateRegistryContent(raw, options.mode);
   } catch (err) {
     if (options.fatal) {
       throw err;
@@ -269,8 +278,6 @@ async function loadTier(
     logger.warn(`[AIFlowBridge] Ignoring ${label} model registry at ${fsPath}: ${err instanceof Error ? err.message : String(err)}`);
     return { tier: undefined, exists: false };
   }
-
-  const result = validateRegistryContent(raw, options.mode);
   for (const skip of result.log.skipped) {
     logger.warn(`[AIFlowBridge] Skipped invalid ${skip.kind} entry "${skip.key}" in ${label} model registry: ${skip.reason}`);
   }

@@ -95,7 +95,7 @@ To add the thinking-effort selector to M2 / M2.1 / M2.5 / M2.7 (none of which sh
 
 The 3-tier registry merge picks it up immediately on the next Copilot Chat reload.
 
-**Option B** - Registry override. See [architecture.md](architecture.md#model-registry).
+**Option B** - Registry override. See [architecture.md](architecture.md#model-registry-3-tier).
 
 ## Declaring a tunable depth on another model
 

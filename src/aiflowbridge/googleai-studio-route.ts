@@ -23,6 +23,22 @@ export const GOOGLEAISTUDIO_BASES = {
 
 export type GoogleAIStudioRoute = 'byok' | 'oauth';
 
+/**
+ * Vendor keys that can carry the Google AI Studio route in a registry
+ * override, in lookup order.
+ *
+ * `antigravity` is deliberately absent. The bundled registry documents
+ * that entry as metadata-only: it pins the OAuth upstream URL and the
+ * external URLs so the switcher and custom-model discovery have a stable
+ * reference, and no bundled model uses the `antigravity` family. The
+ * gateway resolves the route from `vendors.googleaistudio` (or the
+ * `providers.googleaistudio.baseUrl` setting, which takes precedence),
+ * so treating `antigravity` as a route signal made the switcher report
+ * "already on OAuth" from an override that has no effect on routing, and
+ * refuse to act while the gateway actually served BYOK.
+ */
+export const GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS: readonly string[] = ['googleaistudio'];
+
 /** Where the effective baseUrl was resolved from. */
 export type RouteBaseUrlSource = 'settings' | 'workspace' | 'globalStorage' | 'bundled';
 
@@ -98,7 +114,13 @@ export function decideGoogleAIStudioRouteSwitch(
   };
 }
 
-function hostnameRoute(baseUrl: string | undefined): GoogleAIStudioRoute {
+/**
+ * Which route the settings currently point at. Exported because the
+ * route picker has to label the current state before asking for the
+ * target, and because a caller that only wants the route (no toggle)
+ * should not have to re-derive it from a URL.
+ */
+export function hostnameRoute(baseUrl: string | undefined): GoogleAIStudioRoute {
   if (!baseUrl) return 'byok';
   try {
     const host = new URL(baseUrl).hostname.toLowerCase();

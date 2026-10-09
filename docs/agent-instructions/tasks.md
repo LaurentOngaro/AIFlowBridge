@@ -1,6 +1,6 @@
 # Common tasks
 
-> Part of the [agent instructions](../AGENTS.md).
+> Part of the [agent instructions](../../AGENTS.md).
 
 ## Building
 
@@ -41,7 +41,7 @@ The full recipe - the vendor shows up in the Copilot Chat picker AND in the Open
 2. **Model definition(s)** in `resources/models.json` under `models` with `family: <new-vendor>` and the upstream `id`.
 3. **Schema enum** in `resources/models.schema.json` (`family` enum at line 83) - must include the new vendor.
 4. **Runtime validator** in `src/aiflowbridge/modelRegistry.schema.ts` (`KNOWN_FAMILIES` Set) - must include the new vendor.
-5. **Provider registration** in `package.json` (`contributes.languageModelChatProviders`).
+5. **Provider registration**: nothing to add. The picker is fronted by the single `aiflowbridge` vendor, so a new vendor only needs its sub-provider plus a delegation branch in `src/provider/unified.ts`.
 6. **Provider implementation** in `src/provider/<vendor>.ts`. Reuse `src/provider/{base,unified,convert,stream,segment,errors,tokens,request}.ts`.
 7. **Per-vendor instantiation** in `src/runtime/provider.ts` (`registerAllProviders`) - instantiate the provider class, push it into the `perVendor` array, register `setApiKey` / `clearApiKey` commands.
 8. **Gateway provider normalization** in `src/aiflowbridge/providers.ts` - the default `aiflowbridge.providers` array uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top.
@@ -53,7 +53,7 @@ The canonical `AIFLOWBRIDGE_<VENDOR>_API_KEY` name still needs its own entry in 
 12. **`VENDOR_CHOICES` + `VENDOR_LABELS`** in `src/runtime/addCustomModel.ts` - the picker in the "Add a custom model" command must list the vendor.
 13. **API key commands** in `package.json` (`<vendor>: Set API Key` / `Clear API Key`).
 14. **Provider-specific settings** in `package.json` (`aiflowbridge.providers.{vendor}.*`).
-15. **i18n** in `package.nls.json` (`provider.<vendor>.name` + `model.<id>.detail` per model).
+15. **i18n** in `src/i18n.ts` (`provider.<vendor>.name` for the Set / Clear API Key command toasts). `package.nls.json` is manifest-only: it serves the `%key%` placeholders in `package.json` and nothing else, so a model description does not belong there.
 16. **Add tests** in `tests/<vendor>-*.test.ts` + register in `docs/agent-instructions/testing.md`.
 
 ### Path B - Gateway-only vendor (OpenRouter since 2.12.0, Z.ai and MoonshotAI since 2.19.0)
@@ -71,7 +71,7 @@ This is also what makes the bare `<VENDOR>_API_KEY` env var work, since `src/aif
 7. **`VENDOR_CHOICES` + `VENDOR_LABELS`** in `src/runtime/addCustomModel.ts` - the picker in the "Add a custom model" command lets users discover unknown model ids from the vendor's `/v1/models`.
 8. **Provider-specific settings** in `package.json` (`aiflowbridge.providers.<vendor>.baseUrl`) - lets users point at a private relay (e.g. a self-hosted OpenRouter-compatible stack).
 9. **Upstream-specific headers** (if the upstream requires them) - e.g. OpenRouter asks for `HTTP-Referer` + `X-Title` so requests are eligible for the free-tier reliability track. Put the helper in a small VS-Code-free module (see `src/aiflowbridge/gateway/openrouter-headers.ts` for the pattern), wire it into `forwardChatCompletion()` in `src/aiflowbridge/gateway/server.ts`, and export the helper so the smoke test can import it without booting the full gateway.
-10. **i18n** in `package.nls.json` (`provider.<vendor>.name` + `model.<id>.detail` per bundled model).
+10. **i18n** in `src/i18n.ts` (`provider.<vendor>.name`, used by the Set / Clear API Key toasts). Not in `package.nls.json`, which is manifest-only.
 11. **Add tests** in `tests/integration/<vendor>.smoke.test.ts` (VS-Code-free so it imports the gateway helpers directly) + register in `docs/agent-instructions/testing.md`.
 
 ### Adding a model without a release
@@ -84,7 +84,7 @@ This is also what makes the bare `<VENDOR>_API_KEY` env var work, since `src/aif
 
 1. **Add to `models` array in `resources/models.json`** with the **exact upstream API id** (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm).
 2. **Follow `RegistryModelDefinition`** in `src/aiflowbridge/modelRegistry.schema.ts` with the capabilities flags and, optionally, a `pricing` block.
-3. **Add to `package.nls.json`** with `model.{id}.detail` translation (key is the upstream id, NOT a kebab-case alias).
+3. **Add to `src/i18n.ts`** with a `model.{id}.detail` key, keyed on the upstream id verbatim (NOT a kebab-case alias, NOT a short form). The key is optional because the registry `detail` field is the fallback, and `tests/i18n.test.ts` asserts that every bundled model has one of the two.
 4. **Update README provider table** (`## Features` and `docs/providers.md`).
 
 ## Adding a new test

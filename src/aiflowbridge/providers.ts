@@ -37,6 +37,15 @@ const BLOCKED_HOSTS: RegExp[] = [
   /^169\.254\./, // AWS / GCP / Azure / OpenStack metadata
   /^100\.100\.100\.200$/, // Alibaba Cloud metadata
   /^fd00:ec2::254$/i, // AWS IMDS over IPv6
+  /^192\.0\.0\.192$/, // Oracle Cloud metadata
+  // Metadata endpoints reachable only by NAME. A block list keyed on IP
+  // literals can never close these, because the resolution happens after
+  // the check: `metadata.google.internal` is a DNS name that resolves to
+  // 169.254.169.254. `metadata` alone is what the GCP guest agent answers
+  // to, and `metadata.goog` is the documented public alias.
+  /^metadata$/,
+  /^metadata\./,
+  /^metadata\.goog$/,
 ];
 
 /**
@@ -82,7 +91,9 @@ export function normalizeHost(host: string): string {
  * Strict provider baseUrl validator. Rejects:
  * - non-HTTP(S) schemes (`file:`, `gopher:`,...)
  * - unparseable URLs
- * - cloud metadata hostnames (`169.254.x.x`, `100.100.100.200`)
+ * - cloud metadata endpoints, by IP literal (`169.254.x.x`,
+ *   `100.100.100.200`, `192.0.0.192`, `fd00:ec2::254`) and by name
+ *   (`metadata`, `metadata.google.internal`, `metadata.goog`)
  *
  * Allows loopback (`127.x.x.x`, `::1`) on purpose, for Ollama. Exported
  * so the unit tests can assert the matrix without going through the
@@ -100,6 +111,56 @@ export function isValidProviderBaseUrl(raw: string): boolean {
   }
   const host = normalizeHost(url.hostname.toLowerCase());
   return !BLOCKED_HOSTS.some((pattern) => pattern.test(host));
+}
+
+/**
+ * Max redirect hops the gateway follows when talking to an upstream.
+ */
+export const MAX_UPSTREAM_REDIRECTS = 2;
+
+/** Outcome of {@link resolveProviderRedirect}. */
+export interface ProviderRedirectDecision {
+  /** True when the hop may be replayed to `url`. */
+  readonly follow: boolean;
+  /** Absolute URL to replay to, when `follow` is true. */
+  readonly url?: string;
+  /** Why the redirect was refused, for the log line and the 502 body. */
+  readonly reason?: string;
+}
+
+/**
+ * Decide whether an upstream redirect may be replayed.
+ *
+ * `fetch` follows redirects by default, which turns an accepted
+ * `baseUrl` into an arbitrary-host relay: a `307` replays the whole
+ * body, i.e. the user's prompt, to whatever the redirect points at. The
+ * caller therefore uses `redirect: 'manual'` and asks this function.
+ *
+ * A hop is followed only when it is a 307 or 308 (the only statuses that
+ * preserve POST and its body, so no method rewrite is needed), the target
+ * still passes {@link isValidProviderBaseUrl}, and the target stays on
+ * the SAME hostname. Same-host is what keeps the common
+ * `http:` to `https:` upgrade working while still refusing a
+ * cross-host hop and every metadata endpoint.
+ */
+export function resolveProviderRedirect(currentUrl: string, location: string, hop: number): ProviderRedirectDecision {
+  if (hop > MAX_UPSTREAM_REDIRECTS) {
+    return { follow: false, reason: `redirect budget of ${MAX_UPSTREAM_REDIRECTS} hops exhausted` };
+  }
+  let target: URL;
+  try {
+    target = new URL(location, currentUrl);
+  } catch {
+    return { follow: false, reason: 'redirect target is not a parseable URL' };
+  }
+  if (!isValidProviderBaseUrl(target.toString())) {
+    return { follow: false, reason: `redirect target ${target.origin} is refused by the SSRF guard` };
+  }
+  const current = new URL(currentUrl);
+  if (normalizeHost(target.hostname.toLowerCase()) !== normalizeHost(current.hostname.toLowerCase())) {
+    return { follow: false, reason: `redirect target ${target.hostname} leaves the upstream host ${current.hostname}` };
+  }
+  return { follow: true, url: target.toString() };
 }
 
 /**

@@ -586,6 +586,28 @@ describe('loadModelRegistry - error handling', () => {
     expect(result.models).toHaveLength(2);
   });
 
+  it('skips an override tier whose "models" array is missing, instead of throwing', async () => {
+    // A hand-written override that declares only `vendors` (a natural
+    // mistake when someone wants to pin one vendor baseUrl) has no
+    // `models` key. The structure pass rejects it and the loader must
+    // degrade to a warned skip: falling through to a raw property access
+    // on `undefined` would take the whole activation down instead of
+    // quietly using the bundled registry.
+    const files: Record<string, unknown> = {};
+    files[`${BUNDLED_PATH.replace('/resources/models.json', '')}/resources/models.json`] = bundledRegistry();
+    files[`${GLOBAL_STORAGE_PATH}/models.json`] = {
+      version: 1,
+      vendors: { googleaistudio: { baseUrl: 'https://cloudcode-pa.googleapis.com', apiKeySecret: 'x' } },
+    };
+    const fs = makeFs(files);
+    const result = await loadModelRegistry(makeContext(), { fs });
+
+    expect(result.sources.globalStorage.exists).toBe(false);
+    expect(result.models).toHaveLength(2);
+    // The ignored override left no trace on the merged registry.
+    expect(result.vendors.googleaistudio?.baseUrl).not.toBe('https://cloudcode-pa.googleapis.com');
+  });
+
   it('drops invalid model entries and warns (fail-soft)', async () => {
     const files: Record<string, unknown> = {};
     files[`${BUNDLED_PATH.replace('/resources/models.json', '')}/resources/models.json`] = {

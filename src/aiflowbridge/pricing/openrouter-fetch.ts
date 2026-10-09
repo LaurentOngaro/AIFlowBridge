@@ -6,7 +6,7 @@
  * automate (DeepSeek / MiniMax / Xiaomi do not expose a pricing API).
  * This helper is used by:
  *
- *   - `scripts/refresh-bundled-pricing.mjs` (release-time, regenerates
+ *   - `_helpers/scripts/refresh-bundled-pricing.mjs` (release-time, regenerates
  *     `resources/pricing.json` so every shipped version carries a fresh
  *     date stamp).
  *   - `src/aiflowbridge/pricing/loader.ts` (user-side, on demand from
@@ -127,7 +127,7 @@ export async function fetchOpenRouterModels(options: FetchOptions = {}): Promise
  *
  * Invalid entries (non-numeric strings, negative numbers) are dropped
  * silently - the next release's refresh will pick the schema back up.
- * The drift table at the end of `scripts/refresh-bundled-pricing.mjs`
+ * The drift table at the end of `_helpers/scripts/refresh-bundled-pricing.mjs`
  * surfaces the diff vs the previous bundled file so the maintainer can
  * eyeball what changed.
  */

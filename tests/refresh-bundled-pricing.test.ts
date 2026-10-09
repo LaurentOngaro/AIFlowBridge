@@ -1,5 +1,5 @@
 /**
- * Unit tests for `scripts/refresh-bundled-pricing.mjs`.
+ * Unit tests for `_helpers/scripts/refresh-bundled-pricing.mjs`.
  *
  * Strategy: spawn the script as a child process with a controlled
  * `cwd` so we exercise the real CLI surface (argument parsing,
@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const SCRIPT = resolve(__dirname, '..', 'scripts', 'refresh-bundled-pricing.mjs');
+const SCRIPT = resolve(__dirname, '..', '_helpers', 'scripts', 'refresh-bundled-pricing.mjs');
 
 interface ScriptRun {
   status: number | null;
@@ -56,7 +56,7 @@ describe('refresh-bundled-pricing.mjs', () => {
     }
   });
 
-  it('script exists at scripts/refresh-bundled-pricing.mjs and is readable', () => {
+  it('script exists at _helpers/scripts/refresh-bundled-pricing.mjs and is readable', () => {
     const source = readFileSync(SCRIPT, 'utf8');
     expect(source.length).toBeGreaterThan(1000);
     expect(source).toMatch(/openrouter/i);

@@ -8,9 +8,10 @@
 type Translations = Record<string, string>;
 
 export const en: Translations = {
-  // Model descriptions
-  'model.flash.detail': 'Fast, general-purpose model',
-  'model.pro.detail': 'Most capable reasoning model',
+  // Model descriptions, keyed by the upstream API id (see registry.md:
+  // the id IS the upstream id, so there is no alias layer).
+  'model.deepseek-flash.detail': 'Fast, general-purpose model',
+  'model.deepseek-v4-pro.detail': 'Most capable reasoning model',
   'model.MiniMax-M2.detail': 'MiniMax first-generation reasoning model',
   'model.MiniMax-M2.1.detail': 'MiniMax second-generation reasoning model',
   'model.MiniMax-M2.1-highspeed.detail': 'MiniMax M2.1 optimized for low latency',
@@ -19,8 +20,6 @@ export const en: Translations = {
   'model.MiniMax-M2.7.detail': 'MiniMax fourth-generation model',
   'model.MiniMax-M2.7-highspeed.detail': 'MiniMax M2.7 optimized for low latency',
   'model.MiniMax-M3.detail': 'MiniMax latest generation model with extended context',
-  'model.mimo-v2-omni.detail': 'Xiaomi MiMo multimodal omni model',
-  'model.mimo-v2-pro.detail': 'Xiaomi MiMo V2 Pro reasoning model',
   'model.mimo-v2.5.detail': 'Multimodal model with vision support',
   'model.mimo-v2.5-pro.detail': 'Reasoning model without vision',
 

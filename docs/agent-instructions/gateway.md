@@ -1,6 +1,6 @@
 # Gateway
 
-> Part of the [agent instructions](../AGENTS.md).
+> Part of the [agent instructions](../../AGENTS.md).
 
 ## Endpoints
 
@@ -90,10 +90,14 @@ The catalog is built from the [model registry](registry.md) (one auto-synthesize
 ## Security
 
 - Binds `127.0.0.1` only.
+- Loopback-only request guard (2.23.0+): every request must carry a `Host` on the bound port (`127.0.0.0/8`, `localhost`, `[::1]`) and, when present, an `Origin` on the same port. This closes the two browser attacks that binding alone does not: a cross-origin POST with `text/plain` (a CORS simple request, no preflight) that would spend the user's paid key, and a DNS-rebinding page that sends its own name in `Host` and reads the responses as same-origin. Implemented in `src/aiflowbridge/gateway/loopback-guard.ts` (pure, VS-Code-free). A refused request gets a 403 and no upstream call.
 - `POST /shutdown` requires the per-instance token (1.7.0+).
-- Provider `baseUrl` validated against SSRF metadata endpoints (1.7.0+).
+- Provider `baseUrl` validated against SSRF metadata endpoints (1.7.0+): by IP literal (`169.254.x.x`, `100.100.100.200`, `192.0.0.192`, `fd00:ec2::254`) and by name (`metadata`, `metadata.google.internal`, `metadata.goog`), since a literal block list cannot close a name that resolves to `169.254.169.254` after the check.
+- Upstream redirects are **not** auto-followed (2.23.0+). The call uses `redirect: 'manual'` and `resolveProviderRedirect()` replays a hop only when it is a 307/308, still passes the SSRF guard, and stays on the same hostname, with a budget of 2 hops. A refused hop becomes a 502. Same-host is what keeps a `http:` to `https:` upgrade working.
+- `aiflowbridge.providers` is an `application`-scope setting (2.23.0+), so a cloned repository's `.vscode/settings.json` cannot repoint a `baseUrl`.
 - API key redaction in diagnostic logs (2.1.0+).
 - Upstream error messages sanitized to strip query strings and `api_key` / `Authorization` references (2.0.0+).
 - Probe responses limited to 4 KiB + JSON parse guard (2.0.0+).
+- Telemetry CSV/JSON export neutralises spreadsheet formula injection (2.23.0+): a value opening with `=`, `+`, `-`, `@`, TAB or CR gets a `'` prefix, because RFC 4180 quoting does not stop Excel or LibreOffice from evaluating a quoted field and `responseSummary` carries upstream model output.
 - Rate limiting: `aiflowbridge.gateway.maxConcurrentRequests` (default 20) - excess requests return HTTP 429 with `Retry-After: 1`.
 - Probe timeout: `aiflowbridge.gateway.probeTimeoutMs` (default 500) with 1 retry / 100 ms back-off.
