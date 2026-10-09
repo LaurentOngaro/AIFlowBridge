@@ -42,7 +42,8 @@ interface GatewaySnapshotListener {
 /**
  * The 3xx statuses `fetch` can surface with `redirect: 'manual'`.
  * 307 and 308 preserve the POST method and body, which is what makes a
- * safe replay possible; 301/302/303 would need a method rewrite.
+ * safe replay possible; 301/302/303 would need a method rewrite and are
+ * explicitly refused by `resolveProviderRedirect`.
  */
 function isRedirectStatus(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
@@ -1772,7 +1773,7 @@ private reportQuotaDiagnosis(
             // let it flow through as-is.
             return attempt;
           }
-          const decision = resolveProviderRedirect(target, location, hop);
+          const decision = resolveProviderRedirect(target, location, hop, attempt.status);
           if (!decision.follow || !decision.url) {
             logger.warn(
               `[Gateway] ${requestId} refused an upstream ${attempt.status} from provider=${provider.id}: ${decision.reason}`

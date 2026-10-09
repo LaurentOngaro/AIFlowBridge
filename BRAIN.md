@@ -972,3 +972,25 @@ Passer sur BYOK avertit que les tokens OAuth sont révoqués, donc le retour exi
 Docs : section « Switching between routes » de `docs/providers.md` réécrite (choix explicite, stabilité, rechargement, révocation), README (paragraphe et table des commandes), entrée CHANGELOG dans la section Fixed de la 2.23.0.
 **Limite assumée** : le dialogue (QuickPick, modale de rechargement) n'a pas été exercé depuis VS Code dans cet environnement ; seul le comportement de décision est couvert par tests.
 **Non commité** : règle « aucun commit automatique ».
+
+### 2026-10-09 - Kilo (Clôture audit AUD02 : REDIR-1, DOC-DATA1, relecture QUOTA-1)
+
+**Contexte** : Clôture formelle de l'audit AUD02 en version 2.23.0 suite aux travaux de la journée.
+
+**1. REDIR-1 (majeur, résolu)** : L'amont acceptait le rejeu sur 301, 302, 303 alors que la documentation, les commentaires et le CHANGELOG 2.23.0 promettent 307 et 308 uniquement.
+La RFC 9110 impose GET pour 303 et réécrit historiquement le POST pour 301/302, ce qui provoquait un rejeu de prompt en POST non préservationnel.
+Correction : la fonction pure `resolveProviderRedirect()` reçoit désormais le statut HTTP (`status = 307` par défaut).
+Tout statut distinct de 307 et 308 est explicitement refusé avec la raison `HTTP status ${status} does not preserve the POST method and body (only 307 and 308 are supported)`.
+Dans `src/aiflowbridge/gateway/server.ts`, `callUpstream()` transmet `attempt.status` à `resolveProviderRedirect()` ; un refus lève une exception capturée et transformée en HTTP 502 Bad Gateway sans aucun rejeu du corps POST.
+2 tests unitaires ajoutés dans `tests/aiflowbridge-providers.test.ts` (rejet de 301/302/303 et acceptation de 307/308) et 2 tests d'intégration dans `tests/gateway.test.ts` (vérification qu'un 301/302/303 amont ne rejoue jamais le corps POST et retourne 502, et qu'un 307 amont rejoue fidèlement le corps POST sur le même hôte en 200).
+
+**2. DOC-DATA1 (mineur, résolu)** : Paragraphe ajouté sous `## Provider routing` dans `docs/agent-instructions/gateway.md` documentant le rôle de `resources/pricing.json` comme instantané OpenRouter régénéré à chaque release servant de repli tarifaire pour les modèles déclarés par l'utilisateur (`userModels` ou surcharge de registre), distinct des 38 modèles natifs tarifés par `resources/models.json` et les valeurs par défaut de famille.
+
+**3. QUOTA-1 (relu et validé)** : Relecture dédiée approfondie du module de production `src/aiflowbridge/gateway/quota-diagnostics.ts` (ajouté lors de l'incident Gemini de l'après-midi).
+Module pur sans état externe, normalisation robuste des erreurs JSON et des trames SSE, extraction des blocs `QuotaFailure` et `RetryInfo`, classification exacte (`rate-limited`, `quota-exhausted`, `zero-allocation`, `billing-exhausted`), absence de supposition hasardeuse sur 429 illisible et corps amont préservé intact pour le client.
+Validé avec ses 20 tests (15 unitaires + 5 intégration).
+
+**Validation globale** : `npm run validate` vert avec 1432 tests sur 80 fichiers, `compile:standalone` vert, packaging VSIX (`dist/aiflowbridge-2.23.0.vsix`) vérifié propre sans aucun fichier de dev ni fichier sensible (`scripts/`, `.githooks/`, `BRAIN.md`, `ACTION_PLAN.md`, `tests/`, `_Private/`).
+**Configuration locale assainie** : à la demande de l'utilisateur, l'entrée temporaire `vendors.googleaistudio` injectée le 2026-10-09 dans `~/.config/Code/User/globalStorage/laurentongaro.aiflowbridge/models.json` a été supprimée par restauration de la sauvegarde `models.json.bak-before-oauth-route` (permissions 0600 préservées, JSON validé).
+**Non commité** : respect strict de la règle projet AP-020 (aucun commit automatique sans demande explicite de l'utilisateur).
+

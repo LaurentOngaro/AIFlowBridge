@@ -473,6 +473,22 @@ describe('resolveProviderRedirect (upstream redirect guard)', () => {
   it('refuses an unparseable location', () => {
     expect(resolveProviderRedirect(UPSTREAM, 'http://[', 0).follow).toBe(false);
   });
+
+  it('refuses non-preservational redirect statuses (301, 302, 303)', () => {
+    for (const status of [301, 302, 303]) {
+      const decision = resolveProviderRedirect(UPSTREAM, '/v2/chat/completions', 0, status);
+      expect(decision.follow).toBe(false);
+      expect(decision.reason).toContain(`HTTP status ${status} does not preserve the POST method and body`);
+    }
+  });
+
+  it('accepts preservational redirect statuses (307, 308)', () => {
+    for (const status of [307, 308]) {
+      const decision = resolveProviderRedirect(UPSTREAM, '/v2/chat/completions', 0, status);
+      expect(decision.follow).toBe(true);
+      expect(decision.url).toBe('https://api.example.com/v2/chat/completions');
+    }
+  });
 });
 
 describe('normalizeProviderProfiles - rejects blocked baseUrl', () => {

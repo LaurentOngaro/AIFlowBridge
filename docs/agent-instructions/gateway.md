@@ -87,6 +87,8 @@ Provider routing by model alias via `aiflowbridge.providers` array (in `settings
 
 The catalog is built from the [model registry](registry.md) (one auto-synthesized entry per registry model) plus the user-configured `aiflowbridge.providers` array (user wins over auto-synthesized on id collision).
 
+Pricing fallback via `resources/pricing.json`: an OpenRouter pricing snapshot regenerated at each release, serving as a pricing fallback for model IDs declared by the user through `aiflowbridge.userModels` or registry overrides, completely distinct from the 38 native models priced directly by `resources/models.json` and vendor family defaults.
+
 ## Security
 
 - Binds `127.0.0.1` only.

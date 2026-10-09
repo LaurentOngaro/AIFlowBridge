@@ -986,6 +986,121 @@ describe('GatewayService - errored requests have zero cost', () => {
   });
 });
 
+describe('GatewayService - upstream redirect guard (REDIR-1)', () => {
+  async function startFakeUpstream(
+    handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void
+  ): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+    const server = createServer(handler);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = await findListeningPort(server);
+    return {
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    };
+  }
+
+  it('refuses to replay POST body on upstream 301, 302, 303 redirects and returns 502', async () => {
+    for (const status of [301, 302, 303]) {
+      const receivedRequests: Array<{ method?: string; url?: string; body: string }> = [];
+      const upstream = await startFakeUpstream((req, res) => {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+        });
+        req.on('end', () => {
+          receivedRequests.push({ method: req.method, url: req.url, body });
+          res.statusCode = status;
+          res.setHeader('Location', '/v1/redirected-target');
+          res.setHeader('Content-Type', 'text/plain');
+          res.end(`redirecting with ${status}`);
+        });
+      });
+
+      const provider = makeProvider({ id: 'p1', baseUrl: upstream.baseUrl, model: 'model-1' });
+      const service = new GatewayService(makeConfig({ providers: [provider] }));
+      const gatewayStatus = await service.start();
+
+      try {
+        const res = await fetch(`${gatewayStatus.baseUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'secret-prompt-content' }] }),
+        });
+
+        expect(res.status).toBe(502);
+        const errJson = (await res.json()) as { error?: string; details?: string };
+        expect(errJson.error).toBe('Failed to forward request');
+        expect(errJson.details).toContain(`Upstream redirect refused (HTTP status ${status} does not preserve the POST method and body`);
+
+        // The upstream must have received only the initial request, never a replayed POST to the redirected target!
+        expect(receivedRequests.length).toBe(1);
+        expect(receivedRequests[0].url).toBe('/v1/chat/completions');
+        expect(receivedRequests[0].body).toContain('secret-prompt-content');
+      } finally {
+        await service.stop();
+        await upstream.close();
+      }
+    }
+  });
+
+  it('replays POST body on upstream 307 temporary redirect on the same host', async () => {
+    const receivedRequests: Array<{ method?: string; url?: string; body: string }> = [];
+    const upstream = await startFakeUpstream((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', () => {
+        receivedRequests.push({ method: req.method, url: req.url, body });
+        if (receivedRequests.length === 1) {
+          res.statusCode = 307;
+          res.setHeader('Location', '/v1/redirected-target');
+          res.setHeader('Content-Type', 'text/plain');
+          res.end('redirecting with 307');
+        } else {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              id: 'test-307',
+              object: 'chat.completion',
+              created: 1234567890,
+              model: 'model-1',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'redirected-ok' }, finish_reason: 'stop' }],
+            })
+          );
+        }
+      });
+    });
+
+    const provider = makeProvider({ id: 'p1', baseUrl: upstream.baseUrl, model: 'model-1' });
+    const service = new GatewayService(makeConfig({ providers: [provider] }));
+    const gatewayStatus = await service.start();
+
+    try {
+      const res = await fetch(`${gatewayStatus.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'p1', messages: [{ role: 'user', content: 'secret-prompt-content' }] }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      expect(json.choices?.[0]?.message?.content).toBe('redirected-ok');
+
+      // Two requests were sent: the original request and the replayed POST to the redirected target!
+      expect(receivedRequests.length).toBe(2);
+      expect(receivedRequests[0].url).toBe('/v1/chat/completions');
+      expect(receivedRequests[1].url).toBe('/v1/redirected-target');
+      expect(receivedRequests[1].method).toBe('POST');
+      expect(receivedRequests[1].body).toContain('secret-prompt-content');
+    } finally {
+      await service.stop();
+      await upstream.close();
+    }
+  });
+});
+
 describe('readBody (buffer + settled-flag guard)', () => {
   it('resolves with the buffered body when the stream ends normally', async () => {
     const stream = new PassThrough();

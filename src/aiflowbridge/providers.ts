@@ -143,7 +143,18 @@ export interface ProviderRedirectDecision {
  * `http:` to `https:` upgrade working while still refusing a
  * cross-host hop and every metadata endpoint.
  */
-export function resolveProviderRedirect(currentUrl: string, location: string, hop: number): ProviderRedirectDecision {
+export function resolveProviderRedirect(
+  currentUrl: string,
+  location: string,
+  hop: number,
+  status: number = 307
+): ProviderRedirectDecision {
+  if (status !== 307 && status !== 308) {
+    return {
+      follow: false,
+      reason: `HTTP status ${status} does not preserve the POST method and body (only 307 and 308 are supported)`,
+    };
+  }
   if (hop > MAX_UPSTREAM_REDIRECTS) {
     return { follow: false, reason: `redirect budget of ${MAX_UPSTREAM_REDIRECTS} hops exhausted` };
   }
