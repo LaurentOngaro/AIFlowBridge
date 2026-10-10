@@ -11,7 +11,7 @@
  * - synthesizeProvidersFromBuiltInModels() - mirroring the built-in
  *   model registry into the gateway catalog so every model exposed in
  *   the Copilot Chat picker is also routable through the gateway, with
- *   the family-level indicative pricing attached for the dashboard.
+ *   the per-model registry pricing attached for the dashboard.
  *
  * The model registry is populated from the bundled `resources/models.json`
  * via a hoisted `setLoadedRegistry()` call in `beforeAll`. This replaces
@@ -53,7 +53,7 @@ vi.mock('vscode', () => {
 });
 
 import { isRetiredGoogleProductTransport } from '../src/aiflowbridge/google-transport-policy';
-import { synthesizeProvidersFromBuiltInModels, synthesizeProvidersFromUserModels } from '../src/aiflowbridge/host-config';
+import { DEFAULT_GATEWAY_PROFILES, synthesizeProvidersFromBuiltInModels, synthesizeProvidersFromUserModels } from '../src/aiflowbridge/host-config';
 import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
 import { validateRegistryContent, validateRegistryStructure } from '../src/aiflowbridge/modelRegistry.schema';
 import { buildModelCatalog, selectProvider } from '../src/aiflowbridge/providers';
@@ -237,7 +237,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     expect(ids.has('kimi-k3')).toBe(true);
   });
 
-  it('attaches the family-level indicative pricing to each synthesized provider', () => {
+  it('attaches the per-model registry pricing to each synthesized provider', () => {
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
     const m3 = providers.find((p) => p.model === 'MiniMax-M3');
     expect(m3?.pricing).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
@@ -385,11 +385,13 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     expect(m27?.pricing).toEqual({ inputPerMillion: 0.99, outputPerMillion: 4.2, currency: 'USD' });
   });
 
-  it('falls back to the family-level indicative pricing when a model in the registry has no pricing', () => {
-    // Family-level fallback is what guarantees un-priced models still
-    // show a non-zero "Estimated cost" in the dashboard. We strip
-    // pricing from `mimo-v2.6-flash` in the registry; the synthesis
-    // must use the indicative xiaomi family default ({0.1, 0.3}).
+  it('leaves a bundled model without a registry price unpriced instead of inheriting a sibling rate', () => {
+    // The bundled registry is the source of truth for the bundled
+    // catalog: a model it leaves without a `pricing` block is stating
+    // that no tariff is published for it, so the synthesis must not
+    // hand it the family's indicative rate. A fabricated price would
+    // show up as a non-zero "Estimated cost" in the dashboard for a
+    // model whose real price nobody knows.
     const registry = loadBundledRegistry();
     const stripped = {
       ...registry,
@@ -397,7 +399,85 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     };
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, stripped);
     const om = providers.find((p) => p.model === 'mimo-v2.6-flash');
-    expect(om?.pricing).toEqual({ inputPerMillion: 0.1, outputPerMillion: 0.3, currency: 'USD' });
+    expect(om).toBeDefined();
+    expect(om?.pricing).toBeUndefined();
+  });
+
+  it('leaves the MiniMax M3.1 preview unpriced (it has no published tariff)', () => {
+    // The originating defect: `MiniMax-M3.1-Flash-Preview` ships without a
+    // `pricing` block because no pay-as-you-go tariff is published for the
+    // preview tier, yet the gateway used to advertise the MiniMax family
+    // rate {0.3, 1.2} inherited from `MiniMax-M2.7`.
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    const m31 = providers.find((p) => p.model === 'MiniMax-M3.1-Flash-Preview');
+    expect(m31).toBeDefined();
+    expect(m31?.pricing).toBeUndefined();
+    // Every other bundled model keeps a price: a missing rate must stay
+    // the exception rather than silently become the rule.
+    const unpriced = providers.filter((p) => p.pricing === undefined).map((p) => p.id);
+    expect(unpriced).toEqual(['MiniMax-M3.1-Flash-Preview']);
+  });
+
+  it('still falls back to the family rate for a user-declared model without a price', () => {
+    // The opposite case, and the reason the fallback survives at all: a
+    // user-declared model with no `pricing` is ignorance, not a statement,
+    // so the family's indicative rate is a usable default.
+    mockUserModels.value = [{ id: 'MiniMax-M3.1-Pro', name: 'MiniMax M3.1 Pro', family: 'minimax', version: 'm3.1' }];
+    const providers = synthesizeProvidersFromUserModels([], fakeConfig() as never, loadBundledRegistry());
+    const model = providers.find((p) => p.model === 'MiniMax-M3.1-Pro');
+    expect(model?.pricing).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
+  });
+});
+
+describe('hand-curated gateway profiles stay aligned with the model registry', () => {
+  // The hand-curated rates in `DEFAULT_GATEWAY_PROFILES` are a second
+  // source of truth next to `resources/models.json`. Nothing forced them
+  // to agree, so they drifted silently. This is the drift guard: a
+  // hand-curated rate may only exist for a model the registry also
+  // prices, and then it must be the same rate.
+
+  it('every hand-curated rate equals the registry pricing of the same model', () => {
+    const registry = loadBundledRegistry();
+    for (const entry of DEFAULT_GATEWAY_PROFILES) {
+      if (!entry.pricing) {
+        continue;
+      }
+      const model = registry.models.find((m) => m.id === entry.model);
+      expect(model, `hand-curated profile "${entry.id}" has no registry model`).toBeDefined();
+      expect(
+        entry.pricing,
+        `hand-curated rate for "${entry.id}" drifted from resources/models.json`
+      ).toEqual({
+        inputPerMillion: model?.pricing?.inputPerMillion,
+        outputPerMillion: model?.pricing?.outputPerMillion,
+        currency: model?.pricing?.currency,
+      });
+    }
+  });
+
+  it('no hand-curated rate exists for a model the registry leaves unpriced', () => {
+    const registry = loadBundledRegistry();
+    for (const entry of DEFAULT_GATEWAY_PROFILES) {
+      if (!entry.pricing) {
+        continue;
+      }
+      const model = registry.models.find((m) => m.id === entry.model);
+      expect(model?.pricing, `hand-curated rate for "${entry.id}" invents a price the registry does not publish`).toBeDefined();
+    }
+  });
+
+  it('the Gemini models the registry prices are priced in the gateway catalog', () => {
+    // The original AP-02 note suspected `gemini-3.6-flash` and
+    // `gemini-3.7-flash` were missing from the synthesis. They are not:
+    // the registry prices them and they need no family anchor, because
+    // the `googleaistudio` family has no curated entry. Asserted here so
+    // the suspicion cannot outlive the correction.
+    const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
+    for (const id of ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash']) {
+      const profile = providers.find((p) => p.model === id);
+      expect(profile, `${id} missing from the gateway catalog`).toBeDefined();
+      expect(profile?.pricing?.inputPerMillion, `${id} has no input rate`).toBeGreaterThan(0);
+    }
   });
 });
 

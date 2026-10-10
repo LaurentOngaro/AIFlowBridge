@@ -1,10 +1,9 @@
 /**
  * AIFlowBridge - shared OpenAI content to Gemini parts parser.
  *
- * Both upstream surfaces (BYOK native in `gemini-native.ts` and OAuth
- * AGY in `envelope.ts`) accept the same OpenAI Chat Completions
- * `messages[].content` shapes and must produce the same native
- * `parts[]`. The shared parser avoids duplication:
+ * The upstream Gemini surface (see `gemini-native.ts`) takes the
+ * OpenAI Chat Completions `messages[].content` shapes and must
+ * produce native `parts[]`. This module owns that projection:
  *   - `string` content becomes a single `{ text }` part.
  *   - content arrays map `type: text` / `input_text` / `output_text`
  *     entries to `{ text }` parts.
@@ -124,8 +123,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * Normalize an OpenAI `tool` message `content` into the value expected by
  * the native `functionResponse.response` field.
  *
- * The field is a `google.protobuf.Struct` on every Gemini surface (public
- * native and Cloud Code Assist), so it MUST carry a JSON object. Clients
+ * The field is a `google.protobuf.Struct` on the Gemini surface, so it
+ * MUST carry a JSON object. Clients
  * that send the tool result as a content-parts array
  * (`content: [{ type: 'text', text: '...' }]`, a valid OpenAI shape) or as
  * a JSON string holding a JSON array would otherwise be forwarded verbatim

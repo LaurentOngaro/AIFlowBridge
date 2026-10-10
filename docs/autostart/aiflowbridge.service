@@ -18,9 +18,17 @@ Environment=AIFLOWBRIDGE_XIAOMI_API_KEY=replace-me
 Environment=AIFLOWBRIDGE_ZAI_API_KEY=replace-me
 Environment=AIFLOWBRIDGE_MOONSHOT_API_KEY=replace-me
 
-# Where the standalone gateway stores telemetry + secrets.json.
-# Defaults to ~/.aiflowbridge/ when omitted.
+# Where the standalone gateway stores config.json, telemetry.json,
+# secrets.json and gateway.lock. When omitted, the resolution order is
+# ~/.aiflowbridge/ unless the VS Code extension's globalStorage folder
+# exists on this machine, in which case that folder wins and is shared
+# with the extension.
 # Environment=AIFLOWBRIDGE_DATA_DIR=/home/youruser/.aiflowbridge
+
+# Workspace used by the context detector (aiflowbridge.gateway.workspaceContext.root).
+# A service manager starts the process from the install directory, so set it
+# explicitly if you want the detector to walk a real project.
+# Environment=AIFLOWBRIDGE_WORKSPACE=/home/youruser/projects/my-app
 
 [Install]
 WantedBy=default.target

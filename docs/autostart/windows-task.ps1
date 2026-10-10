@@ -60,7 +60,10 @@ $settings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Hours 0)
 
 $principal = New-ScheduledTaskPrincipal `
-    -UserId $env:USERNAME `
+    # $env:USERNAME is the bare short name, which Task Scheduler rejects on a
+    # domain-joined machine. The full identity (DOMAIN\user or the local SID)
+    # is what the API expects.
+    -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) `
     -LogonType Interactive `
     -RunLevel Limited
 

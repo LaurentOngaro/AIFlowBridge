@@ -115,11 +115,11 @@ The list is the dropdown content, in ascending order, and the selected value is 
 Omit the field and the model keeps the historical None / High / Max dropdown mapped to `reasoning_split`.
 A list without `none` means thinking cannot be switched off, which is the usual case for an always-reasoning upstream.
 
-## Always-on reasoning models (Z.ai GLM 5.3 and MoonshotAI Kimi)
+## Always-on reasoning models (DeepSeek, MiniMax M3.1, Z.ai GLM 5.3, MoonshotAI Kimi)
 
-Z.ai GLM 5.3 (`glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`) and MoonshotAI Kimi (`kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`) are **always-on thinking models**.
+Every model declared `requiresThinkingParam: true` in the registry is an **always-on thinking model**: DeepSeek V4.1 Flash (`deepseek-flash`), DeepSeek V4 Pro (`deepseek-v4-pro`), MiniMax M3.1 Flash Preview, Z.ai GLM 5.3 (`glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`) and MoonshotAI Kimi (`kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`).
 Their upstream APIs reject any request that attempts to disable thinking (for example sending `thinking: { type: "disabled" }` returns HTTP 400 on GLM 5.3).
 
-- **Gateway behavior**: The gateway forwards the client payload directly without injecting thinking-disable parameters.
+- **Gateway behavior**: The gateway rewrites an explicit off signal into thinking-on before forwarding. `thinking.type: "disabled"` becomes `"enabled"`, `reasoning_split: false` becomes `true`, and `reasoning_effort: "none"` or `reasoning: false` are dropped and replaced by `reasoning_split: true`. Each rewrite is logged at INFO with the request id, so the change is visible rather than silent.
 - **Client configuration**: When connecting Kilo Code, Continue, or custom OpenAI SDK scripts, pass `reasoning_effort` (`low` / `high` / `max`, default `max`) to tune reasoning depth rather than attempting to disable reasoning.
 - **MoonshotAI Kimi K2.6 exception**: `kimi-k2.6` is the only current Moonshot model where thinking can be toggled on or off (`requiresThinkingParam: false`).

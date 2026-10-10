@@ -7,12 +7,12 @@ The metrics dashboard is one keyboard shortcut away: press **`Ctrl+Alt+M`** (or 
 ## What the dashboard shows
 
 - **Top cards** - Total requests, prompt/completion tokens, average duration, and total **Estimated cost**. With no filter active the cards show **cumulative** totals since you started using the gateway; with a filter active they recompute from the filtered subset.
-- **Filters panel** - All dashboard-wide filter controls grouped in a single collapsible section at the top of the page, between the hero (`Current version`) and the totals grid: time-range preset, provider, From/To dates, free-text search, session inactivity gap, and **two telemetry export buttons** (`CSV` and `JSON`). Because every section of the dashboard (Recent requests / Sessions / By model / totals) reads from the same filter state, narrowing the view from one place updates everything else in lockstep - including the export: clicking `CSV` / `JSON` downloads the currently filtered entries only.
+- **Filters panel** - All dashboard-wide filter controls grouped in a single collapsible section at the top of the page, between the hero (`Current version`) and the totals grid: time-range preset, provider, **auth mode**, From/To dates, free-text search, session inactivity gap, and **two telemetry export buttons** (`CSV` and `JSON`). Because every section of the dashboard (Recent requests / Sessions / By model / totals) reads from the same filter state, narrowing the view from one place updates everything else in lockstep - including the export: clicking `CSV` / `JSON` downloads the currently filtered entries only.
 - **Gateway panel** - Running state (or stopped / error), port, default model, **bundled pricing snapshot** (`generatedAt` + `AIFlowBridge vX.Y.Z` + the number of models sourced from `resources/pricing.json`), and a **`Refresh prices` button** that hits OpenRouter `/v1/models`, writes `<globalStorageUri>/pricing-override.json`, and hot-updates the in-memory pricing registry so every `Est. cost` tooltip and the totals card refresh in place without a window reload.
-- **Recent requests table** - Timestamp, model, tokens, latency, status (200/4xx/5xx as a colored pill), **Est. cost** (with the per-rate tooltip), `plan` badge on token-plan / subscription / OAuth rows, and per-row delete button.
+- **Recent requests table** - A delete action column plus eleven data columns: **Status** (200/4xx/5xx as a colored pill), **Date**, **Provider**, **Model**, **Client** (`kilocode@1.2.3`, `curl@8.x`, ...), **Duration**, **Tokens**, **Est. cost** (with the per-rate tooltip), **Token source** (estimated vs upstream-reported), **Path** (gateway vs copilot-chat) and **Auth** (`byok` / `oauth` / `plan` / `token`). Every data column header is sortable on click, cycling ascending -> descending -> cleared; the default order is Date descending. Plan-covered rows carry a `plan` badge.
 - **Sessions panel** - Recorded requests grouped into sessions by an inactivity gap (default 30 min, options 1 / 2 / 5 / 10 / 15 / 30 / 45 / 60 min). Each session is rendered as a collapsible card showing the start time, request count, and a header summary (total tokens, average duration, total estimated cost, session span in minutes); expanding reveals per-request details.
 - **By model panel** - Same metrics aggregated per model ID, with the same time/date/search filters.
-- **By client / By source / By auth panels** - Per-`clientId` (kilocode@1.2.3, curl@8.x, ...), per-origin (gateway vs copilot-chat), and per-authentication-mode (`byok` / `oauth` / `plan` / `token`) splits. The "By auth" panel is new in 2.18.2 and surfaces the real auth path used on every recorded request, so users can see at a glance how much of their traffic went through a personal API key (BYOK), the Antigravity OAuth session, a plan-covered vendor, or a per-token fallback.
+- **By client / By source / By auth panels** - Per-`clientId` (kilocode@1.2.3, <curl@8.x>, ...), per-origin (gateway vs copilot-chat), and per-authentication-mode (`byok` / `oauth` / `plan` / `token`) splits. The "By auth" panel is new in 2.18.2 and surfaces the real auth path used on every recorded request, so users can see at a glance how much of their traffic went through a personal API key (BYOK), a plan-covered vendor, or a per-token fallback. The `oauth` value only labels historical rows recorded before the Google product OAuth route was retired.
 - **Shared session panel** - Pair-programming view: the 20 most recent recorded requests with their sanitized prompt snippets. Click **Replay** to re-fetch the stored prompt + response summaries via `GET /v1/replay/{id}` without re-running the upstream call. Auto-refreshes when the loopback `GET /v1/events` SSE stream is reachable (the dashboard subscribes on first render).
 - **Provider summary** - Per provider (DeepSeek / MiniMax / Xiaomi) totals.
 
@@ -35,7 +35,7 @@ Two buttons next to `Clear filters` in the Filters panel - `CSV` and `JSON` - do
 - **JSON** is pretty-printed and carries a metadata header (`schemaVersion`, `source`, `generatedAt`, `extensionVersion`, `filters`, `totals`) so a downstream consumer can reconstruct the filter context without inspecting the filename.
 - The filename follows the pattern `aiflowbridge-metrics-<preset-slug>-<YYYY-MM-DDTHH-mm-ss>.<ext>` (the preset slug is sanitized to filesystem-safe characters).
 - A native VS Code save dialog (`vscode.window.showSaveDialog`) picks the destination; the file is written via `vscode.workspace.fs.writeFile`. The dialog blocks until the user picks a path or cancels (silent no-op).
-- The buttons stay hidden when the filtered set is empty (1.5 s disabled state instead, so a stray click is obvious).
+- The buttons stay visible and are disabled for 1.5 s after a click, so a stray click is obvious.
 
 ## Refresh prices (Gateway panel)
 
@@ -46,7 +46,7 @@ The bundled pricing snapshot stamp in the same panel (`generatedAt` + `AIFlowBri
 
 The **Est. cost** column always uses the same formula - `(promptTokens x inputPerMillion + completionTokens x outputPerMillion) / 1_000_000` at the profile's rates - but the number means two different things.
 For per-token billing (DeepSeek / MiniMax / Xiaomi / OpenRouter pay-as-you-go keys, **Google AI Studio API-key (BYOK)** calls billed on the user's GCP project) it is a **real charge estimate**.
-For plan-covered usage (MiniMax token-plan keys, Google AI Studio via the Cloud Code Assist OAuth route) it is an **indicative equivalent**: what the same tokens would cost at pay-as-you-go rates - you pay $0 extra, the plan covers it.
+For plan-covered usage (MiniMax token-plan keys) it is an **indicative equivalent**: what the same tokens would cost at pay-as-you-go rates - you pay $0 extra, the plan covers it.
 
 The dashboard makes the distinction visible without any extra configuration step:
 
@@ -55,7 +55,7 @@ The dashboard makes the distinction visible without any extra configuration step
 - Typing `plan` in the Filters search box narrows to plan-covered rows; `token` narrows to per-token rows.
 - CSV / JSON exports carry a `billedTo` column (`token` or `plan`) per row.
 
-Mark a provider as plan-covered with `"billing": "plan"` on its `aiflowbridge.providers` entry in `settings.json` (same shape in `~/.aiflowbridge/config.json` standalone).
+Mark a provider as plan-covered with `"billing": "plan"` on its `aiflowbridge.providers` entry in `settings.json` (same shape in the standalone `<storageDir>/config.json`).
 Nothing is inferred from the vendor or the authentication method: a subscription entitlement is not assumed from an OAuth-flavoured transport.
 The retired Google product OAuth route used to be stamped `plan` automatically; that stamp is gone with the route.
 The `googleaistudio` family on `generativelanguage.googleapis.com` (the supported BYOK route) stays per-token.

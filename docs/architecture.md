@@ -10,31 +10,56 @@ src/
 │   ├── gateway/                        # OpenAI-compatible HTTP proxy
 │   │   ├── server.ts                   # HTTP server + /version + /shutdown + cooperative restart
 │   │   ├── probe.ts                    # probeServerVersion / requestPeerShutdown / waitUntilPortFree / compareSemver
-│   │   └── lock.ts                     # acquireGatewayLock / releaseGatewayLock (fs.openSync 'wx')
+│   │   ├── lock.ts                     # acquireGatewayLock / releaseGatewayLock (fs.openSync 'wx')
+│   │   ├── loopback-guard.ts           # Host/Origin loopback-only request guard
+│   │   ├── bearer-key.ts               # Accepted local Authorization header shapes
+│   │   ├── discovery.ts                # GET /v1/discovery payload + optional UDP beacon
+│   │   ├── openrouter-headers.ts       # HTTP-Referer / X-Title attribution headers
+│   │   └── quota-diagnostics.ts        # Upstream quota-refusal classification
 │   ├── telemetry/                      # Cross-window telemetry persistence
 │   │   ├── persistence.ts              # TelemetryPersister + acquireTelemetryLock / releaseTelemetryLock
+│   │   ├── cap.ts                      # Bounded summary capture (maxStoredRequestBytes)
 │   │   └── summary.ts                  # sanitizeSummaryText + buildPromptSummary + buildResponseSummary (pair-programming log)
 │   ├── ui/                             # Dashboard webview + status bar
 │   │   ├── dashboard.ts                # buildDashboardHtml + showMetricsDashboard
+│   │   ├── dashboard-sort.ts           # Three-state column sorting (asc / desc / cleared)
 │   │   └── statusbar.ts                # Status bar entry, "joined" state when peer owns the gateway
+│   ├── pricing/                        # Pricing registry
+│   │   ├── loader.ts                   # resolution order + pricing-override.json read/write
+│   │   └── openrouter-fetch.ts         # Live OpenRouter /v1/models refresh
+│   ├── gemini/                         # Gemini native transport
+│   │   ├── gemini-native.ts            # Native Gemini request/response path
+│   │   ├── content-parts.ts           # Part conversion (text / inlineData / thought_signature)
+│   │   ├── json-schema-clean.ts        # Upstream-compatible tool schema normalisation
+│   │   └── thought-signature-cache.ts  # Bounded thought_signature cache (500 entries / 30 min)
 │   ├── token-counter.ts                # MiniMax /v1/responses/input_tokens wrapper
 │   ├── context/                        # Workspace detector + language routing (action plan items #2 + #5)
 │   │   ├── workspace-context.ts        # detectWorkspaceContext + renderWorkspaceContext + prependSystemMessage
 │   │   └── language-routing.ts         # selectProviderWithLanguage + detectLanguageHintFromPayload
 │   ├── modelRegistry.schema.ts         # Hand-rolled registry types + validators + deep merge
 │   ├── modelRegistry.ts                # 3-tier loader (bundled < globalStorage < workspace)
+│   ├── modelRegistryOverride.ts        # Registry override file read/write
 │   ├── telemetry.ts                    # TelemetryStore + cost estimation
 │   ├── providers.ts                    # Gateway upstream provider normalization + SSRF validation
-│   ├── config.ts                       # loadConfigFromContext(ctx) - host-agnostic
+│   ├── host-config.ts                  # loadConfigFromContext(ctx) + DEFAULT_GATEWAY_PROFILES - host-agnostic
+│   ├── api-key-sources.ts              # Unified key chain (env vars > secrets.json > SecretStorage)
+│   ├── api-key-resolver.ts             # resolveVendorApiKey(vendor, secrets) - SecretStorageLike agnostic
+│   ├── auth-mode.ts                    # Auth mode detection (byok / oauth / plan / token)
+│   ├── google-transport-policy.ts      # classifyGoogleTransport - refuses the retired Google OAuth host
+│   ├── googleai-studio-route.ts        # Gemini API route resolution
+│   ├── retired-google-oauth-secrets.ts # Local purge of the legacy antigravity credential slot
+│   ├── kilo-code-config.ts             # Writes registry-declared reasoning levels into Kilo Code config
 │   ├── types.ts                        # IGatewayContext + Disposable + SecretStorageLike + ConfigReader + FileSystemLike
 │   ├── index.ts                        # AIFlowBridgeRuntime(ctx: IGatewayContext) - host-agnostic entry point
-│   ├── vscode-context-adapter.ts       # createVSCodeContext(context) - wraps vscode.ExtensionContext
-│   └── api-key-resolver.ts             # resolveVendorApiKey(vendor, secrets) - SecretStorageLike agnostic
+│   └── vscode-context-adapter.ts       # createVSCodeContext(context) - wraps vscode.ExtensionContext
 ├── standalone/                         # Pure-Node.js CLI binary
 │   ├── main.ts                         # CLI entry point (aiflowbridge-server npm bin)
-│   ├── context.ts                      # createStandaloneContext() - env vars + ~/.aiflowbridge/ + fs.watch hot-reload
-│   ├── config-loader.ts                # StandaloneConfigFile - JSON reader for ~/.aiflowbridge/config.json
+│   ├── context.ts                      # createStandaloneContext() - env vars + storage dir + fs.watch hot-reload
+│   ├── storage-dir.ts                  # Storage directory resolution (AIFLOWBRIDGE_DATA_DIR > VS Code globalStorage > ~/.aiflowbridge)
+│   ├── config-loader.ts                # StandaloneConfigFile - nested JSON reader for <storageDir>/config.json
 │   ├── util.ts                         # Shared getNestedValue / setNestedValue helpers
+│   ├── migrations/
+│   │   └── merge-storage.ts            # One-shot merge of a legacy storage dir into the resolved one
 │   └── vscode-shim.ts                  # vscode module shim so the gateway code typechecks without @types/vscode
 ├── provider/                           # Language model providers (Copilot Chat)
 │   ├── base.ts                         # Abstract base (reads registry cache)
@@ -67,12 +92,17 @@ src/
 │   ├── addCustomModel.ts               # "Add a custom model" interactive command
 │   ├── editModelRegistry.ts            # "Edit model registry" command
 │   ├── resetModelRegistry.ts           # "Reset model registry" command
+│   ├── configureKiloCode.ts            # "Configure Kilo Code reasoning levels" command
+│   ├── installStandalone.ts            # "Install standalone gateway" command
+│   ├── refreshPricing.ts               # "Refresh pricing now" command
+│   ├── openPricingData.ts              # "Open pricing data" command
+│   ├── exportTelemetry.ts              # CSV / JSON export of the filtered entries
 │   ├── diagnostics.ts                  # Extension diagnostics + debug mode
 │   ├── welcome.ts                      # First-activation welcome flow
 │   └── index.ts                        # Public re-exports for extension.ts
 ├── consts.ts                           # Static constants (CONFIG_SECTION, API_KEY_SECRETS, ...)
 ├── auth.ts                             # SecretStorage wrapper
-├── config.ts                           # VS Code configuration access (incl. getUserModels)
+├── config.ts                           # VS Code configuration access (incl. getUserModels, DebugMode)
 ├── i18n.ts                             # Translation helper (English only)
 ├── logger.ts                           # LogOutputChannel wrapper
 ├── json.ts                             # JSON.parse / stringify with safe defaults
@@ -163,13 +193,19 @@ Validation is hand-rolled (no `ajv` runtime dependency). See [`src/aiflowbridge/
 
 ## Provider pattern
 
-Each AI provider is registered via VS Code's `languageModelChatProviders` contribution point:
+The extension registers a **single** vendor through VS Code's `languageModelChatProviders` contribution point: `aiflowbridge`.
+Behind it, one `vscode.LanguageModelChatProvider` implementation (`UnifiedChatProvider` in `src/provider/unified.ts`) dispatches each request to the sub-provider matching the model id from the registry:
 
-- `aiflowbridge` (DeepSeek V4.1 Flash / V4 Pro) - registered under generic `aiflowbridge` vendor to coexist with provider-specific vendors.
-- `minimax` (MiniMax M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview) - HTTP streaming client.
-- `xiaomi` (Xiaomi MiMo V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed) - HTTP streaming client.
+| Model family                                   | Sub-provider              | Copilot Chat picker |
+| ---------------------------------------------- | ------------------------- | ------------------- |
+| DeepSeek V4.1 Flash / V4 Pro                   | `src/provider/index.ts`   | Yes                 |
+| MiniMax M2.7 -> M3.1                           | `src/provider/minimax.ts` | Yes                 |
+| Xiaomi MiMo V2.5 -> V2.6                       | `src/provider/xiaomi.ts`  | Yes                 |
+| Google AI Studio, Z.ai, MoonshotAI, OpenRouter | none (gateway-only)       | No                  |
 
-Shared logic lives in `src/provider/unified.ts` (reasoning pass-through, token counting), `src/provider/convert.ts` (vscode.LM message conversion), `src/provider/stream.ts` (SSE parsing), `src/provider/segment.ts` (stream segmentation), `src/provider/errors.ts` (upstream error normalization), `src/provider/tokens.ts` (token counting heuristics), `src/provider/request.ts` (outgoing HTTP request builder).
+Adding a picker entry therefore means adding a model to the registry plus a delegation branch, not registering a new vendor contribution point.
+
+Shared logic lives in `src/provider/{convert,stream,segment,errors,tokens,request}.ts` (vscode.LM message conversion, SSE parsing, stream segmentation, upstream error normalization, token counting heuristics, outgoing HTTP request builder), with `src/provider/models.ts` for model id resolution and `src/provider/tools/` for tool-calling adapters.
 
 The model id field in the registry is the **upstream API id** (`MiniMax-M2.7`, `mimo-v2.6-pro`, `deepseek-flash`), not a kebab-case alias.
 The picker shows the human-readable `name` field.

@@ -1,7 +1,7 @@
 {
   "name": "aiflowbridge",
   "displayName": "AIFlowBridge - 100+ AI models via OpenRouter, plus DeepSeek V4, MiniMax M3 & MiMo in Copilot Chat",
-  "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.5 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1, alongside the gateway-only Z.ai GLM 5.3, MoonshotAI Kimi K3 and Google AI Studio Gemini vendors. Six direct vendors (DeepSeek V4.1 Flash at $0.30/M in, DeepSeek V4 Pro, MiniMax M3, Xiaomi MiMo V2.6, Z.ai GLM 5.3, MoonshotAI Kimi) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) per-vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
+  "description": "100+ AI models through one free local gateway. OpenRouter (GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4 Pro, Qwen 3.7 Max) reaches GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant through a unified OpenAI-compatible endpoint at http://127.0.0.1:8787/v1, alongside the gateway-only Z.ai GLM 5.3, MoonshotAI Kimi K3 and Google AI Studio Gemini vendors. Six direct vendors (DeepSeek V4.1 Flash at $0.30/M in, DeepSeek V4 Pro, MiniMax M3, Xiaomi MiMo V2.6, Z.ai GLM 5.3, MoonshotAI Kimi) keep the door open for the cheapest direct path. 4 problems solved: (1) one OpenRouter key unlocks 100+ models behind a single endpoint, (2) per-vendor keys for the lowest per-token cost when needed, (3) free vision for text-only models via a transparent proxy to your Copilot-bundled vision model, (4) live metrics dashboard with per-request token counts, latency, estimated cost, refreshed pricing snapshots from OpenRouter, and pair-programming session replay + CSV/JSON export of the filtered telemetry. Free, open-source, ad-free, no data collection. Pay only the upstream providers you use.",
   "version": "2.24.0",
   "galleryBanner": {
     "color": "#0f172a",
@@ -85,22 +85,22 @@
       {
         "command": "aiflowbridge.refreshMetrics",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Refresh metrics"
+        "title": "Refresh metrics"
       },
       {
         "command": "aiflowbridge.resetMetrics",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Reset metrics"
+        "title": "Reset metrics"
       },
       {
         "command": "aiflowbridge.purgeSessionLog",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Purge session log"
+        "title": "Purge session log"
       },
       {
         "command": "aiflowbridge.showMetrics",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Show metrics dashboard"
+        "title": "Show metrics dashboard"
       },
       {
         "command": "aiflowbridge.startGateway",
@@ -115,57 +115,57 @@
       {
         "command": "aiflowbridge.stopGateway",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Stop local gateway"
+        "title": "Stop local gateway"
       },
       {
         "command": "aiflowbridge.copyGatewayUrl",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Copy gateway URL"
+        "title": "Copy gateway URL"
       },
       {
         "command": "aiflowbridge.openSettings",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Open settings"
+        "title": "Open settings"
       },
       {
         "command": "aiflowbridge.joinExternalGateway",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Join external (standalone) gateway"
+        "title": "Join external (standalone) gateway"
       },
       {
         "command": "aiflowbridge.setVisionModel",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Set vision proxy model"
+        "title": "Set vision proxy model"
       },
       {
         "command": "aiflowbridge.showLogs",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Show logs"
+        "title": "Show logs"
       },
       {
         "command": "aiflowbridge.openRequestDumpsFolder",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Open request dumps folder"
+        "title": "Open request dumps folder"
       },
       {
         "command": "aiflowbridge.addCustomModel",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Add a custom model"
+        "title": "Add a custom model"
       },
       {
         "command": "aiflowbridge.editModelRegistry",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Edit model registry"
+        "title": "Edit model registry"
       },
       {
         "command": "aiflowbridge.resetModelRegistry",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Reset model registry to bundled defaults"
+        "title": "Reset model registry to bundled defaults"
       },
       {
         "command": "aiflowbridge.configureKiloCode",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Configure Kilo Code reasoning levels"
+        "title": "Configure Kilo Code reasoning levels"
       },
       {
         "command": "aiflowbridge.providers.deepseek.setApiKey",
@@ -246,17 +246,17 @@
       {
         "command": "aiflowbridge.installStandalone",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Install standalone gateway"
+        "title": "Install standalone gateway"
       },
       {
         "command": "aiflowbridge.refreshPricing",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Refresh pricing now"
+        "title": "Refresh pricing now"
       },
       {
         "command": "aiflowbridge.openPricingData",
         "category": "AIFlowBridge",
-        "title": "AIFlowBridge: Open pricing data"
+        "title": "Open pricing data"
       }
     ],
     "keybindings": [
@@ -667,7 +667,7 @@
           "default": [
             "aiflowbridge"
           ],
-          "description": "Vendors that should NOT use the vision proxy"
+          "description": "Vendors hidden from the vision-model picker (does not change the proxy path)"
         },
         "aiflowbridge.vision.copilotVisionModel": {
           "type": "string",

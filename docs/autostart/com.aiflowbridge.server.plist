@@ -7,9 +7,13 @@
 
   <key>ProgramArguments</key>
   <array>
+    <!-- Run `command -v node` and paste the result here: /opt/homebrew/bin/node on Apple Silicon, /usr/local/bin/node on Intel. -->
     <string>/usr/local/bin/node</string>
     <string>/path/to/AIFlowBridge/dist/standalone/main.js</string>
   </array>
+
+  <key>WorkingDirectory</key>
+  <string>/path/to/AIFlowBridge</string>
 
   <key>RunAtLoad</key>
   <true/>
@@ -29,6 +33,12 @@
     <string>replace-me</string>
     <key>AIFLOWBRIDGE_MOONSHOT_API_KEY</key>
     <string>replace-me</string>
+    <!-- Workspace used by the context detector. launchd starts the process from the install directory, so set it explicitly if you want the detector to walk a real project. -->
+    <!-- <key>AIFLOWBRIDGE_WORKSPACE</key> -->
+    <!-- <string>/Users/youruser/projects/my-app</string> -->
+    <!-- Storage dir. When omitted, the VS Code extension's globalStorage folder wins if it exists on this machine, otherwise ~/.aiflowbridge/. -->
+    <!-- <key>AIFLOWBRIDGE_DATA_DIR</key> -->
+    <!-- <string>/Users/youruser/.aiflowbridge</string> -->
   </dict>
 
   <key>StandardOutPath</key>

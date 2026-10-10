@@ -13,21 +13,28 @@ Run the matching command from the Command Palette:
 - `DeepSeek: Set API Key`
 - `MiniMax: Set API Key`
 - `Xiaomi MiMo: Set API Key`
+- `Google AI Studio: Set API Key (BYOK pay-as-you-go)`
+- `Z.ai GLM: Set API Key`
+- `MoonshotAI Kimi: Set API Key`
+
+OpenRouter has no such command by design: set `AIFLOWBRIDGE_OPENROUTER_API_KEY` (or the bare `OPENROUTER_API_KEY`, or `openrouter.apiKey` in `secrets.json`).
+See [providers.md](providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint).
 
 The keys live in your OS keychain, not in any file. Use the corresponding `Clear API Key` command to remove them.
 
 ## `Vision model not found`
 
-The configured vision model is not registered with VS Code. Open settings (`AIFlowBridge: Open settings`) and either:
+The configured vision model is not registered with VS Code.
+Nothing breaks: AIFlowBridge logs `[Vision] Configured model "..." not found in vscode.lm, falling back to default` and continues with the default (`oswe-vscode-prime`), so the pasted image is still described.
 
-- Clear `aiflowbridge.vision.copilotVisionModel` to use the default
-- Pick a model that is currently installed in your environment
+To silence the warning, either clear `aiflowbridge.vision.copilotVisionModel` or pick a model that is actually installed, with `AIFlowBridge: Set vision proxy model`.
+If no vision-capable model is available at all, the request still completes with an "image description unavailable" placeholder in the prompt instead of a description.
 
 ## `401 Unauthorized` from an upstream provider
 
 The API key is missing, invalid, or for the wrong endpoint. Check:
 
-1. The key is set (`AIFlowBridge: Set API Key`)
+1. The key is set (see the `Set API Key` commands listed above; OpenRouter uses the env var or `secrets.json`)
 2. The `baseUrl` setting points to the right region (DeepSeek/MiniMax/Xiaomi each have regional endpoints)
 3. The key has the required permissions on the provider's dashboard
 
@@ -36,12 +43,12 @@ The API key is missing, invalid, or for the wrong endpoint. Check:
 `RESOURCE_EXHAUSTED` covers three situations that need opposite reactions, and Google does not always tell them apart.
 AIFlowBridge classifies the refusal and writes the verdict to `AIFlowBridge: Show logs`, also publishing it as the `X-AIFlowBridge-Quota-State` response header.
 
-| State               | Meaning                                         | What to do                                                                                                  |
-| ------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `rate-limited`      | Per-minute or per-second cap                    | Wait. A `Retry-After` is forwarded when the upstream supplies one.                                          |
-| `quota-exhausted`   | A real allowance has been spent                 | Wait for the reset time in `X-AIFlowBridge-Quota-Reset`, or raise the quota in the provider console.        |
+| State               | Meaning                                                        | What to do                                                                                                                 |
+| ------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `rate-limited`      | Per-minute or per-second cap                                   | Wait. A `Retry-After` is forwarded when the upstream supplies one.                                                         |
+| `quota-exhausted`   | A real allowance has been spent                                | Wait for the reset time in `X-AIFlowBridge-Quota-Reset`, or raise the quota in the provider console.                       |
 | `zero-allocation`   | The upstream reported a named metric with an allowance of zero | Retrying will never help. Review the quota granted to this account in the provider console, or use a different credential. |
-| `billing-exhausted` | The project's billing credit is gone            | Top up or enable billing. Waiting does not help.                                                            |
+| `billing-exhausted` | The project's billing credit is gone                           | Top up or enable billing. Waiting does not help.                                                                           |
 
 `zero-allocation` and `billing-exhausted` are logged at ERROR level because they are the two states no amount of retrying can clear.
 
@@ -71,7 +78,7 @@ The 404 body lists the available provider ids for reference.
 Since 1.5.0, metrics are persisted in `<globalStorageUri>/telemetry.json` and shared across VS Code windows. If the dashboard shows 0, one of:
 
 - You're testing through **Copilot Chat**, which goes through the language model provider APIs directly, not the gateway. Only requests that hit the gateway (Kilo Code, Continue, Open WebUI, curl, etc.) are recorded.
-- The legacy `globalState` slot had no data and the new file is empty (1.4.x users: the migration runs once on the first activation after the upgrade and logs `[AIFlowBridge] Migrating telemetry from globalState to ...`).
+- The legacy `globalState` slot had no data and the new file is empty (1.6.x users: the migration runs once on the first activation after the upgrade and logs `[AIFlowBridge] Migrating legacy 1.6.x globalState telemetry to the new file-based store...`).
 - Run `AIFlowBridge: Reset metrics` and verify the cumulative counters increment as you make gateway calls.
 
 ## `Gateway not detected by Kilo Code`
@@ -102,4 +109,4 @@ The list is bounded by `memoryCap` (default 10 000); the on-disk persister still
 Either raise `memoryCap` via the gateway's telemetry store options, or use a `requestId` recorded in the most recent 10 000 requests.
 The `/v1/sessions?limit=N` endpoint returns the available request ids in reverse chronological order so you can pick one that is still in memory.
 
-**For more details**, run `AIFlowBridge: Show Logs` from the Command Palette.
+**For more details**, run `AIFlowBridge: Show logs` from the Command Palette.

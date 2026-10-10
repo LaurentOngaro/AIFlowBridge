@@ -69,17 +69,37 @@ npm ci
 npm run build:standalone
 ```
 
-This compiles `dist/standalone/main.js` from `src/standalone/main.ts` (via `tsconfig.standalone.json`). Symlink it into your `PATH`:
+This compiles `dist/standalone/main.js` from `src/standalone/main.ts` (via `tsconfig.standalone.json`).
+The output is a CommonJS module with **no shebang**, so a bare symlink is not enough on Linux and macOS (`Exec format error`).
+Create a wrapper instead:
 
 ```bash
 mkdir -p ~/.local/bin
-ln -s "$(pwd)/dist/standalone/main.js" ~/.local/bin/aiflowbridge-server
+printf '#!/bin/sh\nexec node "%s/dist/standalone/main.js" "$@"\n' "$(pwd)" > ~/.local/bin/aiflowbridge-server
+chmod +x ~/.local/bin/aiflowbridge-server
 ```
+
+The official release archives do not need this: they ship a generated launcher at `bin/aiflowbridge-server` (`bin\aiflowbridge-server.cmd` on Windows) that runs the same entry point.
 
 ## Configure
 
-The standalone gateway reads its config from `~/.aiflowbridge/config.json` (override with the `AIFLOWBRIDGE_DATA_DIR` env var).
-The file is optional - when missing the gateway uses sensible defaults.
+The standalone gateway resolves its storage directory in this order (`src/standalone/storage-dir.ts`):
+
+1. the `AIFLOWBRIDGE_DATA_DIR` environment variable, if set (always wins);
+2. the VS Code extension's `globalStorage` folder, if it exists on this machine - so on a workstation with the extension installed the standalone gateway shares `config.json`, `secrets.json`, `telemetry.json` and `gateway.lock` with it;
+3. `~/.aiflowbridge/`, the fallback for a headless machine with no VS Code install.
+
+That third case is why the paths are written as `<storageDir>/...` below.
+If you write `~/.aiflowbridge/config.json` on a machine that also runs the extension, the file is silently ignored: check the startup log line that prints the resolved directory.
+
+`config.json` is optional - when missing, the gateway uses sensible defaults. Keys are **nested**, because the loader splits a dotted key and walks the object:
+
+```json
+{
+  "gateway": { "port": 8787 },
+  "providers": { "minimax": { "baseUrl": "https://api.minimax.io/v1" } }
+}
+```
 
 See [`./autostart/standalone-config.example.json`](./autostart/standalone-config.example.json) for the full set of keys.
 
@@ -97,7 +117,9 @@ The bare name is found by scanning the environment for a `<VENDOR>_API_KEY` vari
   "minimax.apiKey": "...",
   "xiaomi.apiKey": "...",
   "zai.apiKey": "...",
-  "moonshot.apiKey": "..."
+  "moonshot.apiKey": "...",
+  "openrouter.apiKey": "sk-or-v1-...",
+  "googleaistudio.apiKey": "AIzaSy..."
 }
 ```
 
@@ -151,8 +173,9 @@ See [Singleton behavior](gateway.md#singleton-behavior) and [Version-aware resta
 
 ## Observability
 
-The standalone process logs to **stderr** (and the bundled log file at `~/.aiflowbridge/gateway.log` once we add it).
-All request telemetry goes to `~/.aiflowbridge/telemetry.json`, shared with the VS Code extension so the two stay in sync (use `AIFlowBridge: Refresh metrics` in VS Code to pull the latest snapshot).
+The standalone process writes INFO and DEBUG lines to **stdout**, and WARN and ERROR lines to **stderr** (`src/standalone/vscode-shim.ts`).
+There is no log file yet: redirect stdout to a file or run the process under a supervisor to keep one.
+All request telemetry goes to `<storageDir>/telemetry.json`, shared with the VS Code extension so the two stay in sync (use `AIFlowBridge: Refresh metrics` in VS Code to pull the latest snapshot).
 
 The standalone gateway exposes the same OpenAI-compatible surface as the VS Code extension, plus the loopback-only pair-programming endpoints added in 2.10.0:
 
@@ -171,7 +194,7 @@ See [gateway.md](gateway.md#shared-session-log--replay--sse-stream-get-v1session
 API keys live in **one** of two places, in priority order (env wins over file):
 
 1. Environment variables `AIFLOWBRIDGE_<VENDOR>_API_KEY`, or the bare `<VENDOR>_API_KEY` alias as a fallback.
-2. `~/.aiflowbridge/secrets.json` (mode `0600` on POSIX).
+2. `<storageDir>/secrets.json` (mode `0600` on POSIX).
 
 The gateway reads both lazily via `src/standalone/context.ts` and never logs the values.
 
@@ -186,5 +209,5 @@ For now, the recommendation on Windows is to prefer the env-var resolution path 
 
 ### `package.json` loading
 
-The standalone entry point reads the bundled `resources/../package.json` with `readFileSync` + `JSON.parse`.
+The standalone entry point reads the extension's root `package.json` (resolved next to `resources/models.json`) with `readFileSync` + `JSON.parse`.
 The previous implementation used `require()`, which would execute the file as JavaScript if it were ever replaced by a malicious package; the read+parse path closes that RCE vector (S-01).

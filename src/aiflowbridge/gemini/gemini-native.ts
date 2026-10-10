@@ -36,8 +36,8 @@
  *     Gemini `generationConfig`.
  *   - Streaming chunks are converted from the native
  *     `{candidates:[{content:{parts:[{text}]}}]}` JSON objects to the
- *     OpenAI `{choices:[{delta:{content}}]}` SSE frames via the same
- *     pipeline as the Antigravity OAuth route.
+ *     OpenAI `{choices:[{delta:{content}}]}` SSE frames by this
+ *     module's own transform.
  *
  * This module is pure translation - no network calls, fully unit-testable
  * via vitest with fixture JSON inputs.
@@ -155,8 +155,8 @@ interface OpenAiChatMessage {
     /**
      * Optional opaque `extra_signature` echoed back on each
      * `tool_calls[i]` of an assistant turn. The gateway propagates
-     * it as `functionCall.thoughtSignature` on the BYOK native
-     * surface (and on the AGY envelope).
+     * it as `functionCall.thoughtSignature` on the native
+     * surface.
      */
     extra_signature?: string;
   }>;

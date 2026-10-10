@@ -23,8 +23,8 @@ export interface ExportedRequestEntry {
   estimated: boolean;
   /**
    * Billing mode resolved at recording time (`'token'` per-token
-   * billing, `'plan'` when covered by a token plan / subscription /
-   * OAuth plan). Absent on entries recorded before the feature;
+   * billing, `'plan'` when covered by a token plan / subscription,
+   * e.g. MiniMax token plan). Absent on entries recorded before the feature;
    * `toExportedEntry` coalesces to `'token'`.
    */
   billedTo: string;
@@ -347,7 +347,7 @@ export function buildPricingMaps(providers: readonly ProviderProfile[]): Pricing
  * Returns the '-' placeholder when the amount is zero, non-finite, or unpriced - so unpriced requests do not pollute the totals visually.
  *
  * `billedTo` marks plan-covered rows (`'plan'`: token plan /
- * subscription / OAuth plan): the numeric estimate is still shown
+ * subscription, e.g. MiniMax token plan): the numeric estimate
  * (indicative equivalent at the profile's rates) but the tooltip and
  * a `(plan)` suffix make clear it is NOT a real per-token charge.
  */
@@ -1289,7 +1289,7 @@ export function buildDashboardHtml(
           // item #6.
           entry.source || "gateway",
           // Billing mode: typing 'plan' filters to token-plan /
-          // subscription / OAuth rows, 'token' to per-token rows.
+          // subscription rows, 'token' to per-token rows.
           entry.billedTo === "plan" ? "plan plan-billed" : "token",
           // Per-authentication-mode: typing 'byok', 'oauth',
           // 'plan', or 'token' filters to the matching mode. The
@@ -2719,7 +2719,7 @@ function recentRow(entry: RequestTelemetry, pricing: PricingMaps, canRemove: boo
   // per-token billing.
   const billingCell =
     entry.billedTo === 'plan'
-      ? `<span class="pill plan" title="Covered by a token plan / subscription / OAuth plan - the Est. cost is an indicative equivalent at the profile rates, not a real charge">plan</span>`
+      ? `<span class="pill plan" title="Covered by a token plan / subscription - the Est. cost is an indicative equivalent at the profile rates, not a real charge">plan</span>`
       : '';
   return `<tr>
         ${actionCell}
@@ -2751,7 +2751,7 @@ function renderBillingNotice(snapshot: TelemetrySnapshot): string {
     return '';
   }
   const total = snapshot.recent.length;
-  return `<p class="muted billing-notice" id="billing-notice">Est. cost mixes real per-token charges with indicative plan equivalents: ${planRequests} of ${total} recorded request${total === 1 ? '' : 's'} ${planRequests === 1 ? 'is' : 'are'} billed to a token plan / subscription / OAuth plan (marked <span class="pill plan">plan</span>). Those rows cost you $0 extra - the amount shown is what the same tokens would cost at pay-as-you-go rates.</p>`;
+  return `<p class="muted billing-notice" id="billing-notice">Est. cost mixes real per-token charges with indicative plan equivalents: ${planRequests} of ${total} recorded request${total === 1 ? '' : 's'} ${planRequests === 1 ? 'is' : 'are'} billed to a token plan / subscription (marked <span class="pill plan">plan</span>). Those rows cost you $0 extra - the amount shown is what the same tokens would cost at pay-as-you-go rates.</p>`;
 }
 
 /**
@@ -3020,8 +3020,8 @@ function formatAuthCell(authMode: string | undefined): string {
 
 const AUTH_MODE_TITLE: Record<string, string> = {
   byok: 'BYOK (Bring Your Own Key): the user supplied a personal API key (e.g. AIzaSy... for Gemini).',
-  oauth: 'OAuth: the gateway spoke to the upstream on behalf of a logged-in user (e.g. Antigravity Cloud Code envelope).',
-  plan: 'Plan: the profile is covered by a token plan / subscription / OAuth plan (e.g. MiniMax token plan).',
+  oauth: 'OAuth: the gateway spoke to the upstream on behalf of a logged-in user. No route uses OAuth today; the value only labels historical entries recorded before its retirement.',
+  plan: 'Plan: the profile is covered by a token plan / subscription (e.g. MiniMax token plan).',
   token: 'Token: per-token billing, no plan coverage.',
   unknown: 'Auth mode unknown: this entry was recorded before the authMode field was introduced (pre-2.18.2).',
 };

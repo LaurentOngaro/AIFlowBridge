@@ -12,7 +12,7 @@ import {
   fromGeminiNativeResponse,
   toGeminiNativeRequest,
   type GeminiNativeResponse,
-} from '../src/aiflowbridge/antigravity/gemini-native';
+} from '../src/aiflowbridge/gemini/gemini-native';
 
 describe('toGeminiNativeRequest', () => {
   it('translates a minimal user message into a single native contents entry', () => {

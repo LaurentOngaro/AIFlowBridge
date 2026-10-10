@@ -2,7 +2,11 @@
 
 > Part of the [AIFlowBridge documentation](../README.md).
 
-Text-only models (DeepSeek, MiniMax, Xiaomi text-only) handle images via a transparent proxy through another installed Copilot model.
+In Copilot Chat, pasted images are turned into a text description by another installed Copilot model, and that description is injected into the prompt.
+This covers every DeepSeek and MiniMax model, and every Xiaomi MiMo model except `mimo-v2.5`, which is the only model whose upstream receives the image bytes directly.
+
+The gateway does **not** run this step: a request that goes through `http://127.0.0.1:8787/v1` (Kilo Code, Continue, `curl`) forwards its image parts unchanged, and the upstream vendor decides what to do with them.
+Everything on this page describes the Copilot Chat path.
 
 ## How it works
 
@@ -39,19 +43,34 @@ Or set the value directly in `settings.json`:
 ```
 
 The configured model must be **already registered** with VS Code.
-If VS Code cannot find it, the vision call fails with `Vision model not found` (see [troubleshooting.md](troubleshooting.md#vision-model-not-found)).
+If VS Code cannot find it, AIFlowBridge logs a `[Vision]` warning and falls back to the default model, so the request still completes.
+If no vision-capable model is available at all, the prompt gets an explicit "image description unavailable" placeholder instead of a crash.
+See [troubleshooting.md](troubleshooting.md#vision-model-not-found).
+
+## Which models go through the proxy
+
+The decision is hard-coded per provider, not driven by a setting:
+
+| Provider    | Models                                              | Path                             |
+| ----------- | --------------------------------------------------- | -------------------------------- |
+| DeepSeek    | V4.1 Flash, V4 Pro                                  | Vision proxy                     |
+| MiniMax     | M2.7, M2.7 Highspeed, M3, M3.1 Flash Preview        | Vision proxy                     |
+| Xiaomi MiMo | `mimo-v2.5`                                         | Native (upstream receives bytes) |
+| Xiaomi MiMo | V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed | Vision proxy                     |
+
+The registry declares `imageInput: true` on the DeepSeek, MiniMax and Xiaomi entries, which is what makes VS Code show the paste-image button.
+The description step below still runs for those models unless the code path above says otherwise, so "the paste button is visible" and "the image bytes reach the upstream" are two different things.
 
 ## Vendor exclusion
 
-Some vendors handle images natively (MiniMax M3, Xiaomi MiMo V2 Omni, Xiaomi MiMo V2.5).
-For these models, the vision proxy is skipped entirely - the upstream provider receives the image directly.
+The `aiflowbridge.vision.excludedVendors` setting only filters the model picker shown by `AIFlowBridge: Set vision proxy model`, so you cannot accidentally choose a model from an excluded vendor as the description model.
 
-| Setting                               | Default            | Description                                                 |
-| ------------------------------------- | ------------------ | ----------------------------------------------------------- |
-| `aiflowbridge.vision.excludedVendors` | `["aiflowbridge"]` | Vendors whose models should NOT go through the vision proxy |
+| Setting                               | Default            | Description                                                                  |
+| ------------------------------------- | ------------------ | ---------------------------------------------------------------------------- |
+| `aiflowbridge.vision.excludedVendors` | `["aiflowbridge"]` | Vendors hidden from the vision-model picker (does not change the proxy path) |
 
-The default `["aiflowbridge"]` is a no-op safety: the bundled registry already marks each model's vision capability, so the proxy only runs when needed.
-The setting only matters when you register user-defined models via `AIFlowBridge: Add a custom model` with a `family` you want to exclude.
+The default `["aiflowbridge"]` hides AIFlowBridge's own models from the picker, which is sensible since the description model should be a different one.
+It has no effect on which request path a model takes: the table above is the real rule.
 
 ## Custom prompt
 
@@ -67,12 +86,13 @@ Markdown rendering is automatic; the result is appended to the user message.
 
 ## Why not just use a vision model directly?
 
-For models that _do_ support vision natively, AIFlowBridge passes images straight to the upstream - no extra round-trip. The proxy only kicks in for the models that don't.
-This means:
+For models that do pass images upstream natively, AIFlowBridge forwards the bytes directly and there is no extra round-trip.
+For every other model, the model reasons about a text description instead (slower but workable).
+Concretely:
 
-- Native-vision models (MiniMax M3, Xiaomi MiMo V2 Omni/V2.5) get **full image detail** end-to-end
-- Text-only models get a **text description** that the model can reason about (slower but workable)
-- You don't have to maintain a side-by-side config of "which model needs vision vs. which doesn't" - the registry declares it once
+- `mimo-v2.5` gets **full image detail** end-to-end
+- Every other DeepSeek, MiniMax and Xiaomi model gets a **text description** that the model can reason about
+- You don't have to maintain a side-by-side config of "which model needs vision vs. which doesn't" - the provider code decides
 
 ## Cost impact
 

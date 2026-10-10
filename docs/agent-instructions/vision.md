@@ -17,13 +17,21 @@ The vision proxy is a transparent image-to-text converter that lets text-only mo
 
 ## Configuration
 
-| Setting                                  | Default              | Description                                                                                          |
-| ---------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `aiflowbridge.vision.copilotVisionModel` | `oswe-vscode-prime`  | Model to use for vision proxy in GitHub Copilot                                                      |
-| `aiflowbridge.vision.excludedVendors`    | `["aiflowbridge"]`   | Vendors that should NOT use the vision proxy (text-only models that benefit from image descriptions) |
-| `aiflowbridge.vision.prompt`             | (multi-line default) | Prompt used for vision proxy image descriptions                                                      |
+| Setting                                  | Default              | Description                                                                  |
+| ---------------------------------------- | -------------------- | ---------------------------------------------------------------------------- |
+| `aiflowbridge.vision.copilotVisionModel` | `oswe-vscode-prime`  | Model to use for vision proxy in GitHub Copilot                              |
+| `aiflowbridge.vision.excludedVendors`    | `["aiflowbridge"]`   | Vendors hidden from the vision-model picker (does NOT change the proxy path) |
+| `aiflowbridge.vision.prompt`             | (multi-line default) | Prompt used for vision proxy image descriptions                              |
 
-The vendor exclusion list is **opt-out**: by default only `aiflowbridge` (DeepSeek) is excluded, so MiniMax M3 and Xiaomi MiMo already see images directly.
+The exclusion list only feeds `chooseVisionProxyModel()` (`model.ts:105-108`): it removes those vendors from the model list shown by `AIFlowBridge: Set vision proxy model`.
+It does not decide which request takes the proxy.
+
+That decision is hard-coded per provider, and it is broader than the docs used to claim:
+
+- DeepSeek (`request.ts:64`) and every MiniMax model (`minimax.ts:194`) call `resolveImageMessages` unconditionally, so they are always proxied even though the registry declares `imageInput: true` on them.
+- Xiaomi (`xiaomi.ts:192`) skips the proxy only when `modelInfo.id === 'mimo-v2.5'`; V2.5 Pro and the whole V2.6 suite are proxied.
+
+The gateway path (`/v1/chat/completions`) has no proxy at all: image parts are forwarded verbatim and the upstream vendor decides.
 
 ## Fallback chain
 

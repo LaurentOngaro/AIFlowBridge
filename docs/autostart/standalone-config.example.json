@@ -1,32 +1,45 @@
 {
-  "_comment": "Standalone AIFlowBridge gateway config. All keys are optional - missing keys fall back to the bundled defaults shown in `src/standalone/config-loader.ts`. Format is identical to the VS Code settings.json (`aiflowbridge` section).",
-  "gateway.enabled": true,
-  "gateway.port": 8787,
-  "gateway.baseUrl": "http://127.0.0.1:8787/v1",
-  "gateway.defaultModel": "",
+  "_comment": "Standalone AIFlowBridge gateway config. Every key is optional; a missing key falls back to the bundled defaults in src/standalone/config-loader.ts. IMPORTANT: keys are NESTED, not flat. The loader splits a dotted key ('gateway.port') and walks the parsed JSON, so a flat 'gateway.port': 8787 is silently ignored. Known limitation: the root 'providers' key can be either the vendor map (object, for the <vendor>.baseUrl keys below) or the VS Code profile list (array, for custom gateway profiles) - it cannot be both at once. This example uses the object form, which is the one that makes the vendor baseUrl overrides work.",
 
-  "telemetry.enabled": true,
-  "telemetry.logRequests": true,
+  "gateway": {
+    "enabled": true,
+    "port": 8787,
+    "baseUrl": "http://127.0.0.1:8787/v1",
+    "defaultModel": ""
+  },
 
-  "vision.excludedVendors": ["aiflowbridge"],
-  "vision.copilotVisionModel": "oswe-vscode-prime",
+  "telemetry": {
+    "enabled": true,
+    "logRequests": true
+  },
 
-  "providers": [],
+  "vision": {
+    "excludedVendors": ["aiflowbridge"],
+    "copilotVisionModel": "oswe-vscode-prime"
+  },
 
-  "providers.deepseek.baseUrl": "https://api.deepseek.com",
-  "providers.minimax.baseUrl": "https://api.minimax.io/v1",
-  "providers.xiaomi.baseUrl": "https://api.xiaomimimo.com/v1",
-
-  "providers.deepseek.maxTokens": 0,
-  "providers.minimax.maxTokens": 0,
-  "providers.xiaomi.maxTokens": 0,
-
-  "providers.deepseek.temperature": 1,
-  "providers.minimax.temperature": 1,
-
-  "providers.deepseek.topP": 1,
-  "providers.minimax.topP": 1,
-
-  "providers.minimax.reasoningSplit": true,
-  "providers.xiaomi.reasoningRequiredForToolCalls": true
+  "providers": {
+    "deepseek": {
+      "baseUrl": "https://api.deepseek.com",
+      "maxTokens": 0,
+      "temperature": 1,
+      "topP": 1
+    },
+    "minimax": {
+      "baseUrl": "https://api.minimax.io/v1",
+      "maxTokens": 0,
+      "temperature": 1,
+      "topP": 1,
+      "reasoningSplit": true
+    },
+    "xiaomi": {
+      "baseUrl": "https://api.xiaomimimo.com/v1",
+      "maxTokens": 0,
+      "reasoningRequiredForToolCalls": true
+    },
+    "googleaistudio": {
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "maxTokens": 0
+    }
+  }
 }

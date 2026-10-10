@@ -13,9 +13,9 @@ Anything that says otherwise is marketing.
 
 ## What AIFlowBridge affects
 
-- **Free vision for Copilot subscribers.** Models that do not accept images (DeepSeek, MiniMax, Xiaomi text-only) handle them via a _vision proxy_. The default vision model is `oswe-vscode-prime`, which is bundled with a GitHub Copilot subscription. If you already pay for Copilot, vision calls cost **$0** through AIFlowBridge instead of paying a vision-capable upstream model.
+- **Free vision for Copilot subscribers.** Models whose runtime does not pass the image through upstream (all DeepSeek, all MiniMax, and every Xiaomi MiMo model except `mimo-v2.5`) handle it via a _vision proxy_. The default vision model is `oswe-vscode-prime`, which is bundled with a GitHub Copilot subscription. If you already pay for Copilot, vision calls cost **$0** through AIFlowBridge instead of paying a vision-capable upstream model.
 - **No AIFlowBridge-side markup on token prices.** For direct vendors (DeepSeek, MiniMax, Xiaomi MiMo, Z.ai, MoonshotAI), AIFlowBridge calls upstream APIs directly with your own API keys - the price you see on the provider's dashboard is the price you pay. For **OpenRouter** (which itself fronts 100+ models through a single endpoint), pricing reflects OpenRouter's published rates including their small markup over direct provider prices - this is an upstream-side pricing choice, not an AIFlowBridge fee. The "Est. cost" column in the dashboard uses the bundled indicative tariff for each model and is overridable per-profile via `aiflowbridge.providers[].pricing`.
-- **One bill per task, not per provider.** Switching between DeepSeek V4.1 Flash ($0.30/M input) for boilerplate, Xiaomi MiMo V2.6 Flash ($0.05/M input) for bulk tasks, and MiniMax M3 ($0.30/M input) for reasoning happens inside the same Copilot Chat window, with per-request token counts. You avoid paying a single premium model for every interaction.
+- **One bill per task, not per provider.** Switching between DeepSeek V4.1 Flash ($0.30/M input) for boilerplate, Xiaomi MiMo V2.6 Flash ($0.10/M input) for bulk tasks, and MiniMax M3 ($0.30/M input) for reasoning happens inside the same Copilot Chat window, with per-request token counts. You avoid paying a single premium model for every interaction.
 - **Accurate token counting (v1.2+).** The dashboard and the cost estimate for MiniMax (and future models that exposes tokens count through their API) use the upstream endpoint instead of a `length/4` heuristic. No end-of-month surprise.
 - **No subscription, no per-seat fee.** AIFlowBridge itself is free; you only pay the upstream APIs you actually use.
 
@@ -29,28 +29,29 @@ Anything that says otherwise is marketing.
 
 For a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 20 M output tokens):
 
-| Workload                                                  | Approx. cost                      |
-| --------------------------------------------------------- | --------------------------------- |
-| All Xiaomi MiMo V2.6 Flash ($0.05/M in, $0.15/M out)      | $5.50                             |
-| All Xiaomi MiMo V2.5 / V2.6 Pro ($0.10/M in, $0.30/M out) | $11                               |
-| Mixed: 70% MiMo + 30% MiniMax M3                          | $14                               |
-| All Z.ai GLM 5.3 Flash ($0.15/M in, $0.50/M out)          | $17.50                            |
-| All DeepSeek V4.1 Flash ($0.30/M in, $1.20/M out)         | $39                               |
-| All MiniMax M3 ($0.30/M in, $1.20/M out)                  | $39                               |
-| Vision-heavy with `oswe-vscode-prime` proxy (Copilot)     | **+ $0** - covered by Copilot sub |
-| AIFlowBridge itself                                       | **$0** + optional sponsorship     |
+| Workload                                                         | Approx. cost                      |
+| ---------------------------------------------------------------- | --------------------------------- |
+| All Xiaomi MiMo, any V2.5 / V2.6 model ($0.10/M in, $0.30/M out) | $11                               |
+| Mixed: 70% MiMo + 30% MiniMax M3                                 | $19.40                            |
+| All Z.ai GLM 5.3 Flash ($0.15/M in, $0.50/M out)                 | $17.50                            |
+| All DeepSeek V4.1 Flash ($0.30/M in, $1.20/M out)                | $39                               |
+| All MiniMax M3 ($0.30/M in, $1.20/M out)                         | $39                               |
+| Vision-heavy with `oswe-vscode-prime` proxy (Copilot)            | **+ $0** - covered by Copilot sub |
+| AIFlowBridge itself                                              | **$0** + optional sponsorship     |
 
 **Calculations** (input rate x 50M + output rate x 20M):
 
-| Family / model         | Input rate | Output rate | 50M in | 20M out | Total  |
-| ---------------------- | ---------- | ----------- | ------ | ------- | ------ |
-| Xiaomi MiMo V2.6 Flash | $0.05      | $0.15       | $2.50  | $3      | $5.50  |
-| Xiaomi MiMo V2.5       | $0.10      | $0.30       | $5     | $6      | $11    |
-| Z.ai GLM 5.3 Flash     | $0.15      | $0.50       | $7.50  | $10     | $17.50 |
-| DeepSeek V4.1 Flash    | $0.30      | $1.20       | $15    | $24     | $39    |
-| MiniMax M3             | $0.30      | $1.20       | $15    | $24     | $39    |
+| Family / model      | Input rate | Output rate | 50M in | 20M out | Total  |
+| ------------------- | ---------- | ----------- | ------ | ------- | ------ |
+| Xiaomi MiMo (all)   | $0.10      | $0.30       | $5     | $6      | $11    |
+| Z.ai GLM 5.3 Flash  | $0.15      | $0.50       | $7.50  | $10     | $17.50 |
+| DeepSeek V4.1 Flash | $0.30      | $1.20       | $15    | $24     | $39    |
+| MiniMax M3          | $0.30      | $1.20       | $15    | $24     | $39    |
 
-The cheapest AI stack that still gives you Copilot Chat with image paste is AIFlowBridge + Xiaomi MiMo + the bundled Copilot vision model: at $5.50-$11/month for heavy use, that's about 25-50% the price of a Copilot Pro subscription on its own.
+Every Xiaomi MiMo model in the registry (V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed) carries the same $0.10 / $0.30 rate, so the family has a single cost line.
+
+Be honest about where the break-even sits: at this heavy volume (~70M tokens/month) the MiMo bill ($11) is already above a $10 Copilot Pro subscription, and MiniMax M3 or DeepSeek V4.1 Flash ($39) is well above it.
+The saving is real when your usage stays lighter than that, when you route bulk tasks to the cheapest model instead of a premium one, or when a free tier (Gemini BYOK within its free quota, the 15 bundled OpenRouter free models, a local Ollama runtime) covers the whole workload.
 
 ## Indicative rates per family
 
@@ -58,14 +59,14 @@ The cheapest AI stack that still gives you Copilot Chat with image paste is AIFl
 
 AIFlowBridge ships with indicative per-million-token rates baked into the bundled model registry ([`resources/models.json`](../resources/models.json)) so the dashboard shows non-zero costs out of the box:
 
-| Family                                                           | Input / 1M    | Output / 1M    | Currency | Applies to                                                                                             | Billing posture                                                                                                                                  |
-| ---------------------------------------------------------------- | ------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| DeepSeek                                                         | $0.30 - $1.32 | $1.20 - $3.96  | USD      | V4.1 Flash, V4 Pro (per-model rates in the registry)                                                   | Per-token (real charge)                                                                                                                          |
-| MiniMax                                                          | $0.30         | $1.20          | USD      | M2.7, M2.7 Highspeed, M3 (M3.1 Flash Preview on M Plan)                                                | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                                                                       |
-| Xiaomi MiMo                                                      | $0.05 - $0.10 | $0.15 - $0.30  | USD      | V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                                              | Per-token (real charge)                                                                                                                          |
-| Z.ai                                                             | $0.15 - $1.40 | $0.50 - $4.40  | USD      | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                                                 | Per-token (real charge on `sk-...` / Plan-covered on Coding Plan)                                                                                |
-| MoonshotAI                                                       | $0.95 - $3.00 | $4.00 - $15.00 | USD      | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                                           | Per-token (real charge)                                                                                                                          |
-| Google AI Studio (BYOK, default route)                           | $0.10 - $0.30 | $0.40 - $2.50  | USD      | Gemini 3.8 / 3.7 / 3.6 Flash, Flash-Lite Latest, Flash Latest                                          | Per-token (real charge on the user's GCP project; INDEPENDENT from any AI Studio Pro subscription)                                               |
+| Family                                 | Input / 1M    | Output / 1M    | Currency | Applies to                                                                                                                 | Billing posture                                                                                    |
+| -------------------------------------- | ------------- | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| DeepSeek                               | $0.30 - $1.32 | $1.20 - $3.96  | USD      | V4.1 Flash, V4 Pro (per-model rates in the registry)                                                                       | Per-token (real charge)                                                                            |
+| MiniMax                                | $0.30         | $1.20          | USD      | M2.7, M2.7 Highspeed, M3 (M3.1 Flash Preview ships unpriced: no pay-as-you-go tariff is published for the preview tier) | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                         |
+| Xiaomi MiMo                            | $0.10         | $0.30          | USD      | V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed (same rate on all five)                                          | Per-token (real charge)                                                                            |
+| Z.ai                                   | $0.15 - $1.40 | $0.50 - $4.40  | USD      | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                                                                     | Per-token (real charge on `sk-...` / Plan-covered on Coding Plan)                                  |
+| MoonshotAI                             | $0.95 - $3.00 | $4.00 - $15.00 | USD      | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                                                               | Per-token (real charge)                                                                            |
+| Google AI Studio (BYOK, default route) | $0.10 - $0.30 | $0.40 - $2.50  | USD      | Gemini 3.8 / 3.7 / 3.6 Flash, Flash-Lite Latest, Flash Latest                                                              | Per-token (real charge on the user's GCP project; INDEPENDENT from any AI Studio Pro subscription) |
 
 **Important disambiguation**: "Google AI Studio Pro" is a Web subscription for the AI Studio UI and is **independent** from the API-key billing path.
 Activating or canceling AI Studio Pro does NOT change what you pay for Gemini calls made via `https://generativelanguage.googleapis.com/v1beta` (the BYOK route).
@@ -86,7 +87,9 @@ cost = (promptTokens * pricing.inputPerMillion
       + completionTokens * pricing.outputPerMillion) / 1_000_000
 ```
 
-Every model in the registry is auto-synthesized into the gateway catalog with the appropriate rate, so the catalog covers all 38 models without any user input.
+Every model in the registry is auto-synthesized into the gateway catalog, so the catalog covers all 38 models without any user input.
+37 of them carry a rate; `MiniMax-M3.1-Flash-Preview` deliberately ships without one because no pay-as-you-go tariff is published for that preview tier.
+A bundled model is never given a sibling's rate to fill the gap: the registry is the source of truth for the bundled catalog, so its silence means "no published price", not "price unknown".
 
 The number is a **real charge estimate** for per-token billing, and an **indicative equivalent** for plan-covered usage (token plan or subscription) - the same formula, the same rates, but $0 actually billed.
 The dashboard marks plan-covered rows with a `plan` badge and a billing notice under the headline cards; CSV / JSON exports carry a `billedTo` column (`token` / `plan`).
@@ -113,7 +116,8 @@ Providers without a `pricing` block show `-` in the Est. cost column, and reques
 
 ## Bundled pricing snapshot
 
-The model-level `pricing` blocks in `resources/models.json` (covered in [Indicative rates per family](#indicative-rates-per-family)) describe the per-vendor token-plan tariffs used as the family-level fallback when no other source applies.
+The model-level `pricing` blocks in `resources/models.json` (covered in [Indicative rates per family](#indicative-rates-per-family)) describe the per-vendor token-plan tariffs.
+They are also the family-level fallback, but only for **user-declared** models: a model you add yourself and leave unpriced inherits its family's indicative rate, whereas a bundled model the registry leaves unpriced stays unpriced.
 A second, finer-grained pricing layer was introduced in 2.15.0 so the dashboard can reflect the actual OpenRouter rates for the 100+ reachable model ids.
 
 - **Source**: OpenRouter public listing (`GET https://openrouter.ai/api/v1/models`), refreshed at each release and on demand by the user.

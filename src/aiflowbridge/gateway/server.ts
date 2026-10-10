@@ -4,7 +4,7 @@ import type { Socket } from 'node:net';
 import { Readable } from 'node:stream';
 import { URL } from 'node:url';
 import { logger } from '../../logger';
-import { createGeminiNativeToOpenAiSseStream, fromGeminiNativeResponse, toGeminiNativeRequest } from '../antigravity/gemini-native';
+import { createGeminiNativeToOpenAiSseStream, fromGeminiNativeResponse, toGeminiNativeRequest } from '../gemini/gemini-native';
 import {
   buildGoogleProductOAuthError,
   classifyGoogleTransport,
@@ -16,7 +16,7 @@ import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../co
 import { tryGetLoadedRegistry } from '../modelRegistry';
 import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
 import { resolveAuthMode } from '../auth-mode';
-import { createThoughtSignatureCache } from '../antigravity/thought-signature-cache';
+import { createThoughtSignatureCache } from '../gemini/thought-signature-cache';
 import { buildModelCatalog, resolveProviderRedirect } from '../providers';
 import type { TelemetryPersisterLike } from '../telemetry';
 import { estimateCostFromProfile, estimatePromptTokensFromPayload, TelemetryStore } from '../telemetry';
@@ -207,7 +207,7 @@ export class GatewayService {
    * field: every OpenAI-shaped response the gateway produces is
    * scanned for `extra_signature` values and stored by `tool_call`
    * id; on the next request the cached signature is re-injected
-   * into the native / AGY envelope when the client omitted it.
+   * into the native envelope when the client omitted it.
    * Opt-in via `aiflowbridge.gateway.injectThoughtSignature`
    * (default `false`); the pass-through contract works with the
    * flag off. Bounded (500 entries) and TTL-expired (30 min) - see
@@ -1212,7 +1212,14 @@ private reportQuotaDiagnosis(
     // an `Authorization` header and the upstream rejects it. Warn once
     // per provider so the operator can find the cause in the logs
     // instead of staring at the upstream's opaque error body.
-    if (!resolvedKey && provider.kind !== 'ollama' && provider.kind !== 'antigravity' && provider.kind !== 'googleaistudio' && !this.warnedMissingApiKeyProviders.has(provider.id)) {
+    //
+    // `ollama` is keyless by design. The Google family is not: the only
+    // supported route is the BYOK Gemini API, which REQUIRES the user's
+    // own `AIzaSy...` key, so a missing key is a misconfiguration worth
+    // warning about. The retired `kind: 'antigravity'` no longer needs an
+    // exemption either - `refuseRetiredGoogleTransport` above already
+    // turned such a profile into a 503 before reaching this point.
+    if (!resolvedKey && provider.kind !== 'ollama' && !this.warnedMissingApiKeyProviders.has(provider.id)) {
       this.warnedMissingApiKeyProviders.add(provider.id);
       logger.warn(
         `[Gateway] ${requestId} no API key resolved for provider=${provider.id}; forwarding without an Authorization header (the upstream will likely reject with 401). Set the key via the AIFLOWBRIDGE_<VENDOR>_API_KEY env var, the <globalStorageDir>/secrets.json file, or "AIFlowBridge: Set <Provider> API Key" in VS Code.`
@@ -2312,9 +2319,9 @@ private reportQuotaDiagnosis(
    * only, never signature values (opaque blobs). Lets the user
    * confirm in "AIFlowBridge: Show logs" whether the request path
    * forwarded the signature or dropped it, without leaking anything
-   * sensitive. Shape-agnostic: accepts native `contents[]` and AGY
-   * `contents[]` alike (both use `{ role, parts[] }` with
-   * `functionCall` / `thoughtSignature` siblings).
+   * sensitive. Shape-agnostic: accepts native `contents[]`, whose
+   * `{ role, parts[] }` shape puts `functionCall` / `thoughtSignature`
+   * as siblings.
    */
   private logThoughtSignatureCoverage(
     requestId: string,

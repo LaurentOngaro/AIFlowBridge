@@ -227,11 +227,16 @@ describe('model detail keys', () => {
 
   it('keys every model description on an id the registry actually ships', () => {
     // Catches the reverse drift: a `model.*.detail` key left behind for a
-    // model id that no longer exists is dead weight in the table.
+    // model id that no longer exists is dead weight in the table. An earlier
+    // revision of this test carried a hard-coded exemption list for the five
+    // purged MiniMax generations (M2, M2.1, M2.1-highspeed, M2.5,
+    // M2.5-highspeed), which is exactly what let them survive the 2.19.0
+    // catalog purge. There is no exemption list anymore: purge a model from
+    // `resources/models.json` and this fails until its key is deleted.
     const ids = new Set(registry.models.map((m) => m.id));
     const orphans = Object.keys(en).filter((key) => key.startsWith('model.') && key.endsWith('.detail')).filter((key) => {
       const id = key.slice('model.'.length, -'.detail'.length);
-      return !ids.has(id) && !['MiniMax-M2', 'MiniMax-M2.1', 'MiniMax-M2.1-highspeed', 'MiniMax-M2.5', 'MiniMax-M2.5-highspeed'].includes(id);
+      return !ids.has(id);
     });
     expect(orphans, 'model detail keys with no matching registry id').toEqual([]);
   });

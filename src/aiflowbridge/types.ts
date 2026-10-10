@@ -40,12 +40,12 @@ export type ProviderBillingMode = 'token' | 'plan';
  *     Gemini native, `sk-...` for DeepSeek, ...). The gateway
  *     forwards the key verbatim in the request header.
  *   - `oauth` : the gateway spoke to the upstream on behalf of a
- *     logged-in user (today: Antigravity OAuth Cloud Code envelope).
- *     Token plan / billing happens on the upstream side.
+ *     logged-in user. No route uses OAuth any more, so the value only
+ *     labels entries recorded before its retirement.
  *   - `plan`  : the profile is covered by a token plan / subscription
  *     (`billing: 'plan'` in the provider profile, e.g. MiniMax
- *     token plan or Gemini OAuth quota). The cost is an indicative
- *     equivalent, NOT an actual bill.
+ *     token plan). The cost is an indicative equivalent, NOT an
+ *     actual bill.
  *   - `token` : per-token billing with no plan coverage (default
  *     fallback when nothing else matched).
  *   - `unknown`: recorded before the field existed. Coalesced on read
@@ -306,19 +306,18 @@ export interface GatewaySettings {
    */
   minimaxParallelTokenCount?: boolean;
   /**
-   * Whether the gateway buffers the full Gemini / Antigravity upstream
-   * SSE body before applying the OpenAI reshape (drain then
-   * transform) instead of streaming frames through `pipeThrough` in
-   * real time. Default `false` (real-time streaming, best TTFT).
-   * Set to `true` on lossy links where the buffered replay is more
-   * robust than the live pipe. Mirrors
-   * `aiflowbridge.gateway.bufferGeminiStream`. Optional for
-   * backward compatibility.
+   * Whether the gateway buffers the full Gemini upstream SSE body
+   * before applying the OpenAI reshape (drain then transform) instead
+   * of streaming frames through `pipeThrough` in real time. Default
+   * `false` (real-time streaming, best TTFT). Set to `true` on lossy
+   * links where the buffered replay is more robust than the live
+   * pipe. Mirrors `aiflowbridge.gateway.bufferGeminiStream`. Optional
+   * for backward compatibility.
    */
   bufferGeminiStream?: boolean;
   /**
    * Whether the gateway re-injects cached `thought_signature` values
-   * into the Gemini / Antigravity envelope when the client replays a
+   * into the Gemini native envelope when the client replays a
    * tool turn without `extra_signature`. Default `false` (pure
    * pass-through: client-supplied signatures propagate, missing ones
    * stay missing). Set to `true` when the OpenAI-compatible client
@@ -619,13 +618,12 @@ export interface RequestTelemetry {
   source?: TelemetrySource;
   /**
    * Resolved authentication mode for the request. Lets the dashboard
-   * split traffic between the three real auth paths the gateway
-   * supports today: BYOK (personal API key), OAuth (user logged in
-   * upstream, e.g. Antigravity), plan (provider is covered by a
-   * token plan / subscription), or per-token billing. See the
-   * `AuthMode` JSDoc for the full taxonomy. Optional for backward
-   * compatibility: older entries leave it `undefined` and the
-   * store / dashboard coalesce them to `'unknown'`.
+   * split traffic between the auth paths the gateway supports today:
+   * BYOK (personal API key), plan (provider is covered by a token plan
+   * / subscription), or per-token billing. See the `AuthMode` JSDoc
+   * for the full taxonomy. Optional for backward compatibility:
+   * older entries leave it `undefined` and the store / dashboard
+   * coalesce them to `'unknown'`.
    */
   authMode?: AuthMode;
   /**

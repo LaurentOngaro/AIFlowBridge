@@ -12,11 +12,6 @@ export const en: Translations = {
   // the id IS the upstream id, so there is no alias layer).
   'model.deepseek-flash.detail': 'Fast, general-purpose model',
   'model.deepseek-v4-pro.detail': 'Most capable reasoning model',
-  'model.MiniMax-M2.detail': 'MiniMax first-generation reasoning model',
-  'model.MiniMax-M2.1.detail': 'MiniMax second-generation reasoning model',
-  'model.MiniMax-M2.1-highspeed.detail': 'MiniMax M2.1 optimized for low latency',
-  'model.MiniMax-M2.5.detail': 'MiniMax third-generation model',
-  'model.MiniMax-M2.5-highspeed.detail': 'MiniMax M2.5 optimized for low latency',
   'model.MiniMax-M2.7.detail': 'MiniMax fourth-generation model',
   'model.MiniMax-M2.7-highspeed.detail': 'MiniMax M2.7 optimized for low latency',
   'model.MiniMax-M3.detail': 'MiniMax latest generation model with extended context',

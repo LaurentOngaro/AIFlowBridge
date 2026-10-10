@@ -42,6 +42,9 @@ npm run start:standalone
 # Full vitest suite (unit tests)
 npm test
 
+# Type-check the test files (tests/ is not covered by the root tsconfig)
+npm run typecheck:tests
+
 # Watch mode (vitest native --watch)
 npx vitest --watch
 ```
@@ -88,17 +91,28 @@ npm run publish:openvsx
 npm run publish:all
 ```
 
-The release workflow (`.github/workflows/release-please.yml`) drives marketplace publication from version tags. `release-please` opens/updates the release PR; merging it creates a `vx.y.z` tag and triggers the publishing workflow.
-The Open VSX counterpart (`.github/workflows/publish.yml`) requires an `OPENVSX_TOKEN` repository secret.
+Publication runs from the release workflow (`.github/workflows/release.yml`), triggered by pushing a `vX.Y.Z` tag.
+There is no release-please automation: `package.json` and `CHANGELOG.md` are maintained by hand, so bumping the version, writing the changelog entry and creating the tag are all manual steps.
+The workflow publishes to the VS Code Marketplace with the `VSCE_PAT` secret and to Open VSX with `OVSX_PAT`, and builds the standalone CLI archives for Linux, macOS and Windows.
+
+## Quality gate
+
+`npm run validate` is the single gate to run before opening a pull request.
+It chains `compile`, `test` and `typecheck:tests`, and it is what `package`, `publish:vscode` and `publish:openvsx` call, so CI enforces the same thing locally.
+
+```bash
+npm run validate            # compile + test + typecheck:tests
+npm run compile:standalone  # additionally required when src/standalone/ or src/aiflowbridge/ changed
+```
 
 ## Privacy & Security
 
 AIFlowBridge is **local-first** by design:
 
-- **API keys** are stored exclusively in VS Code `SecretStorage` (your OS keychain) on the VS Code side, and in `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars (or the bare `<VENDOR>_API_KEY` name) or `~/.aiflowbridge/secrets.json` (`chmod 600` on POSIX) on the standalone side. They never appear in `settings.json`, in Git history, or in any file you commit.
+- **API keys** are stored exclusively in VS Code `SecretStorage` (your OS keychain) on the VS Code side, and in `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars (or the bare `<VENDOR>_API_KEY` name) or `<storageDir>/secrets.json` (`chmod 600` on POSIX) on the standalone side. They never appear in `settings.json`, in Git history, or in any file you commit.
 - **The gateway binds to `127.0.0.1` only** - it is not reachable from other machines on your network.
-- **Loopback-only request guard (2.23.0+)**: on top of the binding, every request must carry a `Host` on the bound port (`127.0.0.0/8`, `localhost`, `[::1]`) and, when present, an `Origin` on the same port. This closes the two browser attacks that binding alone does not: a cross-origin `POST` with `text/plain` (a CORS simple request, no preflight) that would spend your API key, and a DNS-rebinding page that sends its own name in `Host` and then reads `/v1/sessions`, `/v1/replay/{id}` and `/v1/events` as same-origin. A refused request gets a 403 and never reaches an upstream.
-- **Telemetry is local**: request counts, token usage, and cost estimates stay on your machine at `<globalStorageUri>/telemetry.json` (VS Code) or `~/.aiflowbridge/telemetry.json` (standalone). The two files are shared so the dashboard stays in sync across both hosts. There is no remote analytics endpoint.
+- **Loopback-only request guard (2.23.0+)**: on top of the binding, a request must carry a `Host` on the bound port (`127.0.0.0/8`, `localhost`, `[::1]`) and, when present, an `Origin` on the same port. An absent `Host` (HTTP/1.0) or one without an explicit port is accepted, since only loopback traffic can reach the socket. This closes the two browser attacks that binding alone does not: a cross-origin `POST` with `text/plain` (a CORS simple request, no preflight) that would spend your API key, and a DNS-rebinding page that sends its own name in `Host` and then reads `/v1/sessions`, `/v1/replay/{id}` and `/v1/events` as same-origin. A refused request gets a 403 and never reaches an upstream.
+- **Telemetry is local**: request counts, token usage, and cost estimates stay on your machine at `<globalStorageUri>/telemetry.json` (VS Code) or `<storageDir>/telemetry.json` (standalone). The two files are shared so the dashboard stays in sync across both hosts. There is no remote analytics endpoint.
 - **No third-party tracking**: the extension does not phone home, load remote scripts, or embed analytics SDKs.
 - **Outbound requests** only go to the API endpoints you configure: `api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, `openrouter.ai`, or your custom upstream URLs.
 - **Provider `baseUrl` SSRF validation (1.7.0+)**: non-http(s) schemes and cloud metadata endpoints are rejected, by IP literal (`169.254.x.x`, `100.100.100.200`, `192.0.0.192`, `fd00:ec2::254`) and by name (`metadata`, `metadata.google.internal`, `metadata.goog`), because a literal block list cannot close a name that resolves to `169.254.169.254` after the check.
@@ -108,7 +122,7 @@ AIFlowBridge is **local-first** by design:
 - **API key redaction in logs** (2.1.0): every diagnostic line that would surface a `ProviderProfile` strips the `apiKey` field.
 - **Credential redaction in session log** (2.10.0+): when the Shared session log feature is enabled (`aiflowbridge.telemetry.captureSessionLog`, default `true`), the stored `promptSummary` and `responseSummary` are sanitized at extraction time. Bearer tokens, `sk-...` keys, `x-api-key` headers, and any 60+-char token-like blob without whitespace are redacted to `[REDACTED]` before the snippet ever reaches the on-disk telemetry file, the dashboard HTML, or the `GET /v1/replay/{id}` response. A developer pasting a `curl` one-liner with their upstream key does not leak it via the replay endpoint or the dashboard.
 
-You can audit the network traffic from the `AIFlowBridge: Show Logs` output channel.
+You can audit the network traffic from the `AIFlowBridge: Show logs` output channel.
 
 Report security issues privately - see [`SECURITY.md`](../SECURITY.md).
 

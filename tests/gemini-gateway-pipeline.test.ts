@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createGeminiNativeToOpenAiSseStream,
-} from '../src/aiflowbridge/antigravity/gemini-native';
+} from '../src/aiflowbridge/gemini/gemini-native';
 
 async function feedAndCollect(
   upstreamText: string

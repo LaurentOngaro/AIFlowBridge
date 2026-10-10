@@ -19,7 +19,8 @@ Save. The picker now lists the model. Repeat for any other model from `GET /v1/m
 ## Verify
 
 Ask Kilo Code a question. The response should stream normally.
-In the AIFlowBridge metrics dashboard (run `npm run start:standalone` from a terminal, or open the VS Code extension's `AIFlowBridge: Show metrics dashboard`) you should see a new row under **Recent requests**.
+In the AIFlowBridge metrics dashboard (press `Ctrl+Alt+M`, or run `AIFlowBridge: Show metrics dashboard` from the Command Palette) you should see a new row under **Recent requests**.
+The dashboard is a VS Code webview: there is no dashboard served by the standalone CLI, so `npm run start:standalone` alone does not give you one.
 
 ## Reasoning effort: written for you, on activation
 

@@ -6,21 +6,25 @@
 
 > Data snapshot: 2026-10-01 (AIFlowBridge 2.24.0). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
 
-| Provider         | Models                                                                                                                                                           | Vision          | Tool Calling |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
-| DeepSeek         | V4.1 Flash (`deepseek-flash`), V4 Pro (`deepseek-v4-pro`)                                                                                                        | Proxied         | Yes          |
-| MiniMax          | M2.7, M2.7 Highspeed                                                                                                                                             | Proxied         | Yes          |
-| MiniMax          | M3, M3.1 Flash Preview (M Plan / MiniMax Code only)                                                                                                              | **Native**      | Yes          |
-| Xiaomi           | MiMo V2.5 Pro                                                                                                                                                    | Proxied         | Yes          |
-| Xiaomi           | MiMo V2.5, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                                                                                                             | **Native**      | Yes          |
-| Z.ai             | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX (gateway-only)                                                                                                            | varies by model | Yes          |
-| MoonshotAI       | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6 (gateway-only)                                                                                      | **Native**      | Yes          |
-| Google AI Studio | Gemini 3.8 Flash, 3.7 Flash, 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest` (BYOK API key, gateway-only)                                           | **Native**      | Yes          |
-| OpenRouter       | [100+ models at `openrouter.ai/models`](https://openrouter.ai/models) - see [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) | varies by model | Yes          |
+| Provider         | Copilot Chat picker | Models                                                                                                                                                           | Vision                       | Tool Calling |
+| ---------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------ |
+| DeepSeek         | Yes                 | V4.1 Flash (`deepseek-flash`), V4 Pro (`deepseek-v4-pro`)                                                                                                        | Proxied                      | Yes          |
+| MiniMax          | Yes                 | M2.7, M2.7 Highspeed                                                                                                                                             | Proxied                      | Yes          |
+| MiniMax          | Yes                 | M3, M3.1 Flash Preview (M Plan / MiniMax Code only)                                                                                                              | Proxied                      | Yes          |
+| Xiaomi           | Yes                 | MiMo V2.5 Pro                                                                                                                                                    | Proxied                      | Yes          |
+| Xiaomi           | Yes                 | MiMo V2.5, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed                                                                                                             | Proxied (`mimo-v2.5` native) | Yes          |
+| Z.ai             | No (gateway-only)   | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                                                                                                           | upstream                     | Yes          |
+| MoonshotAI       | No (gateway-only)   | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                                                                                                     | upstream                     | Yes          |
+| Google AI Studio | No (gateway-only)   | Gemini 3.8 Flash, 3.7 Flash, 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest` (BYOK API key)                                                         | upstream                     | Yes          |
+| OpenRouter       | No (gateway-only)   | [100+ models at `openrouter.ai/models`](https://openrouter.ai/models) - see [OpenRouter section](#openrouter-100-models-via-a-single-openai-compatible-endpoint) | upstream                     | Yes          |
+
+A vendor appears in the Copilot Chat picker only when it has a `vscode.LanguageModelChatProvider` implementation (DeepSeek, MiniMax, Xiaomi, all three under the single `aiflowbridge` vendor id).
+Gateway-only vendors are reached from Kilo Code, Continue, JetBrains AI Assistant, Open WebUI and `curl` at `http://127.0.0.1:8787/v1`, which costs them nothing: the call is forwarded verbatim.
+That is also why the Vision column reads "upstream" for them: the gateway forwards image parts unchanged and the vendor decides what to do with them, so the value is not a claim AIFlowBridge makes.
 
 Notes:
 
-- The 11 direct Copilot Chat models in the table above (DeepSeek, MiniMax, Xiaomi) expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [vision-proxy.md](vision-proxy.md)).
+- The 11 direct Copilot Chat models in the table above (DeepSeek, MiniMax, Xiaomi) expose the image-paste button in Copilot Chat. **Native** means the upstream provider receives the image bytes directly; **Proxied** means the image is first described by a separate vision-capable model and the description is injected into the prompt. Of the 11, only `mimo-v2.5` is native - see [vision-proxy.md](vision-proxy.md) for the exact per-model table.
 - **Google AI Studio (Gemini 3.8 / 3.7 / 3.6 Flash)** is gateway-only like OpenRouter, reached over the Gemini public API with your own `AIzaSy...` API key. A second route existed from 2.17.0 until this release: Google product OAuth (Antigravity / Cloud Code Assist, `cloudcode-pa.googleapis.com`). **That route has been retired** and is refused locally - see [the retired route section](#the-retired-google-product-oauth-route).
 - **Thinking** indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2.7 does not expose a thinking selector. **MiniMax M3 exposes a "Thinking Effort" selector** (None / High / Max) that maps to the upstream `reasoning_split` boolean - see [reasoning.md](reasoning.md). **MiniMax M3.1 Flash Preview cannot switch reasoning off**, but its depth is tunable: its selector offers five levels (Low / Medium / High / Extra high / Max) forwarded verbatim as the upstream `reasoning_effort` field. Its upstream answers HTTP 400 (`requires adaptive thinking`) to `reasoning_split: false`, `thinking.type: "disabled"` and `reasoning_effort: "none"`, so AIFlowBridge rewrites those off signals on both the gateway and the Copilot Chat path and logs a line when it does; the picker cannot produce one because it offers no `None`. The `aiflowbridge.providers.minimax.reasoningEffort` setting is the fallback when the selector is untouched (`max`, the upstream default, otherwise).
 - **Z.ai and MoonshotAI are gateway-only**, like OpenRouter and Google AI Studio: no Copilot Chat picker entry, reached from Kilo Code / Continue / `curl` through `http://127.0.0.1:8787/v1`. GLM 5.3 and Kimi K3 always reason and cannot be switched off, so a request asking for no reasoning would be rejected upstream. **The gateway rewrites those signals to thinking-on for you** before forwarding: `thinking.type: disabled`, `reasoning_split: false` and `reasoning_effort: none` are upgraded, and an INFO line says so. This applies to every model declared `requiresThinkingParam` in the registry, not just the two above, so you no longer have to remember which model forbids the off switch.
@@ -36,13 +40,20 @@ No protocol adapter is required - it plugs into AIFlowBridge the same way DeepSe
 ### Setup
 
 1. **Get an API key** from [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).
-2. **Store it in SecretStorage** (VS Code extension):
+2. **Store it** - OpenRouter is the one vendor with no `Set API Key` command, because it has no provider class and lives purely on the gateway path. Three equivalent options:
 
    ```
-   Ctrl+Shift+P  ->  AIFlowBridge: Edit model registry
+   # Environment variable (wins over the file)
+   export AIFLOWBRIDGE_OPENROUTER_API_KEY=sk-or-v1-...
+   # ... or the bare name the resolver also accepts
+   export OPENROUTER_API_KEY=sk-or-v1-...
+
+   # Or <storageDir>/secrets.json, chmod 600
+   { "openrouter.apiKey": "sk-or-v1-..." }
    ```
 
-   Then add a vendor entry, OR for the gateway path, set the key via the `aiflowbridge.providers.openrouter.apiKey` SecretStorage slot (the standalone CLI reads `AIFLOWBRIDGE_OPENROUTER_API_KEY` from the environment).
+   `aiflowbridge.providers.openrouter.apiKey` is **not** a declared setting: use one of the two options above.
+The VS Code extension accepts both. The registry does declare an OpenRouter secret slot, but no command writes it, which is why there is no `OpenRouter: Set API Key` command.
 
 3. **Restart the gateway** so the new vendor is picked up. The gateway advertises the 15 free-tier models below in `GET /v1/models`. The other 100+ models are reachable by name - set the model id in your OpenAI-compatible client (Kilo Code picker, Continue config, `curl -d '{"model": "..."}'`) and the gateway forwards the call verbatim.
 
@@ -59,16 +70,16 @@ All data below was pulled from `https://openrouter.ai/api/v1/models` (October 20
 | `google/gemma-4-26b-a4b-it:free` (25.2B MoE, 3.8B active)                 | 262 144        | 32 768     | Yes    | Yes       | Yes          |
 | `google/gemma-4-31b-it:free` (30.7B dense multimodal)                     | 262 144        | 32 768     | Yes    | Yes       | Yes          |
 | `inclusionai/ling-3.0-flash-sante:free`                                   | 262 144        | 32 768     | No     | Yes       | Yes          |
-| `liquid/lfm-2.5-2.6b:free` (2.6B dense)                                   | 65 536         | 8 192      | No     | No        | Yes          |
+| `liquid/lfm-2.5-2.6b:free` (2.6B dense)                                   | 65 536         | 8 192      | No     | Yes       | Yes          |
 | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` (30B MoE, 3B active) | 256 000        | 65 536     | Yes    | Yes       | Yes          |
 | `nvidia/nemotron-3-super-120b-a12b:free` (120B MoE, 12B active)           | 262 144        | 235 929    | No     | Yes       | Yes          |
 | `nvidia/nemotron-3-ultra-550b-a55b:free` (550B MoE, 55B active)           | 1 000 000      | 65 536     | No     | Yes       | Yes          |
 | `nvidia/nemotron-3.5-lightning:free`                                      | 1 000 000      | 65 536     | No     | Yes       | Yes          |
 | `poolside/laguna-s-2.1:free`                                              | 262 144        | 32 768     | No     | Yes       | Yes          |
 | `poolside/laguna-xs-2.1:free`                                             | 262 144        | 32 768     | No     | Yes       | Yes          |
-| `qwen/qwen3.8-27b:free` (27B dense)                                       | 262 144        | 235 929    | No     | Yes       | Yes          |
-| `thinkingmachines/inkling:free` (1M context)                              | 1 048 576      | 262 144    | No     | Yes       | Yes          |
-| `thinkingmachines/inkling-small:free` (1M context)                        | 1 048 576      | 262 144    | No     | Yes       | Yes          |
+| `qwen/qwen3.8-27b:free` (27B dense)                                       | 262 144        | 235 929    | Yes    | Yes       | Yes          |
+| `thinkingmachines/inkling:free` (1M context)                              | 1 048 576      | 262 144    | Yes    | Yes       | Yes          |
+| `thinkingmachines/inkling-small:free` (1M context)                        | 1 048 576      | 262 144    | Yes    | Yes       | Yes          |
 
 **Using a non-bundled OpenRouter model:** the same gateway path works - no AIFlowBridge update needed. Three options:
 
@@ -102,7 +113,7 @@ Like OpenRouter and Google AI Studio, Z.ai is a **gateway-only vendor (Path B)**
 1. **Get an API key** from [z.ai/manage-api/apikey](https://z.ai/manage-api/apikey).
 2. **Store it**:
    - **VS Code extension**: `Ctrl+Shift+P` -> `Z.ai GLM: Set API Key` -> paste your key. Revoke with `Z.ai GLM: Clear API Key`.
-   - **Standalone**: set `AIFLOWBRIDGE_ZAI_API_KEY` (or `ZAI_API_KEY`) in the environment, or add `"zai.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
+   - **Standalone**: set `AIFLOWBRIDGE_ZAI_API_KEY` (or `ZAI_API_KEY`) in the environment, or add `"zai.apiKey": "..."` to `<storageDir>/secrets.json` (chmod 600).
 3. **Use it**: send completion requests with `model: "glm-5.3"`, `"glm-5.3-flash"`, or `"glm-5.3-flashx"`. All three ids appear in `GET /v1/models`.
 
 ### Models and endpoints
@@ -126,7 +137,7 @@ MoonshotAI is a **gateway-only vendor (Path B)** reached through `http://127.0.0
 1. **Get an API key** from [platform.kimi.ai/console/api-keys](https://platform.kimi.ai/console/api-keys).
 2. **Store it**:
    - **VS Code extension**: `Ctrl+Shift+P` -> `MoonshotAI Kimi: Set API Key` -> paste your key. Revoke with `MoonshotAI Kimi: Clear API Key`.
-   - **Standalone**: set `AIFLOWBRIDGE_MOONSHOT_API_KEY` (or `MOONSHOT_API_KEY`) in the environment, or add `"moonshot.apiKey": "..."` to `~/.aiflowbridge/secrets.json` (chmod 600).
+   - **Standalone**: set `AIFLOWBRIDGE_MOONSHOT_API_KEY` (or `MOONSHOT_API_KEY`) in the environment, or add `"moonshot.apiKey": "..."` to `<storageDir>/secrets.json` (chmod 600).
 3. **Use it**: send completion requests with `model: "kimi-k3"`, `"kimi-k2.7-code"`, `"kimi-k2.7-code-highspeed"`, or `"kimi-k2.6"`. All four ids appear in `GET /v1/models`.
 
 ### Models
@@ -147,7 +158,7 @@ Bring-your-own Gemini API key, point at the public Gemini API, pay only what you
 
 Authentication is an `x-goog-api-key: AIza...` header on every request (the native Gemini surface accepts the key only via `x-goog-api-key` or a `?key=...` URL parameter - the `Authorization: Bearer` form is reserved for OAuth 2.0 access tokens, so sending an `AIzaSy...` key under Bearer returns `401 UNAUTHENTICATED`).
 By default the gateway targets the **native Gemini surface** (`/v1beta/models/{model}:generateContent` and the streaming `:streamGenerateContent?alt=sse` variant).
-There is no transparent fallback to the OpenAI-compatible surface (`/v1beta/openai/chat/completions`) - the gateway always translates the OpenAI Chat Completions request into the native envelope (`toGeminiNativeRequest` in `src/aiflowbridge/antigravity/gemini-native.ts`) and reshapes the native SSE frames back into OpenAI chunks before replying to the client.
+There is no transparent fallback to the OpenAI-compatible surface (`/v1beta/openai/chat/completions`) - the gateway always translates the OpenAI Chat Completions request into the native envelope (`toGeminiNativeRequest` in `src/aiflowbridge/gemini/gemini-native.ts`) and reshapes the native SSE frames back into OpenAI chunks before replying to the client.
 No OAuth tokens - one shot works exactly like the other direct vendors.
 
 Why native-first instead of OpenAI-compat: Google's OpenAI-compat surface is feature-gated per GCP project and returns 429 with 0 quota on projects that have not enabled the openai-compat feature (common for newer projects).
@@ -160,11 +171,11 @@ Tariffs (USD, pay-as-you-go against the GCP project): $0.30 / 1M input, $2.50 / 
 
 Setup:
 
-1. **Create an API key** at https://aistudio.google.com/apikey (one-click in the API key tab).
+1. **Create an API key** at <https://aistudio.google.com/apikey> (one-click in the API key tab).
 2. **Store it**:
    - **VS Code extension**: `Ctrl+Shift+P` -> `Google AI Studio: Set API Key (BYOK pay-as-you-go)` -> paste `AIzaSy...`. Stored in `SecretStorage`. Override the lookup slot per VS Code profile.
-   - **Standalone**: `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`. Stored in `~/.aiflowbridge/secrets.json` (chmod 600). Revoke with `aiflowbridge-server auth googleaistudio clearApiKey`. The environment variable `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY` (or `GOOGLEAISTUDIO_API_KEY`) is also recognized and takes priority over the file.
-3. **Use it**: any OpenAI-compatible client on `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`). All three ids appear in `GET /v1/models`.
+   - **Standalone**: `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`. Stored in `<storageDir>/secrets.json` (chmod 600). Revoke with `aiflowbridge-server auth googleaistudio clearApiKey`. The environment variable `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY` (or `GOOGLEAISTUDIO_API_KEY`) is also recognized and takes priority over the file.
+3. **Use it**: any OpenAI-compatible client on `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"` / `"gemini-flash-latest"` / `"gemini-flash-lite-latest"`). All five ids appear in `GET /v1/models`.
 
 Notes:
 
@@ -246,15 +257,28 @@ How to mark a provider as plan-covered:
 
 - **Explicit (per provider)**: set `"billing": "plan"` on the entry in `aiflowbridge.providers` in `settings.json`. Use this for MiniMax token-plan keys and any other plan-billed upstream. Omit it (or set `"token"`) for pay-as-you-go keys.
 - **Nothing is automatic.** A vendor kind or an authentication method never implies plan coverage: a subscription entitlement is not assumed from an OAuth-flavoured transport. The retired Google product OAuth transport used to be stamped `plan` automatically; that stamp is gone with the route.
-- **Standalone**: same `providers` array shape in `~/.aiflowbridge/config.json`.
+- **Standalone**: same `providers` array shape in the standalone `<storageDir>/config.json`.
 
-The indicative rates used for the equivalent come from the usual pricing precedence (merged pricing registry, then registry `pricing` block, then family default) - see [cost.md](cost.md).
+### Xiaomi MiMo: two endpoints, picked from the key
+
+Xiaomi is the one vendor with two distinct upstream endpoints, and AIFlowBridge picks between them from the key prefix instead of asking you to configure anything (`resolveXiaomiBaseUrl()` in `src/config.ts`, mirrored in the gateway at `src/aiflowbridge/gateway/server.ts:2655-2667`):
+
+| Key prefix            | Endpoint used                              | Billing    |
+| --------------------- | ------------------------------------------ | ---------- |
+| `sk-...`              | `https://api.xiaomimimo.com/v1`            | per token  |
+| `tp-...` or `ttp-...` | `https://token-plan-ams.xiaomimimo.com/v1` | token plan |
+
+The configured `aiflowbridge.providers.xiaomi.baseUrl` is therefore only a starting point: whatever host it holds, a `tp-*` key is sent to the token-plan cluster and an `sk-*` key to the pay-as-you-go host.
+That is why both values read `https://api.xiaomimimo.com/v1` by default - the choice happens per request.
+Override the setting only to point at a regional token-plan cluster (`-sgp`, `-cn`), or at a self-hosted relay: a plain pay-as-you-go key on a cluster endpoint is rewritten back to `api.xiaomimimo.com` and vice versa.
+
+The indicative rates used for the equivalent come from the usual pricing precedence (merged pricing registry, then registry `pricing` block, then family default for user-declared models only) - see [cost.md](cost.md).
 For Gemini, the dashboard uses the real upstream public-API rates ($0.30 / $2.50 per 1M for Gemini 3.8 / 3.7 / 3.6 Flash as of 2026-09-04) since the API-key route IS the pay-as-you-go counter.
 
 Notes:
 
 - Like OpenRouter, this vendor is gateway-only: the three Gemini ids do not appear in the Copilot Chat picker (tracked as AP-013).
-- Implementation: the pure Gemini translation modules live under `src/aiflowbridge/antigravity/` (`gemini-native.ts`, `content-parts.ts`, `json-schema-clean.ts`, `sse-transform.ts`, `envelope.ts`, `thought-signature-cache.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`). The directory name is historical; the modules carry no OAuth logic any more.
+- Implementation: the pure Gemini translation modules live under `src/aiflowbridge/gemini/` (`gemini-native.ts`, `content-parts.ts`, `json-schema-clean.ts`, `thought-signature-cache.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`). The former Cloud Code envelope and SSE transforms were deleted with the transport they served.
 - The retired-transport policy is one pure function, `classifyGoogleTransport` in `src/aiflowbridge/google-transport-policy.ts`, applied by the gateway before credential resolution, before each upstream call, and before each redirect hop.
 - Historical telemetry rows recorded on the retired transport are preserved and still readable: they are not rewritten retroactively.
 
@@ -351,7 +375,7 @@ The PR will be reviewed for:
 - Correct capabilities (especially image input and thinking)
 - Matching `maxInputTokens` / `maxOutputTokens` from the provider's documentation
 - Per-model `pricing` block (USD per 1M tokens) - see the `ModelPricing` shape in [architecture.md](architecture.md#model-registry-3-tier)
-- Translation key in `package.nls.json` (`model.<id>.detail`)
+- Translation key in `src/i18n.ts` (`model.<id>.detail`; `package.nls.json` is manifest-only)
 - Entry in the Providers table above
 - **Snapshot date** stamped at the top of each affected table (see "Data freshness" below)
 

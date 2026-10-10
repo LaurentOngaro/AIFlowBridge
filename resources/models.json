@@ -20,7 +20,7 @@
       }
     },
     "xiaomi": {
-      "baseUrl": "https://token-plan-ams.xiaomimimo.com/v1",
+      "baseUrl": "https://api.xiaomimimo.com/v1",
       "apiKeySecret": "aiflowbridge.providers.xiaomi.apiKey",
       "externalUrls": {
         "apiKeys": "https://platform.xiaomimimo.com/console/api-keys",

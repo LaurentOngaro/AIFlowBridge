@@ -666,7 +666,7 @@ class AIFlowBridgeRuntime implements Disposable {
    * confirmation.
    */
   private async resolveEffectiveGoogleRoute(): Promise<{ baseUrl: string; source: 'settings' | 'workspace' | 'globalStorage' | 'bundled' }> {
-    const { resolveEffectiveBaseUrl } = await import('./googleai-studio-route');
+    const { GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS, resolveEffectiveBaseUrl } = await import('./googleai-studio-route');
     const settingsBaseUrl = this.ctx.getConfiguration().get<string>('providers.googleaistudio.baseUrl');
     let workspaceBaseUrl: string | undefined;
     let globalStorageBaseUrl: string | undefined;
@@ -678,7 +678,7 @@ class AIFlowBridgeRuntime implements Disposable {
         const folder = this.ctx.workspaceFolder;
         const wsPath = folder && 'fsPath' in folder ? (folder as { fsPath: string }).fsPath : undefined;
         workspaceBaseUrl = wsPath
-          ? await readRegistryVendorBaseUrl(fs, wsPath, WORKSPACE_REGISTRY_RELATIVE_PATH, ['googleaistudio'])
+          ? await readRegistryVendorBaseUrl(fs, wsPath, WORKSPACE_REGISTRY_RELATIVE_PATH, GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS)
           : undefined;
       } catch {
         // ignore: a missing workspace tier means no workspace override.
@@ -690,7 +690,7 @@ class AIFlowBridgeRuntime implements Disposable {
           fs,
           this.ctx.globalStorageDir,
           GLOBAL_STORAGE_REGISTRY_RELATIVE_PATH,
-          ['googleaistudio']
+          GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS
         );
       } catch {
         // ignore: a missing globalStorage tier means no override.

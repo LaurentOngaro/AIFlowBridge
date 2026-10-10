@@ -4,17 +4,15 @@
  * Covers BUG-14: OpenAI content arrays (`type: text` plus
  * `type: image_url`) must map to native Gemini parts. Base64
  * `data:<mime>;base64,<payload>` URLs become
- * `{ inlineData: { mimeType, data } }` on both the BYOK native path
- * (`toGeminiNativeRequest`) and the OAuth AGY path
- * (`toAntigravityEnvelope`). Remote `http(s)` URLs are dropped with a
+ * `{ inlineData: { mimeType, data } }` on the Gemini native path
+ * (`toGeminiNativeRequest`). Remote `http(s)` URLs are dropped with a
  * warning - the native API needs bytes, URL passthrough is not
  * supported. Pure unit tests, no network.
  */
 
 import { describe, expect, it } from 'vitest';
-import { openAiContentToGeminiParts } from '../src/aiflowbridge/antigravity/content-parts';
-import { toAntigravityEnvelope } from '../src/aiflowbridge/antigravity/envelope';
-import { toGeminiNativeRequest } from '../src/aiflowbridge/antigravity/gemini-native';
+import { openAiContentToGeminiParts } from '../src/aiflowbridge/gemini/content-parts';
+import { toGeminiNativeRequest } from '../src/aiflowbridge/gemini/gemini-native';
 
 const BASE64_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -96,31 +94,5 @@ describe('Gemini vision on both upstream surfaces', () => {
     });
     expect(out.contents).toHaveLength(1);
     expect(out.contents[0]?.parts).toEqual([{ text: 'Describe this' }]);
-  });
-
-  it('produces inlineData on the OAuth envelope path', () => {
-    const envelope = toAntigravityEnvelope(
-      {
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'What is this image?' },
-              { type: 'image_url', image_url: { url: BASE64_URL } },
-            ],
-          },
-        ],
-      },
-      'proj-1',
-      'gemini-3.8-flash'
-    );
-    const parts = envelope.request.contents[0]?.parts ?? [];
-    expect(parts).toHaveLength(2);
-    expect(parts[1]).toEqual({
-      inlineData: {
-        mimeType: 'image/png',
-        data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-      },
-    });
   });
 });

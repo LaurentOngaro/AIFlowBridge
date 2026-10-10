@@ -8,10 +8,10 @@
  * Schema tools, so the gateway has to project them onto that
  * vocabulary before forwarding.
  *
- * This module is the single source of truth for that projection, shared
- * by the BYOK native surface (`gemini-native.ts`) and the AGY OAuth
- * surface (`envelope.ts`). It used to be duplicated in both, and the
- * copies had already drifted apart, which is how
+ * This module is the single source of truth for that projection, used
+ * by the native surface (`gemini-native.ts`). It used to be duplicated
+ * across two Gemini surfaces, and the copies had already drifted apart,
+ * which is how
  * `propertyNames` (a draft-06+ keyword that a Kilo Code tool schema
  * used) reached the upstream and produced
  * `Unknown name "propertyNames" at 'tools[0].function_declarations[45]...'`.

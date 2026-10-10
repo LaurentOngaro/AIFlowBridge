@@ -14,7 +14,7 @@ import {
   GEMINI_SCHEMA_ACCEPTED_KEYS,
   GEMINI_SCHEMA_FORBIDDEN_KEYS,
   GEMINI_SCHEMA_STRIPPED_KEYWORDS,
-} from '../src/aiflowbridge/antigravity/json-schema-clean';
+} from '../src/aiflowbridge/gemini/json-schema-clean';
 
 describe('the keyword sets stay coherent', () => {
   it('never lists a keyword as both accepted and forbidden', () => {

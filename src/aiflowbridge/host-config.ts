@@ -32,7 +32,14 @@ interface DefaultGatewayProfileEntry {
   pricing?: { inputPerMillion: number; outputPerMillion: number; currency: string };
 }
 
-const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
+/**
+ * Exported for the drift guard in `tests/host-config.test.ts`: every
+ * hand-curated rate that names a model present in `resources/models.json`
+ * must equal that model's `pricing` block. A hardcoded rate that drifts
+ * from the registry is the class of defect this file already produced once
+ * (a token-plan rate advertised for a model with no published tariff).
+ */
+export const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
   // DeepSeek ids are the verbatim upstream ids (`deepseek-flash` is the
   // real id of DeepSeek V4.1-Flash, not a friendly alias; the historical
   // `deepseek-v4-flash` entry is retired upstream). Peak-hour rates,
@@ -281,13 +288,29 @@ function synthesizeProviderForModel(
  * computation, family-pricing lookup, per-model synthesis, dedupe) is
  * identical. Factored out so a future change (e.g. a third model source)
  * is a single edit instead of two near-identical blocks.
+ *
+ * `allowFamilyPricingDefault` decides whether a model with no `pricing`
+ * anywhere falls back to the indicative family rate. It is `false` for the
+ * built-in registry and `true` for user-declared models, because the two
+ * silences do not mean the same thing:
+ *
+ *   - A built-in model without a `pricing` block is a **statement**: the
+ *     registry is the source of truth for the bundled catalog, and a model
+ *     it deliberately leaves un-priced (e.g. `MiniMax-M3.1-Flash-Preview`,
+ *     a preview tier with no published pay-as-you-go tariff) must not
+ *     inherit a sibling's token-plan rate. Doing so fabricates a cost in
+ *     the dashboard's "Estimated cost" column.
+ *   - A user-declared model without a `pricing` block is mere ignorance:
+ *     the user asked for a model, not for a tariff, so the family's
+ *     indicative rate is a reasonable default for their own model.
  */
 function synthesizeProvidersFromModels(
   existing: ProviderProfile[],
   configuration: ConfigReader,
   registry: ModelRegistry,
   models: Parameters<typeof synthesizeProviderForModel>[0][],
-  pricingRegistry: PricingConfig | undefined
+  pricingRegistry: PricingConfig | undefined,
+  allowFamilyPricingDefault: boolean
 ): ProviderProfile[] {
   const taken = new Set<string>();
   for (const profile of existing) {
@@ -295,7 +318,7 @@ function synthesizeProvidersFromModels(
     taken.add(profile.model);
   }
 
-  const familyPricing = getFamilyPricing();
+  const familyPricing = allowFamilyPricingDefault ? getFamilyPricing() : new Map<string, ProviderProfile['pricing']>();
   const synthesized: ProviderProfile[] = [];
   for (const model of models) {
     const synthesizedProfile = synthesizeProviderForModel(model, taken, familyPricing, configuration, registry, pricingRegistry);
@@ -317,7 +340,7 @@ export function synthesizeProvidersFromUserModels(
   if (userModels.length === 0) {
     return existing;
   }
-  return synthesizeProvidersFromModels(existing, configuration, registry, userModels, pricingRegistry);
+  return synthesizeProvidersFromModels(existing, configuration, registry, userModels, pricingRegistry, true);
 }
 
 /**
@@ -330,6 +353,12 @@ export function synthesizeProvidersFromUserModels(
  * Hand-curated entries from `DEFAULT_GATEWAY_PROFILES` (e.g. `deepseek-flash`
  * with a friendly label) take precedence - the synthesis only fills in
  * models that are not already in `existing`.
+ *
+ * No family-pricing fallback here: the bundled registry is the source of
+ * truth for the bundled catalog, so a model it leaves without a `pricing`
+ * block (a preview tier with no published tariff) shows no price at all
+ * rather than a sibling's indicative rate. User-declared models keep the
+ * fallback - see `synthesizeProvidersFromModels`.
  */
 export function synthesizeProvidersFromBuiltInModels(
   existing: ProviderProfile[],
@@ -337,7 +366,7 @@ export function synthesizeProvidersFromBuiltInModels(
   registry: ModelRegistry,
   pricingRegistry?: PricingConfig
 ): ProviderProfile[] {
-  return synthesizeProvidersFromModels(existing, configuration, registry, registry.models, pricingRegistry);
+  return synthesizeProvidersFromModels(existing, configuration, registry, registry.models, pricingRegistry, false);
 }
 
 /**
@@ -429,13 +458,13 @@ export async function loadConfigFromContext(ctx: IGatewayContext): Promise<AiFlo
     // hurt the most. Default `false` (skip on streaming). Set to
     // `true` to restore the pre-2.5.1 behavior on streaming too.
     minimaxParallelTokenCount: configuration.get<boolean>('gateway.minimaxParallelTokenCount', false),
-    // Buffered Gemini / Antigravity replay. When `true` the gateway
+    // Buffered Gemini replay. When `true` the gateway
     // drains the full upstream SSE body before reshaping it into
     // OpenAI frames (robust on lossy links, slower TTFT). Default
     // `false` (real-time `pipeThrough` streaming, best TTFT).
     bufferGeminiStream: configuration.get<boolean>('gateway.bufferGeminiStream', false),
     // Server-side thought_signature gap-filler. When `true` the
-    // gateway re-injects cached signatures into the Gemini / AGY
+    // gateway re-injects cached signatures into the Gemini native
     // envelope when the client replayed the turn without
     // `extra_signature`. Default `false` (pure pass-through).
     injectThoughtSignature: configuration.get<boolean>('gateway.injectThoughtSignature', false),

@@ -27,8 +27,8 @@ You should receive an initial response within **7 days**. We will work with you 
 
 AIFlowBridge is designed with a local-first security model:
 
-- **API keys** are stored exclusively in VS Code `SecretStorage` (the OS keychain). They never touch `settings.json` or any other file committed to the repo. On the standalone CLI, keys live in `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars or `~/.aiflowbridge/secrets.json` (`chmod 600` on POSIX).
-- **The local gateway** binds to `127.0.0.1` only - it is not reachable from other machines on your network.
+- **API keys** are stored exclusively in VS Code `SecretStorage` (the OS keychain). They never touch `settings.json` or any other file committed to the repo. On the standalone CLI, keys live in `AIFLOWBRIDGE_<VENDOR>_API_KEY` env vars or `<storageDir>/secrets.json` (`chmod 600` on POSIX).
+- **The local gateway** binds to `127.0.0.1` only - it is not reachable from other machines on your network. On top of that, every request must pass the loopback `Host` / `Origin` guard (see Hardening Highlights).
 - **Telemetry is local** - request counts, tokens, and cost estimates stay on your machine. There is no remote analytics endpoint.
 - **No third-party tracking** - the extension does not phone home, load remote scripts, or embed analytics SDKs.
 - **Outbound requests** only go to the API endpoints you configure (`api.deepseek.com`, `api.minimax.io`, `api.xiaomimimo.com`, `openrouter.ai`, or your custom upstream).
@@ -60,7 +60,7 @@ The file is JSON, written atomically (`.tmp` + `rename`) under a cross-process l
 
 **Limits of the redaction.** `sanitizeSummaryText` is best-effort.
 The threat model is "accidental disclosure" (a developer pasting a `curl` one-liner that includes their upstream key) - the gateway runs loopback-only.
-A determined adversary could craft a payload that leaks through, but that is out of scope: it requires the same loopback access that would let them read `~/.aiflowbridge/secrets.json` directly.
+A determined adversary could craft a payload that leaks through, but that is out of scope: it requires the same loopback access that would let them read `<storageDir>/secrets.json` directly.
 
 ## Hardening Highlights
 
@@ -71,6 +71,9 @@ A determined adversary could craft a payload that leaks through, but that is out
 - **API key redaction in diagnostic logs (2.1.0)** - `redactProviderForLog()` / `redactProvidersForLog()` strip the `apiKey` field from every diagnostic log line. Adds `apiKeyPresent: boolean` so any future verbose dump can never leak credentials.
 - **Upstream error sanitization (2.0.0)** - `sanitizeUpstreamErrorMessage()` strips the query string and redacts `api_key` / `Authorization` / `Bearer` references from any 502 body that surfaces an upstream `fetch` error.
 - **Probe hardening (2.0.0)** - `probeServerVersion` has a 4 KiB body size limit + JSON parse guard, and `isPortInUse` no longer leaks its 500 ms timer.
+- **Loopback Host/Origin guard (2.23.0).** Binding to `127.0.0.1` is no longer the only gate. A request must carry a loopback `Host`, and an `Origin` when present must be on the same port, otherwise the gateway answers 403 without calling any upstream. This closes the two attacks binding alone does not: a cross-origin `text/plain` POST (a CORS simple request, no preflight) that would spend the user's key, and a DNS-rebinding page that sends its own name in `Host` and then reads `/v1/sessions`, `/v1/replay/{id}` and `/v1/events` as same-origin.
+- **Redirects are not auto-followed (2.23.0).** Upstream calls use `redirect: 'manual'`. Only 307 and 308 are replayed, only on the same hostname, only when the hop still passes the SSRF guard, with a budget of 2 hops. Every other status, and any refused hop, becomes a 502. The same-host rule is what keeps a `http:` to `https:` upgrade working.
+- **`aiflowbridge.providers` is application-scoped (2.23.0).** A cloned repository's `.vscode/settings.json` cannot repoint a `baseUrl`. The API key itself still lives only in `SecretStorage`.
 - **Loopback unauthenticated endpoints by design (2.7.0+).** `GET /health` (status snapshot) and `GET /metrics` (cumulative request telemetry, including per-provider token counts and per-model breakdowns) intentionally do **not** require any token, because the gateway binds to `127.0.0.1` only and these endpoints are meant to be polled by local dashboards / status bars / health checks. The same is true of `GET /v1/models` and `GET /v1/discovery` (a discovery metadata document for LAN clients). If you forward any of these endpoints off-host (e.g. by binding the gateway to `0.0.0.0` via a reverse proxy, or by exposing the loopback through `ngrok` / a tunnel), you are responsible for adding authentication at the proxy layer. The `GET /version` endpoint returns the `shutdownToken` used by `POST /shutdown` - this is acceptable on loopback because the token is per-instance and rotated at every restart, but the same caveat applies if you expose it off-host.
 
 If you find a security issue, please report it privately. Thank you for helping keep AIFlowBridge safe.

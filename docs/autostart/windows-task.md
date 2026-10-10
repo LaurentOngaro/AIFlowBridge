@@ -22,7 +22,7 @@ powershell -ExecutionPolicy Bypass -File docs\autostart\windows-task.ps1 `
 ```
 
 The API keys must already be set as user environment variables (`AIFLOWBRIDGE_DEEPSEEK_API_KEY`, `AIFLOWBRIDGE_MINIMAX_API_KEY`, `AIFLOWBRIDGE_XIAOMI_API_KEY`, `AIFLOWBRIDGE_ZAI_API_KEY`, `AIFLOWBRIDGE_MOONSHOT_API_KEY`, `AIFLOWBRIDGE_OPENROUTER_API_KEY`, `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY`) for the script to inherit them.
-Use `sysdm.cpl` -> Advanced -> Environment Variables to set them.
+Use `sysdm.cpl` -> Advanced -> Environment Variables to set them, then **sign out and sign back in** before the first run: a running process does not pick up a variable added to the registry after it started, so a task created before that still sees the old environment.
 
 ## 3. Verify
 

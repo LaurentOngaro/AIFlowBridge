@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createThoughtSignatureCache, MAX_SIGNATURE_CACHE_ENTRIES, SIGNATURE_CACHE_TTL_MS } from '../src/aiflowbridge/antigravity/thought-signature-cache';
+import { createThoughtSignatureCache, MAX_SIGNATURE_CACHE_ENTRIES, SIGNATURE_CACHE_TTL_MS } from '../src/aiflowbridge/gemini/thought-signature-cache';
 
 describe('createThoughtSignatureCache', () => {
   it('stores and looks up a signature by tool-call id', () => {

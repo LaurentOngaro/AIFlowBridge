@@ -14,13 +14,12 @@ Every contribution is welcome.
 ## Development Workflow
 
 ```bash
-npm run compile              # TypeScript compile (0 errors required)
-npm test                     # vitest
+npm run validate            # compile + test + typecheck:tests (the single PR gate)
 npm run compile:standalone   # TypeScript compile of the standalone CLI (0 errors required)
 npm run package              # Build the .vsix locally (output in dist/)
 ```
 
-Always run `npm run compile`, `npm run compile:standalone`, and `npm test` before opening a pull request.
+Always run `npm run validate` and `npm run compile:standalone` before opening a pull request. `validate` is what CI enforces; the standalone compile is required additionally whenever `src/standalone/`, `src/aiflowbridge/` or `src/client/` changed.
 
 ## Code Standards
 
@@ -44,14 +43,15 @@ See [`AGENTS.md`](AGENTS.md) for the high-level overview, and [`docs/agent-instr
 
 1. Add a `vendors[<key>]` entry in `resources/models.json` (`baseUrl`, `apiKeySecret`, `externalUrls`). Use the **upstream API id** as the key.
 2. Add model definition(s) under `models` in `resources/models.json` with `family: <new-vendor>` and the upstream `id`.
-3. Register the provider in `package.json` (`contributes.languageModelChatProviders`).
-4. Create the provider implementation in `src/provider/<vendor>.ts` (reuse the shared helpers in `src/provider/{base,unified,convert,stream,segment,errors,tokens,request}.ts`).
-5. Add gateway provider normalization in `src/aiflowbridge/providers.ts` (SSRF-validated; the default `aiflowbridge.providers` array uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top).
-6. Add an entry to `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/host-config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
-7. Add API key commands in `package.json` (`<vendor>: Set API Key` / `<vendor>: Clear API Key`).
-8. Add provider-specific settings in `package.json` (`aiflowbridge.providers.{vendor}.*`).
-9. Add unit tests in `tests/<vendor>-*.test.ts`.
-10. Update `docs/providers.md` and the README provider table.
+3. Add the family to `KNOWN_FAMILIES` in `src/aiflowbridge/modelRegistry.schema.ts` and to the `family` enum in `resources/models.schema.json`.
+4. Create the provider implementation in `src/provider/<vendor>.ts` (reuse the shared helpers in `src/provider/{base,convert,stream,segment,errors,tokens,request}.ts`).
+5. Add a delegation branch in `src/provider/unified.ts` (the extension registers a **single** `languageModelChatProviders` vendor, `aiflowbridge`; a new picker entry does not need a new contribution point).
+6. Add gateway provider normalization in `src/aiflowbridge/providers.ts` (SSRF-validated; the default `aiflowbridge.providers` array uses the hand-curated shape, but every registry model with the new `family` is auto-synthesized on top).
+7. Add an entry to `DEFAULT_GATEWAY_PROFILES` in `src/aiflowbridge/host-config.ts` if the new vendor should appear in the gateway catalog with a friendly label and family-level indicative pricing.
+8. Add API key commands in `package.json` (`<vendor>: Set API Key` / `<vendor>: Clear API Key`) and the matching entries in `API_KEY_SECRETS` (`src/consts.ts`) and `VENDOR_ALIASES` (`src/aiflowbridge/api-key-resolver.ts`).
+9. Add provider-specific settings in `package.json` (`aiflowbridge.providers.{vendor}.*`).
+10. Add unit tests in `tests/<vendor>-*.test.ts`.
+11. Update `docs/providers.md` and the README provider table.
 
 ## Adding a New Model
 
@@ -59,7 +59,7 @@ See [`AGENTS.md`](AGENTS.md) for the high-level overview, and [`docs/agent-instr
 
 1. Add to the `models` array in `resources/models.json` with the **exact upstream API id** (use `AIFlowBridge: Add a custom model` or `curl /v1/models` to confirm).
 2. Follow `RegistryModelDefinition` (`src/aiflowbridge/modelRegistry.schema.ts`) with the capabilities flags and, optionally, a `pricing` block.
-3. Add a `model.<id>.detail` string to `package.nls.json` (key is the upstream id, NOT a kebab-case alias).
+3. Add a `model.<id>.detail` string to `src/i18n.ts` (key is the upstream id, NOT a kebab-case alias). `package.nls.json` is manifest-only: it holds the `%...%` placeholders referenced by `package.json` and a test fails if it contains any other key.
 4. Update `README.md` provider table and `docs/providers.md`.
 5. Add unit tests if the model has provider-specific behavior.
 

@@ -14,7 +14,7 @@
  * The cache closes that gap server-side: every OpenAI-shaped response
  * the gateway produces is scanned for `extra_signature` values (which
  * mirror the upstream `thoughtSignature`), stored by `tool_call` id,
- * and re-injected into the native / AGY envelope on the next request
+ * and re-injected into the native envelope on the next request
  * when the client replays the turn WITHOUT the signature.
  *
  * Scope and limits (by design):

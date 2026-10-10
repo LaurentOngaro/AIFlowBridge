@@ -1,19 +1,17 @@
 /**
  * AIFlowBridge - Gemini streaming TTFT regression tests.
  *
- * Covers BUG-17: the gateway must stream Gemini / Antigravity
- * upstream frames to the client in real time (`pipeThrough`) instead
- * of buffering the full upstream before the first client byte
- * (drain then transform). The first OpenAI chunk must be readable
- * before the upstream closes. The trailing `[DONE]`, the
- * `finish_reason` frame, and the `usage` frame must still be present.
- * Pure unit tests - the upstream is a scripted ReadableStream, no
- * network.
+ * Covers BUG-17: the gateway must stream Gemini upstream frames to
+ * the client in real time (`pipeThrough`) instead of buffering the
+ * full upstream before the first client byte (drain then transform).
+ * The first OpenAI chunk must be readable before the upstream closes.
+ * The trailing `[DONE]`, the `finish_reason` frame, and the `usage`
+ * frame must still be present. Pure unit tests - the upstream is a
+ * scripted ReadableStream, no network.
  */
 
 import { describe, expect, it } from 'vitest';
-import { createAntigravityToOpenAiTransformStream } from '../src/aiflowbridge/antigravity/sse-transform';
-import { createGeminiNativeToOpenAiSseStream } from '../src/aiflowbridge/antigravity/gemini-native';
+import { createGeminiNativeToOpenAiSseStream } from '../src/aiflowbridge/gemini/gemini-native';
 
 interface OpenAiChunk {
   choices: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
@@ -100,28 +98,6 @@ describe('Gemini streaming emits the first chunk before upstream close', () => {
       collected += decoder.decode(value, { stream: true });
     }
     expect(collected).toContain('data: [DONE]\n\n');
-    const chunks = parseChunks(collected);
-    const terminal = chunks.find((c) => c.choices[0]?.finish_reason);
-    expect(terminal?.choices[0]?.finish_reason).toBe('stop');
-    const usage = chunks.find((c) => c.usage?.total_tokens === 9);
-    expect(usage?.usage?.prompt_tokens).toBe(5);
-  });
-
-  it('pipes Antigravity frames in real time with finish and usage trailers', async () => {
-    const transform = createAntigravityToOpenAiTransformStream({ model: 'gemini-3.8-flash' });
-    const { collected, firstChunkAt, closedAt } = await collectPiped(
-      transform,
-      [
-        'data: {"response":{"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}}\n\n',
-        'data: {"response":{"candidates":[{"content":{"parts":[{"text":" world"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":4,"totalTokenCount":9}}}\n\n',
-      ],
-      () => new Promise<void>((resolve) => setTimeout(resolve, 50))
-    );
-    expect(collected).toContain('data: [DONE]\n\n');
-    // The first OpenAI chunk is readable while the upstream is still
-    // open (before `close()`), not after the full drain.
-    expect(firstChunkAt).toBeGreaterThan(0);
-    expect(firstChunkAt).toBeLessThanOrEqual(closedAt);
     const chunks = parseChunks(collected);
     const terminal = chunks.find((c) => c.choices[0]?.finish_reason);
     expect(terminal?.choices[0]?.finish_reason).toBe('stop');
