@@ -1,7 +1,7 @@
 {
   "aiflowbridge.command.setApiKeyGoogleAIStudio.title": "Google AI Studio: Set API Key (BYOK pay-as-you-go)",
   "aiflowbridge.command.clearApiKeyGoogleAIStudio.title": "Google AI Studio: Clear API Key",
-  "aiflowbridge.command.connectGoogleAIStudio.title": "Connect to Google AI Studio (Antigravity OAuth, requires whitelisted Cloud Code Assist tenant)",
-  "aiflowbridge.command.disconnectGoogleAIStudio.title": "Disconnect from Google AI Studio (Antigravity OAuth)",
-  "aiflowbridge.command.switchGoogleAIStudioRoute.title": "Switch Google AI Studio route (BYOK native surface vs Antigravity OAuth)"
+  "aiflowbridge.command.connectGoogleAIStudio.title": "Connect to Google AI Studio (retired: Google product OAuth is no longer supported)",
+  "aiflowbridge.command.disconnectGoogleAIStudio.title": "Delete local Google product OAuth credentials (local cleanup only, not a remote revocation)",
+  "aiflowbridge.command.switchGoogleAIStudioRoute.title": "Migrate Google AI Studio off the retired OAuth route to the Gemini API (may incur charges)"
 }

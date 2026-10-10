@@ -89,8 +89,9 @@ async function findListeningPort(server: { address: () => unknown }): Promise<nu
 // A 429 is ambiguous: it can be a rate limit that clears in seconds, an
 // allowance that has been spent, or an account with no allocation at all,
 // which never clears on its own. Google does not always tell them apart
-// in the body, so the gateway classifies the refusal and publishes the
-// verdict. The upstream body is left untouched for the client.
+// in the body, so the gateway classifies the refusal on positive
+// evidence only and publishes the verdict as a header. The upstream body
+// is left untouched for the client.
 describe('GatewayService - upstream quota diagnosis', () => {
   let service: GatewayService;
   let baseUrl: string;
@@ -138,7 +139,12 @@ describe('GatewayService - upstream quota diagnosis', () => {
 
   const CHAT = { model: 'model-1', messages: [{ role: 'user', content: 'ping' }] };
 
-  it('labels a bare RESOURCE_EXHAUSTED as zero allocation and passes the body through', async () => {
+  it('publishes no quota state for a bare RESOURCE_EXHAUSTED, which proves nothing', async () => {
+    // The body carries no violation block, so it is compatible with a
+    // rate limit, a spent allowance AND a missing entitlement. Asserting
+    // `zero-allocation` here would send the user after a console change
+    // for what may be a momentary rate limit, so the gateway stays
+    // silent instead of guessing.
     const body = {
       error: { code: 429, message: 'Resource has been exhausted (e.g. check quota).', status: 'RESOURCE_EXHAUSTED' },
     };
@@ -146,9 +152,53 @@ describe('GatewayService - upstream quota diagnosis', () => {
     const res = await post(CHAT);
 
     expect(res.status).toBe(429);
-    expect(res.headers['x-aiflowbridge-quota-state']).toBe('zero-allocation');
+    expect(res.headers['x-aiflowbridge-quota-state']).toBeUndefined();
     // The client keeps the upstream payload it would have parsed before.
     expect(JSON.parse(res.text).error.status).toBe('RESOURCE_EXHAUSTED');
+  });
+
+  it('labels an explicitly zero allowance as zero allocation', async () => {
+    const body = {
+      error: {
+        code: 429,
+        status: 'RESOURCE_EXHAUSTED',
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [{ quotaMetric: 'm', quotaValue: '0' }],
+          },
+        ],
+      },
+    };
+    stubUpstream(429, body);
+    const res = await post(CHAT);
+
+    expect(res.headers['x-aiflowbridge-quota-state']).toBe('zero-allocation');
+  });
+
+  it('does not read a metric containing "generate" as a rate limit', async () => {
+    // Regression guard: an earlier version matched the bare substring
+    // `rate` AND treated any metric as a rate signal, which
+    // reclassified a per-day allowance as a transient limit.
+    const body = {
+      error: {
+        code: 429,
+        message: 'Resource has been exhausted (e.g. check quota).',
+        status: 'RESOURCE_EXHAUSTED',
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [
+              { quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests', quotaValue: '1500' },
+            ],
+          },
+        ],
+      },
+    };
+    stubUpstream(429, body);
+    const res = await post(CHAT);
+
+    expect(res.headers['x-aiflowbridge-quota-state']).toBe('quota-exhausted');
   });
 
   it('labels a spent allowance as quota exhausted and publishes the reset time', async () => {

@@ -98,14 +98,18 @@ describe('normalizeProviderProfiles', () => {
     expect(result[0].billing).toBeUndefined();
   });
 
-  it('forces plan billing for OAuth kinds without an explicit flag', () => {
+  it('does not infer plan billing from a Google vendor kind', () => {
+    // An OAuth-flavoured transport does not prove a subscription covers
+    // the usage, so nothing is inferred from the kind any more. The
+    // profiles are also REFUSED at request time by the transport policy;
+    // this assertion is only about the billing stamp.
     const input = [
       { id: 'g1', label: 'G1', baseUrl: 'https://cloudcode-pa.googleapis.com', model: 'gemini-3.8-flash', kind: 'googleaistudio' },
       { id: 'a1', label: 'A1', baseUrl: 'https://cloudcode-pa.googleapis.com', model: 'gemini-3.8-flash', kind: 'antigravity' },
     ];
     const result = normalizeProviderProfiles(input);
-    expect(result[0].billing).toBe('plan');
-    expect(result[1].billing).toBe('plan');
+    expect(result[0].billing).toBeUndefined();
+    expect(result[1].billing).toBeUndefined();
   });
 
   it('does not force plan billing for the BYOK Google AI Studio route', () => {
@@ -265,6 +269,31 @@ describe('selectProvider', () => {
 
   it('falls back to defaultModel when requestedModel has no match', () => {
     expect(selectProvider(providers, 'unknown', 'minimax')).toBe(providers[1]);
+  });
+
+  it('hides a profile on the retired Google product OAuth transport', () => {
+    // Listing a model the gateway will deterministically refuse would
+    // point the user at a picker entry that always fails.
+    const providers = [
+      {
+        id: 'legacy',
+        label: 'Legacy',
+        kind: 'googleaistudio' as const,
+        baseUrl: 'https://cloudcode-pa.googleapis.com',
+        model: 'gemini-3.8-flash',
+        enabled: true,
+      },
+      {
+        id: 'byok',
+        label: 'Gemini 3.8 Flash',
+        kind: 'openai-compat' as const,
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        model: 'gemini-3.8-flash',
+        enabled: true,
+      },
+    ];
+    const catalog = buildModelCatalog(providers);
+    expect(catalog.map((entry) => entry.id)).toEqual(['byok']);
   });
 
   it('skips disabled providers', () => {
@@ -480,6 +509,15 @@ describe('resolveProviderRedirect (upstream redirect guard)', () => {
       expect(decision.follow).toBe(false);
       expect(decision.reason).toContain(`HTTP status ${status} does not preserve the POST method and body`);
     }
+  });
+
+  it('refuses a hop that targets the retired Google product OAuth backend', () => {
+    // An initially legitimate profile must not be able to reach the
+    // retired backend through a redirect. The same-host rule already
+    // refuses it today; this test pins the guarantee so relaxing that
+    // rule cannot silently reopen the transport.
+    const decision = resolveProviderRedirect(UPSTREAM, 'https://cloudcode-pa.googleapis.com/v1internal', 0);
+    expect(decision.follow).toBe(false);
   });
 
   it('accepts preservational redirect statuses (307, 308)', () => {

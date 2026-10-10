@@ -110,9 +110,9 @@ export async function registerAllProviders(context: vscode.ExtensionContext): Pr
     // `API_KEY_SECRETS.googleaistudio`. The runtime shares the same
     // `secrets.json` file / SecretStorage slot as the standalone CLI's
     // `auth googleaistudio setApiKey`, so a key set in one place is
-    // seen by the other. The OAuth / Antigravity route lives on
-    // `aiflowbridge.connectGoogleAIStudio` (registered separately in
-    // `src/aiflowbridge/index.ts`) and uses the OAuth token manager.
+    // seen by the other. The former OAuth / Antigravity route has been
+    // retired (`aiflowbridge.connectGoogleAIStudio` registered in
+    // `src/aiflowbridge/index.ts` is a compatibility stub).
     // Z.ai and MoonshotAI reuse the same pattern (Path B, gateway-only).
     ...googleaistudioAndGatewayOnlyCommandDisposables(context),
 

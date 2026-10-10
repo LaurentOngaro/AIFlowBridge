@@ -102,45 +102,23 @@ function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry 
 }
 
 describe('resolveAuthMode', () => {
-  it('flags the Antigravity OAuth branch as oauth even when kind is openai-compat', () => {
-    expect(
-      resolveAuthMode({
-        provider: makeProfile({ kind: 'openai-compat', baseUrl: 'https://cloudcode-pa.googleapis.com' }),
-        isAntigravityOAuth: true,
-      })
-    ).toBe('oauth');
-  });
-
-  it('flags antigravity / googleaistudio kind as oauth by default', () => {
-    expect(
-      resolveAuthMode({
-        provider: makeProfile({ kind: 'antigravity', baseUrl: 'https://example.com/v1' }),
-        isAntigravityOAuth: false,
-      })
-    ).toBe('oauth');
-    expect(
-      resolveAuthMode({
-        provider: makeProfile({ kind: 'googleaistudio', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' }),
-        isAntigravityOAuth: false,
-      })
-    ).toBe('oauth');
-  });
-
   it('flags billing: plan as plan for any provider kind', () => {
-    expect(
-      resolveAuthMode({
-        provider: makeProfile({ kind: 'openai-compat', billing: 'plan' }),
-        isAntigravityOAuth: false,
-      })
-    ).toBe('plan');
+    expect(resolveAuthMode({ provider: makeProfile({ kind: 'openai-compat', billing: 'plan' }) })).toBe('plan');
+    expect(resolveAuthMode({ provider: makeProfile({ kind: 'ollama', billing: 'plan' }) })).toBe('plan');
   });
 
-  it('flags a non-AGY openai-compat profile as byok', () => {
+  it('flags a per-token openai-compat profile as byok', () => {
+    expect(resolveAuthMode({ provider: makeProfile({ kind: 'openai-compat' }) })).toBe('byok');
+  });
+
+  it('no longer reports the retired Google transport as an oauth route', () => {
+    // The product OAuth transport is retired, so no request can be sent
+    // over OAuth any more and a legacy profile must not be labelled as
+    // one. (A profile on the retired host is refused before telemetry by
+    // the transport policy; this assertion covers the stamp itself.)
+    expect(resolveAuthMode({ provider: makeProfile({ kind: 'antigravity', baseUrl: 'https://example.com/v1' }) })).toBe('byok');
     expect(
-      resolveAuthMode({
-        provider: makeProfile({ kind: 'openai-compat' }),
-        isAntigravityOAuth: false,
-      })
+      resolveAuthMode({ provider: makeProfile({ kind: 'googleaistudio', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' }) })
     ).toBe('byok');
   });
 });

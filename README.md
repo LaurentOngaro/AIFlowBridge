@@ -23,7 +23,7 @@
 **100+ AI models through one free local gateway.** Use GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, MiniMax M3, DeepSeek V4, Qwen 3.7 Max, Z.ai GLM 5.3, MoonshotAI Kimi K3, and the rest of the OpenAI-compatible world in GitHub Copilot Chat, Kilo Code, Continue, Open WebUI, and JetBrains AI Assistant.
 Smart routing, shared session replay, and live cost tracking included.
 
-> **AIFlowBridge 2.23.1** - data snapshot **2026-10-01**.
+> **AIFlowBridge 2.24.0** - data snapshot **2026-10-01**.
 > Model ids and pricing throughout this README are pinned to this snapshot.
 > Refresh per release; verify against the live OpenRouter catalog (`https://openrouter.ai/api/v1/models`) before quoting numbers externally. See [docs/providers.md#data-freshness](docs/providers.md#data-freshness) for the full refresh policy.
 
@@ -111,7 +111,7 @@ You pay only the upstream providers you actually use - OpenRouter, Google AI Stu
 
 - **100+ AI models behind one OpenRouter key.** AIFlowBridge ships OpenRouter as a first-class upstream: GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, Mistral Large 2512, Qwen 3.7 Max, DeepSeek V4 Pro, plus every other model id at [openrouter.ai/models](https://openrouter.ai/models) - all routed through the same local gateway. **15 free-tier models are bundled** (Nemotron 3 Ultra 550B, Gemma 4 31B multimodal, North Mini Code, Inkling, etc.) so they appear in `GET /v1/models` with $0 dashboard pricing; the other 100+ ids are reachable verbatim by passing them in the `model` field or adding them to `aiflowbridge.userModels`. Compare to running bare OpenRouter: no telemetry, no cost dashboard, no Copilot Chat picker, no JetBrains client integration. See [docs/providers.md](docs/providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint)
 - **Go direct when it's cheaper.** The same gateway exposes direct DeepSeek (V4.1 Flash at $0.30/M in, V4 Pro), MiniMax (M2.7 -> M3, M3.1 Flash Preview, $0.30/M in), Xiaomi MiMo (V2.5, V2.6 Flash at $0.05/M in, V2.6 Pro at $0.10/M in), Z.ai (GLM 5.3, GLM 5.3 Flash at $0.15/M in, GLM 5.3 FlashX), and MoonshotAI (Kimi K3 2.8T MoE, Kimi K2.7 Code, Kimi K2.6) - no middleman markup on direct vendors, full control over your API keys. Mix OpenRouter, Gemini, and direct vendors in the same gateway catalog / dashboard - the cheapest model for boilerplate, the smartest for the hard stuff, all from the same client. In the Copilot Chat picker the direct vendors are listed natively (DeepSeek, MiniMax, Xiaomi MiMo); the gateway-only ones are added by Kilo Code or Continue. See [docs/providers.md](docs/providers.md)
-- **Google Gemini 3.8 / 3.7 / 3.6 Flash (BYOK & Cloud Code Assist OAuth).** Access Google's 1M-token context frontier models with real-time streaming, multimodal vision (`inlineData`), and reliable agentic tool calling (with automatic `thought_signature` propagation). The BYOK route is the one verified to work. The OAuth route (Cloud Code Assist, sometimes labelled "Antigravity" in this project's history - it is the same feature) needs your Cloud project attached to the Cloud Code Assist programme and **has never produced a successful generation call**; it is documented as unverified, and selecting it silently kept serving BYOK before 2.23.0, so verify `authMode` in the dashboard after switching. See [docs/providers.md](docs/providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go).
+- **Google Gemini 3.8 / 3.7 / 3.6 Flash (BYOK).** Access Google's 1M-token context frontier models with real-time streaming, multimodal vision (`inlineData`), and reliable agentic tool calling (with automatic `thought_signature` propagation), over the public Gemini API with your own `AIzaSy...` key. This is the only supported Google route: the Google product OAuth route (Cloud Code Assist, sometimes labelled "Antigravity" in this project's history) was **retired in this release** and is now refused locally with `google_product_oauth_unsupported`. See [docs/providers.md](docs/providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go).
 - **Bulletproof Agentic Coding & Real-Time Streaming.** Built specifically for autonomous coding agents (Kilo Code, Continue, Claude Dev). Emits OpenAI-shaped SSE chunks with sub-100ms time-to-first-token, merges consecutive turns seamlessly, and transparently preserves model thought signatures across function calls so complex agent loops never crash. See [docs/gateway.md](docs/gateway.md)
 - **Smart model routing - opt-in, never surprise you.** Out of the box, the gateway routes every request to the model you (or your client) pick in the model picker. If you opt in via `aiflowbridge.gateway.languageRouting` (`"python": "deepseek-flash"`, `"rust": "deepseek-v4-pro"`, `"*": "anthropic/claude-opus-4.8"` - any model id works, OpenRouter or direct), the gateway auto-detects the project language and routes per request. Costs are visible at all times: every routing decision is logged, the dashboard Sessions panel groups requests by provider / model, and the Request details sub-table shows the per-request cost. See [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting)
 - **Workspace context - informational only.** The detected context (languages, package managers, linters, formatters) is injected as a system message so the model knows your toolchain upfront. It never overrides the model picker - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context)
@@ -132,7 +132,7 @@ The full gallery (dashboard, pickers, providers, gateway, settings, metrics) liv
 
 ## Features
 
-- **100+ AI models through one OpenRouter key, plus six direct vendors for the cheapest path.** GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, Mistral Large 2512, Qwen 3.7 Max, DeepSeek V4 Pro, Z.ai GLM 5.3, MoonshotAI Kimi K3 - all routed through the same `http://127.0.0.1:8787/v1` gateway. 11 direct-vendor models bundled for the Copilot Chat picker (DeepSeek V4.1 Flash / V4 Pro, MiniMax M2.7 / M3 / M3.1 Preview, Xiaomi MiMo V2.5 / V2.6 suite). **5 Gemini models via Google AI Studio API key (BYOK, pay-as-you-go on your GCP project)** or Antigravity Cloud Code Assist OAuth (Gemini 3.8 / 3.7 / 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest`) with 1M context, native vision `inlineData`, and real-time streaming. **7 Z.ai and MoonshotAI gateway models** (GLM 5.3, GLM 5.3 Flash / FlashX, Kimi K3, Kimi K2.7 Code / Highspeed, Kimi K2.6). **15 free-tier OpenRouter models bundled** for `GET /v1/models` with $0 dashboard pricing (Nemotron 3 Ultra 550B, Gemma 4 31B multimodal, North Mini Code, Inkling, etc.). Every other OpenRouter model id is reachable verbatim by passing it in the `model` field - no AIFlowBridge update needed. See [docs/providers.md](docs/providers.md)
+- **100+ AI models through one OpenRouter key, plus six direct vendors for the cheapest path.** GPT-5.6, Claude Opus 4.8, Gemini 3.8 Flash, Llama 4 Maverick, Mistral Large 2512, Qwen 3.7 Max, DeepSeek V4 Pro, Z.ai GLM 5.3, MoonshotAI Kimi K3 - all routed through the same `http://127.0.0.1:8787/v1` gateway. 11 direct-vendor models bundled for the Copilot Chat picker (DeepSeek V4.1 Flash / V4 Pro, MiniMax M2.7 / M3 / M3.1 Preview, Xiaomi MiMo V2.5 / V2.6 suite). **5 Gemini models via Google AI Studio API key (BYOK, pay-as-you-go on your GCP project)** (Gemini 3.8 / 3.7 / 3.6 Flash, `gemini-flash-latest`, `gemini-flash-lite-latest`) with 1M context, native vision `inlineData`, and real-time streaming. **7 Z.ai and MoonshotAI gateway models** (GLM 5.3, GLM 5.3 Flash / FlashX, Kimi K3, Kimi K2.7 Code / Highspeed, Kimi K2.6). **15 free-tier OpenRouter models bundled** for `GET /v1/models` with $0 dashboard pricing (Nemotron 3 Ultra 550B, Gemma 4 31B multimodal, North Mini Code, Inkling, etc.). Every other OpenRouter model id is reachable verbatim by passing it in the `model` field - no AIFlowBridge update needed. See [docs/providers.md](docs/providers.md)
 - **Real-time streaming & agentic tool calling** - instantaneous time-to-first-token streaming, full multi-turn role alternation, and bidirectional `thought_signature` preservation for complex autonomous agent workflows in Kilo Code and Continue - see [docs/gateway.md](docs/gateway.md)
 - **Workspace context injection** - auto-detects your project's languages, package managers, linters, and formatters, and tells the model upfront on every request so completions are context-aware from the first token - see [docs/gateway.md](docs/gateway.md#workspace-context-get-v1context)
 - **Language-based model routing - opt-in** - off by default (`aiflowbridge.gateway.languageRouting = {}`). When you set a non-empty map (`"python": "deepseek-flash"`, `"rust": "deepseek-v4-pro"`, `"*": "MiniMax-M3"` - any model id is accepted, including OpenRouter ones), the gateway picks the right model for each prompt automatically, or honours an explicit `X-AIFlowBridge-Language` header from the IDE. Disable the header override with `aiflowbridge.gateway.allowLanguageHeaderOverride = false`. Full defaults + cost-visibility notes in [docs/gateway.md](docs/gateway.md#language-based-routing-aiflowbridgegatewaylanguagerouting)
@@ -198,23 +198,25 @@ aiflowbridge-server auth googleaistudio clearApiKey                    # revoke 
 ```
 
 Create your key at https://aistudio.google.com/apikey.
-This route is independent of any AI Studio Pro subscription (consumes the GCP project's pay-as-you-go counter), and is also independent of the Antigravity OAuth path used by the Antigravity CLI - the two never interfere.
+This route is independent of any AI Studio Pro subscription (it consumes the GCP project's pay-as-you-go counter).
+It is the **only** supported Google route.
 
-**Antigravity / Cloud Code Assist via OAuth** (advanced, requires a whitelisted Cloud Code Assist tenant):
+**The Google product OAuth route (Antigravity / Cloud Code Assist) has been retired.**
+This OAuth transport was implemented in v2.17.0 to explore consumer quota access, but has now been completely removed because accessing internal Antigravity or Code Assist endpoints via third-party tools or OAuth extraction is an explicit violation of Google's Terms of Service and the official [Google Antigravity FAQ](https://antigravity.google/docs/faq), risking account suspension or termination.
+Google officially requires third-party coding agents and tools to use an API key (Google AI Studio or Vertex AI) instead.
+Furthermore, Google shut down consumer-tier Code Assist requests for Pro/Ultra accounts on 2026-06-18, and no supported route exists to consume consumer subscription quotas via third-party gateways.
+AIFlowBridge therefore **refuses any configuration still pointing at `cloudcode-pa.googleapis.com`**, locally and before any upstream request, with HTTP 503 and the code `google_product_oauth_unsupported`.
+Nothing is sent, no browser opens, and there is no automatic fallback to the API-key route - that is a separate action because it changes what you are billed for.
 
 ```
-Ctrl+Shift+P  ->  AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)   # VS Code: opens the Google consent page, tokens land in secrets.json
-aiflowbridge-server auth googleaistudio                                          # standalone: same flow, prints the URL to open
-aiflowbridge-server auth googleaistudio --status                                 # check login state, account, project, expiry
-aiflowbridge-server auth googleaistudio --logout                                 # revoke locally stored tokens
-aiflowbridge-server auth googleaistudio --probe                                  # token + project + upstream status diagnostic
+Ctrl+Shift+P  ->  AIFlowBridge: Migrate Google AI Studio off the retired OAuth route to the Gemini API   # explicit migration, names the billing consequence
+aiflowbridge-server auth googleaistudio --logout   # delete the local credentials left by the old route
 ```
 
-To opt in: set `aiflowbridge.providers.googleaistudio.baseUrl` to `https://cloudcode-pa.googleapis.com` in `settings.json`.
-The runtime detects the host and routes those profiles through `buildAntigravityUpstreamRequest`.
-The `AIFlowBridge: Switch Google AI Studio route` command asks which route you want instead of flipping a toggle (a blind toggle lands on the opposite route when run twice), resolves the effective route from settings, workspace override, globalStorage override, and bundled default, strips stale vendor entries from both override files, offers to reload the window so the change actually applies, and names the source tier in the toast.
+Creating or linking a GCP project is **not** a supported remedy for the retired route.
+Details and sources: [providers.md](docs/providers.md#the-retired-google-product-oauth-route).
 Skip this section entirely if you only need the API-key route - it covers the same model ids with the always-available public API and your own key.
-Gemini and Antigravity upstream frames stream to the client in real time by default; on lossy links set `aiflowbridge.gateway.bufferGeminiStream` to `true` for the buffered drain-then-replay fallback - see [docs/gateway.md](docs/gateway.md#using-with-kilo-code-or-other-openai-compatible-clients).
+Gemini upstream frames stream to the client in real time by default; on lossy links set `aiflowbridge.gateway.bufferGeminiStream` to `true` for the buffered drain-then-replay fallback - see [docs/gateway.md](docs/gateway.md#using-with-kilo-code-or-other-openai-compatible-clients).
 
 Then point any OpenAI-compatible client at `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`).
 
@@ -279,7 +281,7 @@ Full Kilo Code reference: [docs/kilo-code.md](docs/kilo-code.md).
 
 Some vendors are reachable **only** through `http://127.0.0.1:8787/v1`, never through the Copilot Chat picker.
 That is a deliberate split: a picker entry requires a dedicated `vscode.LanguageModelChatProvider` class, and for a meta-provider or a gateway-only upstream that class buys nothing over forwarding the call verbatim.
-The catalogue as of 2.23.1:
+The catalogue as of 2.24.0:
 
 | Vendor           | Models                                                                          | Context                  | Vision                                   | In / Out per M (USD)                                                               |
 | ---------------- | ------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -426,9 +428,8 @@ Full reference: [docs/providers.md](docs/providers.md#openrouter-100-models-via-
 | `AIFlowBridge: Install standalone gateway`               | Download + extract the standalone CLI for the current OS                                                                    |
 | `Google AI Studio: Set API Key (BYOK pay-as-you-go)`     | Configure Google Gemini API key (`AIzaSy...`) for pay-as-you-go GCP billing                                                 |
 | `Google AI Studio: Clear API Key`                        | Revoke locally stored Google Gemini API key                                                                                 |
-| `AIFlowBridge: Connect to Google AI Studio`              | 1-click browser OAuth login for Google Cloud Code Assist (Antigravity route)                                                |
-| `AIFlowBridge: Disconnect from Google AI Studio`         | Revoke stored Google Cloud Code Assist OAuth tokens                                                                         |
-| `AIFlowBridge: Switch Google AI Studio route`            | Choose between Antigravity OAuth and BYOK with 4-tier override cleanup, plus a window reload prompt                         |
+| `AIFlowBridge: Delete local Google product OAuth credentials` | Delete the local credentials left by the retired route (local cleanup only, not a remote revocation)                    |
+| `AIFlowBridge: Migrate Google AI Studio off the retired OAuth route to the Gemini API` | Point a legacy configuration at the Gemini API, after an explicit confirmation naming the billing consequence |
 | `DeepSeek: Set API Key` / `Clear API Key`                | Manage DeepSeek credentials (direct vendor)                                                                                 |
 | `DeepSeek: Set vision proxy model`                       | Alias for `AIFlowBridge: Set vision proxy model`                                                                            |
 | `MiniMax: Set API Key` / `Clear API Key`                 | Manage MiniMax credentials (direct vendor)                                                                                  |

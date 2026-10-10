@@ -258,10 +258,9 @@ This lets you access DeepSeek, MiniMax, Xiaomi MiMo, and Google AI Studio (Gemin
 
 The gateway routes requests to the correct upstream provider based on the model name. Streaming (`stream: true`) is fully supported.
 The three Gemini ids require a Google AI Studio API key (`Google AI Studio: Set API Key (BYOK pay-as-you-go)` or `aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>`).
-That is the only route verified to work.
-The alternative is the Google AI Studio **OAuth** route on `https://cloudcode-pa.googleapis.com` (Cloud Code Assist; the project calls it Antigravity - same feature), activated by `AIFlowBridge: Connect to Google AI Studio` plus `aiflowbridge.providers.googleaistudio.baseUrl = https://cloudcode-pa.googleapis.com`.
-It requires the Cloud project to be attached to the Cloud Code Assist programme, and **no successful generation call has been observed on it**; a project without the attachment answers `429` with `X-AIFlowBridge-Quota-State: zero-allocation`.
-See [providers.md](providers.md#google-ai-studio-via-cloud-code-assist-oauth-advanced-unverified-in-the-field) and [troubleshooting](troubleshooting.md).
+That is the only supported Google route.
+The former Google product **OAuth** route on `https://cloudcode-pa.googleapis.com` was retired in this release; a profile still pointing there is refused locally with HTTP 503 and the code `google_product_oauth_unsupported`, before any credential resolution and before any upstream request, and is hidden from `GET /v1/models`.
+See [providers.md](providers.md#the-retired-google-product-oauth-route) and [troubleshooting](troubleshooting.md).
 Gemini upstream frames stream to the client in real time by default (first OpenAI chunk readable before the upstream closes); on lossy links set `aiflowbridge.gateway.bufferGeminiStream` to `true` for the buffered drain-then-replay fallback.
 
 ## Configuring gateway providers

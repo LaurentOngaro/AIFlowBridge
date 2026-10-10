@@ -4,11 +4,14 @@ import type { Socket } from 'node:net';
 import { Readable } from 'node:stream';
 import { URL } from 'node:url';
 import { logger } from '../../logger';
-import { DEFAULT_GOOG_API_CLIENT } from '../antigravity/constants';
-import { toAntigravityEnvelope } from '../antigravity/envelope';
-import { accumulateAntigravityResponse, createAntigravityToOpenAiTransformStream } from '../antigravity/sse-transform';
 import { createGeminiNativeToOpenAiSseStream, fromGeminiNativeResponse, toGeminiNativeRequest } from '../antigravity/gemini-native';
-import type { AntigravityTokenManager } from '../antigravity/auth';
+import {
+  buildGoogleProductOAuthError,
+  classifyGoogleTransport,
+  describeRetiredGoogleTransport,
+  isRetiredGoogleProductTransport,
+  isRetiredGoogleProductUrl,
+} from '../google-transport-policy';
 import { detectLanguageHintFromPayload, selectProviderWithLanguage } from '../context/language-routing';
 import { tryGetLoadedRegistry } from '../modelRegistry';
 import { detectWorkspaceContextFromSettings, renderWorkspaceContext, type WorkspaceLanguage } from '../context/workspace-context';
@@ -52,6 +55,20 @@ function isRedirectStatus(status: number): boolean {
 export type ResolveApiKeyFn = (vendor: string) => Promise<string | undefined>;
 export type TelemetryStateLoader = () => TelemetrySnapshot | undefined;
 export type TelemetryStateSaver = (snapshot: TelemetrySnapshot) => void;
+
+/**
+ * Everything the forwarding loop needs to talk to one upstream, already
+ * resolved and translated. `isGeminiNative` selects the native-surface
+ * request/response reshaping; every other OpenAI-compatible upstream is
+ * relayed byte for byte.
+ */
+interface UpstreamRequest {
+  readonly upstreamUrl: string;
+  readonly resolvedKey: string | undefined;
+  readonly upstreamHeaders: Headers;
+  readonly upstreamBody: string;
+  readonly isGeminiNative: boolean;
+}
 
 /**
  * Optional pluggable hook used to make the singleton/version-aware restart
@@ -206,8 +223,7 @@ export class GatewayService {
     private readonly saveState?: TelemetryStateSaver,
     bundledVersion: string = '0.0.0',
     userPrompt?: UserPrompt,
-    persister?: TelemetryPersisterLike,
-    private readonly tokenManager?: AntigravityTokenManager
+    persister?: TelemetryPersisterLike
   ) {
     this.config = config;
     this.bundledVersionField = bundledVersion;
@@ -1089,6 +1105,40 @@ private reportQuotaDiagnosis(
   }
 
   /**
+   * Refuse the retired Google product OAuth transport, locally, before
+   * any credential resolution and before any upstream fetch.
+   *
+   * Writes an HTTP 503 with the OpenAI-shaped error envelope and the
+   * stable `google_product_oauth_unsupported` code. The response is
+   * plain JSON even for a streaming client: no SSE frame is opened, so a
+   * streaming caller sees a clean error instead of a partial stream.
+   *
+   * No `X-AIFlowBridge-Quota-State` header is published here. That
+   * header describes what GOOGLE said, and nothing was asked of Google;
+   * publishing `zero-allocation` for a local refusal would fabricate a
+   * quota fact.
+   *
+   * Returns `true` when the request was refused (the caller must stop),
+   * `false` when the provider may proceed.
+   */
+  private refuseRetiredGoogleTransport(
+    provider: Pick<ProviderProfile, 'id' | 'kind' | 'baseUrl' | 'model'>,
+    requestId: string,
+    response: ServerResponse
+  ): boolean {
+    if (!isRetiredGoogleProductTransport({ kind: provider.kind, baseUrl: provider.baseUrl, model: provider.model })) {
+      return false;
+    }
+    logger.warn(`[Gateway] ${requestId} ${describeRetiredGoogleTransport({ kind: provider.kind, baseUrl: provider.baseUrl })}`);
+    this.writeJson(response, 503, {
+      ...buildGoogleProductOAuthError(),
+      requestId,
+      providerId: provider.id,
+    });
+    return true;
+  }
+
+  /**
    * Step 3 of `forwardChatCompletion` (audit 9.1 decomposition):
    * assemble the upstream HTTP request - URL, resolved API key,
    * bearer-key shape check, headers (including the OpenRouter
@@ -1109,8 +1159,7 @@ private reportQuotaDiagnosis(
     provider: ProviderProfile,
     requestId: string,
     response: ServerResponse
-  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string; isAntigravity: boolean; isGeminiNative: boolean } | undefined> {
-    const isAntigravity = provider.kind === 'antigravity' || provider.kind === 'googleaistudio';
+  ): Promise<UpstreamRequest | undefined> {
     // Gemini native surface (BYOK against
     // `generativelanguage.googleapis.com` with the model id in the path)
     // is preferred over the OpenAI-compat surface for two reasons:
@@ -1119,10 +1168,18 @@ private reportQuotaDiagnosis(
     //   - The native surface is the canonical, always-enabled path and
     //     matches the same free-tier budget as the SDK Python / curl
     //     examples in Google's docs.
-    // The OAuth / AGY surface (`cloudcode-pa.googleapis.com`) is kept
-    // on the existing Antigravity branch.
     const isGeminiNative = isGenerativeLanguageBaseUrl(provider.baseUrl);
-    const isAntigravityBranch = isAntigravity && !isGeminiNative;
+
+    // Retired-transport guard. This is the FIRST thing the pipeline
+    // does, before any credential resolution, before any token refresh
+    // and before any upstream fetch, so a legacy configuration is
+    // refused deterministically and locally. The check lives here (and
+    // on every redirect hop below) rather than at profile-synthesis
+    // time because a workspace or globalStorage registry override can
+    // reintroduce the retired route after the config was built.
+    if (this.refuseRetiredGoogleTransport(provider, requestId, response)) {
+      return undefined;
+    }
 
     // Resolve API key: use profile key if set, otherwise try the async resolver
     let resolvedKey = provider.apiKey;
@@ -1134,15 +1191,7 @@ private reportQuotaDiagnosis(
       }
     }
 
-    const upstreamUrl = isAntigravityBranch
-      ? resolveAntigravityStreamUrl(provider)
-      : resolveUpstreamUrl(provider, 'chat/completions', resolvedKey);
-
-    // Antigravity / Google AI Studio uses the OAuth token manager instead
-    // of the static key chain (env / secrets.json / SecretStorage).
-    if (isAntigravityBranch) {
-      return this.buildAntigravityUpstreamRequest(payload, provider, requestId, response);
-    }
+    const upstreamUrl = resolveUpstreamUrl(provider, 'chat/completions', resolvedKey);
 
     if (isGeminiNative) {
       return this.buildGeminiNativeUpstreamRequest(payload, provider, requestId, response);
@@ -1277,7 +1326,7 @@ private reportQuotaDiagnosis(
       provider.model && injectedFinalPayload.model !== provider.model ? { ...injectedFinalPayload, model: provider.model } : injectedFinalPayload;
     const upstreamBody = JSON.stringify(finalPayload);
 
-    return { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody, isAntigravity: false, isGeminiNative: false };
+    return { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody, isGeminiNative: false };
   }
 
   /**
@@ -1299,7 +1348,7 @@ private reportQuotaDiagnosis(
     provider: ProviderProfile,
     requestId: string,
     response: ServerResponse
-  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string; isAntigravity: boolean; isGeminiNative: boolean } | undefined> {
+  ): Promise<UpstreamRequest | undefined> {
     const isStreamingRequest = Boolean(payload?.stream);
     const modelId = provider.model || (typeof payload?.model === 'string' ? payload.model : 'gemini-3.8-flash');
     const upstreamUrl = resolveGeminiNativeUrl(provider, modelId, isStreamingRequest);
@@ -1380,111 +1429,10 @@ private reportQuotaDiagnosis(
       resolvedKey,
       upstreamHeaders,
       upstreamBody: JSON.stringify(envelope),
-      isAntigravity: false,
       isGeminiNative: true,
     };
   }
 
-  /**
-   * Antigravity / Google AI Studio upstream request builder.
-   *
-   * Diverges from the static-key path in three ways (spec AP-007):
-   * auth comes from `AntigravityTokenManager.getAccessToken()` (async,
-   * auto-refresh) instead of the env / secrets.json chain; the body is
-   * translated into the Cloud Code Assist envelope via the pure
-   * `toAntigravityEnvelope()` helper; headers carry the Antigravity
-   * `User-Agent` + `X-Goog-Api-Client` pair instead of OpenRouter
-   * attribution. Workspace-context injection already happened on the
-   * OpenAI-shaped payload before translation, so the system prompt is
-   * preserved inside `systemInstruction`.
-   */
-  private async buildAntigravityUpstreamRequest(
-    payload: Record<string, unknown>,
-    provider: ProviderProfile,
-    requestId: string,
-    response: ServerResponse
-  ): Promise<{ upstreamUrl: string; resolvedKey: string | undefined; upstreamHeaders: Headers; upstreamBody: string; isAntigravity: boolean; isGeminiNative: boolean } | undefined> {
-    const upstreamUrl = resolveAntigravityStreamUrl(provider);
-
-    if (!this.tokenManager) {
-      this.writeJson(response, 503, {
-        error: 'Google AI Studio / Antigravity is not authenticated',
-        requestId,
-        providerId: provider.id,
-        details: 'Run "aiflowbridge-server auth googleaistudio" (standalone) or "AIFlowBridge: Connect to Google AI Studio" (VS Code) to log in.',
-      });
-      return undefined;
-    }
-
-    let accessToken: string;
-    try {
-      accessToken = await this.tokenManager.getAccessToken();
-    } catch (err) {
-      const rawMessage = err instanceof Error ? err.message : String(err);
-      logger.warn(`[Gateway] ${requestId} antigravity token unavailable for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
-      this.writeJson(response, 503, {
-        error: 'Google AI Studio / Antigravity credentials unavailable',
-        requestId,
-        providerId: provider.id,
-        details: sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl),
-      });
-      return undefined;
-    }
-
-    const tokens = this.tokenManager.getTokens();
-    const projectId = tokens?.projectId;
-    if (!projectId) {
-      this.writeJson(response, 503, {
-        error: 'Google AI Studio / Antigravity project is unknown',
-        requestId,
-        providerId: provider.id,
-        details: 'Re-run the OAuth login so loadCodeAssist can resolve the Cloud project id.',
-      });
-      return undefined;
-    }
-
-    const upstreamHeaders = new Headers({
-      'Content-Type': 'application/json',
-      Accept: 'application/json, text/event-stream',
-      Authorization: `Bearer ${accessToken}`,
-      'User-Agent': 'antigravity',
-      'X-Goog-Api-Client': DEFAULT_GOOG_API_CLIENT,
-      'X-AIFlowBridge-Request-Id': requestId,
-      'X-AIFlowBridge-Provider': provider.id,
-    });
-
-    let envelope: ReturnType<typeof toAntigravityEnvelope>;
-    try {
-      // Same server-side gap-filler as the BYOK native surface:
-      // re-inject the cached thought_signature when the client
-      // replayed the turn without `extra_signature`.
-      const injectThoughtSignature = this.config.gateway.injectThoughtSignature ?? false;
-      envelope = toAntigravityEnvelope(
-        payload as Record<string, unknown>,
-        projectId,
-        provider.model || (typeof payload?.model === 'string' ? payload.model : 'gemini-3.8-flash'),
-        undefined,
-        (message: string) => logger.warn(message),
-        injectThoughtSignature ? (id: string) => this.thoughtSignatureCache.lookup(id) : undefined
-      );
-    } catch (err) {
-      const rawMessage = err instanceof Error ? err.message : String(err);
-      logger.warn(`[Gateway] ${requestId} antigravity envelope translation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
-      this.writeJson(response, 400, {
-        error: 'Invalid request for Google AI Studio / Antigravity',
-        requestId,
-        providerId: provider.id,
-      });
-      return undefined;
-    }
-
-    // Same debug aid as the BYOK native surface: presence (never
-    // value) of thoughtSignature on every functionCall part of the
-    // outgoing AGY envelope.
-    this.logThoughtSignatureCoverage(requestId, provider.id, envelope.request.contents);
-
-    return { upstreamUrl, resolvedKey: accessToken, upstreamHeaders, upstreamBody: JSON.stringify(envelope), isAntigravity: true, isGeminiNative: false };
-  }
 
   private async forwardChatCompletion(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const requestId = randomUUID();
@@ -1549,14 +1497,11 @@ private reportQuotaDiagnosis(
       // the helper. Propagate.
       return;
     }
-    const { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody, isAntigravity, isGeminiNative } = upstreamRequest;
-    // AGY / OAuth is mutually exclusive with the Gemini native surface,
-    // so the AGY-only branches collapse into one flag here.
-    const isAntigravityBranch = isAntigravity && !isGeminiNative;
+    const { upstreamUrl, resolvedKey, upstreamHeaders, upstreamBody, isGeminiNative } = upstreamRequest;
     // Precompute the auth mode for the telemetry path so every
     // `recordTelemetry()` call downstream can stamp it without
     // re-resolving the provider.
-    const authMode = resolveAuthMode({ provider, isAntigravityOAuth: isAntigravityBranch });
+    const authMode = resolveAuthMode({ provider });
 
     // the same AbortController that aborts the upstream
     // `fetch()` also drives the per-provider semaphore. When the
@@ -1780,6 +1725,20 @@ private reportQuotaDiagnosis(
             );
             throw new Error(`Upstream redirect refused (${decision.reason}).`);
           }
+          // Re-check the transport policy on the hop target, not only on
+          // the configured baseUrl. `resolveProviderRedirect` already
+          // refuses a cross-host hop, so an initially legitimate profile
+          // cannot reach the retired Google backend that way today; this
+          // guard is what keeps that true if the same-host rule is ever
+          // relaxed, and it fails BEFORE the hop is fetched.
+          if (isRetiredGoogleProductUrl(decision.url)) {
+            logger.warn(
+              `[Gateway] ${requestId} refused an upstream redirect for provider=${provider.id}: target points at the retired Google product OAuth transport.`
+            );
+            throw new Error(
+              'Upstream redirect refused (target points at the retired Google product OAuth transport).'
+            );
+          }
           hop += 1;
           logger.warn(
             `[Gateway] ${requestId} following a same-host upstream redirect (hop ${hop}) for provider=${provider.id}: ${decision.url}`
@@ -1801,14 +1760,10 @@ private reportQuotaDiagnosis(
 
       statusCode = upstreamResponse.status;
       const contentType = upstreamResponse.headers.get('content-type') ?? '';
-      // Antigravity always answers SSE (even for non-streaming
-      // clients): only treat the response as a stream when the
-      // CLIENT asked for one, otherwise fall into the accumulation
-      // path below. Other vendors keep the legacy heuristic (client
-      // flag OR upstream content-type).
-      const isStream = isAntigravityBranch
-        ? Boolean(payload?.stream)
-        : Boolean(payload?.stream) || contentType.includes('text/event-stream');
+      // Some upstreams answer SSE even for non-streaming clients: only
+      // treat the response as a stream when the CLIENT asked for one OR
+      // the upstream declares `text/event-stream`.
+      const isStream = Boolean(payload?.stream) || contentType.includes('text/event-stream');
       // forward any upstream backoff headers so a
       // well-behaved upstream can ask the client to slow down. We
       // propagate on every status (some upstreams use 503 + a
@@ -1874,8 +1829,7 @@ private reportQuotaDiagnosis(
           estimated,
           clientId,
           promptSummary,
-          this.config.captureSessionLog ? buildResponseSummary(backoffBody) : undefined,
-          { isAntigravityOAuth: isAntigravityBranch }
+          this.config.captureSessionLog ? buildResponseSummary(backoffBody) : undefined
         );
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
@@ -1917,33 +1871,27 @@ private reportQuotaDiagnosis(
           // cost of TTFT. Pipe errors also fall back to the drain
           // path so no bytes are ever silently lost.
           const bufferGeminiStream = this.config.gateway.bufferGeminiStream ?? false;
-          const needsReshape = isAntigravity || isGeminiNative;
+          const needsReshape = isGeminiNative;
           let transformed: ReadableStream<Uint8Array>;
           if (!needsReshape) {
             transformed = webStream;
           } else if (bufferGeminiStream) {
             const accumulated = await drainReadableStream(webStream);
-            const transform = isAntigravity
-              ? createAntigravityToOpenAiTransformStream({ model: modelName ?? provider.model })
-              : createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
+            const transform = createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
             const out = new Uint8ArrayOutputStream();
             const writer = out.writable.getWriter();
             await accumulateThroughTransform(accumulated, transform, writer);
             await writer.close();
             transformed = out.readable;
           } else {
-            const transform = isAntigravity
-              ? createAntigravityToOpenAiTransformStream({ model: modelName ?? provider.model })
-              : createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
+            const transform = createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
             try {
               transformed = webStream.pipeThrough(transform);
             } catch (err) {
               const rawMessage = err instanceof Error ? err.message : String(err);
               logger.warn(`[Gateway] ${requestId} live pipe failed for provider=${provider.id}, falling back to buffered replay: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
               const accumulated = await drainReadableStream(webStream);
-              const retry = isAntigravity
-                ? createAntigravityToOpenAiTransformStream({ model: modelName ?? provider.model })
-                : createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
+              const retry = createGeminiNativeToOpenAiSseStream({ model: modelName ?? provider.model });
               const out = new Uint8ArrayOutputStream();
               const writer = out.writable.getWriter();
               await accumulateThroughTransform(accumulated, retry, writer);
@@ -2082,8 +2030,7 @@ private reportQuotaDiagnosis(
             estimated,
             clientId,
             promptSummary,
-            undefined,
-            { isAntigravityOAuth: isAntigravityBranch }
+            undefined
           );
           if (this.config.logRequests) {
             logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
@@ -2094,45 +2041,10 @@ private reportQuotaDiagnosis(
         let responseText = await upstreamResponse.text();
         let usage = extractUsage(responseText);
 
-        // Antigravity non-streaming: the upstream answers with Cloud
-        // Code SSE even when the client asked for a single JSON body.
-        // Accumulate the transformed OpenAI chunks into one
-        // `chat.completion` object so the response contract stays
-        // OpenAI-compatible.
-        if (isAntigravity && !usage && (contentType.includes('text/event-stream') || responseText.includes('data:'))) {
-          try {
-            const accumulated = await accumulateAntigravityResponse(
-              new ReadableStream<Uint8Array>({
-                start(controller) {
-                  controller.enqueue(new TextEncoder().encode(responseText));
-                  controller.close();
-                },
-              }),
-              { model: modelName ?? provider.model }
-            );
-            responseText = JSON.stringify(accumulated);
-            const accUsage = accumulated.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
-            if (accUsage) {
-              usage = {
-                promptTokens: accUsage.prompt_tokens ?? 0,
-                completionTokens: accUsage.completion_tokens ?? 0,
-                totalTokens: accUsage.total_tokens ?? 0,
-              };
-            }
-            // Same server-side cache feed as the BYOK native path:
-            // the accumulated message carries `extra_signature` on
-            // every tool call the model returned.
-            this.cacheThoughtSignatures(accumulated.choices);
-          } catch (err) {
-            const rawMessage = err instanceof Error ? err.message : String(err);
-            logger.warn(`[Gateway] ${requestId} antigravity accumulation failed for provider=${provider.id}: ${sanitizeUpstreamErrorMessage(rawMessage, upstreamUrl)}`);
-          }
-        }
-
         // Gemini native non-streaming: upstream answers with a single
         // native JSON object that must be reshaped into the OpenAI Chat
         // Completions shape before being relayed to the client.
-        if (isGeminiNative && !isAntigravity && upstreamResponse.status < 400) {
+        if (isGeminiNative && upstreamResponse.status < 400) {
           try {
             const native = JSON.parse(responseText) as Parameters<typeof fromGeminiNativeResponse>[0];
             const converted = fromGeminiNativeResponse(native, { model: modelName ?? provider.model });
@@ -2186,8 +2098,7 @@ private reportQuotaDiagnosis(
           estimated,
           clientId,
           promptSummary,
-          this.config.captureSessionLog ? buildResponseSummary(responseText) : undefined,
-          { isAntigravityOAuth: isAntigravityBranch }
+          this.config.captureSessionLog ? buildResponseSummary(responseText) : undefined
         );
         if (this.config.logRequests) {
           logger.info(formatRequestLogLine(requestId, provider.id, statusCode, durationMs));
@@ -2218,8 +2129,7 @@ private reportQuotaDiagnosis(
           true,
           clientId,
           promptSummary,
-          undefined,
-          { isAntigravityOAuth: isAntigravityBranch }
+          undefined
         );
       }
 
@@ -2298,8 +2208,7 @@ private reportQuotaDiagnosis(
     estimated: boolean,
     clientId: string | null,
     promptSummary?: string,
-    responseSummary?: string,
-    options?: { isAntigravityOAuth?: boolean }
+    responseSummary?: string
   ): void {
     if (!this.config.telemetryEnabled) {
       return;
@@ -2343,10 +2252,7 @@ private reportQuotaDiagnosis(
       // Recent requests table so the user can split traffic by
       // authentication path. Older entries leave it `undefined`;
       // the store / dashboard coalesce absent to `'unknown'`.
-      authMode: resolveAuthMode({
-        provider,
-        isAntigravityOAuth: options?.isAntigravityOAuth ?? false,
-      }),
+      authMode: resolveAuthMode({ provider }),
       // Action plan item #3: pair-programming summaries. Optional
       // for backward compatibility with callers (e.g. Copilot Chat
       // path) that do not have a captured prompt / response at the
@@ -2788,31 +2694,6 @@ function resolveUpstreamUrl(provider: ProviderProfile, path: string, resolvedKey
   } catch {
     return combined;
   }
-}
-
-function resolveAntigravityStreamUrl(provider: ProviderProfile): string {
-  // A custom baseUrl lets operators point at a private relay; the
-  // default bundled baseUrl already ends at the host root, so the
-  // Cloud Code stream path is appended verbatim.
-  // Test hook: when the baseUrl is a loopback URL (unit tests spin a
-  // local mock upstream), forward to its root so the mock receives
-  // the envelope without needing the Cloud path.
-  try {
-    const parsed = new URL(provider.baseUrl);
-    const host = parsed.hostname.toLowerCase();
-    if (host === '127.0.0.1' || host === 'localhost' || host === '::1') {
-      return provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
-    }
-  } catch {
-    // fall through to the Cloud path below.
-  }
-  const baseUrl = provider.baseUrl.endsWith('/') ? provider.baseUrl : `${provider.baseUrl}/`;
-  // `new URL('v1internal:...', base)` treats `v1internal:` as a scheme
-  // and returns the bare `v1internal:streamGenerateContent?alt=sse`
-  // string (verified: no host, no fetch possible). String
-  // concatenation is the correct construction here - the documented
-  // Antigravity convention is a custom method on the host root.
-  return `${baseUrl}v1internal:streamGenerateContent?alt=sse`;
 }
 
 function isGenerativeLanguageBaseUrl(baseUrl: string): boolean {

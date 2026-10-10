@@ -5,9 +5,9 @@
  * `docs/agent-instructions/tasks.md`): no
  * `vscode.LanguageModelChatProvider` class, only an
  * OpenAI-compatible profile synthesized from the bundled registry. The
- * OAuth branch of the same vendor (Antigravity / Cloud Code Assist) has
- * its own coverage in the antigravity suites; this file pins the BYOK
- * path.
+ * former product OAuth transport (Antigravity / Cloud Code Assist) has
+ * been retired (see `tests/gateway-google-oauth-retired.test.ts`);
+ * this file pins the supported BYOK path.
  *
  * This test pins the things that silently break a Path B vendor:
  *   - the bundled registry is structurally valid (a broken bundled file

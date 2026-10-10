@@ -27,20 +27,33 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { execFile } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { AIFlowBridgeRuntime } from '../aiflowbridge';
-import { AntigravityTokenManager } from '../aiflowbridge/antigravity';
 import { loadModelRegistry } from '../aiflowbridge/modelRegistry';
 import { logger } from '../logger';
 import { createStandaloneContext } from './context';
 import { resolveStorageDir } from './storage-dir';
 
+/**
+ * `aiflowbridge-server auth ...`
+ *
+ * Sub-commands:
+ *   - `setApiKey <AIzaSy...>` / `clearApiKey`  : the supported Gemini API
+ *     (BYOK) route. Unchanged by the retirement of the product OAuth
+ *     transport.
+ *   - `--status`   : local read of the legacy secrets file. Never
+ *     refreshes a token, never contacts Google.
+ *   - `--logout`   : local, idempotent deletion of the legacy secrets
+ *     slots. Not a remote revocation: nothing is sent to Google.
+ *   - login / `--probe` / `--list-models` : REFUSED with a non-zero exit
+ *     code and an explanation. They used to drive the Antigravity /
+ *     Cloud Code Assist product OAuth transport, which is retired.
+ *
+ * The refusal is local and total: no browser opens, no callback server
+ * binds, no token is refreshed, no probe is sent.
+ */
 async function handleAuthCommand(args: string[], globalStorageDir: string): Promise<boolean> {
-  const [cmd, providerArg, ...flags] = args;
-  if (cmd !== 'auth') {
-    return false;
-  }
+  const [, providerArg, ...flags] = args;
 
   const isStatus = providerArg === '--status' || flags.includes('--status');
   const isLogout = providerArg === '--logout' || flags.includes('--logout');
@@ -48,39 +61,26 @@ async function handleAuthCommand(args: string[], globalStorageDir: string): Prom
   const isClearApiKey = providerArg === 'clearApiKey' || flags.includes('clearApiKey');
   const isListModels = providerArg === '--list-models' || flags.includes('--list-models');
   const isProbe = providerArg === '--probe' || flags.includes('--probe');
-  const apiKeyArg = flags[0];
-  const provider = (providerArg && !providerArg.startsWith('--') && !isStatus && !isLogout && !isSetApiKey && !isClearApiKey && !isListModels && !isProbe && providerArg !== 'setApiKey' && providerArg !== 'clearApiKey' ? providerArg : 'googleaistudio').toLowerCase();
-
-  if (provider !== 'googleaistudio' && provider !== 'antigravity') {
-    console.error(`[AIFlowBridge auth] Unknown provider "${providerArg}". Supported: googleaistudio, antigravity`);
-    process.exit(1);
-  }
+  const isFlag = (value: string | undefined): boolean => value === undefined || value.startsWith('--');
 
   // BYOK API-key route: `auth googleaistudio setApiKey <key>` /
-  // `clearApiKey`. Distinct from the Antigravity OAuth route handled
-  // below (that one stores OAuth tokens, not API keys). Always live on
+  // `clearApiKey`. Always lives on
   // `aiflowbridge.providers.googleaistudio.apiKey` so the same key
   // works for the VS Code SecretStorage adapter and the standalone
   // `~/.aiflowbridge/secrets.json` file.
-  // BYOK API-key route: `auth googleaistudio setApiKey <key>` /
-  // `clearApiKey`. Distinct from the Antigravity OAuth route handled
-  // below (that one stores OAuth tokens, not API keys). Always live on
-  // `aiflowbridge.providers.googleaistudio.apiKey` so the same key
-  // works for the VS Code SecretStorage adapter and the standalone
-  // `~/.aiflowbridge/secrets.json` file.
-  if (isSetApiKey || isClearApiKey || provider === 'googleaistudio' && (providerArg === 'setApiKey' || providerArg === 'clearApiKey')) {
+  if (isSetApiKey || isClearApiKey) {
     const { createGatewaySecrets } = await import('../aiflowbridge/api-key-sources');
     const secrets = createGatewaySecrets({ secretsPath: `${globalStorageDir}/secrets.json`, logPrefix: '[Standalone]' });
     const apiKeySecret = 'aiflowbridge.providers.googleaistudio.apiKey';
-    if (isClearApiKey || providerArg === 'clearApiKey') {
+    if (isClearApiKey) {
       await secrets.delete(apiKeySecret);
       console.log('[AIFlowBridge auth] Google AI Studio API key cleared.');
       process.exit(0);
     }
-    const key = flags[0] ?? (providerArg !== 'setApiKey' ? providerArg : undefined);
-    if (!key || key.startsWith('--')) {
+    const key = isFlag(providerArg) ? flags[0] : providerArg;
+    if (!key) {
       console.log('[AIFlowBridge auth] Usage: aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>');
-      console.log('Create a key at https://aistudio.google.com/apikey. This route is independent from the Antigravity OAuth flow and works for any Google account (no Cloud Code Assist whitelist required).');
+      console.log('Create a key at https://aistudio.google.com/apikey. This is the Gemini API route and is independent from the retired Google product OAuth transport.');
       process.exit(1);
     }
     await secrets.store(apiKeySecret, key);
@@ -88,111 +88,43 @@ async function handleAuthCommand(args: string[], globalStorageDir: string): Prom
     process.exit(0);
   }
 
-  const tokenManager = new AntigravityTokenManager(globalStorageDir);
-
-  if (isStatus || isListModels || isProbe) {
-    if (isListModels || isProbe) {
-      await handleAntigravityProbe(tokenManager, isListModels);
-      process.exit(0);
-    }
-    const tokens = tokenManager.getTokens();
-    if (!tokens || !tokens.refreshToken) {
-      console.log(`[AIFlowBridge auth] Status: Not logged in via Antigravity OAuth.`);
-      console.log('Note: the Google AI Studio API-key route is independent. Check secrets.json or SecretStorage for `aiflowbridge.providers.googleaistudio.apiKey`.');
+  if (isStatus) {
+    // Pure local read. A legacy token on disk is reported as such, and
+    // as USELESS: the route it unlocked no longer exists.
+    const { hasRetiredGoogleOAuthSecrets, retiredGoogleSecretsPath } = await import('../aiflowbridge/retired-google-oauth-secrets');
+    if (hasRetiredGoogleOAuthSecrets(globalStorageDir)) {
+      console.log('[AIFlowBridge auth] Google product OAuth: retired transport, local credentials still present.');
+      console.log(`  File: ${retiredGoogleSecretsPath(globalStorageDir)}`);
+      console.log('  These credentials cannot be used. Delete them locally with: aiflowbridge-server auth googleaistudio --logout');
     } else {
-      const isExpired = Date.now() >= tokens.expiresAt;
-      console.log(`[AIFlowBridge auth] Antgravity OAuth: Logged in.`);
-      if (tokens.email) console.log(`  Account: ${tokens.email}`);
-      if (tokens.projectId) console.log(`  Project: ${tokens.projectId}`);
-      console.log(`  Token: ${isExpired ? 'Expired (will auto-refresh on request)' : 'Active'}`);
-      console.log(`  Expires at: ${new Date(tokens.expiresAt).toLocaleString()}`);
+      console.log('[AIFlowBridge auth] Google product OAuth: retired transport, no local credentials present.');
     }
+    console.log('[AIFlowBridge auth] Gemini API (BYOK): configured separately. Check "aiflowbridge.providers.googleaistudio.apiKey" in secrets.json or the VS Code SecretStorage.');
     process.exit(0);
   }
 
   if (isLogout) {
-    tokenManager.logout();
-    console.log(`[AIFlowBridge auth] Successfully logged out of ${provider} (Antigravity OAuth).`);
+    const { purgeRetiredGoogleOAuthSecrets, retiredGoogleSecretsPath } = await import('../aiflowbridge/retired-google-oauth-secrets');
+    const result = purgeRetiredGoogleOAuthSecrets(globalStorageDir);
+    if (!result.changed) {
+      console.log('[AIFlowBridge auth] Nothing to clear: no local Google product OAuth credentials were present.');
+    } else {
+      console.log(`[AIFlowBridge auth] Local Google product OAuth credentials deleted from ${result.filePath}.`);
+      console.log('[AIFlowBridge auth] This was a LOCAL deletion only. No token was sent to Google, so it is not a remote revocation of the grant.');
+    }
     process.exit(0);
   }
 
-  console.log(`[AIFlowBridge auth] Starting OAuth PKCE authentication for ${provider} (Antigravity / Cloud Code Assist).`);
-  console.log('[AIFlowBridge auth] Note: this OAuth flow targets Cloud Code Assist; works only for whitelisted tenants.');
-  console.log('[AIFlowBridge auth] For Google AI Studio API-key access (always available, BYOK pay-as-you-go), use: aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>');
-  console.log('[AIFlowBridge auth] A browser window should open. If not, open the URL below:\n');
-
-  try {
-    const tokens = await tokenManager.startLocalOAuthFlow({
-      onUrlReady: (url) => {
-        // Best effort: open the consent page in the default browser.
-        // Falls back to the printed URL (SSH / WSL / headless shells).
-        openUrlInBrowser(url);
-        console.log(`Open this URL in your browser:\n${url}\n`);
-      },
-    });
-    console.log(`\n[AIFlowBridge auth] Authentication successful!`);
-    if (tokens.email) console.log(`Account: ${tokens.email}`);
-    if (tokens.projectId) console.log(`Project: ${tokens.projectId}`);
-    console.log(`Tokens saved to secrets.json.`);
-    process.exit(0);
-  } catch (err) {
-    console.error(`[AIFlowBridge auth] Authentication failed:`, err instanceof Error ? err.message : String(err));
-    process.exit(1);
+  // Everything else used to start the retired OAuth flow (login) or
+  // probe the retired backend (--probe / --list-models).
+  console.error('[AIFlowBridge auth] Google product OAuth (Antigravity / Cloud Code Assist) has been retired and is no longer supported by AIFlowBridge.');
+  console.error('[AIFlowBridge auth] Google AI Pro/Ultra entitlements cannot be used through this transport. No network request was sent.');
+  console.error('[AIFlowBridge auth] Login, --probe and --list-models are unavailable. Creating or linking a GCP project does not make this integration supported.');
+  console.error('[AIFlowBridge auth] For Gemini API access, use: aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>  (separate route, may incur API charges)');
+  if (isProbe || isListModels) {
+    console.error(`[AIFlowBridge auth] Refused: ${providerArg ?? ''} targets the retired backend.`);
   }
-}
-
-/**
- * Diagnostic probe for the Antigravity / Google AI Studio path: resolves
- * a fresh access token, lists the Cloud-accessible models, and sends a
- * minimal non-streaming `streamGenerateContent` request. Prints the
- * upstream status + a truncated body so a `data: [DONE]`-only failure
- * can be told apart from an auth / project / model failure without
- * starting the full gateway. Invoked via
- * `aiflowbridge-server auth googleaistudio --probe` (raw envelope) or
- * `--list-models` (catalog only).
- */
-async function handleAntigravityProbe(tokenManager: AntigravityTokenManager, listOnly: boolean): Promise<void> {
-  const { fetchAvailableModels } = await import('../aiflowbridge/antigravity/catalog');
-  const { toAntigravityEnvelope } = await import('../aiflowbridge/antigravity/envelope');
-  const { DEFAULT_GOOG_API_CLIENT, DEFAULT_USER_AGENT, CLOUDCODE_STREAM_URL } = await import('../aiflowbridge/antigravity/constants');
-  let accessToken: string;
-  try {
-    accessToken = await tokenManager.getAccessToken();
-  } catch (err) {
-    console.error(`[AIFlowBridge auth] Probe: no usable token: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
-  const tokens = tokenManager.getTokens();
-  console.log(`[AIFlowBridge auth] Probe: token OK${tokens?.email ? ` (${tokens.email})` : ''}${tokens?.projectId ? ` project=${tokens.projectId}` : ' (no projectId)'}.`);
-  const catalog = await fetchAvailableModels(accessToken, tokens?.projectId);
-  console.log(`[AIFlowBridge auth] Probe: ${catalog.models?.length ?? 0} model(s) listed:`);
-  for (const m of catalog.models ?? []) {
-    console.log(`  - ${m.name}${m.displayName ? ` (${m.displayName})` : ''}`);
-  }
-  if (listOnly || !tokens?.projectId) {
-    return;
-  }
-  const envelope = toAntigravityEnvelope({ messages: [{ role: 'user', content: 'Hi' }] }, tokens.projectId, 'gemini-3.8-flash');
-  let response: Response;
-  try {
-    response = await fetch(CLOUDCODE_STREAM_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${accessToken}`,
-        'User-Agent': DEFAULT_USER_AGENT,
-        'X-Goog-Api-Client': DEFAULT_GOOG_API_CLIENT,
-      },
-      body: JSON.stringify(envelope),
-    });
-  } catch (err) {
-    console.error(`[AIFlowBridge auth] Probe: fetch failed: ${err instanceof Error ? err.message : String(err)}`);
-    return;
-  }
-  const body = await response.text().catch(() => '<unreadable body>');
-  console.log(`[AIFlowBridge auth] Probe: upstream status=${response.status} content-type=${response.headers.get('content-type') ?? '?'} body-bytes=${body.length}`);
-  console.log(body.length > 2000 ? `${body.slice(0, 2000)}...[truncated]` : body);
+  process.exit(1);
 }
 
 function resolveExtensionRoot(): string {
@@ -217,26 +149,6 @@ function resolveExtensionRoot(): string {
   // Fall back to the closest candidate (CWD-relative) so the error
   // message from `loadModelRegistry` shows the path the loader tried.
   return candidates[0];
-}
-
-/**
- * Best-effort opener for the OAuth consent URL: `xdg-open` on Linux,
- * `open` on macOS, `start` on Windows. Never throws - the caller
- * always prints the URL as fallback (SSH / WSL / headless shells).
- */
-function openUrlInBrowser(url: string): void {
-  const opener =
-    process.platform === 'win32'
-      ? { cmd: 'cmd', args: ['/c', 'start', '""', url] }
-      : process.platform === 'darwin'
-        ? { cmd: 'open', args: [url] }
-        : { cmd: 'xdg-open', args: [url] };
-  try {
-    const child = execFile(opener.cmd, opener.args, { windowsHide: true }, () => undefined);
-    child.unref?.();
-  } catch {
-    // ignore: the printed URL is the fallback.
-  }
 }
 
 function resolveExtensionVersion(extensionRoot: string): string {

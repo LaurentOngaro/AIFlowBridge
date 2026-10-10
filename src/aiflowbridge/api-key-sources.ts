@@ -42,10 +42,11 @@ export const SECRET_KEY_TO_ENV_NAME: Readonly<Record<string, string>> = {
   'aiflowbridge.providers.minimax.apiKey': 'AIFLOWBRIDGE_MINIMAX_API_KEY',
   'aiflowbridge.providers.xiaomi.apiKey': 'AIFLOWBRIDGE_XIAOMI_API_KEY',
   'aiflowbridge.providers.openrouter.apiKey': 'AIFLOWBRIDGE_OPENROUTER_API_KEY',
-  // The Google AI Studio BYOK API key is independent from the Antigravity
-  // OAuth tokens (which live in a different `secrets.json` slot and are
-  // managed by `AntigravityTokenManager`). Audit BUG-07: this entry was
+  // The Google AI Studio BYOK API key. Audit BUG-07: this entry was
   // missing, so `AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY` was silently ignored.
+  // It is now the ONLY Google credential slot: the Google product OAuth
+  // transport that used to live in a parallel `antigravity` slot was
+  // retired (see `src/aiflowbridge/google-transport-policy.ts`).
   'aiflowbridge.providers.googleaistudio.apiKey': 'AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY',
   'aiflowbridge.providers.zai.apiKey': 'AIFLOWBRIDGE_ZAI_API_KEY',
   'aiflowbridge.providers.moonshot.apiKey': 'AIFLOWBRIDGE_MOONSHOT_API_KEY',

@@ -109,19 +109,16 @@ aiflowbridge-server auth googleaistudio setApiKey <AIzaSy...>            # save 
 aiflowbridge-server auth googleaistudio clearApiKey                        # revoke it
 # ... or set AIFLOWBRIDGE_GOOGLEAISTUDIO_API_KEY in the environment.
 
-# Google AI Studio OAuth via Cloud Code Assist (advanced, UNVERIFIED - no successful generation observed; requires the project to be attached to the Cloud Code Assist programme. Do NOT treat it as a stand-in for AI Studio Pro or for the Google AI plan: those are unrelated billing surfaces):
-aiflowbridge-server auth googleaistudio                                    # login (prints the Google consent URL)
-aiflowbridge-server auth googleaistudio --status                           # login state, account, project, expiry
-aiflowbridge-server auth googleaistudio --logout                           # revoke OAuth tokens
-aiflowbridge-server auth googleaistudio --probe                            # token + project + upstream status diagnostic
-aiflowbridge-server auth googleaistudio --list-models                      # list Cloud Code Assist -permitted model ids
+# The Google product OAuth route (Antigravity / Cloud Code Assist) was RETIRED in this release. Login, --probe and --list-models now exit non-zero with an explanation, and send nothing to the network:
+aiflowbridge-server auth googleaistudio --status                           # local read only: reports the retired state and whether local credentials remain
+aiflowbridge-server auth googleaistudio --logout                           # local, idempotent deletion of the legacy credentials (NOT a remote revocation)
 ```
 
-`auth antigravity` is accepted as an alias (`antigravity` and `googleaistudio` name the same Cloud Code Assist OAuth feature).
-Custom OAuth clients for private Google Cloud tenants via `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET`.
-To enable the OAuth route, also set `aiflowbridge.providers.googleaistudio.baseUrl` to `https://cloudcode-pa.googleapis.com` in `config.json` (the default routes the BYOK path).
+`--status` never refreshes a token, `--logout` never contacts Google.
+Any configuration still pointing at `https://cloudcode-pa.googleapis.com` is refused by the gateway with HTTP 503 and the code `google_product_oauth_unsupported`, before any upstream request.
+See [providers.md](providers.md#the-retired-google-product-oauth-route) for the sources behind the decision.
 
-Full vendor notes: [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go) (recommended, always works) and [providers.md](providers.md#google-ai-studio-via-cloud-code-assist-oauth-advanced-unverified-in-the-field) (advanced, unverified).
+Full vendor notes: [providers.md](providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go).
 
 ## Run
 

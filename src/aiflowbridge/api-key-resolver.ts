@@ -54,7 +54,7 @@ export type ResolveSecretSource = SecretStorageLike | SecretsLike;
  * any id containing a forward slash), so it does not need to enumerate
  * every upstream provider name here.
  */
-const VENDOR_ALIASES: Record<KnownVendor | 'antigravity' | 'googleaistudio', readonly string[]> = {
+const VENDOR_ALIASES: Record<KnownVendor | 'googleaistudio', readonly string[]> = {
   deepseek: ['deepseek'],
   minimax: ['minimax'],
   xiaomi: ['xiaomi', 'mimo'],
@@ -67,7 +67,6 @@ const VENDOR_ALIASES: Record<KnownVendor | 'antigravity' | 'googleaistudio', rea
   zai: ['zai', 'glm'],
   moonshot: ['moonshot', 'kimi'],
   openrouter: ['openrouter'],
-  antigravity: ['antigravity'],
   googleaistudio: ['googleaistudio', 'gemini'],
 };
 

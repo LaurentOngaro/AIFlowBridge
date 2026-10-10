@@ -1,23 +1,14 @@
 /**
- * AIFlowBridge - Antigravity / Google AI Studio provider types.
+ * AIFlowBridge - shared Gemini translation types.
  *
- * Defines token models, PKCE structures, Cloud Code Assist request envelopes,
- * Gemini contents, tool call declarations, and SSE event shapes.
+ * Defines the Cloud Code request/response shapes used by the pure
+ * envelope translator and the SSE transforms, plus the Gemini content,
+ * tool-call and usage shapes both surfaces share.
+ *
+ * The OAuth token and PKCE types that used to live here are gone: they
+ * belonged to the retired Antigravity / Cloud Code Assist product
+ * transport (see `src/aiflowbridge/google-transport-policy.ts`).
  */
-
-export interface AntigravityTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  projectId?: string;
-  email?: string;
-  scopes?: string[];
-}
-
-export interface PkcePair {
-  verifier: string;
-  challenge: string;
-}
 
 export interface CloudCodePart {
   text?: string;
@@ -111,26 +102,4 @@ export interface CloudCodeStreamEvent {
   };
 }
 
-export interface LoadCodeAssistResult {
-  cloudaicompanionProject?: string;
-  currentTier?: {
-    id?: string;
-    name?: string;
-  };
-  allowedTiers?: Array<{
-    id?: string;
-    name?: string;
-  }>;
-}
 
-export interface CloudCodeModelInfo {
-  name: string;
-  displayName?: string;
-  maxInputTokens?: number;
-  maxOutputTokens?: number;
-  capabilities?: Record<string, boolean>;
-}
-
-export interface FetchAvailableModelsResult {
-  models?: CloudCodeModelInfo[];
-}

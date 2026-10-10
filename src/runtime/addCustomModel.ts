@@ -4,6 +4,7 @@
  */
 
 import vscode from 'vscode';
+import { isRetiredGoogleProductTransport } from '../aiflowbridge/google-transport-policy';
 import { tryGetLoadedRegistry } from '../aiflowbridge/modelRegistry';
 import { CONFIG_SECTION } from '../consts';
 import { t } from '../i18n';
@@ -57,6 +58,22 @@ export async function addCustomModelCommand(context: vscode.ExtensionContext): P
     const vendor = vendorPick.id as VendorId;
     const registryBaseUrl = tryGetLoadedRegistry()?.vendors[vendor]?.baseUrl ?? '';
     const baseUrl = registryBaseUrl.replace(/\/+$/, '');
+
+    // Model discovery must never probe the retired Google product OAuth
+    // backend. A registry override can point the vendor at it, and the
+    // command would otherwise issue a real request (and print a real
+    // upstream error) for a transport that answers nothing useful.
+    if (isRetiredGoogleProductTransport({ baseUrl })) {
+      logger.warn(
+        '[AIFlowBridge] Add custom model: refused to discover models on the retired Google product OAuth transport.'
+      );
+      void vscode.window.showWarningMessage(
+        'The configured Google AI Studio baseUrl points at the retired Google product OAuth transport (Antigravity / Cloud Code Assist). ' +
+          'Model discovery is not available there. Point "aiflowbridge.providers.googleaistudio.baseUrl" at the Gemini API ' +
+          '(https://generativelanguage.googleapis.com/v1beta) and configure an API key; that route may incur API charges.'
+      );
+      return;
+    }
 
     // 2. Read API key from SecretStorage (best-effort, fetch works without for some vendors)
     const apiKey = await Promise.resolve(context.secrets.get(`aiflowbridge.providers.${vendor}.apiKey`)).catch(() => undefined);
@@ -155,9 +172,7 @@ async function fetchUpstreamModels(baseUrl: string, apiKey: string | undefined, 
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (apiKey) {
     // Gemini BYOK (native surface) authenticates with `x-goog-api-key`,
-    // not `Authorization: Bearer`. Every other vendor uses Bearer
-    // (Antigravity OAuth resolves its token via the token manager and
-    // never reaches this branch with a raw key).
+    // not `Authorization: Bearer`. Every other vendor uses Bearer.
     if (vendor === 'googleaistudio') {
       headers['x-goog-api-key'] = apiKey;
     } else {

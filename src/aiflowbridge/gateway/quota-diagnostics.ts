@@ -12,18 +12,25 @@
  *     amount of retrying will ever succeed and the fix is a console
  *     change, not a wait.
  *
- * Google's surfaces make the third case look exactly like the second.
- * Observed on the Cloud Code Assist `v1internal` surface, a project with
- * zero entitlement answers a bare:
+ * Google's surfaces do NOT always let the three apart. A bare
  *
  *     {"error":{"code":429,"message":"Resource has been exhausted
  *       (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}
  *
- * while the Gemini Developer API adds a `google.rpc.QuotaFailure` detail
- * carrying `quotaMetric` / `quotaValue`, and usually a
- * `google.rpc.RetryInfo`. The presence of the violation block is what
- * separates "you have an allowance and it is spent" from "you have no
- * allowance".
+ * carries no violation block, so it is compatible with all three. This
+ * module therefore classifies ONLY on positive evidence:
+ *
+ *   - `billing-exhausted`  : 402, or an explicit "no billing" message.
+ *   - `rate-limited`        : a metric whose SUFFIX names a time window.
+ *   - `zero-allocation`     : a metric with an explicitly reported value
+ *                             of zero. Not the absence of a metric.
+ *   - `quota-exhausted`     : a metric with a non-zero allowance.
+ *
+ * Anything else stays UNCLASSIFIED (`undefined`), and the gateway then
+ * publishes no `X-AIFlowBridge-Quota-State` header at all. Asserting
+ * `zero-allocation` from a bare 429 would send the user chasing a
+ * console change for what may only be a momentary rate limit, and the
+ * absence of a metric is not evidence of a missing entitlement.
  *
  * This module is deliberately pure so the classification is testable
  * against recorded bodies, with no gateway, no host and no clock beyond
@@ -64,7 +71,7 @@ export interface QuotaDiagnosisInput {
 
 /**
  * JSON-ish Google error payloads reach us in three shapes: raw JSON, an
- * SSE `data: {...}` frame (the Antigravity surface answers errors with
+ * SSE `data: {...}` frame (several Google surfaces answer errors with
  * `content-type: text/event-stream`), or an empty body. Normalize all of
  * them to an object, or `undefined` when there is nothing to read.
  */
@@ -247,10 +254,10 @@ export function diagnoseUpstreamQuota(input: QuotaDiagnosisInput): QuotaDiagnosi
     };
   }
 
-  // Require positive evidence before classifying. A bare 429 whose body we
-  // cannot read stays unclassified rather than being asserted as an
-  // entitlement gap: guessing here would send the user chasing a console
-  // change for what may only be a momentary rate limit.
+  // Positive evidence is required for every classification below.
+  // A bare `RESOURCE_EXHAUSTED` with no readable violation block is
+  // compatible with a rate limit, a spent allowance and a missing
+  // entitlement, so it stays unclassified.
   const explicitStatus = firstString(error, 'status');
   const isResourceExhausted =
     explicitStatus === 'RESOURCE_EXHAUSTED' || /resource has been exhausted|check quota/i.test(message);
@@ -259,6 +266,13 @@ export function diagnoseUpstreamQuota(input: QuotaDiagnosisInput): QuotaDiagnosi
   }
 
   const retryAfterSeconds = headerRetryAfter ?? retryDelaySeconds;
+
+  // No quota metric at all: no verdict. The caller then publishes no
+  // quota header, which is the honest outcome: the status alone does not
+  // tell us which of the three situations this is.
+  if (metric === undefined) {
+    return undefined;
+  }
 
   // A per-window metric is a rate limit: it clears on its own.
   if (looksLikeRateLimit(metric)) {
@@ -273,19 +287,18 @@ export function diagnoseUpstreamQuota(input: QuotaDiagnosisInput): QuotaDiagnosi
     };
   }
 
-  // RESOURCE_EXHAUSTED with no violation block, or with a zero allowance:
-  // the upstream accepted the credentials but there is nothing to spend.
-  // This is the case that reads like a transient 429 and never is.
-  if (metric === undefined || isZeroAllocation(value)) {
+  // A metric whose reported allowance is exactly zero is positive
+  // evidence of an entitlement gap: the upstream named the metric AND
+  // reported nothing to spend on it. Retrying cannot fix this.
+  if (isZeroAllocation(value)) {
     return {
       state: 'zero-allocation',
       retryAfterSeconds,
       quotaMetric: metric,
       quotaValue: value,
       summary:
-        `Upstream returned RESOURCE_EXHAUSTED with no quota allocated to this account or project${metric ? ` (${metric} = ${value ?? '0'})` : ''}. ${
-          metric === undefined ? 'No quota metric was reported' : 'The reported allowance is zero'
-        }, so this is an entitlement gap rather than a spent budget. Retrying will not help: grant the project Cloud Code Assist quota in the Google Cloud console, or switch this provider to the BYOK API-key route.`,
+        `Upstream reports a quota of zero for ${metric} on this account or project, so this is an entitlement gap rather than a spent budget. ` +
+        'Retrying will not help: review the quota granted to this account in the upstream provider console, or use a different credential.',
     };
   }
 

@@ -1,6 +1,13 @@
-import type { GoogleAIStudioRoute } from './googleai-studio-route';
-
 export type BridgeMode = 'proxy' | 'vision' | 'proxy+vision';
+/**
+ * Provider transport family.
+ *
+ * `'antigravity'` and `'googleaistudio'` are LEGACY values kept so an
+ * existing configuration still parses (and is then refused by
+ * `classifyGoogleTransport` with an explicit error) instead of being
+ * silently coerced into a route that would answer. Newly synthesized
+ * profiles never carry them.
+ */
 export type ProviderKind = 'openai-compat' | 'ollama' | 'antigravity' | 'googleaistudio';
 export type OutputMode = 'clipboard' | 'insert' | 'copilot';
 
@@ -195,22 +202,9 @@ export interface IGatewayContext {
    *  delegates to `vscode.commands.executeCommand`; standalone has no
    *  command palette and leaves this undefined. */
   executeCommand?(command: string, ...args: unknown[]): Promise<unknown>;
-  /** Ask the user to pick between the two Google AI Studio routes.
-   *  Optional - the VS Code adapter implements it with
-   *  `vscode.window.showQuickPick`; standalone leaves it undefined.
-   *
-   *  The choice is explicit rather than a blind toggle: a toggle makes a
-   *  second invocation flip the route back, which reads as "the switch
-   *  does not work" and lands the user on the opposite route than the
-   *  one they asked for. Resolves to `undefined` when dismissed. */
-  pickRoute?(choices: readonly RouteChoice[]): Promise<GoogleAIStudioRoute | undefined>;
-}
-
-/** One entry of the Google AI Studio route picker. */
-export interface RouteChoice {
-  route: GoogleAIStudioRoute;
-  label: string;
-  description?: string;
+  // The `pickRoute` hook and the `RouteChoice` type are gone with the
+  // Google product OAuth transport: there was exactly one route to pick
+  // between, so a picker over two entries had no second destination.
 }
 
 export interface ProviderProfile {

@@ -52,6 +52,7 @@ vi.mock('vscode', () => {
   };
 });
 
+import { isRetiredGoogleProductTransport } from '../src/aiflowbridge/google-transport-policy';
 import { synthesizeProvidersFromBuiltInModels, synthesizeProvidersFromUserModels } from '../src/aiflowbridge/host-config';
 import { setLoadedRegistry } from '../src/aiflowbridge/modelRegistry';
 import { validateRegistryContent, validateRegistryStructure } from '../src/aiflowbridge/modelRegistry.schema';
@@ -283,12 +284,13 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     expect(deepseek?.kind).toBe('openai-compat');
   });
 
-  it('switches to the antigravity kind when the user points baseUrl at cloudcode-pa', () => {
-    // Same family, different upstream: the AGY / Cloud Code Assist
-    // route. The user opts in via `aiflowbridge.providers.googleaistudio.baseUrl`
-    // override, the synthesizer reads the host and tags the profile
-    // `kind: 'googleaistudio'` + `billing: 'plan'`. Both legacy and
-    // current tests land here.
+  it('does not rewrite a user override pointing at the retired route', () => {
+    // A settings / registry override can still name the retired Google
+    // product OAuth host. The synthesizer must NOT silently repoint it:
+    // changing the effective baseUrl would change what the user is
+    // billed for without consent. The profile is synthesized as-is and
+    // the gateway refuses it at request time with an explicit error
+    // (`google_product_oauth_unsupported`).
     const config = {
       get: (key: string, fallback?: unknown) => {
         if (key === 'providers.googleaistudio.baseUrl') return 'https://cloudcode-pa.googleapis.com';
@@ -298,8 +300,12 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     const providers = synthesizeProvidersFromBuiltInModels([], config as never, loadBundledRegistry());
     const gemini = providers.find((p) => p.id === 'gemini-3.8-flash');
     expect(gemini).toBeDefined();
-    expect(gemini?.kind).toBe('googleaistudio');
-    expect(gemini?.billing).toBe('plan');
+    expect(gemini?.baseUrl).toBe('https://cloudcode-pa.googleapis.com');
+    // No legacy transport marker and no automatic plan billing: the
+    // transport policy is what refuses this profile, not the kind tag.
+    expect(gemini?.kind).toBe('openai-compat');
+    expect(gemini?.billing).toBeUndefined();
+    expect(isRetiredGoogleProductTransport({ kind: gemini?.kind, baseUrl: gemini?.baseUrl })).toBe(true);
   });
 
   it('preserves the order: existing providers first, then built-in syntheses', () => {

@@ -59,22 +59,22 @@ const GEMINI_BILLING = JSON.stringify({
   },
 });
 
-describe('quota diagnostics - Cloud Code Assist (the case that motivated this)', () => {
-  it('reads a bare RESOURCE_EXHAUSTED as zero allocation, not as a spent budget', () => {
-    const diagnosis = diagnoseUpstreamQuota({ status: 429, bodyText: CLOUDCODE_BARE });
-    expect(diagnosis?.state).toBe('zero-allocation');
-    // No quota metric in the body: the upstream accepted the credentials
-    // but reports nothing to spend, which is an entitlement gap.
-    expect(diagnosis?.quotaMetric).toBeUndefined();
-    expect(diagnosis?.summary).toMatch(/no quota allocated/i);
-    expect(diagnosis?.summary).toMatch(/retrying will not help/i);
+describe('quota diagnostics - a bare RESOURCE_EXHAUSTED proves nothing', () => {
+  it('stays unclassified when the body carries no quota violation block', () => {
+    // The body is compatible with a rate limit, a spent allowance AND a
+    // missing entitlement. Asserting `zero-allocation` here would send
+    // the user after a console change for what may only be a momentary
+    // rate limit, so the module declines to guess and the gateway then
+    // publishes no `X-AIFlowBridge-Quota-State` header at all.
+    expect(diagnoseUpstreamQuota({ status: 429, bodyText: CLOUDCODE_BARE })).toBeUndefined();
   });
 
-  it('handles the SSE-framed variant the same way', () => {
-    // The Antigravity surface answers errors with
-    // `content-type: text/event-stream` but a JSON payload.
-    const diagnosis = diagnoseUpstreamQuota({ status: 429, bodyText: CLOUDCODE_SSE });
-    expect(diagnosis?.state).toBe('zero-allocation');
+  it('stays unclassified on the SSE-framed variant too', () => {
+    // Several Google surfaces answer errors with
+    // `content-type: text/event-stream` but a JSON payload. The framing
+    // is parsed (so a readable body is not lost), but the missing
+    // evidence still blocks a verdict.
+    expect(diagnoseUpstreamQuota({ status: 429, bodyText: CLOUDCODE_SSE })).toBeUndefined();
   });
 
   it('stays unclassified when a 429 carries no readable body', () => {
@@ -85,6 +85,9 @@ describe('quota diagnostics - Cloud Code Assist (the case that motivated this)',
   });
 
   it('treats an explicitly zero allowance as zero allocation', () => {
+    // Positive evidence: the upstream NAMED the metric AND reported a
+    // value of zero. That is an entitlement gap, unlike the absence of
+    // a metric.
     const body = JSON.stringify({
       error: {
         code: 429,
@@ -125,19 +128,30 @@ describe('quota diagnostics - Gemini Developer API (a real, spent budget)', () =
     expect(diagnosis?.summary).toContain('It resets at 2026-10-09T10:00:37.000Z');
   });
 
-  it('distinguishes this from zero allocation, which is the whole point', () => {
+  it('distinguishes a spent allowance from a bare body with no evidence', () => {
     const spent = diagnoseUpstreamQuota({ status: 429, bodyText: GEMINI_WITH_VIOLATION });
     const never = diagnoseUpstreamQuota({ status: 429, bodyText: CLOUDCODE_BARE });
-    expect(spent?.state).not.toBe(never?.state);
     expect(spent?.state).toBe('quota-exhausted');
-    expect(never?.state).toBe('zero-allocation');
+    expect(never).toBeUndefined();
+  });
+
+  it('does not read a metric containing "generate" as a rate limit', () => {
+    // Regression guard: an earlier version matched the bare substring
+    // `rate`, which every Google metric contains, and reclassified a
+    // per-day allowance as a transient limit. Only a time-window SUFFIX
+    // makes a metric a rate limit.
+    const diagnosis = diagnoseUpstreamQuota({ status: 429, bodyText: GEMINI_WITH_VIOLATION });
+    expect(diagnosis?.quotaMetric).toContain('generate_content');
+    expect(diagnosis?.state).toBe('quota-exhausted');
   });
 
   it('classifies depleted prepayment credits as billing, never as rate limiting', () => {
     const diagnosis = diagnoseUpstreamQuota({ status: 402, bodyText: GEMINI_BILLING });
     expect(diagnosis?.state).toBe('billing-exhausted');
     expect(diagnosis?.summary).toMatch(/waiting will not help/i);
-    expect(diagnosis?.summary).toMatch(/BYOK API-key route/);
+    // The remedy text must not steer the user towards the retired
+    // Google product OAuth route.
+    expect(diagnosis?.summary).not.toMatch(/antigravity/i);
   });
 });
 
@@ -179,9 +193,11 @@ describe('quota diagnostics - rate limits', () => {
 
   it('accepts an HTTP-date Retry-After', () => {
     const now = Date.parse('2026-10-09T10:00:00Z');
+    // The metric is required for a verdict: a Retry-After header alone
+    // narrows nothing without a classified state.
     const diagnosis = diagnoseUpstreamQuota({
       status: 429,
-      bodyText: CLOUDCODE_BARE,
+      bodyText: GEMINI_WITH_VIOLATION,
       headers: { 'retry-after': 'Fri, 09 Oct 2026 10:05:00 GMT' },
       now,
     });
@@ -193,10 +209,22 @@ describe('quota diagnostics - rate limits', () => {
       error: {
         code: 429,
         status: 'RESOURCE_EXHAUSTED',
-        details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '1500ms' }],
+        details: [
+          { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '1500ms' },
+          {
+            '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [
+              {
+                quotaMetric: 'cloudaicompanion.googleapis.com/generate_content_requests_per_minute',
+                quotaValue: '5',
+              },
+            ],
+          },
+        ],
       },
     });
     const diagnosis = diagnoseUpstreamQuota({ status: 429, bodyText: body });
+    expect(diagnosis?.state).toBe('rate-limited');
     expect(diagnosis?.retryAfterSeconds).toBe(2);
   });
 });

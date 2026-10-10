@@ -1,4 +1,5 @@
 import type { ProviderProfile } from './types';
+import { isRetiredGoogleProductTransport } from './google-transport-policy';
 
 function toBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
@@ -220,20 +221,13 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
       const candidate = entry as Record<string, unknown>;
       const id = toString(candidate.id);
       const label = toString(candidate.label, id);
-      // The `googleaistudio` family has TWO auth routes:
-      //   1. `kind: 'googleaistudio'` -> Antigravity / Cloud Code Assist
-      //      (OAuth, gated, no API key) - handled in `server.ts`
-      //      `buildAntigravityUpstreamRequest`.
-      //   2. `kind: 'openai-compat'` + `baseUrl: 'https://generativelanguage.googleapis.com/v1beta'`
-      //      -> BYOK API key against the public Gemini API. This is the
-      //      always-available fallback when the OAuth route is not
-      //      whitelisted for the user's Cloud Code Assist tenant (see
-      //      `docs/providers.md#google-ai-studio-via-api-key-byok-pay-as-you-go`).
-      // The synthesis in `host-config.ts` tags OAuth-vendor entries with
-      // `kind: 'googleaistudio'` and BYOK entries with their registry
-      // setting (openai-compat by default). The default below matches the
-      // syntetized OAuth family but lets a user override a profile entry
-      // to openai-compat explicitly.
+      // `kind: 'googleaistudio'` and the legacy `kind: 'antigravity'`
+      // are still ACCEPTED here so an existing configuration parses
+      // unchanged and can be refused by the transport policy with an
+      // explicit error, instead of being silently dropped (which would
+      // turn the refusal into a confusing 404 "unknown model"). The
+      // default stays `openai-compat`, which is what every supported
+      // route uses.
       const kind = candidate.kind === 'ollama' || candidate.kind === 'antigravity' || candidate.kind === 'googleaistudio' ? candidate.kind : 'openai-compat';
       const baseUrl = toString(candidate.baseUrl);
       const model = toString(candidate.model);
@@ -251,13 +245,13 @@ export function normalizeProviderProfiles(rawProfiles: unknown): ProviderProfile
       const inputPerMillion = toNumber(pricing?.inputPerMillion, 0);
       const outputPerMillion = toNumber(pricing?.outputPerMillion, 0);
 
-      // Billing mode: explicit `billing: 'plan'` wins (user checked
-      // "Billed to a token plan" in settings). OAuth kinds
-      // (`antigravity` / `googleaistudio`) are always plan-covered
-      // (Google AI plan via OAuth, no per-token bill). Everything
-      // else defaults to per-token billing.
+      // Billing mode: explicit `billing: 'plan'` wins (the user checked
+      // "Billed to a token plan" in settings). Nothing is inferred from
+      // the vendor or the auth METHOD: an OAuth-flavoured transport
+      // does not prove a subscription covers the usage, and the retired
+      // Google product OAuth is refused before telemetry anyway.
       const rawBilling = typeof candidate.billing === 'string' ? candidate.billing.trim().toLowerCase() : '';
-      const billing = rawBilling === 'plan' || kind === 'antigravity' || kind === 'googleaistudio' ? ('plan' as const) : undefined;
+      const billing = rawBilling === 'plan' ? ('plan' as const) : undefined;
 
       return {
         id,
@@ -336,7 +330,12 @@ export function buildModelCatalog(providers: ProviderProfile[]): Array<{
   const created = 0;
 
   return providers
-    .filter((profile) => profile.enabled)
+    // A profile pointing at the retired Google product OAuth transport
+    // is filtered out of the catalog: listing a model the gateway will
+    // deterministically refuse would point the user at a picker entry
+    // that always fails. The Gemini public-API model ids stay listed -
+    // they are a different, supported route.
+    .filter((profile) => profile.enabled && !isRetiredGoogleProductTransport({ kind: profile.kind, baseUrl: profile.baseUrl }))
     .map((profile) => ({
       id: profile.id,
       object: 'model' as const,

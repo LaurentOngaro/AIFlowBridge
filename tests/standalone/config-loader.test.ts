@@ -130,6 +130,9 @@ describe('StandaloneConfigFile', () => {
   it('exposes the bundled defaults map (sanity)', () => {
     expect(DEFAULT_STANDALONE_CONFIG['gateway.enabled']).toBe(true);
     expect(DEFAULT_STANDALONE_CONFIG['gateway.port']).toBe(8787);
+    expect(DEFAULT_STANDALONE_CONFIG['providers.googleaistudio.baseUrl']).toBe(
+      'https://generativelanguage.googleapis.com/v1beta'
+    );
   });
 
   it('reads arrays written at nested keys', () => {

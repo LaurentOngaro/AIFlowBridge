@@ -56,8 +56,9 @@ The dashboard makes the distinction visible without any extra configuration step
 - CSV / JSON exports carry a `billedTo` column (`token` or `plan`) per row.
 
 Mark a provider as plan-covered with `"billing": "plan"` on its `aiflowbridge.providers` entry in `settings.json` (same shape in `~/.aiflowbridge/config.json` standalone).
-OAuth kinds (`antigravity`, `googleaistudio`) are plan only when the synthesizer detects the AGY baseUrl (`cloudcode-pa.googleapis.com`).
-The same `googleaistudio` family pointed at `generativelanguage.googleapis.com` (BYOK default) stays per-token.
+Nothing is inferred from the vendor or the authentication method: a subscription entitlement is not assumed from an OAuth-flavoured transport.
+The retired Google product OAuth route used to be stamped `plan` automatically; that stamp is gone with the route.
+The `googleaistudio` family on `generativelanguage.googleapis.com` (the supported BYOK route) stays per-token.
 Full details and the bundled Gemini rates: [providers.md#token-plans-vs-per-token-billing](providers.md#token-plans-vs-per-token-billing).
 
 ## Collapsible panels

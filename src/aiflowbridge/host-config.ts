@@ -243,37 +243,25 @@ function synthesizeProviderForModel(
   const resolved = resolvePricingForModel(model.id, model.pricing, pricingRegistry, familyPricing, family);
 
   taken.add(model.id);
-  // The `googleaistudio` family has TWO auth routes, and only the AGY
-  // OAuth one requires the `kind: 'googleaistudio'` runtime branch
-  // (envelope + SSE transform). The BYOK public-API route is plain
-  // OpenAI-compatible and goes through the upstream generic path.
+  // The `googleaistudio` family has exactly ONE supported route: the
+  // public Gemini API with a BYOK API key, which is plain
+  // OpenAI-compatible. The Antigravity / Cloud Code Assist product
+  // OAuth route was retired (see `src/aiflowbridge/google-transport-
+  // policy.ts`), so nothing here tags a profile `googleaistudio` any
+  // more.
   //
-  // Synthesizing the BYOK profiles (pointed at
-  // `generativelanguage.googleapis.com`) as `kind: 'googleaistudio'`
-  // would route them through `buildAntigravityUpstreamRequest`, which
-  // would try to use the OAuth token manager and reject the call with
-  // 503. We therefore key on `family` + baseUrl host: an Antigravity
-  // baseUrl (`cloudcode-pa.googleapis.com`) keeps the AGY branch; any
-  // other baseUrl on the same family tags the profile `openai-compat`
-  // with the BYOK billing posture (per-token).
-  const upstreamHost = (() => {
-    try {
-      return new URL(baseUrl).hostname.toLowerCase();
-    } catch {
-      return '';
-    }
-  })();
-  const isAntigravityHost = upstreamHost === 'cloudcode-pa.googleapis.com';
-  const kind: ProviderProfile['kind'] = isAntigravityHost ? 'googleaistudio' : 'openai-compat';
-  // Billing mode:
-  //   - Antigravity OAuth (`kind: 'googleaistudio'`, cloudcode-pa host)
-  //     -> always plan-covered: usage is on the user's Google AI plan.
-  //   - Gemini public API BYOK (`kind: 'openai-compat'`,
-  //     generativelanguage host, any other googleaistudio family baseUrl)
-  //     -> per-token: the API key route bills against the user's GCP
-  //     project's pay-as-you-go counter. The plan-coverage flag would
-  //     hide a real charge, so it must NOT be set automatically.
-  const billing: ProviderProfile['billing'] = isAntigravityHost ? 'plan' : undefined;
+  // A registry or settings override that still points the family at
+  // `cloudcode-pa.googleapis.com` is NOT rewritten here: rewriting a
+  // user's effective configuration silently would change their billing
+  // without consent. The profile is synthesized as-is and the gateway
+  // refuses it at request time with an explicit, actionable error.
+  const kind: ProviderProfile['kind'] = 'openai-compat';
+  // Billing mode: the Gemini public API is per-token. The plan-coverage
+  // flag must NOT be set automatically - it would hide a real charge on
+  // the user's GCP project. An explicit `billing: 'plan'` on a
+  // hand-written provider profile still wins, in
+  // `normalizeProviderProfiles`.
+  const billing: ProviderProfile['billing'] = undefined;
   return {
     id: model.id,
     label: model.name,

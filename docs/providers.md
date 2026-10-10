@@ -4,7 +4,7 @@
 
 ## Supported models (38 bundled + 100+ reachable via OpenRouter)
 
-> Data snapshot: 2026-10-01 (AIFlowBridge 2.23.1). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
+> Data snapshot: 2026-10-01 (AIFlowBridge 2.24.0). Upstream ids and prices verified against the vendor docs and, for OpenRouter, the live `GET /api/v1/models` catalogue.
 
 | Provider         | Models                                                                                                                                                           | Vision          | Tool Calling |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------ |
@@ -21,7 +21,7 @@
 Notes:
 
 - The 11 direct Copilot Chat models in the table above (DeepSeek, MiniMax, Xiaomi) expose the image-paste button in Copilot Chat. **Native** models accept images directly. **Proxied** models route the image through a separate vision-capable model that produces a text description, which is then injected into the prompt (see [vision-proxy.md](vision-proxy.md)).
-- **Google AI Studio (Gemini 3.8 / 3.7 / 3.6 Flash)** is gateway-only like OpenRouter. Two auth routes share the same model ids and the same vendor: BYOK on the Gemini public API (`generativelanguage.googleapis.com`, an `AIzaSy...` key, **the default and the only route verified to work**) and OAuth on Cloud Code Assist (`cloudcode-pa.googleapis.com`). The project calls the latter "Antigravity" in places; it is the same feature, not a separate one. The OAuth route needs the Cloud project attached to the Cloud Code Assist programme and **has never produced a successful generation call** - see [the OAuth section](#google-ai-studio-via-cloud-code-assist-oauth-advanced-unverified-in-the-field).
+- **Google AI Studio (Gemini 3.8 / 3.7 / 3.6 Flash)** is gateway-only like OpenRouter, reached over the Gemini public API with your own `AIzaSy...` API key. A second route existed from 2.17.0 until this release: Google product OAuth (Antigravity / Cloud Code Assist, `cloudcode-pa.googleapis.com`). **That route has been retired** and is refused locally - see [the retired route section](#the-retired-google-product-oauth-route).
 - **Thinking** indicates a reasoning model with a thinking-effort selector exposed in Copilot Chat. MiniMax M2.7 does not expose a thinking selector. **MiniMax M3 exposes a "Thinking Effort" selector** (None / High / Max) that maps to the upstream `reasoning_split` boolean - see [reasoning.md](reasoning.md). **MiniMax M3.1 Flash Preview cannot switch reasoning off**, but its depth is tunable: its selector offers five levels (Low / Medium / High / Extra high / Max) forwarded verbatim as the upstream `reasoning_effort` field. Its upstream answers HTTP 400 (`requires adaptive thinking`) to `reasoning_split: false`, `thinking.type: "disabled"` and `reasoning_effort: "none"`, so AIFlowBridge rewrites those off signals on both the gateway and the Copilot Chat path and logs a line when it does; the picker cannot produce one because it offers no `None`. The `aiflowbridge.providers.minimax.reasoningEffort` setting is the fallback when the selector is untouched (`max`, the upstream default, otherwise).
 - **Z.ai and MoonshotAI are gateway-only**, like OpenRouter and Google AI Studio: no Copilot Chat picker entry, reached from Kilo Code / Continue / `curl` through `http://127.0.0.1:8787/v1`. GLM 5.3 and Kimi K3 always reason and cannot be switched off, so a request asking for no reasoning would be rejected upstream. **The gateway rewrites those signals to thinking-on for you** before forwarding: `thinking.type: disabled`, `reasoning_split: false` and `reasoning_effort: none` are upgraded, and an INFO line says so. This applies to every model declared `requiresThinkingParam` in the registry, not just the two above, so you no longer have to remember which model forbids the off switch.
 - Configure the proxied vision model with `AIFlowBridge: Set vision proxy model` or via `aiflowbridge.vision.copilotVisionModel`.
@@ -168,84 +168,63 @@ Setup:
 
 Notes:
 
-- The bundled default `vendors.googleaistudio.baseUrl` is `https://generativelanguage.googleapis.com/v1beta` (BYOK route). The synthesizer tags the synthesized profile `kind: 'googleaistudio'` for this host, so it runs through the native-surface path (`buildGeminiNativeUpstreamRequest`: OpenAI-to-native envelope translation, native SSE reshape, `x-goog-api-key` auth) - the generic `openai-compat` path is never used for Gemini.
-- The gateway resolves the effective route from a 4-tier precedence chain (settings `aiflowbridge.providers.googleaistudio.baseUrl`, workspace registry override, globalStorage registry override, bundled default). The `AIFlowBridge: Switch Google AI Studio route` command resolves the effective route through the same chain before deciding, strips stale `vendors.googleaistudio` and `vendors.antigravity` entries from both override files on switch, and names the source tier in the toast - a stale override can no longer silently point the toggle the wrong way.
-- Only the `vendors.googleaistudio` key selects the route, in the command as in the gateway (`GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS`, `src/aiflowbridge/googleai-studio-route.ts`). `vendors.antigravity` is metadata-only, so an override carrying the OAuth URL under it never selects a route and no longer makes the switcher report "already on OAuth" while the gateway serves BYOK.
-- The command reads the setting back after writing it. If the window does not serve `aiflowbridge` (a configuration scope that does not include it), the write sticks nowhere, so the command reports it and names the registry override to edit instead, and leaves that override untouched rather than deleting the only configuration that is actually selecting the route.
+- The bundled default `vendors.googleaistudio.baseUrl` is `https://generativelanguage.googleapis.com/v1beta`. Synthesized Gemini profiles are tagged `kind: 'openai-compat'` and still take the native-surface path (`buildGeminiNativeUpstreamRequest`: OpenAI-to-native envelope translation, native SSE reshape, `x-goog-api-key` auth) because the host matches - the generic relay path is never used for Gemini.
+- The gateway resolves the effective base URL from a 4-tier precedence chain (settings `aiflowbridge.providers.googleaistudio.baseUrl`, workspace registry override, globalStorage registry override, bundled default). `AIFlowBridge: Migrate Google AI Studio off the retired OAuth route to the Gemini API` reads that chain to report WHICH tier still carries a retired value.
+- Only the `vendors.googleaistudio` key carries a route signal (`GOOGLEAISTUDIO_ROUTE_VENDOR_KEYS`, `src/aiflowbridge/googleai-studio-route.ts`). `vendors.antigravity` is metadata-only and selects nothing.
+- The migration command reads the setting back after writing it. If the window does not serve `aiflowbridge` (a configuration scope that does not include it), the write sticks nowhere, so the command reports it and names the registry override to edit instead.
 - Like OpenRouter, this vendor is gateway-only: it does not appear in the Copilot Chat picker (AP-013). Kilo Code, Continue, JetBrains AI Assistant, Open WebUI, and `curl` reach the Gemini ids via the gateway.
 
-## Google AI Studio via Cloud Code Assist OAuth (advanced, unverified in the field)
+## The retired Google product OAuth route
 
-> **Naming.** "Google AI Studio OAuth" and "Antigravity OAuth" are the same feature and the same route. AIFlowBridge uses `cloudcode-pa.googleapis.com`, which is the Cloud Code Assist surface, not a separate Antigravity backend. Wherever the UI says "Antigravity", it means this OAuth route on the Google AI Studio vendor.
+> **Naming.** The route retired in this release was the OAuth transport against `cloudcode-pa.googleapis.com`, the Cloud Code Assist surface. The project called it "Antigravity OAuth" in places because it targeted the Antigravity product's quota. "Antigravity" here is the historical internal name of that one route, not a general identity for Google's products.
 
-Gemini 3.8 / 3.7 / 3.6 Flash are reachable through the same local gateway without any API key, for accounts whose Cloud project has been granted Cloud Code Assist quota.
-Authentication uses Google OAuth (Authorization Code + PKCE): tokens are stored in `<globalStorageDir>/secrets.json` (chmod 600) and refreshed automatically, and requests are sent to `cloudcode-pa.googleapis.com` with the Google AI plan attached to the account, not billed per token through AIFlowBridge.
+Between 2.17.0 and this release, AIFlowBridge shipped a second Google route that needed no API key: Google OAuth (Authorization Code + PKCE) against `cloudcode-pa.googleapis.com`, intended to spend the quota attached to the user's Google AI Pro/Ultra subscription.
+**That route has been removed from the product.** It is not merely disabled or hidden.
 
-### Status: the route has never produced a successful generation
+### Why
 
-**This route ships since 2.17.0 and has never been observed working. Treat it as unverified.** The reasons are known and none of them is a bug in AIFlowBridge:
+Google documents the Antigravity backend as an internal API for its own IDE features.
+The [Google Antigravity FAQ](https://antigravity.google/docs/faq) explicitly states that accessing Antigravity services through third-party software, tools, or unauthorized OAuth piggybacking directly violates Google's Terms of Service and can result in account suspension or termination.
+Google officially requires third-party agents and tools to use an API key route (Google AI Studio or Vertex AI) instead.
+Furthermore, the Gemini Code Assist consumer-accounts page announced the shutdown of Code Assist extension and Gemini CLI requests for individual, Google AI Pro, and Ultra accounts as of **2026-06-18**.
+The Cloud Code Assist setup page documents a separate Standard/Enterprise subscription and describes `cloudcode-pa.googleapis.com` as an internal API for IDE functionality.
+No official Google surface was identified that documents AIFlowBridge as a supported client or that converts a consumer Pro/Ultra entitlement into a token budget that a third-party gateway may spend.
 
-- The route requires the Cloud project to be attached to the **Cloud Code Assist programme**. A personal GCP project that is not attached reports `zero-allocation` on every generation call, while `fetchAvailableModels` keeps answering, so the account looks connected while nothing can be generated. The gateway reports this as `X-AIFlowBridge-Quota-State: zero-allocation` and logs it at ERROR level (see [troubleshooting](troubleshooting.md)).
-- The Google AI plan attached to an account covers the Antigravity product, **not** the Cloud Code Assist API. A user can therefore use Gemini 3.8 in the Antigravity extension and get `zero-allocation` through this route with the same account.
+This is a deliberate product decision: the OAuth transport was implemented in v2.17.0 to explore consumer quota access, but had to be completely retired because accessing these endpoints outside official Google clients is an explicit Terms of Service violation.
+The status of each remote error was never determined by the HTTP status alone.
 
-Two routing defects made the situation harder to read before 2.23.0, both fixed in that release: the route switcher resolved the effective route from a metadata-only vendor key and could report "already on OAuth" while the gateway served the **BYOK** surface (so a user who had selected OAuth was silently billed per token), and it did not verify that the configuration change it wrote was actually readable, which made the switch a silent no-op in a window whose scope did not serve the setting.
+### What a legacy configuration does now
 
-### The billing trap, stated plainly
+Any profile pointing at the retired host is **refused locally, before any credential resolution and before any upstream request**:
 
-Because of those defects, selecting the OAuth route did not guarantee that requests took it.
-Before 2.23.0, a user could connect OAuth, see "token valid" in the log, and still have every request served by the **BYOK** route, billed to their own GCP project, because the gateway never switched.
-Two things make this visible today:
+- **HTTP 503** with an OpenAI-shaped error and the stable code `google_product_oauth_unsupported`.
+- **No upstream request is sent**, and no browser opens, no callback server binds, no token is refreshed.
+- **No partial SSE stream** is opened for a streaming client: the refusal is plain JSON.
+- **No implicit fallback to BYOK.** A leftover `AIzaSy...` key on the same profile is not used as a fallback, because switching routes changes what you are billed for. That is a separate, explicit action.
+- The profile is also **hidden from `GET /v1/models`**, so no client picker offers a model that always fails.
 
-- `GET /v1/metrics` and the dashboard report `authMode` per request (`byok` / `oauth` / `plan` / `token`). Check it after switching: if a request you expected to be `oauth` shows up as `byok`, the route did not take.
-- The `authMode` field only exists since **2.18.2**; requests recorded before that are labelled `unknown`. Rows that predate it cannot be used to determine which route served them.
+The refusal message names the retired transport, states that nothing was sent, and points at the Gemini API as a separate route that may incur charges.
+It deliberately does **not** suggest that creating or linking a GCP project repairs the integration: no official Google surface documents that as a remedy.
 
-The route switch takes effect at the next activation. The command offers to reload the window for that reason.
+The `AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)` command id is retained as a stub that explains the retirement without touching the network, so a stale keybinding fails with an explanation instead of "command not found".
+It is hidden from the Command Palette.
 
-**Switching between routes** - the BYOK (default, `generativelanguage.googleapis.com/v1beta`) and OAuth (advanced, `cloudcode-pa.googleapis.com`) routes share the same model ids but need different upstream credentials.
-The Command Palette command `AIFlowBridge: Switch Google AI Studio route` **asks which route you want** (Google AI Studio OAuth via Cloud Code Assist first, then BYOK) rather than flipping a toggle, writes `aiflowbridge.providers.googleaistudio.baseUrl` to the matching value, and automatically clears the credentials of the inactive route (revokes OAuth tokens when leaving AGY, clears the API key when leaving BYOK) so stale credentials from the previous route never answer a request meant for the new one.
-Asking is deliberate: a blind toggle flips on every invocation, so running it twice to check lands on the route you did not ask for, which reads as a broken switch and, on the OAuth route, silently reintroduces billed API-key traffic.
-Asking makes a repeated invocation a no-op.
+### Cleaning up the local credentials
 
-Two details worth knowing:
+`AIFlowBridge: Delete local Google product OAuth credentials` (standalone: `aiflowbridge-server auth googleaistudio --logout`) removes the legacy `antigravity` slot from `<globalStorageDir>/secrets.json`.
+The purge is local, selective (your API keys and every other vendor's key are untouched), idempotent, and preserves the store's `0600` permissions.
 
-- **The command does not pick for you.** With no choice it changes nothing and reports the route it is currently on, resolved through the same 4-tier chain as the gateway (settings, workspace override, globalStorage override, bundled default). The bundled default is BYOK, so a route that was never chosen explicitly is BYOK.
-- **The change applies to the next window.** Provider profiles are built once per activation, so the running gateway keeps calling the previous surface until the window reloads. The command offers to reload instead of only stating that a reload is needed. Switching to BYOK also revokes the OAuth tokens, so coming back to the OAuth route requires signing in again.
+**This is a local deletion, not a remote revocation.** No token is sent to Google, so it does not revoke the grant at Google.
+Revoking a grant at Google is a separate operation on Google's side, performed by the user in their own account settings.
 
-**This route is independent from the BYOK one above**, and both coexist in a single install.
-They share the same model ids and the same downstream OpenAI surface but target different upstream services: `cloudcode-pa.googleapis.com/v1internal:*` with the Cloud Code Assist envelope, versus `generativelanguage.googleapis.com/v1beta` with the Gemini native surface.
-Both are billed to the Google AI Studio vendor, which is why the route is never a second vendor and never appears twice in `GET /v1/models`.
+### If you need Google quota
 
-Setup (one time, opt-in):
+Use the [Gemini API (BYOK)](#google-ai-studio-via-api-key-byok-pay-as-you-go).
+It is the only supported Google route, it works for every account, and it bills the GCP project tied to your API key.
+Review that project's quotas and billing before enabling it on a paid card.
 
-1. **Switch the bundled default to the OAuth upstream URL** in `settings.json`:
-
-    ```json
-    "aiflowbridge.providers.googleaistudio.baseUrl": "https://cloudcode-pa.googleapis.com"
-    ```
-
-    The synthesizer reads the baseUrl host (`cloudcode-pa.googleapis.com`) and automatically tags the profile `kind: 'googleaistudio'` + `billing: 'plan'`. Without this setting the synthesized profile stays on the BYOK route regardless of whether you also went through the OAuth flow.
-
-2. **Connect the OAuth tokens**:
-   - **VS Code**: `AIFlowBridge: Connect to Google AI Studio (Antigravity OAuth)` -> the consent URL opens in the default browser. Revoke with `AIFlowBridge: Disconnect from Google AI Studio (Antigravity OAuth)`.
-   - **Standalone**: `aiflowbridge-server auth googleaistudio` -> same flow, prints the URL. `--status` shows the account, project, and token expiry. `--logout` revokes. `--probe` and `--list-models` diagnose auth + upstream.
-
-3. **Use it**: point any OpenAI-compatible client at `http://127.0.0.1:8787/v1` with `model: "gemini-3.8-flash"` (or `"gemini-3.7-flash"` / `"gemini-3.6-flash"`). All three ids appear in `GET /v1/models`. The Est. cost displayed is an indicative equivalent ($0.75 / $3.75 per 1M, introductory through 2026-12-31, standard $1.50 / $7.50 from 2027-01-01) - the dashboard marks those rows `plan` because the plan covers the usage. See [Token plans vs per-token billing](#token-plans-vs-per-token-billing) below.
-
-### How the OAuth route differs from the BYOK one
-
-- **Auth**: OAuth tokens (VS Code SecretStorage + `secrets.json`) vs `AIzaSy...` API key.
-- **Upstream**: `cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse` vs `generativelanguage.googleapis.com/v1beta/models/...:streamGenerateContent`.
-- **Gateway code path**: `kind: 'googleaistudio'` -> `buildAntigravityUpstreamRequest` (envelope, SSE transform, async auth, token manager) vs `kind: 'googleaistudio'` on the BYOK host -> `buildGeminiNativeUpstreamRequest` (native envelope, SSE reshape, `x-goog-api-key`).
-- **Billing posture**: plan-covered by default (`aiflowbridge.providers.googleaistudio.billing: 'plan'` synthesized when the AGY host is detected) vs per-token, charged against the GCP project's pay-as-you-go counter.
-
-Notes:
-
-- This vendor is gateway-only: the Gemini ids do not appear in the Copilot Chat picker (tracked as AP-013).
-- The `vendors.antigravity` entry in `resources/models.json` is metadata-only: it pins the OAuth upstream `baseUrl` and the external URLs so the route switcher and custom-model discovery have a stable reference. No bundled `models[].family` uses `antigravity` today - the OAuth route is selected by setting the `googleaistudio` baseUrl to the `cloudcode-pa.googleapis.com` host, and OAuth routing uses explicit `aiflowbridge.providers[]` entries only. Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
-- Implementation: pure modules under `src/aiflowbridge/antigravity/` (`envelope.ts`, `sse-transform.ts`, `auth.ts`, `token-store.ts`, `pkce.ts`, `project.ts`, `catalog.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`).
-- Diagnose an OAuth failure with `aiflowbridge-server auth googleaistudio --probe` (token + project + upstream status + truncated body) before suspecting AIFlowBridge.
-That probe is the fastest way to separate the two failure shapes: when it lists models but the upstream status is `429`, the login and the project are fine and the missing piece is the Cloud Code Assist quota itself.
-- **Field maturity.** This route has not been exercised at scale and its failure modes are not fully characterised. Both routing defects described above were found in the field, after the feature had already shipped, which means parts of it may still be untested rather than merely unproven. Expect to diagnose failures by hand, and prefer BYOK unless you specifically need the Cloud Code Assist quota.
+A future integration against a documented Google Cloud API with an authorized authentication contract is a separate project, not a re-enablement of this route.
+Reopening it would require an official, dated Google source, an application-owned OAuth client or other authorized mechanism, a verified working call, and a clear identification of who is billed.
 
 ## Token plans vs per-token billing
 
@@ -253,7 +232,7 @@ The dashboard's **Est. cost** column always computes the same formula - `(prompt
 Two cases:
 
 - **Per-token billing** (default): DeepSeek / MiniMax / Xiaomi pay-as-you-go keys, OpenRouter keys, **Google AI Studio API-key (BYOK)** calls billed on the GCP project. The Est. cost is a **real charge estimate**: what the upstream will bill for those tokens.
-- **Plan-covered** (token plan, subscription, or OAuth plan): MiniMax token-plan keys (`tp-*`), Google AI Studio / Antigravity via OAuth (Google AI plan, when the AGY baseUrl is configured). The Est. cost is an **indicative equivalent**: what the same tokens *would* cost at the profile's pay-as-you-go rates. You pay $0 extra - the plan already covers it.
+- **Plan-covered** (token plan or subscription): MiniMax token-plan keys (`tp-*`) and any other upstream you explicitly mark as plan-covered. The Est. cost is an **indicative equivalent**: what the same tokens *would* cost at the profile's pay-as-you-go rates. You pay $0 extra - the plan already covers it.
 - **None of the above confuses "AI Studio Pro" subscription with the BYOK API-key route.** AI Studio Pro is a Web product subscription and has nothing to do with the API-key counter on the user's GCP project. A user with AI Studio Pro (and zero card on their GCP project) still pays only what Gemini's free tier allows on the API-key route. A user without AI Studio Pro but with a card on the GCP project still pays per-token on the API-key route. See the [AI Studio via API key](#google-ai-studio-via-api-key-byok-pay-as-you-go) section for the full billing breakdown.
 
 How the dashboard distinguishes them:
@@ -266,20 +245,18 @@ How the dashboard distinguishes them:
 How to mark a provider as plan-covered:
 
 - **Explicit (per provider)**: set `"billing": "plan"` on the entry in `aiflowbridge.providers` in `settings.json`. Use this for MiniMax token-plan keys and any other plan-billed upstream. Omit it (or set `"token"`) for pay-as-you-go keys.
-- **Automatic (OAuth)**: `antigravity` and `googleaistudio` kinds are always plan-covered - no setting needed, the gateway stamps every such request as plan.
+- **Nothing is automatic.** A vendor kind or an authentication method never implies plan coverage: a subscription entitlement is not assumed from an OAuth-flavoured transport. The retired Google product OAuth transport used to be stamped `plan` automatically; that stamp is gone with the route.
 - **Standalone**: same `providers` array shape in `~/.aiflowbridge/config.json`.
 
 The indicative rates used for the equivalent come from the usual pricing precedence (merged pricing registry, then registry `pricing` block, then family default) - see [cost.md](cost.md).
-For Gemini (BYOK route, the bundled default), the dashboard uses the real upstream public-API rates ($0.30 / $2.50 per 1M for Gemini 3.8 / 3.7 / 3.6 Flash as of 2026-09-04) since the API-key route IS the pay-as-you-go counter.
-For the Antigravity OAuth route (opt-in via `aiflowbridge.providers.googleaistudio.baseUrl`), the bundled rates are the introductory tariffs ($0.75 / $3.75 per 1M through 2026-12-31, standard $1.50 / $7.50 from 2027-01-01), and the dashboard marks those rows `plan` because the OAuth plan covers them; the equivalent shown is the true pay-as-you-go value of the plan-covered tokens.
+For Gemini, the dashboard uses the real upstream public-API rates ($0.30 / $2.50 per 1M for Gemini 3.8 / 3.7 / 3.6 Flash as of 2026-09-04) since the API-key route IS the pay-as-you-go counter.
 
 Notes:
 
 - Like OpenRouter, this vendor is gateway-only: the three Gemini ids do not appear in the Copilot Chat picker (tracked as AP-013).
-- Custom OAuth client overrides are available via the `AIFLOWBRIDGE_GOOGLE_CLIENT_ID` / `AIFLOWBRIDGE_GOOGLE_CLIENT_SECRET` env vars for private Google Cloud tenants.
-- Implementation: pure modules under `src/aiflowbridge/antigravity/` (`envelope.ts`, `sse-transform.ts`, `auth.ts`, `token-store.ts`, `pkce.ts`, `project.ts`, `catalog.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`).
-- This route is unavailable if your Google account is not whitelisted for Cloud Code Assist; the upstream returns `429 RESOURCE_EXHAUSTED` (a misleading code that actually means "no access") regardless of how much quota you have on AI Studio Pro, MiniMax, etc. The bundling assumes most users will switch to the [BYOK route](#google-ai-studio-via-api-key-byok-pay-as-you-go) instead.
-- Diagnose an auth / upstream issue with `aiflowbridge-server auth googleaistudio --probe` (token + project + upstream status + truncated body).
+- Implementation: the pure Gemini translation modules live under `src/aiflowbridge/antigravity/` (`gemini-native.ts`, `content-parts.ts`, `json-schema-clean.ts`, `sse-transform.ts`, `envelope.ts`, `thought-signature-cache.ts`), wired into `GatewayService` (`src/aiflowbridge/gateway/server.ts`). The directory name is historical; the modules carry no OAuth logic any more.
+- The retired-transport policy is one pure function, `classifyGoogleTransport` in `src/aiflowbridge/google-transport-policy.ts`, applied by the gateway before credential resolution, before each upstream call, and before each redirect hop.
+- Historical telemetry rows recorded on the retired transport are preserved and still readable: they are not rewritten retroactively.
 
 ## Why is the model list hardcoded?
 
@@ -388,7 +365,7 @@ The data was pulled at release time of the bundled `resources/models.json` and *
 ### Snapshot metadata
 
 - Current snapshot date: **2026-10-01**
-- Current snapshot version: **AIFlowBridge 2.23.1**
+- Current snapshot version: **AIFlowBridge 2.24.0**
 - Primary source (OpenRouter): `https://openrouter.ai/api/v1/models`
 - Primary source (direct vendors): the per-vendor pricing pages documented in `vendors.<vendor>.externalUrls` of `resources/models.json`
 

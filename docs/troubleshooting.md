@@ -40,12 +40,17 @@ AIFlowBridge classifies the refusal and writes the verdict to `AIFlowBridge: Sho
 | ------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `rate-limited`      | Per-minute or per-second cap                    | Wait. A `Retry-After` is forwarded when the upstream supplies one.                                          |
 | `quota-exhausted`   | A real allowance has been spent                 | Wait for the reset time in `X-AIFlowBridge-Quota-Reset`, or raise the quota in the provider console.        |
-| `zero-allocation`   | The account or project has no allocation at all | Retrying will never help. Grant the quota in the provider console, or switch the provider to another route. |
+| `zero-allocation`   | The upstream reported a named metric with an allowance of zero | Retrying will never help. Review the quota granted to this account in the provider console, or use a different credential. |
 | `billing-exhausted` | The project's billing credit is gone            | Top up or enable billing. Waiting does not help.                                                            |
 
 `zero-allocation` and `billing-exhausted` are logged at ERROR level because they are the two states no amount of retrying can clear.
-Gemini reports both, and they look identical from the outside: the Cloud Code Assist surface answers a project with no entitlement with a bare `{"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}`, with no quota metric to tell it apart from a spent budget.
-The Google AI Studio OAuth route in particular requires the project to be attached to the Cloud Code Assist programme; a personal GCP project that is not attached will report `zero-allocation` on every generation call while `fetchAvailableModels` keeps working.
+
+**A bare `RESOURCE_EXHAUSTED` is NOT classified.** Since this release, a 429 whose body carries no `google.rpc.QuotaFailure` violation block leaves the gateway undecided and publishes **no** `X-AIFlowBridge-Quota-State` header at all.
+The absence of a quota metric is not evidence of a missing entitlement: the same body is compatible with a rate limit, a spent allowance and a missing allocation, and each needs a different reaction.
+Earlier versions labelled that shape `zero-allocation`, which sent users to a console change for what could have been a momentary rate limit.
+If you need a verdict, ask the upstream for a body that names the metric (the Gemini Developer API does), or inspect the raw status and body yourself.
+
+A local refusal is not a quota signal either: the retired Google product OAuth transport answers HTTP 503 with `google_product_oauth_unsupported` **without contacting Google**, so no quota header is published for it.
 
 The upstream body is forwarded untouched, so clients that parse the provider's own error shape keep working.
 

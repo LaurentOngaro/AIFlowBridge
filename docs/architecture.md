@@ -101,9 +101,9 @@ The runtime reads it from a 3-tier chain on activation:
 resources/models.json              (bundled with the extension, source of truth on first run)
 ```
 
-- **Bundled** - `resources/models.json` lists the 38 bundled models and the 7 vendors with models (baseUrl, apiKeySecret, external URLs, indicative token-plan rates); `antigravity` is an eighth vendor entry with no bundled model (OAuth-only).
+- **Bundled** - `resources/models.json` lists the 38 bundled models and the 7 vendors with models (baseUrl, apiKeySecret, external URLs, indicative token-plan rates); `antigravity` is an eighth vendor entry with no bundled model, kept as historical metadata for the Google product OAuth route retired in this release: it pins the retired upstream `baseUrl` and the external URLs, selects nothing, and any profile aimed at that host is refused with `google_product_oauth_unsupported`.
   - The OpenRouter bundled entries advertise the 15 models on the current free tier in `GET /v1/models`; the 100+ other OpenRouter model ids are reachable verbatim by adding them to `aiflowbridge.userModels` or a registry override - see [docs/providers.md](providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint).
-  - Data snapshot **2026-10-01** (AIFlowBridge **2.23.1**); see [docs/providers.md#data-freshness](providers.md#data-freshness) for the refresh policy.
+  - Data snapshot **2026-10-01** (AIFlowBridge **2.24.0**); see [docs/providers.md#data-freshness](providers.md#data-freshness) for the refresh policy.
 - **Per-user override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user across all workspaces.
 - **Per-project override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
 

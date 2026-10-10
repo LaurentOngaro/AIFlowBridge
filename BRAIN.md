@@ -30,14 +30,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 - ❌ Jamais de : tokens, clés API privées, codes OAuth secrets, cookies, emails privés, données personnelles, URLs internes/privées, montants de facturation détaillés.
 - ✅ Autorisé : architecture, décisions techniques, état des tâches, erreurs assainies (sans secret), liens publics, noms de modèles et de providers. - Toute note sensible va dans le canal privé `AIFlowBridge-Private` (`BRAIN-PRIVATE.md`) ; les vrais secrets restent locaux hors git (`.ai/`).
-- **Exception documentée pour les credentials OAuth publics de l'AGY CLI**
-  (le `client_id` et le `client_secret` sont embarqués dans le binaire
-  officiel d'Antigravity, donc techniquement publics) : ils sont hardcodés
-  dans `src/aiflowbridge/antigravity/constants.ts` et whitelistés via
-  `.github/secret_scanning.yml` (`paths-ignore` + `custom_patterns`).
-  Cette exception est signée par l'utilisateur le 2026-09-05 et ne s'applique
-  qu'à ces 2 valeurs figées (toute autre valeur dans `constants.ts`
-  doit rester hors versionné).
+- **Exception documentée pour les credentials OAuth publics de l'AGY CLI (historique, caduque)** : signée le 2026-09-05, cette exception est devenue caduque le 2026-10-09 (AP-042) avec le retrait du transport OAuth Google produit : les identifiants ont été retirés de `constants.ts` et les bypass de secret scanning supprimés.
 - En cas de doute : ne pas écrire, demander à l'utilisateur.
 - **Langue de `_Private/` (décision utilisateur du 2026-10-07)** : les documents déposés sous `_Private/` peuvent être rédigés en français, cet arbre étant gitignoré, exclu du VSIX et lisible par le seul auteur. Le reste du dépôt reste en anglais, y compris le texte de cette règle. Tout document promu vers `_helpers/` ou `docs/` est retraduit en anglais au moment de la promotion.
 
@@ -45,18 +38,10 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 
 ## État du projet (résumé courant)
 
-- **Projet** : AIFlowBridge - assistant de code IA multi-providers pour VS Code,
-  avec proxy vision, métriques d'usage et **gateway locale OpenAI-compatible
-  déjà fonctionnelle** (CLI `aiflowbridge-server`).
-- **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek (picker Copilot Chat) ;
-  OpenRouter, Google AI Studio (BYOK), Z.ai GLM, MoonshotAI Kimi (passerelle
-  seule) ; + gateway openai-compat/ollama générique. 38 entrées bundleées au
-  snapshot 2026-10-01 (2.19.1).
-- **Chantier actif** : provider Antigravity / Google Cloud Code Assist afin
-  d'utiliser Gemini via le compte Google AI Pro dans Kilo CLI, en parallèle
-  de MiniMax-M3 via le plan MiniMax.
-- **Spec d'implémentation** : `docs/plans/antigravity-gateway-integration-spec.md`
-  (AP-007, remplace le plan initial `antigravity-provider-kilo-cli.md`).
+- **Projet** : AIFlowBridge - assistant de code IA multi-providers pour VS Code, avec proxy vision, métriques d'usage et **gateway locale OpenAI-compatible déjà fonctionnelle** (CLI `aiflowbridge-server`).
+- **Providers actuels** : MiniMax, Xiaomi MiMo, DeepSeek (picker Copilot Chat) ; OpenRouter, Google AI Studio (BYOK), Z.ai GLM, MoonshotAI Kimi (passerelle seule) ; + gateway openai-compat/ollama générique. 38 entrées bundleées au snapshot 2026-10-01 (2.19.1).
+- **Chantier actif** : le transport Antigravity / Google Cloud Code Assist a été retiré le 2026-10-09 (AP-042) pour motifs de conformité et de prudence produit ; seule la voie Gemini API (BYOK) reste supportée.
+- **Spec d'implémentation** : `docs/plans/antigravity-gateway-integration-spec.md` (AP-007, historique archivé).
 
 ## Décisions d'architecture (validées)
 
@@ -76,6 +61,7 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 | 2026-09-05 | Parser de contenu partagé `content-parts.ts` sans import `vscode`, avertissements image injectés par l'appelant                                                                                          | `content-parts.ts` reste unit-testable sous vitest (pas de paquet `vscode` hors extension) ; `toGeminiNativeRequest` / `toAntigravityEnvelope` acceptent un sink `warn` optionnel, la gateway passe `logger.warn`, les tests omettent le sink                                                                                                                                                                           |
 | 2026-09-05 | Streaming Gemini temps réel par défaut (`pipeThrough`), drain conservé en fallback, flag `bufferGeminiStream` défaut `false`                                                                             | Restaure le TTFT pré-2.17.0 sans réintroduire la perte d'octets (flush résiduel intact) ; repli drain sur erreur de pipe ; opérateur sur lien lossy peut forcer le buffer via `aiflowbridge.gateway.bufferGeminiStream: true`                                                                                                                                                                                           |
 | 2026-09-05 | Résolveur de route effective settings > workspace > globalStorage > bundle pour le switcher Google AI Studio                                                                                             | Le toggle décidait sur le seul setting et pouvait pointer à l'envers face à un override stale ; la décision porte désormais sur l'URL effective, nettoie les deux overrides, nomme la source dans le toast                                                                                                                                                                                                              |
+| 2026-10-09 | Retrait du transport OAuth Google produit (Antigravity / Cloud Code Assist)                                                                                                                              | Sources Google du 2026-10-09 : backend IDE interne, arrêt de l'accès consumer depuis le 2026-06-18, interdiction d'outils tiers dans les ToS. Refus HTTP 503 local avant réseau, suppression des credentials embarqués, préservation de la voie Gemini API (BYOK).                                                                                                                                                  |
 
 ## Contraintes et préférences
 
@@ -182,6 +168,38 @@ Il n'y a donc **aucun échange inter-agents** : tout passe par `ACTION_PLAN.md` 
 ## Journal (plus recent en haut)
 
 > Les entrées ci-dessous documentent les **décisions architecturales** et les  **jalons de release**, qui restent utiles pour la mémoire long terme du projet.
+
+### 2026-10-09 - Retrait du transport OAuth Google produit (Antigravity / Cloud Code Assist)
+
+**Decision** : le transport OAuth livre en 2.17.0 est **retire du produit distribue**.
+La voie Gemini API (BYOK, `generativelanguage.googleapis.com`, cle `AIzaSy...`) reste la seule voie Google supportee, avec son streaming, sa vision native et ses tools inchanges.
+
+**Sources officielles consultees le 2026-10-09** : la FAQ Antigravity indique que l'acces a ce backend via des outils tiers viole les conditions de service (suspension / resiliation possibles) et recommande une voie API pour un agent tiers ; la page « Gemini Code Assist consumer accounts » annonce l'arret des requetes des extensions Code Assist et du Gemini CLI pour les comptes individuals, Pro et Ultra depuis le **2026-06-18** ; la page « Set up Gemini Code Assist Standard and Enterprise » decrit une souscription Cloud separee et qualifie `cloudcode-pa.googleapis.com` d'API interne pour les fonctions IDE.
+Aucun mecanisme officiel identifie ne convertit un droit Pro/Ultra en autorisation de consommer ce backend depuis AIFlowBridge.
+
+**Ce que dit et ne dit pas cette decision** : c'est une decision produit de prudence, pas une consultation juridique, et pas l'affirmation qu'AIFlowBridge n'avait aucun defaut sur cette route (les deux defauts de routage de 2.23.0 etaient reels et ont ete corriges).
+La cause de chaque erreur distante n'est jamais determinee par le statut HTTP seul.
+
+**Implementation** :
+
+- Module pur `src/aiflowbridge/google-transport-policy.ts` : `classifyGoogleTransport()` renvoie `supported-public-api` / `retired-product-oauth` / `not-applicable`, sur le **hostname normalise en correspondance exacte** (jamais `includes()`), de sorte que `cloudcode-pa.googleapis.com.example.org` n'est pas refuse et que la famille `googleaistudio` n'est jamais un signal de refus a elle seule (BYOK y vit). L'inventaire d'hotes est code en dur, sans suffixe suppose.
+- **Refus local deterministe** : HTTP 503, enveloppe d'erreur OpenAI, code stable `google_product_oauth_unsupported`, applique **avant** toute resolution de credential, avant tout appel amont et avant chaque hop de redirection. Aucun SSE partiel n'est ouvert, aucun `X-AIFlowBridge-Quota-State` n'est publie (rien n'a ete demande a Google : pas de fait de quota a rapporter), et **aucun repli automatique vers BYOK** (changer de voie change la facturation, donc c'est une action explicite). Le profil bloque est aussi retire de `GET /v1/models`.
+- **Credentials retires** : `client_id` / `client_secret` OAuth embarques supprimes du produit distribue, modules `auth.ts` / `catalog.ts` / `project.ts` / `pkce.ts` / `token-store.ts` supprimes, exceptions de secret scanning **strictement liees a ces valeurs** retirees (les patterns restent, sans `paths-ignore`, pour alerter si elles reviennent). Historique Git non reecrit.
+- **Nettoyage local propose et separe** : `purgeRetiredGoogleOAuthSecrets()` supprime le seul slot herite `antigravity`, de maniere selective (les cles des autres vendors et la cle BYOK survivent), idempotente et preservant le mode `0600`. Aucune revocation distante : rien n'est envoye a Google, et le message le dit explicitement.
+- **Stubs de compatibilite** : les ids de commande `connectGoogleAIStudio` et `disconnectGoogleAIStudio` subsistent (le second fait le nettoyage local), `switchGoogleAIStudioRoute` devient une aide a la migration qui nomme le tier fautif et exige une confirmation explicite nommant la consequence de facturation. Le hook hote `pickRoute` et `RouteChoice` ont disparu : il n'y a plus deux destinations a choisir.
+- **Lot C preserve** : les helpers de traduction Gemini partages (`gemini-native.ts`, `content-parts.ts`, `json-schema-clean.ts`, `sse-transform.ts`, `envelope.ts`, `thought-signature-cache.ts`) sont conserves. Le repertoire garde son nom historique mais ne contient plus aucune logique OAuth.
+- **Lot D - quota** : un `RESOURCE_EXHAUSTED` generique **sans bloc de violation** n'est plus classe `zero-allocation` ; il reste non classe et aucun en-tete n'est publie. `zero-allocation` exige desormais une metrique nommee ET une valeur explicitement nulle. Aucune nouvelle valeur ajoutee au contrat d'en-tete existant.
+- **Lot E - telemetrie** : plus aucune attribution `plan` deduite d'un vendor ou d'une methode d'authentification ; uniquement le `billing: 'plan'` explicite ou les profils MiniMax token plan qui le declarent. Les lignes historiques `oauth` / `plan` / `unknown` sont conservees et restent lisibles, sans requalification retroactive. `authMode` garde la valeur `'oauth'` dans sa taxonomie pour les snapshots existants.
+- **Lot F - doc** : le conseil « rattacher le projet au programme Cloud Code Assist » a disparu partout ; les sources datees sont citees dans `docs/providers.md`. `resources/models.json` conserve l'entree vendor `antigravity` comme metadata historique (elle ne selectionne rien et toute cible est refusee).
+
+**Tests** : 3 nouveaux fichiers (`tests/google-transport-policy.test.ts`, `tests/gateway-google-oauth-retired.test.ts`, `tests/retired-google-oauth-secrets.test.ts`) ; 3 fichiers supprimes (`antigravity-auth`, `antigravity-pkce`, `gateway-antigravity`, qui testaient un chemin qui n'existe plus) ; adaptations dans `aiflowbridge-providers`, `auth-mode`, `host-config`, `quota-diagnostics`, `runtime-switch-route`, `gateway`.
+La non-regression BYOK est couverte bout en bout (une requete Gemini native traverse toujours la gateway et repond en `chat.completion`).
+
+**Limites assumees** : **la voie BYOK n'a pas ete exercee en reel** (aucune cle `AIzaSy...` sur cette machine) ; la non-regression est prouvee par mocks et tests unitaires.
+Aucune commande VS Code ni CLI n'a ete lancee en interaction reelle (pas d'hote ici) ; la logique est couverte, le dialogue utilisateur ne l'est pas.
+Le numero de version n'a pas ete invente : la section CHANGELOG est `Unreleased`, conformement a la consigne de ne pas publier automatiquement.
+
+**Non commite** : regle AP-020 (aucun commit automatique sans demande explicite de l'utilisateur).
 
 ### 2026-10-09 - Kilo (ACTION_PLAN : six entrees terminees restees dans « A faire »)
 
@@ -984,9 +1002,11 @@ Tout statut distinct de 307 et 308 est explicitement refusé avec la raison `HTT
 Dans `src/aiflowbridge/gateway/server.ts`, `callUpstream()` transmet `attempt.status` à `resolveProviderRedirect()` ; un refus lève une exception capturée et transformée en HTTP 502 Bad Gateway sans aucun rejeu du corps POST.
 2 tests unitaires ajoutés dans `tests/aiflowbridge-providers.test.ts` (rejet de 301/302/303 et acceptation de 307/308) et 2 tests d'intégration dans `tests/gateway.test.ts` (vérification qu'un 301/302/303 amont ne rejoue jamais le corps POST et retourne 502, et qu'un 307 amont rejoue fidèlement le corps POST sur le même hôte en 200).
 
-**2. DOC-DATA1 (mineur, résolu)** : Paragraphe ajouté sous `## Provider routing` dans `docs/agent-instructions/gateway.md` documentant le rôle de `resources/pricing.json` comme instantané OpenRouter régénéré à chaque release servant de repli tarifaire pour les modèles déclarés par l'utilisateur (`userModels` ou surcharge de registre), distinct des 38 modèles natifs tarifés par `resources/models.json` et les valeurs par défaut de famille.
+**2.
+DOC-DATA1 (mineur, résolu)** : Paragraphe ajouté sous `## Provider routing` dans `docs/agent-instructions/gateway.md` documentant le rôle de `resources/pricing.json` comme instantané OpenRouter régénéré à chaque release servant de repli tarifaire pour les modèles déclarés par l'utilisateur (`userModels` ou surcharge de registre), distinct des 38 modèles natifs tarifés par `resources/models.json` et les valeurs par défaut de famille.
 
-**3. QUOTA-1 (relu et validé)** : Relecture dédiée approfondie du module de production `src/aiflowbridge/gateway/quota-diagnostics.ts` (ajouté lors de l'incident Gemini de l'après-midi).
+**3.
+QUOTA-1 (relu et validé)** : Relecture dédiée approfondie du module de production `src/aiflowbridge/gateway/quota-diagnostics.ts` (ajouté lors de l'incident Gemini de l'après-midi).
 Module pur sans état externe, normalisation robuste des erreurs JSON et des trames SSE, extraction des blocs `QuotaFailure` et `RetryInfo`, classification exacte (`rate-limited`, `quota-exhausted`, `zero-allocation`, `billing-exhausted`), absence de supposition hasardeuse sur 429 illisible et corps amont préservé intact pour le client.
 Validé avec ses 20 tests (15 unitaires + 5 intégration).
 
@@ -1001,4 +1021,21 @@ Validé avec ses 20 tests (15 unitaires + 5 intégration).
 **CHANGELOG.md** : ajout de la section `## 2.23.1` (Security : restriction stricte des redirections amont aux statuts HTTP 307 et 308 préservant la méthode POST et le corps de requête, rejet explicite en 502 de 301/302/303).
 **Validation** : `npm run validate` vert (1432 tests sur 80 fichiers, horloge déterministe injectée dans `tests/quota-diagnostics.test.ts` pour éliminer un aléa de timing de 1ms sur `resetAt`), `compile:standalone` vert, packaging VSIX (`dist/aiflowbridge-2.23.1.vsix`).
 **Commit** : commit git exécuté sur demande explicite de l'utilisateur (action AP-041).
+
+### 2026-10-10 - Antigravity (Revue AP-042 Lots A-F, fix baseUrl standalone et documentation ToS/FAQ Google)
+
+**Contexte** : Revue approfondie des lots A à F de l'implémentation de retrait du transport OAuth Google produit (`_Private/docs/2026-10-09_IMPLEMENTATION_retire-google-product-oauth.md`).
+**Vérification de conformité** : Conformité validée sur la politique de refus pure (`classifyGoogleTransport`), l'absence de repli implicite sur BYOK, le blocage précoce HTTP 503 sans flux SSE, le retrait des modules OAuth et secrets embarqués, le nettoyage sélectif local (`--logout`), et l'absence de régression BYOK.
+**Anomalie critique corrigée** : Dans `src/standalone/config-loader.ts` (L41), la configuration par défaut de `providers.googleaistudio.baseUrl` pointait encore par erreur sur `https://cloudcode-pa.googleapis.com` au lieu de `https://generativelanguage.googleapis.com/v1beta`. Corrigé et verrouillé par assertion de test dans `tests/standalone/config-loader.test.ts`.
+**Documentation et conformité ToS** : `README.md` et `docs/providers.md` mis à jour pour expliciter noir sur blanc que l'identification OAuth avait été initialement implémentée (v2.17.0) puis retirée car l'accès à ce backend interne via des outils tiers ou du détournement OAuth est désormais explicitement une violation des Conditions d'utilisation Google (Google Terms of Service), comme spécifié dans la FAQ officielle Google Antigravity (`https://antigravity.google/docs/faq`), risquant la suspension de compte. Mention réaffirmée que Google exige une clé API officielle (Google AI Studio ou Vertex AI).
+**Validation** : `npm run validate` vert (80 fichiers de tests, 1449 tests passants), `compile:standalone` vert, build VSIX conforme.
+**Non commité** : Règle « aucun commit automatique » scrupuleusement respectée (en attente de validation/décision utilisateur).
+
+### 2026-10-10 - Antigravity (Bump version mineure 2.24.0 et actualisation CHANGELOG)
+
+**Contexte** : À la demande explicite de l'utilisateur (« ok bumpe en version 2.24.0, actualise le changelog si besoin »), passage en version 2.24.0 pour le retrait officiel du transport OAuth Google produit et les correctifs associés.
+**Version portée à 2.24.0** dans `package.json`, `package-lock.json`, `resources/pricing.json` (`aiflowbridgeVersion`), `README.md` (tampon snapshot et référence catalogue), `docs/architecture.md`, `docs/cost.md` et `docs/providers.md`.
+**CHANGELOG.md** : section `## Unreleased` transformée en `## 2.24.0` (Removed: transport OAuth produit Google / Cloud Code Assist, sélecteur de route ; Added: refus local 503 précoce déterministe, commande de suppression locale des credentials, commande de migration vers Gemini API ; Changed: bare 429 non sur-qualifié, suppression de l'inférence de plan automatique ; Fixed: découverte de modèles et default baseUrl standalone pour Google AI Studio).
+**Validation** : `npm run validate` vert, `compile:standalone` vert.
+**Non commité** : Règle « aucun commit automatique » respectée.
 
