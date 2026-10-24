@@ -96,8 +96,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-13, windows-latest]
+        # `macos-13` was REMOVED from the GitHub-hosted runner images. The
+        # job then sat in the queue forever (no runner matches the label),
+        # so the release run never reached a conclusion: the VSIX and the
+        # other three artifacts were published, but the run stayed "queued"
+        # forever and the Intel macOS archive was never produced.
+        # `macos-15-intel` is the label that replaced it, and it is a
+        # standard runner: free and unlimited on public repositories.
+        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
     runs-on: ${{ matrix.os }}
+    # A build that hangs must fail the job instead of parking the whole
+    # release run. The default job timeout is 6 hours.
+    timeout-minutes: 30
     concurrency:
       group: standalone-${{ github.ref_name }}-${{ matrix.os }}
       cancel-in-progress: false
@@ -134,7 +144,7 @@ jobs:
           case "${{ matrix.os }}" in
             windows-latest) ext=zip; arch=win-x64; entry='bin\aiflowbridge-server.cmd' ;;
             macos-latest)    ext=tar.gz; arch=darwin-arm64; entry=bin/aiflowbridge-server ;;
-            macos-13)        ext=tar.gz; arch=darwin-x64; entry=bin/aiflowbridge-server ;;
+            macos-15-intel)  ext=tar.gz; arch=darwin-x64; entry=bin/aiflowbridge-server ;;
             ubuntu-latest)   ext=tar.gz; arch=linux-x64; entry=bin/aiflowbridge-server ;;
             *)               ext=tar.gz; arch=unknown; entry=bin/aiflowbridge-server ;;
           esac

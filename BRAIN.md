@@ -150,6 +150,7 @@ Ces leçons sont le capital méthodologique du projet. Elles justifient des déc
 13. **Une revue de conformité qui trouve une anomalie doit la corriger et la verrouiller par un test**, sinon la même dérive revient au suivant audit de documentation.
 14. **Le critère de suppression d'un artefact est la référence, pas la taille.** Une image non référencée est du superflu, une image référencée est de la documentation, quel que soit son poids.
 15. **Deux silences de même apparence n'appellent pas le même comportement.** L'absence de prix dans le registre est une déclaration, l'absence de prix dans une déclaration utilisateur est une absence d'information : traiter les deux par le même repli invente un coût dans le premier cas et rend service dans le second.
+16. **Un label de runner retiré ne fait pas échouer le job, il le parke.** GitHub a retiré l'image `macos-13` sans invalider le label : le job reste « queued » indéfiniment, le run ne conclut jamais, et tout le reste de la release est publié sans que l'échec soit visible. Un workflow de release se juge sur le fait qu'il **termine**, pas sur le succès de ses étapes : un label de runner doit exister au moment où le tag est poussé, et un timeout borné évite qu'un build pendu parke la release pour une journée.
 
 ## Liens utiles
 
@@ -167,6 +168,19 @@ Ces leçons sont le capital méthodologique du projet. Elles justifient des déc
 > Les entrées décrivent les **décisions** et les **jalons** qui restent utiles en mémoire long terme.
 > Les étapes d'exécution (bumps de version, listes de fichiers touchés, comptes de tests, mises à jour de docs déjà décrites au CHANGELOG) sont volontairement omises : le CHANGELOG les conserve, et `ACTION_PLAN.md` porte le détail par action.
 > Les identifiants `AP-xxx` cités dans les entrées sont ceux de l'historique ; le ménage du fichier d'attente du 2026-10-10 a renuméroté les deux actions encore ouvertes (AP-013 -> AP-01, AP-025 -> AP-02).
+
+### 2026-10-24 - Kilo (CI : un label de runner retiré parke la release au lieu de la faire échouer)
+
+**Les runs de release v2.25.0 et v2.26.0 ne se terminaient pas**, alors que tout le travail avait réussi : le job `publish` (VSIX, Marketplace, Open VSX, GitHub Release) et les trois builds standalone (linux-x64, darwin-arm64, win-x64) étaient verts, et seul `standalone (macos-13)` restait « queued » indéfiniment.
+
+**La cause n'est pas un échec mais une absence de runner.** GitHub a retiré l'image macOS 13 de son catalogue de runners sans invalider le label : aucun runner ne correspond plus à `macos-13`, le job attend donc un runner qui n'existe pas, et le run ne conclut jamais.
+Un échec de job se verrait ; une attente infinie se remarque à peine.
+
+**Le correctif est double** : `macos-15-intel` (le label standard qui a remplacé `macos-13`, gratuit sur les dépôts publics) garde l'archive Intel macOS, et un `timeout-minutes: 30` borne le job pour qu'un build pendu ne parke plus une release pour une journée.
+Le défaut par défaut de GitHub est de 6 heures.
+
+**Conséquence sur les versions déjà publiées** : la 2.25.0 et la 2.26.0 sont bien publiées sur les deux stores (le job `publish` a réussi), mais leur archive `darwin-x64` manque dans la GitHub Release.
+Le tag de la 2.26.0 a été déplacé sur le commit qui corrige le workflow pour rejouer la release avec le bon label ; le tag de la 2.25.0 a été laissé en place, son contenu étant déjà publié.
 
 ### 2026-10-24 - Kilo (MiniMax M2.7 : le catalogue ne garde pas une génération que l'amont retire)
 
