@@ -80,7 +80,7 @@ export function getProviderReasoningSplit(vendor: string): boolean | undefined {
 /**
  * Default reasoning effort applied when the Copilot Chat "Thinking
  * Effort" selector is left untouched, for MiniMax models that declare a
- * `reasoningEffortLevels` range (MiniMax M3.1 Flash Preview).
+ * `reasoningEffortLevels` range (MiniMax M3.1 Flash).
  * Returns `undefined` when the setting is absent, empty, or not a
  * usable level, so the caller falls back to the upstream default.
  */

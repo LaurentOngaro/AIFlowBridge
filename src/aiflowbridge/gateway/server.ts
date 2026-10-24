@@ -3509,7 +3509,7 @@ function resolveEffortLevelsForModel(provider: ProviderProfile): string[] {
  * disabled.
  *
  * Some upstream models reject the request outright when reasoning is
- * explicitly disabled. MiniMax M3.1 Flash Preview is one: it answers
+ * explicitly disabled. MiniMax M3.1 Flash is one: it answers
  * HTTP 400 with `requires adaptive thinking` for `reasoning_split=false`,
  * `thinking.type="disabled"` and `reasoning_effort=none`, while the same
  * request with the parameter omitted, set to `true`, or set to
@@ -3578,7 +3578,7 @@ export function forceThinkingOnIfRequired(
  *   or `reasoning: false`) is upgraded to `reasoning_split: true`
  *   when the model is declared `requiresThinkingParam` in the registry,
  *   because the upstream answers 400 to that combination.
- *   MiniMax M3.1 Flash Preview is such a model: `reasoning_split=false`
+ *   MiniMax M3.1 Flash is such a model: `reasoning_split=false`
  *   and `thinking.type="disabled"` are both rejected with
  *   `requires adaptive thinking` (2013).
  *
@@ -3625,7 +3625,7 @@ export function translatePayloadForUpstream(
   const reasoning = payload.reasoning;
 
   if (effortLevels.length > 0) {
-    // The model declares a tunable depth (MiniMax M3.1 Flash Preview:
+    // The model declares a tunable depth (MiniMax M3.1 Flash:
     // low / medium / high / xhigh / max). `reasoning_effort` is a real
     // upstream field there, so a level the model declares is forwarded
     // verbatim instead of being collapsed into the `reasoning_split`

@@ -2,7 +2,7 @@
  * Reasoning-effort levels declared per model in the registry
  * (`reasoningEffortLevels`).
  *
- * MiniMax M3.1 Flash Preview always thinks and cannot be switched off,
+ * MiniMax M3.1 Flash always thinks and cannot be switched off,
  * but its depth is tunable through the upstream `reasoning_effort` field
  * with 5 levels. The registry declares that range, the Copilot Chat
  * picker renders it, and the provider forwards the selection verbatim.
@@ -43,10 +43,10 @@ function options(config: Record<string, unknown> = {}): ModelConfigurationOption
 
 function model(overrides: Partial<ModelDefinition> = {}): ModelDefinition {
   return {
-    id: 'MiniMax-M3.1-Flash-Preview',
-    name: 'MiniMax M3.1 Flash Preview',
+    id: 'MiniMax-M3.1-Flash',
+    name: 'MiniMax M3.1 Flash',
     family: 'minimax',
-    version: 'm3.1-flash-preview',
+    version: 'm3.1-flash',
     detail: 'd',
     maxInputTokens: 1000,
     maxOutputTokens: 500,

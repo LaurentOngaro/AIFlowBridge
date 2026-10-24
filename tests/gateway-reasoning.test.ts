@@ -290,22 +290,22 @@ describe('translatePayloadForUpstream - edge cases', () => {
 });
 
 describe('models whose upstream refuses to be called with reasoning disabled', () => {
-  // MiniMax M3.1 Flash Preview answers HTTP 400 with
+  // MiniMax M3.1 Flash answers HTTP 400 with
   // `requires adaptive thinking` for reasoning_split=false,
   // thinking.type="disabled" and reasoning_effort=none. Each case below
   // reproduces one of those three upstream refusals.
   const provider = () =>
-    makeProvider({ id: 'MiniMax-M3.1-Flash-Preview', label: 'MiniMax M3.1 Flash Preview', model: 'MiniMax-M3.1-Flash-Preview' });
+    makeProvider({ id: 'MiniMax-M3.1-Flash', label: 'MiniMax M3.1 Flash', model: 'MiniMax-M3.1-Flash' });
 
   it('upgrades reasoning_effort: none into reasoning_split: true', () => {
-    const result = translateRequiringThinking({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'none' }, provider());
+    const result = translateRequiringThinking({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 'none' }, provider());
     expect(result.forcedThinkingOn).toBe(true);
     expect(result.body.reasoning_split).toBe(true);
     expect(result.body).not.toHaveProperty('reasoning_effort');
   });
 
   it('upgrades the AIFB reasoning: false checkbox into reasoning_split: true', () => {
-    const result = translateRequiringThinking({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning: false }, provider());
+    const result = translateRequiringThinking({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning: false }, provider());
     expect(result.forcedThinkingOn).toBe(true);
     expect(result.body.reasoning_split).toBe(true);
     expect(result.body).not.toHaveProperty('reasoning');
@@ -313,7 +313,7 @@ describe('models whose upstream refuses to be called with reasoning disabled', (
 
   it('upgrades a client-sent thinking.type: disabled into enabled', () => {
     const result = translateRequiringThinking(
-      { model: 'MiniMax-M3.1-Flash-Preview', messages: [], thinking: { type: 'disabled' } },
+      { model: 'MiniMax-M3.1-Flash', messages: [], thinking: { type: 'disabled' } },
       provider()
     );
     expect(result.forcedThinkingOn).toBe(true);
@@ -322,7 +322,7 @@ describe('models whose upstream refuses to be called with reasoning disabled', (
 
   it('upgrades a client-sent reasoning_split: false', () => {
     const result = translateRequiringThinking(
-      { model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_split: false },
+      { model: 'MiniMax-M3.1-Flash', messages: [], reasoning_split: false },
       provider()
     );
     expect(result.forcedThinkingOn).toBe(true);
@@ -330,7 +330,7 @@ describe('models whose upstream refuses to be called with reasoning disabled', (
   });
 
   it('leaves a request that already asks for thinking untouched', () => {
-    const payload = { model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'high' };
+    const payload = { model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 'high' };
     const result = translateRequiringThinking(payload, provider());
     expect(result.forcedThinkingOn).toBe(false);
     expect(result.body.reasoning_split).toBe(true);
@@ -339,14 +339,14 @@ describe('models whose upstream refuses to be called with reasoning disabled', (
   it('adds nothing when the client said nothing about reasoning', () => {
     // The upstream applies its own adaptive default; the gateway must
     // not invent a parameter the caller did not ask for.
-    const result = translateRequiringThinking({ model: 'MiniMax-M3.1-Flash-Preview', messages: [] }, provider());
+    const result = translateRequiringThinking({ model: 'MiniMax-M3.1-Flash', messages: [] }, provider());
     expect(result.forcedThinkingOn).toBe(false);
     expect(result.body.reasoning_split).toBeUndefined();
   });
 
   it('keeps thinking.type: adaptive as sent', () => {
     const result = translateRequiringThinking(
-      { model: 'MiniMax-M3.1-Flash-Preview', messages: [], thinking: { type: 'adaptive', budget_tokens: 512 } },
+      { model: 'MiniMax-M3.1-Flash', messages: [], thinking: { type: 'adaptive', budget_tokens: 512 } },
       provider()
     );
     expect(result.forcedThinkingOn).toBe(false);
@@ -362,7 +362,7 @@ describe('models whose upstream refuses to be called with reasoning disabled', (
 
   it('preserves the other fields of the body when forcing thinking on', () => {
     const result = translateRequiringThinking(
-      { model: 'MiniMax-M3.1-Flash-Preview', messages: [{ role: 'user', content: 'hi' }], stream: true, temperature: 0.3, reasoning_effort: 'none' },
+      { model: 'MiniMax-M3.1-Flash', messages: [{ role: 'user', content: 'hi' }], stream: true, temperature: 0.3, reasoning_effort: 'none' },
       provider()
     );
     expect(result.body.messages).toEqual([{ role: 'user', content: 'hi' }]);
@@ -371,7 +371,7 @@ describe('models whose upstream refuses to be called with reasoning disabled', (
   });
 
   it('does not mutate the input payload when forcing thinking on', () => {
-    const payload: Record<string, unknown> = { model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'none', thinking: { type: 'disabled' } };
+    const payload: Record<string, unknown> = { model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 'none', thinking: { type: 'disabled' } };
     translateRequiringThinking(payload, provider());
     expect(payload.reasoning_effort).toBe('none');
     expect(payload.thinking).toEqual({ type: 'disabled' });
@@ -432,14 +432,14 @@ describe('the policy is a model property, not a vendor property', () => {
   });
 });
 
-describe('models with a declared reasoning-effort range (MiniMax M3.1 Flash Preview)', () => {
+describe('models with a declared reasoning-effort range (MiniMax M3.1 Flash)', () => {
   // The registry declares `reasoningEffortLevels` for that model, so
   // `reasoning_effort` is a real upstream field there: a declared level
   // is forwarded verbatim instead of being collapsed into the
   // `reasoning_split` boolean the historical translator produces.
   const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
   const provider = () =>
-    makeProvider({ id: 'MiniMax-M3.1-Flash-Preview', label: 'MiniMax M3.1 Flash Preview', model: 'MiniMax-M3.1-Flash-Preview' });
+    makeProvider({ id: 'MiniMax-M3.1-Flash', label: 'MiniMax M3.1 Flash', model: 'MiniMax-M3.1-Flash' });
 
   function translateWithLevels(payload: Record<string, unknown> | undefined, requiresThinking = true) {
     return translatePayloadForUpstream(payload, provider(), requiresThinking, EFFORT_LEVELS);
@@ -447,7 +447,7 @@ describe('models with a declared reasoning-effort range (MiniMax M3.1 Flash Prev
 
   it('forwards every declared level verbatim with reasoning_split pinned on', () => {
     for (const level of EFFORT_LEVELS) {
-      const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: level });
+      const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: level });
       expect(result.body.reasoning_effort).toBe(level);
       expect(result.body.reasoning_split).toBe(true);
       expect(result.forcedThinkingOn).toBe(false);
@@ -455,39 +455,39 @@ describe('models with a declared reasoning-effort range (MiniMax M3.1 Flash Prev
   });
 
   it('drops a level the model does not declare, letting the upstream apply its own default', () => {
-    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'ultra' });
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 'ultra' });
     expect(result.body).not.toHaveProperty('reasoning_effort');
     expect(result.body.reasoning_split).toBe(true);
   });
 
   it('drops reasoning_effort: none, which that upstream answers 400 to', () => {
-    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'none' });
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 'none' });
     expect(result.body).not.toHaveProperty('reasoning_effort');
     expect(result.body.reasoning_split).toBe(true);
   });
 
   it('still strips the AIFB reasoning checkbox, and keeps a declared level sent alongside it', () => {
-    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning: false, reasoning_effort: 'low' });
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning: false, reasoning_effort: 'low' });
     expect(result.body).not.toHaveProperty('reasoning');
     expect(result.body.reasoning_effort).toBe('low');
     expect(result.body.reasoning_split).toBe(true);
   });
 
   it('sends no reasoning_effort when the client said nothing about reasoning', () => {
-    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [] });
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash', messages: [] });
     expect(result.body).not.toHaveProperty('reasoning_effort');
     expect(result.body.reasoning_split).toBe(true);
   });
 
   it('ignores a non-string reasoning_effort', () => {
-    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 3 });
+    const result = translateWithLevels({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 3 });
     expect(result.body).not.toHaveProperty('reasoning_effort');
     expect(result.body.reasoning_split).toBe(true);
   });
 
   it('preserves the other fields of the body', () => {
     const result = translateWithLevels({
-      model: 'MiniMax-M3.1-Flash-Preview',
+      model: 'MiniMax-M3.1-Flash',
       messages: [{ role: 'user', content: 'hi' }],
       stream: true,
       temperature: 0.3,
@@ -499,9 +499,9 @@ describe('models with a declared reasoning-effort range (MiniMax M3.1 Flash Prev
   });
 
   it('does not mutate the input payload', () => {
-    const payload: Record<string, unknown> = { model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'low', reasoning: true };
+    const payload: Record<string, unknown> = { model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 'low', reasoning: true };
     translateWithLevels(payload);
-    expect(payload).toEqual({ model: 'MiniMax-M3.1-Flash-Preview', messages: [], reasoning_effort: 'low', reasoning: true });
+    expect(payload).toEqual({ model: 'MiniMax-M3.1-Flash', messages: [], reasoning_effort: 'low', reasoning: true });
   });
 
   it('leaves a model with no declared range on the historical boolean mapping', () => {

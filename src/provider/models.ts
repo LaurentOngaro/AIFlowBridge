@@ -80,7 +80,7 @@ export function getRawConfiguredReasoningEffort(options: ModelConfigurationOptio
  * Order: the picker's value when it is one of the declared levels, then
  * the `aiflowbridge.providers.<vendor>.reasoningEffort` setting when it
  * is one of them, then the highest declared level (the upstream default
- * when the field is omitted, `max` for MiniMax M3.1 Flash Preview).
+ * when the field is omitted, `max` for MiniMax M3.1 Flash).
  *
  * `none` is never returned: a level list without `none` models an
  * always-reasoning upstream, and `reasoning_effort: "none"` is rejected
@@ -129,7 +129,7 @@ export function getConfiguredThinkingEffort(options: ModelConfigurationOptions):
  *
  * A declared level list defaults to its highest level, which is the
  * upstream default when `reasoning_effort` is omitted (`max` for
- * MiniMax M3.1 Flash Preview). The historical triple keeps its `high`
+ * MiniMax M3.1 Flash). The historical triple keeps its `high`
  * default, which is what the DeepSeek and MiniMax providers already
  * send when the client picked nothing.
  */

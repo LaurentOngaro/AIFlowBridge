@@ -72,6 +72,7 @@ Le modèle « tech lead / exécutant » qui existait avant le 2026-10-01 est **c
 | 2026-10-01 | Une seule table de vérité par sujet : `API_KEY_SECRETS` pour la découverte des vendors, un module unique par traducteur              | Une liste dupliquée diverge et produit un bug silencieux ; la seconde liste est celle qu'on oublie de mettre à jour                          |
 | 2026-10-01 | Auto-routage Xiaomi par préfixe de clé (`sk-*` vs `tp-*`) dans les deux sens                                                         | Les clusters upstream sont disjoints ; la valeur par défaut n'est qu'un point de départ, la décision est prise par requête                   |
 | 2026-10-03 | Traducteurs Gemini : listes et analyse de contenu partagées (`content-parts.ts`, `json-schema-clean.ts`)                             | Le même 400 sur deux surfaces venait de deux copies du même code                                                                             |
+| 2026-10-24 | La promotion d'un modèle amont (preview -> GA) est une **édition du registre** et une release mineure, sans alias de compatibilité | Le registre est la source de vérité : un id de catalogue qui change est un changement assumé, avec un 404 explicite de la gateway, pas deux identités pour un même modèle |
 
 ### Google / Gemini
 
@@ -165,6 +166,22 @@ Ces leçons sont le capital méthodologique du projet. Elles justifient des déc
 > Les entrées décrivent les **décisions** et les **jalons** qui restent utiles en mémoire long terme.
 > Les étapes d'exécution (bumps de version, listes de fichiers touchés, comptes de tests, mises à jour de docs déjà décrites au CHANGELOG) sont volontairement omises : le CHANGELOG les conserve, et `ACTION_PLAN.md` porte le détail par action.
 > Les identifiants `AP-xxx` cités dans les entrées sont ceux de l'historique ; le ménage du fichier d'attente du 2026-10-10 a renuméroté les deux actions encore ouvertes (AP-013 -> AP-01, AP-025 -> AP-02).
+
+### 2026-10-24 - Kilo (MiniMax M3.1 Flash : de la preview au modèle généralement disponible)
+
+**L'amont a publié `MiniMax-M3.1-Flash` le 2026-10-19.** L'id `MiniMax-M3.1-Flash-Preview` devient caduc ; le registre porte maintenant l'id GA, le nom `MiniMax M3.1 Flash`, et le tarif publié ($0.15/M en entrée, $0.60/M en sortie).
+
+**Le point qui change vraiment n'est pas l'id, c'est le silence du registre.** La preview était le seul modèle bundleé sans prix, précisément parce qu'aucun tarif pay-as-you-go n'était publié pour un tier preview.
+La règle de l'AP-02 (« l'absence de prix dans le registre est une déclaration ») reste vraie et reste écrite dans le code, mais **plus aucun modèle bundleé ne l'exerce** : les 38 ont un tarif.
+La conséquence n'est pas cosmétique : le modèle affiche enfin un coût estimé dans le dashboard et ses requêtes comptent dans les totaux.
+
+**Le reste du comportement est identique**, et c'est vérifiable sans appel amont : 1M de contexte, entrée multimodale (texte, image, vidéo), raisonnement toujours actif (400 `requires adaptive thinking` sur `reasoning_split: false`, `thinking.type: disabled`, `reasoning_effort: none`), cinq profondeurs (de `low` à `max`).
+Le sélecteur « Thinking Effort », les variantes Kilo Code et la réécriture de la gateway n'ont donc pas bougé.
+
+**La rupture de catalogue est assumée, pas amortie.** Une configuration qui épingle l'ancien id reçoit un 404 de la gateway qui liste les ids disponibles, pas une alias silencieux : le précédent du 2026-10-01 (deux ids de catalogue changés, release mineure) tient toujours.
+
+**Constat à traiter au cycle suivant, hors périmètre de cette demande** : MiniMax annonce le retrait de M2.5 et M2.7 - indisponibles pour les nouveaux utilisateurs depuis le 2026-10-19, retirés le 2026-11-18, et les requêtes M2.5 / M2.7 sous M Plan ou Token Plan sont déjà reroutées vers M3.1 Flash.
+Le registre bundle encore `MiniMax-M2.7` et `MiniMax-M2.7-highspeed` : c'est le prochain arbitrage, pas celui-ci.
 
 ### 2026-10-10 - Kilo CLI (Prix catalogue : un modèle sans tarif publié ne hérite plus du tarif de son frère, AP-02)
 

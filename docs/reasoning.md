@@ -17,9 +17,9 @@ The selection is translated to the upstream `reasoning_split` boolean:
 
 If you do not touch the selector, the global `aiflowbridge.providers.minimax.reasoningSplit` setting is honored as the fallback (default: `true`).
 
-## MiniMax M3.1 Flash Preview: always-on reasoning with 5 depth levels
+## MiniMax M3.1 Flash: always-on reasoning with 5 depth levels
 
-M3.1 Flash Preview always thinks: the upstream answers HTTP 400 (`requires adaptive thinking`) to `reasoning_split: false`, `thinking.type: "disabled"` and `reasoning_effort: "none"`.
+M3.1 Flash always thinks: the upstream answers HTTP 400 (`requires adaptive thinking`) to `reasoning_split: false`, `thinking.type: "disabled"` and `reasoning_effort: "none"`.
 Its **depth** is tunable through the upstream `reasoning_effort` field, which accepts five levels:
 
 | Picker       | `reasoning_effort` | Effect                                                        |
@@ -41,7 +41,7 @@ There is no `None` entry, because the model cannot answer without thinking.
 
 That order lives in `resolveEffortLevel()` (`src/provider/models.ts`) and `resolveMiniMaxReasoning()` (`src/provider/minimax.ts`), both pure functions.
 
-The same applies on the gateway path: a client (Kilo Code, Continue, `curl`) that sends `reasoning_effort: "xhigh"` to M3.1 Flash Preview gets that exact value forwarded upstream, instead of the historical collapse into `reasoning_split`.
+The same applies on the gateway path: a client (Kilo Code, Continue, `curl`) that sends `reasoning_effort: "xhigh"` to M3.1 Flash gets that exact value forwarded upstream, instead of the historical collapse into `reasoning_split`.
 A value the model does not declare is dropped so the upstream applies its own default rather than failing.
 
 ## For OpenAI-compatible clients (Kilo Code, Continue) using the local gateway
@@ -61,10 +61,10 @@ On a model that declares `reasoningEffortLevels`, the dropdown values pass throu
 
 ```ts
 // Kilo Code sends:
-{ "model": "MiniMax-M3.1-Flash-Preview", "reasoning_effort": "xhigh", "messages": [...] }
+{ "model": "MiniMax-M3.1-Flash", "reasoning_effort": "xhigh", "messages": [...] }
 
 // Gateway forwards:
-{ "model": "MiniMax-M3.1-Flash-Preview", "reasoning_effort": "xhigh", "reasoning_split": true, "messages": [...] }
+{ "model": "MiniMax-M3.1-Flash", "reasoning_effort": "xhigh", "reasoning_split": true, "messages": [...] }
 ```
 
 **The list Kilo Code displays is not AIFlowBridge's to choose.** Kilo Code renders its reasoning dropdown from the model's `variants` list, which it reads from its own configuration, and it does not read variant metadata from `GET /v1/models`.
@@ -99,7 +99,7 @@ The 3-tier registry merge picks it up immediately on the next Copilot Chat reloa
 
 ## Declaring a tunable depth on another model
 
-A model whose upstream exposes a real `reasoning_effort` field gets the same treatment as M3.1 Flash Preview by declaring `reasoningEffortLevels` in its registry entry.
+A model whose upstream exposes a real `reasoning_effort` field gets the same treatment as M3.1 Flash by declaring `reasoningEffortLevels` in its registry entry.
 The list is the dropdown content, in ascending order, and the selected value is forwarded verbatim:
 
 ```json
@@ -117,7 +117,7 @@ A list without `none` means thinking cannot be switched off, which is the usual 
 
 ## Always-on reasoning models (DeepSeek, MiniMax M3.1, Z.ai GLM 5.3, MoonshotAI Kimi)
 
-Every model declared `requiresThinkingParam: true` in the registry is an **always-on thinking model**: DeepSeek V4.1 Flash (`deepseek-flash`), DeepSeek V4 Pro (`deepseek-v4-pro`), MiniMax M3.1 Flash Preview, Z.ai GLM 5.3 (`glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`) and MoonshotAI Kimi (`kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`).
+Every model declared `requiresThinkingParam: true` in the registry is an **always-on thinking model**: DeepSeek V4.1 Flash (`deepseek-flash`), DeepSeek V4 Pro (`deepseek-v4-pro`), MiniMax M3.1 Flash, Z.ai GLM 5.3 (`glm-5.3`, `glm-5.3-flash`, `glm-5.3-flashx`) and MoonshotAI Kimi (`kimi-k3`, `kimi-k2.7-code`, `kimi-k2.7-code-highspeed`).
 Their upstream APIs reject any request that attempts to disable thinking (for example sending `thinking: { type: "disabled" }` returns HTTP 400 on GLM 5.3).
 
 - **Gateway behavior**: The gateway rewrites an explicit off signal into thinking-on before forwarding. `thinking.type: "disabled"` becomes `"enabled"`, `reasoning_split: false` becomes `true`, and `reasoning_effort: "none"` or `reasoning: false` are dropped and replaced by `reasoning_split: true`. Each rewrite is logged at INFO with the request id, so the change is visible rather than silent.

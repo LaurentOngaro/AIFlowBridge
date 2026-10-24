@@ -296,10 +296,12 @@ function synthesizeProviderForModel(
  *
  *   - A built-in model without a `pricing` block is a **statement**: the
  *     registry is the source of truth for the bundled catalog, and a model
- *     it deliberately leaves un-priced (e.g. `MiniMax-M3.1-Flash-Preview`,
- *     a preview tier with no published pay-as-you-go tariff) must not
- *     inherit a sibling's token-plan rate. Doing so fabricates a cost in
- *     the dashboard's "Estimated cost" column.
+ *     it deliberately leaves un-priced must not inherit a sibling's
+ *     token-plan rate. Doing so fabricates a cost in the dashboard's
+ *     "Estimated cost" column. Every bundled model currently carries a
+ *     published tariff, so the rule is unexercised today; it stays because
+ *     the next tier that ships without a published rate must show `-`
+ *     rather than a sibling's number.
  *   - A user-declared model without a `pricing` block is mere ignorance:
  *     the user asked for a model, not for a tariff, so the family's
  *     indicative rate is a reasonable default for their own model.
@@ -356,7 +358,7 @@ export function synthesizeProvidersFromUserModels(
  *
  * No family-pricing fallback here: the bundled registry is the source of
  * truth for the bundled catalog, so a model it leaves without a `pricing`
- * block (a preview tier with no published tariff) shows no price at all
+ * block (a tier with no published tariff) shows no price at all
  * rather than a sibling's indicative rate. User-declared models keep the
  * fallback - see `synthesizeProvidersFromModels`.
  */

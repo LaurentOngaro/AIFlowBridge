@@ -63,7 +63,7 @@ The command above replaces such a pair with the declared levels.
 Kilo Code's provider dialog (`Settings -> Providers -> Custom provider`) can declare variants too: enable reasoning on the model card and add one variant per level, each with its `Reasoning effort` set to the level of the same name.
 Two limits make it a worse experience than the command: the list stops at `xhigh`, so `max` needs the file form, and the whole file is rewritten either way.
 
-For a model that declares `reasoningEffortLevels` in the registry (MiniMax M3.1 Flash Preview: `low`, `medium`, `high`, `xhigh`, `max`):
+For a model that declares `reasoningEffortLevels` in the registry (MiniMax M3.1 Flash: `low`, `medium`, `high`, `xhigh`, `max`):
 
 ```jsonc
 {
@@ -75,8 +75,8 @@ For a model that declares `reasoningEffortLevels` in the registry (MiniMax M3.1 
         "apiKey": "sk-aiflowbridge-local"
       },
       "models": {
-        "MiniMax-M3.1-Flash-Preview": {
-          "name": "MiniMax M3.1 Flash Preview",
+        "MiniMax-M3.1-Flash": {
+          "name": "MiniMax M3.1 Flash",
           "reasoning": true,
           "variants": {
             "low": { "reasoningEffort": "low" },
@@ -94,9 +94,9 @@ For a model that declares `reasoningEffortLevels` in the registry (MiniMax M3.1 
 
 Do not use the dialog's `effort` field to work around the missing `max`: that field is the *output* effort, not the reasoning depth, and MiniMax's OpenAI-compatible API does not take it.
 
-The first row of the dropdown is Kilo's `Default`, which sends no `reasoning_effort` at all; the gateway then omits the field and the upstream applies its own default (`max` for MiniMax M3.1 Flash Preview).
+The first row of the dropdown is Kilo's `Default`, which sends no `reasoning_effort` at all; the gateway then omits the field and the upstream applies its own default (`max` for MiniMax M3.1 Flash).
 
-Do not declare a `none` variant for a model that declares `reasoningEffortLevels`: `reasoning_effort: "none"` is answered by MiniMax M3.1 Flash Preview with HTTP 400, and the gateway drops a value the model does not declare and pins `reasoning_split: true`, so such an entry would promise something the model cannot do.
+Do not declare a `none` variant for a model that declares `reasoningEffortLevels`: `reasoning_effort: "none"` is answered by MiniMax M3.1 Flash with HTTP 400, and the gateway drops a value the model does not declare and pins `reasoning_split: true`, so such an entry would promise something the model cannot do.
 A model without `reasoningEffortLevels` (MiniMax M3 and earlier) keeps the historical triple: `none`, `high`, `max`, all mapped to the `reasoning_split` boolean.
 
 See [reasoning.md](reasoning.md) for the per-model level tables and the resolution order.

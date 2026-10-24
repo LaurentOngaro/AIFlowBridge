@@ -160,7 +160,7 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 },
-          "description": "Upstream reasoning-effort levels offered by the Copilot Chat 'Thinking Effort' dropdown, in ascending order (MiniMax M3.1 Flash Preview: low, medium, high, xhigh, max). When present, the dropdown lists exactly these values and the selected one is forwarded verbatim as the upstream `reasoning_effort` field. When absent, the dropdown keeps the historical none / high / max triple, which maps to MiniMax's `reasoning_split` boolean. A list without `none` means thinking cannot be switched off."
+          "description": "Upstream reasoning-effort levels offered by the Copilot Chat 'Thinking Effort' dropdown, in ascending order (MiniMax M3.1 Flash: low, medium, high, xhigh, max). When present, the dropdown lists exactly these values and the selected one is forwarded verbatim as the upstream `reasoning_effort` field. When absent, the dropdown keeps the historical none / high / max triple, which maps to MiniMax's `reasoning_split` boolean. A list without `none` means thinking cannot be switched off."
         },
         "pricing": {
           "type": "object",

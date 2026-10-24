@@ -6,6 +6,14 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.25.0
+
+### Changed
+
+- **MiniMax M3.1 Flash is no longer a preview.** Upstream published the generally available `MiniMax-M3.1-Flash` on 2026-10-19, replacing the `MiniMax-M3.1-Flash-Preview` catalog id. The bundled registry now carries the GA id, the GA name (`MiniMax M3.1 Flash`), and - for the first time - a published price: the upstream sells it at $0.15/M input and $0.60/M output, so the dashboard shows a real estimated cost instead of `-`, and its requests contribute to the totals. The preview's access restriction goes with it: the GA model is served by the standard MiniMax API, so a regular API key reaches it, and the "no pay-as-you-go rate is published" caveat is gone from the registry, the README and the cost documentation. **This is a catalog break, and it is why the release is a minor one**: a configuration that pins the old id (`aiflowbridge.providers`, `aiflowbridge.userModels`, a registry override, or the `model` field of a client such as Kilo Code or Continue) now gets an HTTP 404 from the gateway listing the available provider ids, and has to be updated to `MiniMax-M3.1-Flash`.
+- **Everything else about the model is unchanged.** The 1M-token context window, the multimodal input (text, image, video), the always-on thinking (the upstream still answers HTTP 400 `requires adaptive thinking` to `reasoning_split: false`, `thinking.type: disabled` and `reasoning_effort: none`), and the five reasoning depths (`low`, `medium`, `high`, `xhigh`, `max`, `max` by default) are the ones the preview already exposed, so the "Thinking Effort" selector in Copilot Chat, the Kilo Code reasoning variants, and the gateway's thinking rewrite keep working exactly as before.
+- **The bundled pricing snapshot is refreshed** from the OpenRouter public listing at release time (442 metered models, generated 2026-10-24). It now carries `minimax/minimax-m3.1-flash` at $0.15/M in and $0.60/M out, the same rate as the direct MiniMax tariff, so a user-declared model on that OpenRouter id is priced like the bundled one. The public documentation carries the matching snapshot stamp (2026-10-24, AIFlowBridge 2.25.0).
+
 ## 2.24.0
 
 ### Removed

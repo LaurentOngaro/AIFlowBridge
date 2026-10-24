@@ -403,19 +403,19 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     expect(om?.pricing).toBeUndefined();
   });
 
-  it('leaves the MiniMax M3.1 preview unpriced (it has no published tariff)', () => {
-    // The originating defect: `MiniMax-M3.1-Flash-Preview` ships without a
-    // `pricing` block because no pay-as-you-go tariff is published for the
-    // preview tier, yet the gateway used to advertise the MiniMax family
-    // rate {0.3, 1.2} inherited from `MiniMax-M2.7`.
+  it('prices the MiniMax M3.1 Flash at its published tariff', () => {
+    // The originating defect: the preview tier shipped without a `pricing`
+    // block because no pay-as-you-go tariff was published for it, yet the
+    // gateway used to advertise the MiniMax family rate {0.3, 1.2}
+    // inherited from `MiniMax-M2.7`. The generally available
+    // `MiniMax-M3.1-Flash` publishes a rate, so the catalog carries it.
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
-    const m31 = providers.find((p) => p.model === 'MiniMax-M3.1-Flash-Preview');
+    const m31 = providers.find((p) => p.model === 'MiniMax-M3.1-Flash');
     expect(m31).toBeDefined();
-    expect(m31?.pricing).toBeUndefined();
-    // Every other bundled model keeps a price: a missing rate must stay
-    // the exception rather than silently become the rule.
+    expect(m31?.pricing).toEqual({ inputPerMillion: 0.15, outputPerMillion: 0.6, currency: 'USD' });
+    // Every bundled model now carries a rate: the cheapest tier included.
     const unpriced = providers.filter((p) => p.pricing === undefined).map((p) => p.id);
-    expect(unpriced).toEqual(['MiniMax-M3.1-Flash-Preview']);
+    expect(unpriced).toEqual([]);
   });
 
   it('still falls back to the family rate for a user-declared model without a price', () => {

@@ -1,7 +1,7 @@
 /**
  * Kilo Code client configuration: reasoning-effort variant generation.
  *
- * The user report behind this file: with MiniMax M3.1 Flash Preview reached
+ * The user report behind this file: with MiniMax M3.1 Flash reached
  * through the AIFlowBridge gateway, Kilo Code offered a `None` / `Thinking`
  * pair instead of the five levels the model declares. Kilo renders that
  * dropdown from the model's `variants`, and its `/models` auto-detection
@@ -27,8 +27,8 @@ import {
 import type { ModelRegistry } from '../src/aiflowbridge/modelRegistry.schema';
 
 const M31: EffortLevelModel = {
-  id: 'MiniMax-M3.1-Flash-Preview',
-  name: 'MiniMax M3.1 Flash Preview',
+  id: 'MiniMax-M3.1-Flash',
+  name: 'MiniMax M3.1 Flash',
   levels: ['low', 'medium', 'high', 'xhigh', 'max'],
 };
 
@@ -38,8 +38,8 @@ const gatewayConfig = {
     aiflowbridge: {
       options: { baseURL: 'http://127.0.0.1:8787/v1', apiKey: 'sk-aiflowbridge-local' },
       models: {
-        'MiniMax-M3.1-Flash-Preview': {
-          name: 'MiniMax M3.1 Flash Preview',
+        'MiniMax-M3.1-Flash': {
+          name: 'MiniMax M3.1 Flash',
           reasoning: true,
           variants: { none: { reasoning_split: false }, thinking: { reasoning_split: true } },
         },
@@ -130,7 +130,7 @@ describe('variant generation', () => {
     const model = (
       (result.config as { provider: { aiflowbridge: { models: Record<string, Record<string, unknown>> } } }).provider
         .aiflowbridge.models
-    )['MiniMax-M3.1-Flash-Preview'];
+    )['MiniMax-M3.1-Flash'];
     expect(Object.keys(model.variants as Record<string, unknown>)).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
     expect(model.variants).not.toHaveProperty('none');
     expect(model.variants).not.toHaveProperty('thinking');
@@ -143,8 +143,8 @@ describe('variant generation', () => {
     const provider = (result.config as { provider: Record<string, Record<string, unknown>> }).provider;
     expect(provider.other).toEqual({ options: { baseURL: 'https://api.example.test/v1' } });
     expect((provider.aiflowbridge.options as { apiKey: string }).apiKey).toBe('sk-aiflowbridge-local');
-    expect((provider.aiflowbridge.models as Record<string, { name: string }>)['MiniMax-M3.1-Flash-Preview'].name).toBe(
-      'MiniMax M3.1 Flash Preview'
+    expect((provider.aiflowbridge.models as Record<string, { name: string }>)['MiniMax-M3.1-Flash'].name).toBe(
+      'MiniMax M3.1 Flash'
     );
   });
 
@@ -159,8 +159,8 @@ describe('variant generation', () => {
     const result = applyEffortVariants(config, ['aiflowbridge'], [M31]);
     const models = (result.config as { provider: { aiflowbridge: { models: Record<string, Record<string, unknown>> } } })
       .provider.aiflowbridge.models;
-    expect(models['MiniMax-M3.1-Flash-Preview']).toEqual({
-      name: 'MiniMax M3.1 Flash Preview',
+    expect(models['MiniMax-M3.1-Flash']).toEqual({
+      name: 'MiniMax M3.1 Flash',
       reasoning: true,
       variants: buildEffortVariants(M31.levels),
     });
@@ -168,11 +168,11 @@ describe('variant generation', () => {
 
   it('turns reasoning on for a model that declares levels', () => {
     const config = {
-      provider: { aiflowbridge: { models: { 'MiniMax-M3.1-Flash-Preview': { reasoning: false, limit: { context: 1 } } } } },
+      provider: { aiflowbridge: { models: { 'MiniMax-M3.1-Flash': { reasoning: false, limit: { context: 1 } } } } },
     };
     const model = (applyEffortVariants(config, ['aiflowbridge'], [M31]).config as {
       provider: { aiflowbridge: { models: Record<string, Record<string, unknown>> } };
-    }).provider.aiflowbridge.models['MiniMax-M3.1-Flash-Preview'];
+    }).provider.aiflowbridge.models['MiniMax-M3.1-Flash'];
     expect(model.reasoning).toBe(true);
     expect(model.limit).toEqual({ context: 1 });
   });
@@ -196,13 +196,13 @@ describe('registry projection', () => {
   it('keeps only the models that declare a level range', () => {
     const registry = {
       models: [
-        { id: 'MiniMax-M3.1-Flash-Preview', name: 'MiniMax M3.1 Flash Preview', reasoningEffortLevels: ['low', 'max'] },
+        { id: 'MiniMax-M3.1-Flash', name: 'MiniMax M3.1 Flash', reasoningEffortLevels: ['low', 'max'] },
         { id: 'MiniMax-M3', name: 'MiniMax M3' },
         { id: 'mimo-v2.6-pro', name: 'MiMo V2.6 Pro', reasoningEffortLevels: [] },
       ],
     } as unknown as ModelRegistry;
     expect(collectEffortLevelModels(registry)).toEqual([
-      { id: 'MiniMax-M3.1-Flash-Preview', name: 'MiniMax M3.1 Flash Preview', levels: ['low', 'max'] },
+      { id: 'MiniMax-M3.1-Flash', name: 'MiniMax M3.1 Flash', levels: ['low', 'max'] },
     ]);
     expect(collectEffortLevelModels(undefined)).toEqual([]);
   });
@@ -219,7 +219,7 @@ describe('activation-time offer', () => {
     const check = checkEffortVariantsNeeded(gatewayConfig, ['aiflowbridge'], [M31]);
     expect(check.offer).toBe(true);
     expect(check.providers).toEqual(['aiflowbridge']);
-    expect(check.models).toEqual(['MiniMax-M3.1-Flash-Preview']);
+    expect(check.models).toEqual(['MiniMax-M3.1-Flash']);
   });
 
   it('stays silent once the configuration matches', () => {

@@ -4,7 +4,7 @@
 >
 > **Data freshness policy.**
 > Every number in this document is a snapshot, not a live feed.
-> Pricing reflects the upstream catalogs as of the **2026-10-01** snapshot, shipped with **AIFlowBridge 2.24.0**.
+> Pricing reflects the upstream catalogs as of the **2026-10-24** snapshot, shipped with **AIFlowBridge 2.25.0**.
 > Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries (mirrored into the bundled `resources/pricing.json` at release time).
 > Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
 
@@ -36,6 +36,7 @@ For a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 
 | All Z.ai GLM 5.3 Flash ($0.15/M in, $0.50/M out)                 | $17.50                            |
 | All DeepSeek V4.1 Flash ($0.30/M in, $1.20/M out)                | $39                               |
 | All MiniMax M3 ($0.30/M in, $1.20/M out)                         | $39                               |
+| All MiniMax M3.1 Flash ($0.15/M in, $0.60/M out)                 | $19.50                            |
 | Vision-heavy with `oswe-vscode-prime` proxy (Copilot)            | **+ $0** - covered by Copilot sub |
 | AIFlowBridge itself                                              | **$0** + optional sponsorship     |
 
@@ -47,6 +48,7 @@ For a solo developer using AIFlowBridge (heavy Copilot-style use, ~50 M input + 
 | Z.ai GLM 5.3 Flash  | $0.15      | $0.50       | $7.50  | $10     | $17.50 |
 | DeepSeek V4.1 Flash | $0.30      | $1.20       | $15    | $24     | $39    |
 | MiniMax M3          | $0.30      | $1.20       | $15    | $24     | $39    |
+| MiniMax M3.1 Flash  | $0.15      | $0.60       | $7.50  | $12     | $19.50 |
 
 Every Xiaomi MiMo model in the registry (V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed) carries the same $0.10 / $0.30 rate, so the family has a single cost line.
 
@@ -62,7 +64,7 @@ AIFlowBridge ships with indicative per-million-token rates baked into the bundle
 | Family                                 | Input / 1M    | Output / 1M    | Currency | Applies to                                                                                                                 | Billing posture                                                                                    |
 | -------------------------------------- | ------------- | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | DeepSeek                               | $0.30 - $1.32 | $1.20 - $3.96  | USD      | V4.1 Flash, V4 Pro (per-model rates in the registry)                                                                       | Per-token (real charge)                                                                            |
-| MiniMax                                | $0.30         | $1.20          | USD      | M2.7, M2.7 Highspeed, M3 (M3.1 Flash Preview ships unpriced: no pay-as-you-go tariff is published for the preview tier) | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                         |
+| MiniMax                                | $0.15 - $0.30 | $0.60 - $1.20  | USD      | M2.7, M2.7 Highspeed, M3 (M3.1 Flash carries its own lower rate: $0.15 in, $0.60 out)                                | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                         |
 | Xiaomi MiMo                            | $0.10         | $0.30          | USD      | V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed (same rate on all five)                                          | Per-token (real charge)                                                                            |
 | Z.ai                                   | $0.15 - $1.40 | $0.50 - $4.40  | USD      | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                                                                     | Per-token (real charge on `sk-...` / Plan-covered on Coding Plan)                                  |
 | MoonshotAI                             | $0.95 - $3.00 | $4.00 - $15.00 | USD      | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                                                               | Per-token (real charge)                                                                            |
@@ -88,7 +90,7 @@ cost = (promptTokens * pricing.inputPerMillion
 ```
 
 Every model in the registry is auto-synthesized into the gateway catalog, so the catalog covers all 38 models without any user input.
-37 of them carry a rate; `MiniMax-M3.1-Flash-Preview` deliberately ships without one because no pay-as-you-go tariff is published for that preview tier.
+All 38 of them carry a rate, the cheapest tier included: `MiniMax-M3.1-Flash` is published at $0.15/M in and $0.60/M out.
 A bundled model is never given a sibling's rate to fill the gap: the registry is the source of truth for the bundled catalog, so its silence means "no published price", not "price unknown".
 
 The number is a **real charge estimate** for per-token billing, and an **indicative equivalent** for plan-covered usage (token plan or subscription) - the same formula, the same rates, but $0 actually billed.
