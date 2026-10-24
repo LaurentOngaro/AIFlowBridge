@@ -54,7 +54,7 @@ The decision is hard-coded per provider, not driven by a setting:
 | Provider    | Models                                              | Path                             |
 | ----------- | --------------------------------------------------- | -------------------------------- |
 | DeepSeek    | V4.1 Flash, V4 Pro                                  | Vision proxy                     |
-| MiniMax     | M2.7, M2.7 Highspeed, M3, M3.1 Flash        | Vision proxy                     |
+| MiniMax     | M3, M3.1 Flash                              | Vision proxy                     |
 | Xiaomi MiMo | `mimo-v2.5`                                         | Native (upstream receives bytes) |
 | Xiaomi MiMo | V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed | Vision proxy                     |
 

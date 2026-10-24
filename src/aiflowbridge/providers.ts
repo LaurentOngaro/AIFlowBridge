@@ -296,7 +296,7 @@ export function selectProvider(providers: ProviderProfile[], requestedModel?: st
   // while reporting the wrong model name in the dashboard).
   // use `localeCompare` with `sensitivity: 'base'` so the match
   // is case-insensitive AND accent-insensitive (covers Unicode aliases
-  // like "MiniMax-M2.7" vs "minimax-m2.7" AND any future accented
+  // like "MiniMax-M3" vs "minimax-m3" AND any future accented
   // identifiers without breaking the ASCII fast path).
   const candidates = [normalizedRequestedModel, normalizedDefaultModel].filter((value): value is string => Boolean(value));
   for (const candidate of candidates) {

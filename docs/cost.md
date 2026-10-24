@@ -4,7 +4,7 @@
 >
 > **Data freshness policy.**
 > Every number in this document is a snapshot, not a live feed.
-> Pricing reflects the upstream catalogs as of the **2026-10-24** snapshot, shipped with **AIFlowBridge 2.25.0**.
+> Pricing reflects the upstream catalogs as of the **2026-10-24** snapshot, shipped with **AIFlowBridge 2.26.0**.
 > Sources: per-vendor pricing pages for the direct vendors, `https://openrouter.ai/api/v1/models` for OpenRouter entries (mirrored into the bundled `resources/pricing.json` at release time).
 > Refresh cadence: per release. Verify before quoting numbers externally. See [docs/providers.md#data-freshness](providers.md#data-freshness) for the policy and how to pull a fresh snapshot.
 
@@ -64,7 +64,7 @@ AIFlowBridge ships with indicative per-million-token rates baked into the bundle
 | Family                                 | Input / 1M    | Output / 1M    | Currency | Applies to                                                                                                                 | Billing posture                                                                                    |
 | -------------------------------------- | ------------- | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | DeepSeek                               | $0.30 - $1.32 | $1.20 - $3.96  | USD      | V4.1 Flash, V4 Pro (per-model rates in the registry)                                                                       | Per-token (real charge)                                                                            |
-| MiniMax                                | $0.15 - $0.30 | $0.60 - $1.20  | USD      | M2.7, M2.7 Highspeed, M3 (M3.1 Flash carries its own lower rate: $0.15 in, $0.60 out)                                | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                         |
+| MiniMax                                | $0.15 - $0.30 | $0.60 - $1.20  | USD      | M3 (M3.1 Flash carries its own lower rate: $0.15 in, $0.60 out)                                | Per-token (real charge on `sk-*`) / Plan-covered on `tp-*`                                         |
 | Xiaomi MiMo                            | $0.10         | $0.30          | USD      | V2.5, V2.5 Pro, V2.6 Flash, V2.6 Pro, V2.6 Pro UltraSpeed (same rate on all five)                                          | Per-token (real charge)                                                                            |
 | Z.ai                                   | $0.15 - $1.40 | $0.50 - $4.40  | USD      | GLM 5.3, GLM 5.3 Flash, GLM 5.3 FlashX                                                                                     | Per-token (real charge on `sk-...` / Plan-covered on Coding Plan)                                  |
 | MoonshotAI                             | $0.95 - $3.00 | $4.00 - $15.00 | USD      | Kimi K3, Kimi K2.7 Code, Kimi K2.7 Code Highspeed, Kimi K2.6                                                               | Per-token (real charge)                                                                            |
@@ -89,8 +89,8 @@ cost = (promptTokens * pricing.inputPerMillion
       + completionTokens * pricing.outputPerMillion) / 1_000_000
 ```
 
-Every model in the registry is auto-synthesized into the gateway catalog, so the catalog covers all 38 models without any user input.
-All 38 of them carry a rate, the cheapest tier included: `MiniMax-M3.1-Flash` is published at $0.15/M in and $0.60/M out.
+Every model in the registry is auto-synthesized into the gateway catalog, so the catalog covers all 36 models without any user input.
+All 36 of them carry a rate, the cheapest tier included: `MiniMax-M3.1-Flash` is published at $0.15/M in and $0.60/M out.
 A bundled model is never given a sibling's rate to fill the gap: the registry is the source of truth for the bundled catalog, so its silence means "no published price", not "price unknown".
 
 The number is a **real charge estimate** for per-token billing, and an **indicative equivalent** for plan-covered usage (token plan or subscription) - the same formula, the same rates, but $0 actually billed.
@@ -111,7 +111,7 @@ There are three layers, from most permanent to most local:
 To override the rate for one model only (e.g. Xiaomi on the Singapore cluster, billed in EUR), the easiest path is a globalStorage override of the registry.
 See [docs/architecture.md](architecture.md#model-registry-3-tier) for the full schema and override rules.
 
-User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge: Add a custom model** command) inherit the family-level default pricing automatically - so a custom MiniMax-M3 model gets the same indicative rate as the built-in MiniMax M2.7 profile.
+User-declared models added via `aiflowbridge.userModels` (or the **AIFlowBridge: Add a custom model** command) inherit the family-level default pricing automatically - so a custom MiniMax-M3 model gets the same indicative rate as the built-in MiniMax M3 profile.
 Override it the same way by adding a `pricing` block to the synthesized provider entry.
 
 Providers without a `pricing` block show `-` in the Est. cost column, and requests routed through them contribute `0` to the total.

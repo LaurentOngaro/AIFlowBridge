@@ -229,7 +229,7 @@ describe('validateModelEntry (partial mode - override tiers)', () => {
     const log: ValidationLog = { skipped: [] };
     const result = validateModelEntry(
       {
-        id: 'MiniMax-M2.7',
+        id: 'MiniMax-M3',
         pricing: { inputPerMillion: 0.99, outputPerMillion: 4.2, currency: 'USD' },
       },
       0,
@@ -238,7 +238,7 @@ describe('validateModelEntry (partial mode - override tiers)', () => {
     );
     expect(result).not.toBeNull();
     expect(result).toEqual({
-      id: 'MiniMax-M2.7',
+      id: 'MiniMax-M3',
       pricing: { inputPerMillion: 0.99, outputPerMillion: 4.2, currency: 'USD' },
     });
     expect(log.skipped).toHaveLength(0);

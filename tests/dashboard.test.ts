@@ -43,10 +43,10 @@ function baseConfig(): AiFlowBridgeConfig {
     providers: [
       {
         id: 'minimax',
-        label: 'MiniMax V2.7',
+        label: 'MiniMax M3',
         kind: 'openai-compat',
         baseUrl: 'https://api.minimax.io/v1',
-        model: 'MiniMax-M2.7',
+        model: 'MiniMax-M3',
         enabled: true,
         pricing: { inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' },
       },
@@ -75,8 +75,8 @@ function snapshotWithData(): TelemetrySnapshot {
         id: 'r1',
         timestamp: '2026-06-03T08:00:00.000Z',
         providerId: 'minimax',
-        providerLabel: 'MiniMax V2.7',
-        model: 'MiniMax-M2.7',
+        providerLabel: 'MiniMax M3',
+        model: 'MiniMax-M3',
         status: 200,
         durationMs: 420,
         promptTokens: 150,
@@ -89,8 +89,8 @@ function snapshotWithData(): TelemetrySnapshot {
         id: 'r2',
         timestamp: '2026-06-03T08:01:00.000Z',
         providerId: 'minimax',
-        providerLabel: 'MiniMax V2.7',
-        model: 'MiniMax-M2.7',
+        providerLabel: 'MiniMax M3',
+        model: 'MiniMax-M3',
         status: 500,
         durationMs: 120,
         promptTokens: 50,
@@ -112,7 +112,7 @@ function snapshotWithData(): TelemetrySnapshot {
       },
     },
     byModel: {
-      'MiniMax-M2.7': {
+      'MiniMax-M3': {
         requests: 12,
         promptTokens: 1500,
         completionTokens: 800,
@@ -162,7 +162,7 @@ describe('buildDashboardHtml', () => {
 
   it('renders the recent requests table with timestamps', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
-    expect(html).toContain('MiniMax-M2.7');
+    expect(html).toContain('MiniMax-M3');
     expect(html).toContain('>200<'); // status pill
     expect(html).toContain('>500<'); // status pill (warn)
     expect(html).toContain('estimated</td>'); // estimated row marker
@@ -329,7 +329,7 @@ describe('buildDashboardHtml', () => {
   it('serializes the recent and byModel data into a script block for client-side filtering', () => {
     const html = buildDashboardHtml(baseConfig(), snapshotWithData(), true);
     expect(html).toContain('const recent =');
-    expect(html).toContain('"MiniMax-M2.7"');
+    expect(html).toContain('"MiniMax-M3"');
     expect(html).toContain('const byModel =');
   });
 
@@ -806,7 +806,7 @@ describe('buildPricingMaps', () => {
   it('indexes enabled providers by id and by upstream model', () => {
     const maps = buildPricingMaps(baseConfig().providers);
     expect(maps.byProviderId['minimax']).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
-    expect(maps.byModel['MiniMax-M2.7']).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
+    expect(maps.byModel['MiniMax-M3']).toEqual({ inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' });
   });
 
   it('skips profiles without pricing', () => {
@@ -2258,8 +2258,8 @@ function makeEntry(overrides: Partial<RequestTelemetry> = {}): RequestTelemetry 
     id: 'r1',
     timestamp: '2026-07-13T20:00:00.000Z',
     providerId: 'minimax',
-    providerLabel: 'MiniMax V2.7',
-    model: 'MiniMax-M2.7',
+    providerLabel: 'MiniMax M3',
+    model: 'MiniMax-M3',
     status: 200,
     durationMs: 420,
     promptTokens: 100,

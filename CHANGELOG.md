@@ -6,6 +6,19 @@
 > This file must not contains internal audit-trail labels (`FEAT\d+`, `STU\d+`, `BUG\d+`, `SEC\d+`, `AFF\d+`, `REC\d+`, etc.).
 > Tests results are not mentioned anymore because each release is tested on the CI pipeline and fail tests block the release.
 
+## 2.26.0
+
+### Removed
+
+- **MiniMax M2.7 and M2.7 Highspeed are gone from the catalog.** MiniMax retires the M2.5 / M2.7 families: no new accounts since 2026-10-19, removed from the API on 2026-11-18. Both bundled registry entries are dropped, so they leave the Copilot Chat picker, the gateway catalog and `GET /v1/models`, and the bundled catalog goes from 38 models to 36. **This is a catalog break, and it is why the release is a minor one**: a configuration that pins `MiniMax-M2.7` (in `aiflowbridge.providers`, in `aiflowbridge.userModels`, in a registry override, or in the `model` field of a client such as Kilo Code or Continue) now gets an HTTP 404 from the gateway listing the available provider ids, and has to be updated to `MiniMax-M3` or `MiniMax-M3.1-Flash`.
+- **The M2.5 generations were already gone.** They were purged from the catalog in 2.19.0; this release completes the sweep with the M2.7 tier, and their `model.*.detail` translation keys are removed with it.
+
+### Changed
+
+- **The MiniMax family pricing anchor moved from `MiniMax-M2.7` to `MiniMax-M3`.** The hand-curated gateway entry that gives every user-declared MiniMax model without a price of its own an indicative rate now names a model that still exists. `MiniMax-M3` carries the exact same 0.3 / 1.20 USD per M rate, so the family default is unchanged.
+- **MiniMax M3.1 Flash is now the flagship MiniMax tier** ($0.15/M in, $0.60/M out, 1M context, multimodal input, five reasoning depths), following the 2.25.0 replacement of the `MiniMax-M3.1-Flash-Preview` id.
+- **The bundled pricing snapshot is refreshed** from the OpenRouter public listing at release time (442 metered models, generated 2026-10-24). The public documentation carries the matching snapshot stamp (2026-10-24, AIFlowBridge 2.26.0).
+
 ## 2.25.0
 
 ### Changed

@@ -110,7 +110,7 @@ src/
 └── extension.ts                        # activate()/deactivate()
 
 resources/
-├── models.json                         # Bundled model registry (38 entries across 7 vendors; OpenRouter adds 100+ model ids reachable verbatim through userModels / registry override)
+├── models.json                         # Bundled model registry (36 entries across 7 vendors; OpenRouter adds 100+ model ids reachable verbatim through userModels / registry override)
 └── models.schema.json                  # JSON Schema for editor autocompletion
 ```
 
@@ -131,7 +131,7 @@ The runtime reads it from a 3-tier chain on activation:
 resources/models.json              (bundled with the extension, source of truth on first run)
 ```
 
-- **Bundled** - `resources/models.json` lists the 38 bundled models and the 7 vendors with models (baseUrl, apiKeySecret, external URLs, indicative token-plan rates); `antigravity` is an eighth vendor entry with no bundled model, kept as historical metadata for the Google product OAuth route retired in this release: it pins the retired upstream `baseUrl` and the external URLs, selects nothing, and any profile aimed at that host is refused with `google_product_oauth_unsupported`.
+- **Bundled** - `resources/models.json` lists the 36 bundled models and the 7 vendors with models (baseUrl, apiKeySecret, external URLs, indicative token-plan rates); `antigravity` is an eighth vendor entry with no bundled model, kept as historical metadata for the Google product OAuth route retired in this release: it pins the retired upstream `baseUrl` and the external URLs, selects nothing, and any profile aimed at that host is refused with `google_product_oauth_unsupported`.
   - The OpenRouter bundled entries advertise the 15 models on the current free tier in `GET /v1/models`; the 100+ other OpenRouter model ids are reachable verbatim by adding them to `aiflowbridge.userModels` or a registry override - see [docs/providers.md](providers.md#openrouter-100-models-via-a-single-openai-compatible-endpoint).
   - Data snapshot **2026-10-01** (AIFlowBridge **2.24.0**); see [docs/providers.md#data-freshness](providers.md#data-freshness) for the refresh policy.
 - **Per-user override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user across all workspaces.
@@ -148,14 +148,14 @@ Schema: [`resources/models.schema.json`](../resources/models.schema.json) - JSON
 
 ### Minimal override example
 
-Change the MiniMax M2.7 pricing to whatever your reseller charges (in `<globalStorageUri>/models.json` or `.vscode/aiflowbridge.models.json`):
+Change the MiniMax M3 pricing to whatever your reseller charges (in `<globalStorageUri>/models.json` or `.vscode/aiflowbridge.models.json`):
 
 ```json
 {
   "version": 1,
   "models": [
     {
-      "id": "MiniMax-M2.7",
+      "id": "MiniMax-M3",
       "pricing": {
         "inputPerMillion": 0.25,
         "outputPerMillion": 1.0,
@@ -199,7 +199,7 @@ Behind it, one `vscode.LanguageModelChatProvider` implementation (`UnifiedChatPr
 | Model family                                   | Sub-provider              | Copilot Chat picker |
 | ---------------------------------------------- | ------------------------- | ------------------- |
 | DeepSeek V4.1 Flash / V4 Pro                   | `src/provider/index.ts`   | Yes                 |
-| MiniMax M2.7 -> M3.1                           | `src/provider/minimax.ts` | Yes                 |
+| MiniMax M3 / M3.1 Flash                        | `src/provider/minimax.ts` | Yes                 |
 | Xiaomi MiMo V2.5 -> V2.6                       | `src/provider/xiaomi.ts`  | Yes                 |
 | Google AI Studio, Z.ai, MoonshotAI, OpenRouter | none (gateway-only)       | No                  |
 
@@ -207,7 +207,7 @@ Adding a picker entry therefore means adding a model to the registry plus a dele
 
 Shared logic lives in `src/provider/{convert,stream,segment,errors,tokens,request}.ts` (vscode.LM message conversion, SSE parsing, stream segmentation, upstream error normalization, token counting heuristics, outgoing HTTP request builder), with `src/provider/models.ts` for model id resolution and `src/provider/tools/` for tool-calling adapters.
 
-The model id field in the registry is the **upstream API id** (`MiniMax-M2.7`, `mimo-v2.6-pro`, `deepseek-flash`), not a kebab-case alias.
+The model id field in the registry is the **upstream API id** (`MiniMax-M3`, `mimo-v2.6-pro`, `deepseek-flash`), not a kebab-case alias.
 The picker shows the human-readable `name` field.
 
 ## Gateway singleton + version-aware restart

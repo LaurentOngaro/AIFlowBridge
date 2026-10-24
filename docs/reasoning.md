@@ -72,7 +72,7 @@ A model that declares `reasoningEffortLevels` in the registry therefore shows wh
 
 ## Enabling the picker on another M-series model
 
-To add the thinking-effort selector to M2 / M2.1 / M2.5 / M2.7 (none of which ship with it in the bundled registry):
+To add the thinking-effort selector to a MiniMax model that does not ship with it (the bundled M3 exposes the None / High / Max selector, M3.1 Flash the five depth levels):
 
 **Option A** - `aiflowbridge.userModels`:
 
@@ -80,10 +80,10 @@ To add the thinking-effort selector to M2 / M2.1 / M2.5 / M2.7 (none of which sh
 {
   "aiflowbridge.userModels": [
     {
-      "id": "MiniMax-M2.7",
-      "name": "MiniMax M2.7 (thinking)",
+      "id": "MiniMax-M4",
+      "name": "MiniMax M4 (thinking)",
       "family": "minimax",
-      "version": "m2.7",
+      "version": "m4",
       "maxInputTokens": 131072,
       "maxOutputTokens": 8192,
       "capabilities": { "toolCalling": true, "imageInput": false, "thinking": true },

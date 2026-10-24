@@ -177,10 +177,10 @@ describe('language-based routing rules', () => {
 
   it('matches provider.model and provider.label as aliases (not just provider.id)', () => {
     const providers: ProviderProfile[] = [
-      makeProvider({ id: 'a', model: 'miniMax-M2.7', label: 'MiniMax V2.7' }),
+      makeProvider({ id: 'a', model: 'miniMax-M3', label: 'MiniMax M3' }),
       makeProvider({ id: 'b', model: 'model-b' }),
     ];
-    const match = selectProviderByLanguage(providers, 'python', { python: 'MiniMax-M2.7' });
+    const match = selectProviderByLanguage(providers, 'python', { python: 'MiniMax-M3' });
     expect(match?.id).toBe('a');
   });
 

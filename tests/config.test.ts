@@ -136,35 +136,35 @@ describe('config.ts - Model ID Overrides', () => {
   it('should return vscodeModelId when no override exists', () => {
     mockWorkspaceConfig.get.mockReturnValue({});
 
-    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
-    expect(modelId).toBe('MiniMax-M2.7');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M3');
+    expect(modelId).toBe('MiniMax-M3');
   });
 
   it('should return overridden value when override exists', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'MiniMax-M2.7': 'MiniMax-M2.7-Custom',
+      'MiniMax-M3': 'MiniMax-M3-Custom',
     });
 
-    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
-    expect(modelId).toBe('MiniMax-M2.7-Custom');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M3');
+    expect(modelId).toBe('MiniMax-M3-Custom');
   });
 
   it('should trim whitespace from override', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'MiniMax-M2.7': '  MiniMax-M2.7-Custom  ',
+      'MiniMax-M3': '  MiniMax-M3-Custom  ',
     });
 
-    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
-    expect(modelId).toBe('MiniMax-M2.7-Custom');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M3');
+    expect(modelId).toBe('MiniMax-M3-Custom');
   });
 
   it('should return original when override is only whitespace', () => {
     mockWorkspaceConfig.get.mockReturnValue({
-      'MiniMax-M2.7': '   ',
+      'MiniMax-M3': '   ',
     });
 
-    const modelId = getProviderApiModelId('minimax', 'MiniMax-M2.7');
-    expect(modelId).toBe('MiniMax-M2.7');
+    const modelId = getProviderApiModelId('minimax', 'MiniMax-M3');
+    expect(modelId).toBe('MiniMax-M3');
   });
 
   it('should handle nested vendor keys', () => {

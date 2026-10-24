@@ -45,7 +45,7 @@ describe('resolveVendorApiKey', () => {
     // `AIFlowBridge: Add a custom model` and previously failed to
     // resolve the MiniMax key (case-sensitive comparison).
     expect(await resolveVendorApiKey('MiniMax-M3', secrets)).toBe('sk-minimax');
-    expect(await resolveVendorApiKey('MiniMax-M2.7', secrets)).toBe('sk-minimax');
+    expect(await resolveVendorApiKey('MiniMax-M3', secrets)).toBe('sk-minimax');
     expect(await resolveVendorApiKey('MiMo-V2.5-PRO', secrets)).toBe('sk-xiaomi');
   });
 

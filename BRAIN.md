@@ -73,6 +73,7 @@ Le modèle « tech lead / exécutant » qui existait avant le 2026-10-01 est **c
 | 2026-10-01 | Auto-routage Xiaomi par préfixe de clé (`sk-*` vs `tp-*`) dans les deux sens                                                         | Les clusters upstream sont disjoints ; la valeur par défaut n'est qu'un point de départ, la décision est prise par requête                   |
 | 2026-10-03 | Traducteurs Gemini : listes et analyse de contenu partagées (`content-parts.ts`, `json-schema-clean.ts`)                             | Le même 400 sur deux surfaces venait de deux copies du même code                                                                             |
 | 2026-10-24 | La promotion d'un modèle amont (preview -> GA) est une **édition du registre** et une release mineure, sans alias de compatibilité | Le registre est la source de vérité : un id de catalogue qui change est un changement assumé, avec un 404 explicite de la gateway, pas deux identités pour un même modèle |
+| 2026-10-24 | Une génération amont retirée **sort du registre**, et l'ancre tarifaire de sa famille change de modèle | Une ancre posée sur un modèle que personne ne peut plus appeler continue d'alimenter un tarif familial pour des modèles sans prix : le catalogue promet un prix pour un modèle qui n'existe plus |
 
 ### Google / Gemini
 
@@ -166,6 +167,21 @@ Ces leçons sont le capital méthodologique du projet. Elles justifient des déc
 > Les entrées décrivent les **décisions** et les **jalons** qui restent utiles en mémoire long terme.
 > Les étapes d'exécution (bumps de version, listes de fichiers touchés, comptes de tests, mises à jour de docs déjà décrites au CHANGELOG) sont volontairement omises : le CHANGELOG les conserve, et `ACTION_PLAN.md` porte le détail par action.
 > Les identifiants `AP-xxx` cités dans les entrées sont ceux de l'historique ; le ménage du fichier d'attente du 2026-10-10 a renuméroté les deux actions encore ouvertes (AP-013 -> AP-01, AP-025 -> AP-02).
+
+### 2026-10-24 - Kilo (MiniMax M2.7 : le catalogue ne garde pas une génération que l'amont retire)
+
+**MiniMax retire M2.5 et M2.7** : plus de nouveaux comptes depuis le 2026-10-19, suppression de l'API le 2026-11-18, et les requêtes M2.5 / M2.7 sous M Plan ou Token Plan sont déjà reroutées vers M3.1 Flash.
+Le registre bundleait encore `MiniMax-M2.7` et `MiniMax-M2.7-highspeed` : ils sortent, la 2.26.0 passe le catalogue de 38 à 36 modèles.
+M2.5 et ses variantes avaient déjà été purgés en 2.19.0, cette release achève le balayage.
+
+**L'ancre tarifaire de la famille a suivi le modèle, pas le tarif.** `DEFAULT_GATEWAY_PROFILES` portait l'ancre `minimax` sur `MiniMax-M2.7` : c'est elle qui donnait un tarif indicatif à tout modèle MiniMax déclaré par l'utilisateur sans prix.
+Une ancre posée sur une génération retirée continue de diffuser un tarif pour des modèles dont personne ne connaît le prix réel, et le catalogue annonce un modèle que l'amont ne sert plus.
+L'ancre est donc déplacée sur `MiniMax-M3`, qui porte exactement le même tarif (0.3 / 1.20 USD par M) : **le défaut familial ne change pas de valeur**, il change de modèle.
+
+**La rupture de catalogue reste assumée.** Une configuration qui épingle `MiniMax-M2.7` reçoit un 404 de la gateway qui liste les ids disponibles, pas une alias silencieux.
+
+**Ce que la purge a révélé dans le code** : les clés de traduction `model.MiniMax-M2.7.detail` et `model.MiniMax-M2.7-highspeed.detail` devenaient orphelines, et le test de garde sur les clés orphelines les aurait fait échouer.
+C'est le comportement voulu du garde : purger un modèle du registre oblige à supprimer sa clé, sans liste d'exemption.
 
 ### 2026-10-24 - Kilo (MiniMax M3.1 Flash : de la preview au modèle généralement disponible)
 

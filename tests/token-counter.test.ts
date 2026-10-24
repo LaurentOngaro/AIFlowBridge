@@ -32,7 +32,7 @@ describe('fetchMinimaxPromptTokens', () => {
   it('returns undefined when apiKey is empty', async () => {
     const result = await fetchMinimaxPromptTokens({
       apiKey: '',
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       messages: [{ role: 'user', content: 'hi' }],
     });
     expect(result).toBeUndefined();
@@ -43,7 +43,7 @@ describe('fetchMinimaxPromptTokens', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { object: 'response.input_tokens', input_tokens: 42 }));
     const result = await fetchMinimaxPromptTokens({
       apiKey: 'sk-test',
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       messages: [{ role: 'user', content: 'hello' }],
     });
     expect(result).toBe(42);
@@ -52,7 +52,7 @@ describe('fetchMinimaxPromptTokens', () => {
     expect(url).toContain('/v1/responses/input_tokens');
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       input: [{ role: 'user', content: 'hello' }],
     });
   });
@@ -61,7 +61,7 @@ describe('fetchMinimaxPromptTokens', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(401, { error: 'unauthorized' }));
     const result = await fetchMinimaxPromptTokens({
       apiKey: 'sk-test',
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       messages: [],
     });
     expect(result).toBeUndefined();
@@ -71,7 +71,7 @@ describe('fetchMinimaxPromptTokens', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { not_input_tokens: 1 }));
     const result = await fetchMinimaxPromptTokens({
       apiKey: 'sk-test',
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       messages: [],
     });
     expect(result).toBeUndefined();
@@ -82,7 +82,7 @@ describe('fetchMinimaxPromptTokens', () => {
     await fetchMinimaxPromptTokens({
       baseUrl: 'https://custom.example.com/',
       apiKey: 'sk-test',
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       messages: [],
     });
     expect(fetchMock.mock.calls[0][0]).toBe('https://custom.example.com/v1/responses/input_tokens');
@@ -92,7 +92,7 @@ describe('fetchMinimaxPromptTokens', () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
     const result = await fetchMinimaxPromptTokens({
       apiKey: 'sk-test',
-      model: 'MiniMax-M2.7',
+      model: 'MiniMax-M3',
       messages: [],
     });
     expect(result).toBeUndefined();

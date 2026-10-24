@@ -56,11 +56,19 @@ export const DEFAULT_GATEWAY_PROFILES: DefaultGatewayProfileEntry[] = [
   // making the picker show a fake model name that no upstream API recognises.
   // The unit test `hand-curated gateway profiles use real upstream model ids
   // as catalog ids` in `tests/host-config.test.ts` is the regression guard.
+  //
+  // This entry is also the `minimax` family anchor: `getFamilyPricing()`
+  // hands its rate to every user-declared MiniMax model that declares no
+  // price of its own. The anchor sat on `MiniMax-M2.7` until the 2.26.0
+  // catalog purge, which retired that family upstream (no new accounts
+  // since 2026-10-19, removed on 2026-11-18). It now sits on `MiniMax-M3`,
+  // which carries the exact same 0.3 / 1.2 rate, so the family default is
+  // unchanged.
   {
-    id: 'MiniMax-M2.7',
-    label: 'MiniMax V2.7',
+    id: 'MiniMax-M3',
+    label: 'MiniMax M3',
     vendorConfigKey: 'minimax',
-    model: 'MiniMax-M2.7',
+    model: 'MiniMax-M3',
     pricing: { inputPerMillion: 0.3, outputPerMillion: 1.2, currency: 'USD' },
   },
   // Indicative token-plan rates (USD per 1M tokens). Override via

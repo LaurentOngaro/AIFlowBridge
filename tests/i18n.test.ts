@@ -248,8 +248,8 @@ describe('model detail keys', () => {
  * else. The runtime dictionary is `src/i18n.ts`. A previous version of
  * this file also carried 138 `model.*` / `provider.*` entries that no
  * placeholder ever referenced, duplicating the runtime table with a
- * different casing (`model.minimax-M2.7.detail` against
- * `model.MiniMax-M2.7.detail`) and stale ids, so the two drifted apart
+ * different casing (`model.minimax-M3.detail` against
+ * `model.MiniMax-M3.detail`) and stale ids, so the two drifted apart
  * with no signal.
  */
 describe('package.nls.json manifest dictionary', () => {

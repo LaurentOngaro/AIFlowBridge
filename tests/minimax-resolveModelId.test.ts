@@ -31,18 +31,18 @@ describe('resolveMiniMaxModelId', () => {
 
   it('returns the id unchanged when no override is set', () => {
     mockGet.mockReturnValue(undefined);
-    expect(resolveMiniMaxModelId('MiniMax-M2.5')).toBe('MiniMax-M2.5');
+    expect(resolveMiniMaxModelId('MiniMax-M3')).toBe('MiniMax-M3');
     expect(resolveMiniMaxModelId('MiniMax-M3')).toBe('MiniMax-M3');
   });
 
   it('uses user override from settings when present', () => {
-    mockGet.mockReturnValue({ 'MiniMax-M2.7': 'custom-override' });
-    expect(resolveMiniMaxModelId('MiniMax-M2.7')).toBe('custom-override');
+    mockGet.mockReturnValue({ 'MiniMax-M3': 'custom-override' });
+    expect(resolveMiniMaxModelId('MiniMax-M3')).toBe('custom-override');
   });
 
   it('returns original id when override is an empty record', () => {
     mockGet.mockReturnValue({});
-    expect(resolveMiniMaxModelId('MiniMax-M2.7')).toBe('MiniMax-M2.7');
+    expect(resolveMiniMaxModelId('MiniMax-M3')).toBe('MiniMax-M3');
   });
 
   it('handles unknown model ids as passthrough', () => {

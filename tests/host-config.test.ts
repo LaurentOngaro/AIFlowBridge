@@ -85,11 +85,11 @@ function baseProvider(): ProviderProfile {
     // Open WebUI that no upstream API recognises. See the regression test
     // "hand-curated gateway profiles use real upstream model ids as catalog ids"
     // at the bottom of this file.
-    id: 'MiniMax-M2.7',
-    label: 'MiniMax V2.7',
+    id: 'MiniMax-M3.1-Flash',
+    label: 'MiniMax M3.1 Flash',
     kind: 'openai-compat',
     baseUrl: registry.vendors.minimax.baseUrl,
-    model: 'MiniMax-M2.7',
+    model: 'MiniMax-M3.1-Flash',
     enabled: true,
   };
 }
@@ -145,17 +145,17 @@ describe('synthesizeProvidersFromUserModels', () => {
   });
 
   it('does not duplicate a model already covered by an existing provider', () => {
-    mockUserModels.value = [{ id: 'MiniMax-M2.7', name: 'MiniMax M2.7', family: 'minimax', version: 'm2.7' }];
+    mockUserModels.value = [{ id: 'MiniMax-M3.1-Flash', name: 'MiniMax M3.1 Flash', family: 'minimax', version: 'm3.1-flash' }];
     const existing = [baseProvider()];
     const result = synthesizeProvidersFromUserModels(existing, fakeConfig() as never, loadBundledRegistry());
     expect(result).toHaveLength(1);
-    expect(result[0].model).toBe('MiniMax-M2.7');
+    expect(result[0].model).toBe('MiniMax-M3.1-Flash');
   });
 
   it('does not duplicate a model whose id collides with an existing provider id', () => {
-    // The base provider covers MiniMax-M2.7. A user model with the same
+    // The base provider covers MiniMax-M3.1-Flash. A user model with the same
     // id must be skipped to avoid a duplicate in the catalog.
-    mockUserModels.value = [{ id: 'MiniMax-M2.7', name: 'MiniMax (duplicate)', family: 'minimax', version: 'x' }];
+    mockUserModels.value = [{ id: 'MiniMax-M3.1-Flash', name: 'MiniMax (duplicate)', family: 'minimax', version: 'x' }];
     const existing = [baseProvider()];
     const result = synthesizeProvidersFromUserModels(existing, fakeConfig() as never, loadBundledRegistry());
     expect(result).toHaveLength(1);
@@ -188,7 +188,7 @@ describe('synthesizeProvidersFromUserModels', () => {
     mockUserModels.value = [{ id: 'MiniMax-M3', name: 'MiniMax M3', family: 'minimax', version: 'm3' }];
     const existing = [baseProvider()];
     const result = synthesizeProvidersFromUserModels(existing, fakeConfig() as never, loadBundledRegistry());
-    expect(result[0].id).toBe('MiniMax-M2.7');
+    expect(result[0].id).toBe('MiniMax-M3.1-Flash');
     expect(result[1].id).toBe('MiniMax-M3');
   });
 });
@@ -229,7 +229,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     // Spot-check a few well-known ids from each family.
     expect(ids.has('deepseek-flash')).toBe(true);
     expect(ids.has('deepseek-v4-pro')).toBe(true);
-    expect(ids.has('MiniMax-M2.7')).toBe(true);
+    expect(ids.has('MiniMax-M3.1-Flash')).toBe(true);
     expect(ids.has('MiniMax-M3')).toBe(true);
     expect(ids.has('mimo-v2.6-pro')).toBe(true);
     expect(ids.has('mimo-v2.5-pro')).toBe(true);
@@ -257,12 +257,12 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
   });
 
   it('does not duplicate models already covered by an existing provider', () => {
-    // The default baseProvider covers MiniMax-M2.7; the synthesis should
+    // The default baseProvider covers MiniMax-M3.1-Flash; the synthesis should
     // skip it and add every other model instead.
     const providers = synthesizeProvidersFromBuiltInModels([baseProvider()], fakeConfig() as never, loadBundledRegistry());
-    const m27 = providers.filter((p) => p.model === 'MiniMax-M2.7');
-    expect(m27).toHaveLength(1);
-    expect(m27[0].id).toBe('MiniMax-M2.7'); // The hand-curated entry wins.
+    const m31 = providers.filter((p) => p.model === 'MiniMax-M3.1-Flash');
+    expect(m31).toHaveLength(1);
+    expect(m31[0].id).toBe('MiniMax-M3.1-Flash'); // The existing entry wins.
     // But M3, V2.6 Pro, etc. should still be added.
     expect(providers.find((p) => p.model === 'MiniMax-M3')).toBeDefined();
     expect(providers.find((p) => p.model === 'mimo-v2.6-pro')).toBeDefined();
@@ -310,7 +310,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
 
   it('preserves the order: existing providers first, then built-in syntheses', () => {
     const providers = synthesizeProvidersFromBuiltInModels([baseProvider()], fakeConfig() as never, loadBundledRegistry());
-    expect(providers[0].id).toBe('MiniMax-M2.7');
+    expect(providers[0].id).toBe('MiniMax-M3.1-Flash');
     // First synthesized entries are the Gemini models (the bundled
     // registry lists the googleaistudio family first), followed by
     // the deepseek family.
@@ -377,12 +377,12 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     const overridden: import('../src/aiflowbridge/modelRegistry.schema').ModelRegistry = {
       ...registry,
       models: registry.models.map((model) =>
-        model.id === 'MiniMax-M2.7' ? { ...model, pricing: { inputPerMillion: 0.99, outputPerMillion: 4.2, currency: 'USD' } } : model
+        model.id === 'MiniMax-M3' ? { ...model, pricing: { inputPerMillion: 0.99, outputPerMillion: 4.2, currency: 'USD' } } : model
       ),
     };
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, overridden);
-    const m27 = providers.find((p) => p.model === 'MiniMax-M2.7');
-    expect(m27?.pricing).toEqual({ inputPerMillion: 0.99, outputPerMillion: 4.2, currency: 'USD' });
+    const m3 = providers.find((p) => p.model === 'MiniMax-M3');
+    expect(m3?.pricing).toEqual({ inputPerMillion: 0.99, outputPerMillion: 4.2, currency: 'USD' });
   });
 
   it('leaves a bundled model without a registry price unpriced instead of inheriting a sibling rate', () => {
@@ -407,7 +407,7 @@ describe('synthesizeProvidersFromBuiltInModels', () => {
     // The originating defect: the preview tier shipped without a `pricing`
     // block because no pay-as-you-go tariff was published for it, yet the
     // gateway used to advertise the MiniMax family rate {0.3, 1.2}
-    // inherited from `MiniMax-M2.7`. The generally available
+    // inherited from the family anchor. The generally available
     // `MiniMax-M3.1-Flash` publishes a rate, so the catalog carries it.
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
     const m31 = providers.find((p) => p.model === 'MiniMax-M3.1-Flash');
@@ -513,7 +513,7 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
 
   function isVendorShaped(id: string): boolean {
     // Heuristic: lowercase letters and dashes only, no uppercase, no digits
-    // (most real upstream ids have digits like v4-flash, M2.7, etc.).
+    // (most real upstream ids have digits like v4-flash, M3, etc.).
     return /^[a-z][a-z-]*$/.test(id) && !/[\d]/.test(id);
   }
 
@@ -527,7 +527,7 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
 
   it('no hand-curated catalog id looks like a vendor-only string (lowercase letters + dashes only)', () => {
     // Wider heuristic: real upstream ids have digits, dots, or upper-case
-    // (DeepSeek V4, MiniMax-M2.7, mimo-v2.5-pro, thinkingmachines/inkling:free).
+    // (DeepSeek V4, MiniMax-M3, mimo-v2.5-pro, thinkingmachines/inkling:free).
     // A bare-vendor-shape id without digits is a strong smell, except for
     // the documented real upstream ids in the exemption list above.
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
@@ -546,11 +546,11 @@ describe('hand-curated gateway profiles use real upstream model ids as catalog i
     // as a catalog id is misleading; this test pins the new convention.
     const providers = synthesizeProvidersFromBuiltInModels([], fakeConfig() as never, loadBundledRegistry());
     // The hand-curated entries are the first entries of the array
-    // (deepseek-flash, deepseek-v4-pro, MiniMax-M2.7, mimo-v2.5-pro,
+    // (deepseek-flash, deepseek-v4-pro, MiniMax-M3, mimo-v2.5-pro,
     // glm-5.3-flash, kimi-k3). Every one of them uses `id === model`, the
     // verbatim upstream id. The two tests below cover DeepSeek explicitly.
-    const minimax = providers.find((p) => p.model === 'MiniMax-M2.7');
-    expect(minimax?.id).toBe('MiniMax-M2.7');
+    const minimax = providers.find((p) => p.model === 'MiniMax-M3');
+    expect(minimax?.id).toBe('MiniMax-M3');
     const xiaomi = providers.find((p) => p.model === 'mimo-v2.5-pro');
     expect(xiaomi?.id).toBe('mimo-v2.5-pro');
   });

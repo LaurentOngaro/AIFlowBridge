@@ -14,7 +14,7 @@ The canonical list of models, vendors, capabilities, and per-model pricing is an
 resources/models.json               (bundled with the extension)
 ```
 
-- **Bundled** (`resources/models.json`) - ships with the extension, lists the 38 bundled models and the 7 vendor defaults with models (`deepseek`, `minimax`, `xiaomi`, `zai`, `moonshot`, `openrouter`, `googleaistudio`; each with `baseUrl`, `apiKeySecret`, `externalUrls`, indicative token-plan rates), plus an `antigravity` vendor entry that carries no bundled model (historical metadata for the Google product OAuth route retired in this release: it pins the retired upstream `baseUrl` and the external URLs, selects nothing, and any profile aimed at that host is refused with `google_product_oauth_unsupported`. No bundled `models[].family` uses it, and the gateway never reads it to pick a route). The 38 bundled entries drive the Copilot Chat picker and the gateway catalog; **the OpenRouter vendor makes all 100+ models reachable** - any model id not in the bundled registry works the moment it is declared in `aiflowbridge.userModels` with `family: "openrouter"` (or via a `globalStorage` / `workspace` registry override). No recompile needed.
+- **Bundled** (`resources/models.json`) - ships with the extension, lists the 36 bundled models and the 7 vendor defaults with models (`deepseek`, `minimax`, `xiaomi`, `zai`, `moonshot`, `openrouter`, `googleaistudio`; each with `baseUrl`, `apiKeySecret`, `externalUrls`, indicative token-plan rates), plus an `antigravity` vendor entry that carries no bundled model (historical metadata for the Google product OAuth route retired in this release: it pins the retired upstream `baseUrl` and the external URLs, selects nothing, and any profile aimed at that host is refused with `google_product_oauth_unsupported`. No bundled `models[].family` uses it, and the gateway never reads it to pick a route). The 36 bundled entries drive the Copilot Chat picker and the gateway catalog; **the OpenRouter vendor makes all 100+ models reachable** - any model id not in the bundled registry works the moment it is declared in `aiflowbridge.userModels` with `family: "openrouter"` (or via a `globalStorage` / `workspace` registry override). No recompile needed.
 - **globalStorage override** - `AIFlowBridge: Edit model registry` opens (or initializes from the bundled) `<globalStorageUri>/models.json` in the editor. Affects the current OS user.
 - **workspace override** - `<workspaceFolder>/.vscode/aiflowbridge.models.json`. Affects only the current project. Committed to Git, lets teams pin the catalog per repo.
 
@@ -58,7 +58,7 @@ The Copilot Chat picker refreshes automatically when either source changes.
 
 ## Model id convention
 
-**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M2.7`, `mimo-v2.6-pro`, `deepseek-flash`, `glm-5.3`, `kimi-k3`), NOT a kebab-case alias.
+**The `id` field in `MODELS` (and in `aiflowbridge.userModels`) is the upstream API id** (e.g. `MiniMax-M3`, `mimo-v2.6-pro`, `deepseek-flash`, `glm-5.3`, `kimi-k3`), NOT a kebab-case alias.
 The human-readable name shows in the Copilot Chat picker (or, for gateway-only models like OpenRouter, in `GET /v1/models` responses).
 This removes the need for any id translation map between VS Code and upstream.
 
