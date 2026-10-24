@@ -4,23 +4,33 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  # Manual re-run of a release for an existing tag. The tag is never moved:
+  # a version that is already on the stores keeps its published content, and
+  # the workflow only rebuilds the missing artifacts and re-attaches them to
+  # the same GitHub Release (`--skip-duplicate` on both publishers).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v2.25.0)'
+        required: true
+        type: string
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     concurrency:
-      group: publish-${{ github.ref_name }}
+      group: publish-${{ inputs.tag || github.ref_name }}
       cancel-in-progress: false
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - uses: actions/setup-node@v4
         with:
@@ -60,7 +70,8 @@ jobs:
         id: changelog
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ inputs.tag || github.ref_name }}"
+          VERSION="${VERSION#v}"
           # Extract the section for this version: from "## VERSION" to
           # the next "## " heading (or EOF).
           BODY="$(awk -v ver="$VERSION" '
@@ -83,14 +94,14 @@ jobs:
       - name: Attach VSIX to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: ${{ steps.vsix.outputs.path }}
           fail_on_unmatched_files: true
           body: ${{ steps.changelog.outputs.body }}
 
       - name: Show release info
         run: |
-          echo "Released ${{ github.ref_name }}"
+          echo "Released ${{ inputs.tag || github.ref_name }}"
 
   standalone:
     strategy:
@@ -109,14 +120,14 @@ jobs:
     # release run. The default job timeout is 6 hours.
     timeout-minutes: 30
     concurrency:
-      group: standalone-${{ github.ref_name }}-${{ matrix.os }}
+      group: standalone-${{ inputs.tag || github.ref_name }}-${{ matrix.os }}
       cancel-in-progress: false
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - uses: actions/setup-node@v4
         with:
@@ -204,7 +215,7 @@ jobs:
           cat > "$DEST/README.txt" <<EOF
           AIFlowBridge standalone gateway
           =================================
-          Version: ${{ github.ref_name }}
+          Version: ${{ inputs.tag || github.ref_name }}
           Platform: ${{ steps.meta.outputs.arch }}
           Entry point: ${{ steps.meta.outputs.entry }}
           Documentation: https://github.com/LaurentOngaro/aiflowbridge/blob/main/docs/standalone.md
@@ -276,7 +287,7 @@ jobs:
       - name: Upload standalone binary to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: |
             release-staging/aiflowbridge-server-${{ steps.meta.outputs.arch }}.${{ steps.meta.outputs.ext }}
           fail_on_unmatched_files: true
